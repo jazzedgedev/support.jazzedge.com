@@ -905,6 +905,32 @@ class JazzEdge_Practice_Hub {
             </div>
         </div>
         
+        <!-- View Student Modal -->
+        <div id="jph-view-student-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h2>👤 Student Details</h2>
+                    <span class="jph-modal-close" onclick="closeViewStudentModal()">&times;</span>
+                </div>
+                <div class="jph-modal-body" id="jph-view-student-content">
+                    <div class="jph-loading">Loading student details...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Edit Student Modal -->
+        <div id="jph-edit-student-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h2>✏️ Edit Student Stats</h2>
+                    <span class="jph-modal-close" onclick="closeEditStudentModal()">&times;</span>
+                </div>
+                <div class="jph-modal-body" id="jph-edit-student-content">
+                    <div class="jph-loading">Loading student data...</div>
+                </div>
+            </div>
+        </div>
+        
         <style>
         .jph-students-overview {
             margin: 20px 0;
@@ -1110,6 +1136,148 @@ class JazzEdge_Practice_Hub {
         .jph-students-actions .button {
             margin: 0;
         }
+        
+        /* Modal Styles */
+        .jph-modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .jph-modal-content {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .jph-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .jph-modal-header h2 {
+            margin: 0;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .jph-modal-close {
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #666;
+            line-height: 1;
+        }
+        
+        .jph-modal-close:hover {
+            color: #333;
+        }
+        
+        .jph-modal-body {
+            padding: 20px;
+        }
+        
+        .jph-student-detail-section {
+            margin-bottom: 25px;
+        }
+        
+        .jph-student-detail-section h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 2px solid #0073aa;
+            padding-bottom: 5px;
+        }
+        
+        .jph-student-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .jph-student-detail-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #0073aa;
+        }
+        
+        .jph-student-detail-item label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .jph-student-detail-item .value {
+            font-size: 16px;
+            color: #0073aa;
+            font-weight: bold;
+        }
+        
+        .jph-edit-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .jph-edit-form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .jph-edit-form-group label {
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .jph-edit-form-group input,
+        .jph-edit-form-group select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .jph-edit-form-group input:focus,
+        .jph-edit-form-group select:focus {
+            outline: none;
+            border-color: #0073aa;
+            box-shadow: 0 0 0 2px rgba(0, 115, 170, 0.2);
+        }
+        
+        .jph-modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        
+        .jph-modal-actions .button {
+            margin: 0;
+        }
         </style>
         
         <script>
@@ -1223,11 +1391,258 @@ class JazzEdge_Practice_Hub {
         
         // Student actions
         function viewStudentDetails(userId) {
-            alert('View student details for user ID: ' + userId);
+            const modal = document.getElementById('jph-view-student-modal');
+            const content = document.getElementById('jph-view-student-content');
+            
+            modal.style.display = 'flex';
+            content.innerHTML = '<div class="jph-loading">Loading student details...</div>';
+            
+            // Load student details
+            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderStudentDetails(data.student);
+                } else {
+                    content.innerHTML = '<div class="jph-loading">Error loading student details</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading student details:', error);
+                content.innerHTML = '<div class="jph-loading">Error loading student details</div>';
+            });
         }
         
         function editStudentStats(userId) {
-            alert('Edit student stats for user ID: ' + userId);
+            const modal = document.getElementById('jph-edit-student-modal');
+            const content = document.getElementById('jph-edit-student-content');
+            
+            modal.style.display = 'flex';
+            content.innerHTML = '<div class="jph-loading">Loading student data...</div>';
+            
+            // Load student data for editing
+            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderEditStudentForm(data.student);
+                } else {
+                    content.innerHTML = '<div class="jph-loading">Error loading student data</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading student data:', error);
+                content.innerHTML = '<div class="jph-loading">Error loading student data</div>';
+            });
+        }
+        
+        // Render student details in view modal
+        function renderStudentDetails(student) {
+            const content = document.getElementById('jph-view-student-content');
+            
+            content.innerHTML = `
+                <div class="jph-student-detail-section">
+                    <h3>👤 Student Information</h3>
+                    <div class="jph-student-detail-grid">
+                        <div class="jph-student-detail-item">
+                            <label>Name</label>
+                            <div class="value">${student.display_name}</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Email</label>
+                            <div class="value">${student.user_email}</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>User ID</label>
+                            <div class="value">${student.ID}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="jph-student-detail-section">
+                    <h3>🎮 Gamification Stats</h3>
+                    <div class="jph-student-detail-grid">
+                        <div class="jph-student-detail-item">
+                            <label>Current Level</label>
+                            <div class="value">Level ${student.stats.current_level}</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Total XP</label>
+                            <div class="value">${student.stats.total_xp} XP</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Current Streak</label>
+                            <div class="value">${student.stats.current_streak} days</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Longest Streak</label>
+                            <div class="value">${student.stats.longest_streak} days</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="jph-student-detail-section">
+                    <h3>📊 Practice Statistics</h3>
+                    <div class="jph-student-detail-grid">
+                        <div class="jph-student-detail-item">
+                            <label>Total Sessions</label>
+                            <div class="value">${student.stats.total_sessions}</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Total Minutes</label>
+                            <div class="value">${student.stats.total_minutes} min</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Total Hours</label>
+                            <div class="value">${Math.round(student.stats.total_minutes / 60 * 10) / 10}h</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Last Practice</label>
+                            <div class="value">${formatDate(student.stats.last_practice_date)}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="jph-student-detail-section">
+                    <h3>🏆 Rewards & Badges</h3>
+                    <div class="jph-student-detail-grid">
+                        <div class="jph-student-detail-item">
+                            <label>Hearts</label>
+                            <div class="value">${student.stats.hearts_count}</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Gems</label>
+                            <div class="value">${student.stats.gems_balance}</div>
+                        </div>
+                        <div class="jph-student-detail-item">
+                            <label>Badges Earned</label>
+                            <div class="value">${student.stats.badges_earned}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Render edit student form
+        function renderEditStudentForm(student) {
+            const content = document.getElementById('jph-edit-student-content');
+            
+            content.innerHTML = `
+                <form id="jph-edit-student-form" onsubmit="saveStudentStats(event, ${student.ID})">
+                    <div class="jph-edit-form">
+                        <div class="jph-edit-form-group">
+                            <label>Total XP</label>
+                            <input type="number" name="total_xp" value="${student.stats.total_xp}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Current Level</label>
+                            <input type="number" name="current_level" value="${student.stats.current_level}" min="1" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Current Streak</label>
+                            <input type="number" name="current_streak" value="${student.stats.current_streak}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Longest Streak</label>
+                            <input type="number" name="longest_streak" value="${student.stats.longest_streak}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Total Sessions</label>
+                            <input type="number" name="total_sessions" value="${student.stats.total_sessions}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Total Minutes</label>
+                            <input type="number" name="total_minutes" value="${student.stats.total_minutes}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Hearts</label>
+                            <input type="number" name="hearts_count" value="${student.stats.hearts_count}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Gems</label>
+                            <input type="number" name="gems_balance" value="${student.stats.gems_balance}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Badges Earned</label>
+                            <input type="number" name="badges_earned" value="${student.stats.badges_earned}" min="0" required>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-modal-actions">
+                        <button type="button" class="button button-secondary" onclick="closeEditStudentModal()">Cancel</button>
+                        <button type="submit" class="button button-primary">Save Changes</button>
+                    </div>
+                </form>
+            `;
+        }
+        
+        // Save student stats
+        function saveStudentStats(event, userId) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Convert string values to numbers
+            Object.keys(data).forEach(key => {
+                data[key] = parseInt(data[key]);
+            });
+            
+            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    closeEditStudentModal();
+                    loadStudentsData(); // Refresh the table
+                    alert('Student stats updated successfully!');
+                } else {
+                    alert('Error updating student stats: ' + (result.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error updating student stats:', error);
+                alert('Error updating student stats');
+            });
+        }
+        
+        // Modal close functions
+        function closeViewStudentModal() {
+            document.getElementById('jph-view-student-modal').style.display = 'none';
+        }
+        
+        function closeEditStudentModal() {
+            document.getElementById('jph-edit-student-modal').style.display = 'none';
+        }
+        
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const viewModal = document.getElementById('jph-view-student-modal');
+            const editModal = document.getElementById('jph-edit-student-modal');
+            
+            if (event.target === viewModal) {
+                closeViewStudentModal();
+            }
+            if (event.target === editModal) {
+                closeEditStudentModal();
+            }
         }
         
         function refreshStudents() {
@@ -1342,6 +1757,32 @@ class JazzEdge_Practice_Hub {
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_students_stats'),
             'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/students/(?P<id>\d+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_student'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param, $request, $key) {
+                        return is_numeric($param);
+                    }
+                )
+            )
+        ));
+        
+        register_rest_route('jph/v1', '/students/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_student'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param, $request, $key) {
+                        return is_numeric($param);
+                    }
+                )
+            )
         ));
         
         // Database operations endpoints
@@ -1961,6 +2402,140 @@ class JazzEdge_Practice_Hub {
             ));
         } catch (Exception $e) {
             return new WP_Error('get_students_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get individual student details
+     */
+    public function rest_get_student($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = $request->get_param('id');
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            $users_table = $wpdb->prefix . 'users';
+            
+            $query = $wpdb->prepare("
+                SELECT u.ID, u.user_email, u.display_name, s.*
+                FROM {$users_table} u
+                LEFT JOIN {$table_name} s ON u.ID = s.user_id
+                WHERE u.ID = %d
+            ", $user_id);
+            
+            $result = $wpdb->get_row($query);
+            
+            if (!$result) {
+                return new WP_Error('student_not_found', 'Student not found', array('status' => 404));
+            }
+            
+            $student = array(
+                'ID' => (int) $result->ID,
+                'user_email' => $result->user_email,
+                'display_name' => $result->display_name ?: $result->user_email,
+                'stats' => array(
+                    'total_xp' => (int) $result->total_xp,
+                    'current_level' => (int) $result->current_level,
+                    'current_streak' => (int) $result->current_streak,
+                    'longest_streak' => (int) $result->longest_streak,
+                    'total_sessions' => (int) $result->total_sessions,
+                    'total_minutes' => (int) $result->total_minutes,
+                    'badges_earned' => (int) $result->badges_earned,
+                    'hearts_count' => (int) $result->hearts_count,
+                    'gems_balance' => (int) $result->gems_balance,
+                    'last_practice_date' => $result->last_practice_date
+                )
+            );
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'student' => $student,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_student_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update individual student stats
+     */
+    public function rest_update_student($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = $request->get_param('id');
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            // Get the request body
+            $data = $request->get_json_params();
+            
+            // Validate required fields
+            $required_fields = array('total_xp', 'current_level', 'current_streak', 'longest_streak', 'total_sessions', 'total_minutes', 'hearts_count', 'gems_balance', 'badges_earned');
+            foreach ($required_fields as $field) {
+                if (!isset($data[$field]) || !is_numeric($data[$field])) {
+                    return new WP_Error('invalid_data', "Invalid or missing field: {$field}", array('status' => 400));
+                }
+            }
+            
+            // Check if student stats exist
+            $existing = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE user_id = %d",
+                $user_id
+            ));
+            
+            if (!$existing) {
+                // Create new stats record
+                $result = $wpdb->insert(
+                    $table_name,
+                    array(
+                        'user_id' => $user_id,
+                        'total_xp' => $data['total_xp'],
+                        'current_level' => $data['current_level'],
+                        'current_streak' => $data['current_streak'],
+                        'longest_streak' => $data['longest_streak'],
+                        'total_sessions' => $data['total_sessions'],
+                        'total_minutes' => $data['total_minutes'],
+                        'hearts_count' => $data['hearts_count'],
+                        'gems_balance' => $data['gems_balance'],
+                        'badges_earned' => $data['badges_earned'],
+                        'last_practice_date' => current_time('Y-m-d')
+                    ),
+                    array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s')
+                );
+            } else {
+                // Update existing stats
+                $result = $wpdb->update(
+                    $table_name,
+                    array(
+                        'total_xp' => $data['total_xp'],
+                        'current_level' => $data['current_level'],
+                        'current_streak' => $data['current_streak'],
+                        'longest_streak' => $data['longest_streak'],
+                        'total_sessions' => $data['total_sessions'],
+                        'total_minutes' => $data['total_minutes'],
+                        'hearts_count' => $data['hearts_count'],
+                        'gems_balance' => $data['gems_balance'],
+                        'badges_earned' => $data['badges_earned']
+                    ),
+                    array('user_id' => $user_id),
+                    array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d'),
+                    array('%d')
+                );
+            }
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to update student stats', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Student stats updated successfully',
+                'user_id' => $user_id,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_student_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
