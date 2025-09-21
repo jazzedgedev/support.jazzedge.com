@@ -252,6 +252,7 @@ class JazzEdge_Practice_Hub {
                             <button type="button" class="button button-primary" onclick="testGamification()">Test Gamification</button>
                             <button type="button" class="button button-secondary" onclick="showGamificationStats()">Show User Stats</button>
                             <button type="button" class="button button-secondary" onclick="simulatePractice()">Simulate Practice</button>
+                            <button type="button" class="button button-secondary" onclick="backfillUserStats()">Backfill User Stats</button>
                         </div>
                         <div id="jph-gamification-results" class="jph-gamification-results"></div>
                     </div>
@@ -1657,6 +1658,33 @@ class JazzEdge_Practice_Hub {
         function showStudentAnalytics() {
             alert('Student analytics - Coming Soon');
         }
+        
+        function backfillUserStats() {
+            const resultsDiv = document.getElementById('jph-gamification-results');
+            resultsDiv.className = 'jph-gamification-results show loading';
+            resultsDiv.textContent = 'Backfilling user stats from existing practice sessions...';
+            
+            fetch('<?php echo rest_url('jph/v1/backfill-stats'); ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultsDiv.className = 'jph-gamification-results show success';
+                resultsDiv.textContent = 'User Stats Backfilled Successfully!\n\n' + 
+                    'Sessions Processed: ' + data.stats.total_sessions_processed + '\n' +
+                    'Total XP Added: ' + data.stats.total_xp_added + '\n' +
+                    'Users Updated: ' + data.stats.users_updated + '\n\n' +
+                    'User Details:\n' + JSON.stringify(data.stats.processed_users, null, 2);
+            })
+            .catch(error => {
+                resultsDiv.className = 'jph-gamification-results show error';
+                resultsDiv.textContent = 'Error backfilling user stats: ' + error.message;
+            });
+        }
         </script>
         <?php
     }
@@ -1783,6 +1811,13 @@ class JazzEdge_Practice_Hub {
                     }
                 )
             )
+        ));
+        
+        // Backfill user stats from existing practice sessions
+        register_rest_route('jph/v1', '/backfill-stats', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_backfill_user_stats'),
+            'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Database operations endpoints
@@ -2536,6 +2571,124 @@ class JazzEdge_Practice_Hub {
             ));
         } catch (Exception $e) {
             return new WP_Error('update_student_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Backfill user stats from existing practice sessions
+     */
+    public function rest_backfill_user_stats($request) {
+        try {
+            global $wpdb;
+            
+            $database = new JPH_Database();
+            $gamification = new JPH_Gamification();
+            
+            // Get all practice sessions
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $sessions = $wpdb->get_results("SELECT * FROM {$sessions_table} ORDER BY created_at ASC");
+            
+            $processed_users = array();
+            $total_sessions_processed = 0;
+            $total_xp_added = 0;
+            
+            foreach ($sessions as $session) {
+                $user_id = $session->user_id;
+                
+                // Initialize user stats if not exists
+                if (!isset($processed_users[$user_id])) {
+                    $processed_users[$user_id] = array(
+                        'total_xp' => 0,
+                        'total_sessions' => 0,
+                        'total_minutes' => 0,
+                        'last_practice_date' => null
+                    );
+                }
+                
+                // Calculate XP for this session
+                $xp_earned = $gamification->calculate_xp(
+                    $session->duration_minutes, 
+                    $session->sentiment_score, 
+                    $session->improvement_detected
+                );
+                
+                // Update user stats
+                $processed_users[$user_id]['total_xp'] += $xp_earned;
+                $processed_users[$user_id]['total_sessions'] += 1;
+                $processed_users[$user_id]['total_minutes'] += $session->duration_minutes;
+                
+                // Update last practice date
+                if (!$processed_users[$user_id]['last_practice_date'] || 
+                    $session->created_at > $processed_users[$user_id]['last_practice_date']) {
+                    $processed_users[$user_id]['last_practice_date'] = $session->created_at;
+                }
+                
+                $total_sessions_processed++;
+                $total_xp_added += $xp_earned;
+            }
+            
+            // Update database with calculated stats
+            $user_stats_table = $wpdb->prefix . 'jph_user_stats';
+            $users_updated = 0;
+            
+            foreach ($processed_users as $user_id => $stats) {
+                // Check if user stats exist
+                $existing = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM {$user_stats_table} WHERE user_id = %d",
+                    $user_id
+                ));
+                
+                if ($existing) {
+                    // Update existing stats
+                    $wpdb->update(
+                        $user_stats_table,
+                        array(
+                            'total_xp' => $stats['total_xp'],
+                            'total_sessions' => $stats['total_sessions'],
+                            'total_minutes' => $stats['total_minutes'],
+                            'last_practice_date' => date('Y-m-d', strtotime($stats['last_practice_date']))
+                        ),
+                        array('user_id' => $user_id),
+                        array('%d', '%d', '%d', '%s'),
+                        array('%d')
+                    );
+                } else {
+                    // Create new stats record
+                    $wpdb->insert(
+                        $user_stats_table,
+                        array(
+                            'user_id' => $user_id,
+                            'total_xp' => $stats['total_xp'],
+                            'current_level' => $gamification->calculate_level_from_xp($stats['total_xp']),
+                            'current_streak' => 0, // Will be calculated separately
+                            'longest_streak' => 0,
+                            'total_sessions' => $stats['total_sessions'],
+                            'total_minutes' => $stats['total_minutes'],
+                            'hearts_count' => 5,
+                            'gems_balance' => 0,
+                            'badges_earned' => 0,
+                            'last_practice_date' => date('Y-m-d', strtotime($stats['last_practice_date']))
+                        ),
+                        array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s')
+                    );
+                }
+                
+                $users_updated++;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'User stats backfilled successfully',
+                'stats' => array(
+                    'total_sessions_processed' => $total_sessions_processed,
+                    'total_xp_added' => $total_xp_added,
+                    'users_updated' => $users_updated,
+                    'processed_users' => $processed_users
+                ),
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('backfill_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
