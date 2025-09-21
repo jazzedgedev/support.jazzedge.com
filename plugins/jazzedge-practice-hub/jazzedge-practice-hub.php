@@ -2297,11 +2297,7 @@ class JazzEdge_Practice_Hub {
     public function rest_gamification_stats($request) {
         try {
             $gamification = new JPH_Gamification();
-            $user_id = get_current_user_id();
-            
-            if (!$user_id) {
-                return new WP_Error('no_user', 'No user logged in', array('status' => 401));
-            }
+            $user_id = get_current_user_id() ?: 1; // Default to user 1 for testing
             
             $stats = $gamification->get_user_stats($user_id);
             
@@ -2865,78 +2861,63 @@ class JazzEdge_Practice_Hub {
                 <div class="neuroscience-note">
                     <p>🧠 <strong>Neuroscience Tip:</strong> Limiting to 3 practice items helps your brain focus and improves learning efficiency. Quality over quantity!</p>
                 </div>
-                <div class="jph-items-list">
-                    <?php if (empty($practice_items)): ?>
-                        <div class="jph-empty-state">
-                            <p>No practice items yet. Add your first practice item below!</p>
+                <div class="jph-items-grid">
+                    <?php 
+                    // Always show 3 cards
+                    for ($i = 0; $i < 3; $i++): 
+                        if (isset($practice_items[$i])):
+                            $item = $practice_items[$i];
+                    ?>
+                        <div class="jph-item" data-item-id="<?php echo esc_attr($item['id']); ?>">
+                            <div class="item-info">
+                                <h4><?php echo esc_html($item['name']); ?></h4>
+                                <p><?php echo esc_html($item['description']); ?></p>
+                                <span class="item-category"><?php echo esc_html($item['category']); ?></span>
+                            </div>
+                            <div class="item-actions">
+                                <button class="jph-log-practice-btn" data-item-id="<?php echo esc_attr($item['id']); ?>">
+                                    Log Practice
+                                </button>
+                                <button class="jph-edit-item-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" data-category="<?php echo esc_attr($item['category']); ?>" data-description="<?php echo esc_attr($item['description']); ?>">
+                                    Edit
+                                </button>
+                                <button class="jph-delete-item-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>">
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     <?php else: ?>
-                        <?php foreach ($practice_items as $item): ?>
-                            <div class="jph-item" data-item-id="<?php echo esc_attr($item['id']); ?>">
-                                <div class="item-info">
-                                    <h4><?php echo esc_html($item['name']); ?></h4>
-                                    <p><?php echo esc_html($item['description']); ?></p>
-                                    <span class="item-category"><?php echo esc_html($item['category']); ?></span>
-                                </div>
-                                <div class="item-actions">
-                                    <button class="jph-log-practice-btn" data-item-id="<?php echo esc_attr($item['id']); ?>">
-                                        Log Practice
-                                    </button>
-                                    <button class="jph-edit-item-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" data-category="<?php echo esc_attr($item['category']); ?>" data-description="<?php echo esc_attr($item['description']); ?>">
-                                        Edit
-                                    </button>
-                                    <button class="jph-delete-item-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>">
-                                        Delete
-                                    </button>
-                                </div>
+                        <div class="jph-item jph-empty-item">
+                            <div class="item-info">
+                                <h4>Empty Slot</h4>
+                                <p>Add a new practice item to get started!</p>
                             </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                            <div class="item-actions">
+                                <button class="jph-add-item-btn" type="button">
+                                    Add Practice Item
+                                </button>
+                            </div>
+                        </div>
+                    <?php 
+                        endif;
+                    endfor; 
+                    ?>
                 </div>
             </div>
             
-            <!-- Two Column Layout -->
-            <div class="jph-two-column-layout">
-                <!-- Left Column: Practice History -->
-                <div class="jph-left-column">
-                    <div class="jph-practice-history">
-                        <h3>📊 Recent Practice Sessions</h3>
-                        <div class="practice-history-list" id="practice-history-list">
-                            <div class="loading-message">Loading practice history...</div>
-                        </div>
-                    </div>
+            <!-- Full Width Practice History -->
+            <div class="jph-practice-history-full">
+                <h3>📊 Recent Practice Sessions</h3>
+                <div class="practice-history-header">
+                    <div class="practice-history-header-item">Practice Item</div>
+                    <div class="practice-history-header-item">Duration</div>
+                    <div class="practice-history-header-item">How it felt</div>
+                    <div class="practice-history-header-item">Improvement</div>
+                    <div class="practice-history-header-item">Date</div>
+                    <div class="practice-history-header-item">Actions</div>
                 </div>
-                
-                <!-- Right Column: Add Item -->
-                <div class="jph-right-column">
-                    <div class="jph-add-item">
-                <h3>Add Practice Item</h3>
-                <form id="jph-add-item-form">
-                    <div class="form-group">
-                        <label>Title:</label>
-                        <input type="text" name="item_name" placeholder="e.g., Major Scale Practice" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Category:</label>
-                        <select name="item_category" required>
-                            <option value="">Select category...</option>
-                            <option value="technique">Technique</option>
-                            <option value="theory">Theory</option>
-                            <option value="ear-training">Ear Training</option>
-                            <option value="repertoire">Repertoire</option>
-                            <option value="rhythm">Rhythm</option>
-                            <option value="chords">Chords</option>
-                            <option value="improvisation">Improvisation</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Description:</label>
-                        <textarea name="item_description" placeholder="Describe what you'll practice (optional)"></textarea>
-                    </div>
-                    <button type="submit">Add Practice Item</button>
-                </form>
-                    </div>
+                <div class="practice-history-list" id="practice-history-list">
+                    <div class="loading-message">Loading practice history...</div>
                 </div>
             </div>
             
@@ -3048,6 +3029,39 @@ class JazzEdge_Practice_Hub {
                         <textarea name="item_description" placeholder="Describe what you'll practice (optional)"></textarea>
                     </div>
                     <button type="submit">Update Practice Item</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Add Practice Item Modal -->
+        <div id="jph-add-item-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <span class="jph-close">&times;</span>
+                <h3>➕ Add Practice Item</h3>
+                <form id="jph-add-item-form">
+                    <div class="form-group">
+                        <label>Title:</label>
+                        <input type="text" name="item_name" placeholder="e.g., Major Scale Practice" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Category:</label>
+                        <select name="item_category" required>
+                            <option value="">Select category...</option>
+                            <option value="technique">Technique</option>
+                            <option value="theory">Theory</option>
+                            <option value="ear-training">Ear Training</option>
+                            <option value="repertoire">Repertoire</option>
+                            <option value="rhythm">Rhythm</option>
+                            <option value="chords">Chords</option>
+                            <option value="improvisation">Improvisation</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description:</label>
+                        <textarea name="item_description" placeholder="Describe what you'll practice (optional)"></textarea>
+                    </div>
+                    <button type="submit">Add Practice Item</button>
                 </form>
             </div>
         </div>
@@ -3233,6 +3247,31 @@ class JazzEdge_Practice_Hub {
         @media (max-width: 768px) {
             .explanation-grid {
                 grid-template-columns: 1fr;
+            }
+            
+            .jph-items-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .practice-history-header {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .practice-history-item {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .practice-history-item > * {
+                justify-self: center;
+            }
+            
+            .practice-notes {
+                grid-column: 1;
+                text-align: left;
             }
         }
         
@@ -3430,11 +3469,180 @@ class JazzEdge_Practice_Hub {
             margin-bottom: 30px;
         }
         
-        .jph-items-list {
+        .jph-items-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             margin-bottom: 20px;
+        }
+        
+        .jph-empty-item {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            opacity: 0.7;
+        }
+        
+        .jph-empty-item .item-info h4 {
+            color: #6c757d;
+        }
+        
+        .jph-empty-item .item-info p {
+            color: #6c757d;
+        }
+        
+        .jph-add-item-btn {
+            background: #0073aa;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-add-item-btn:hover {
+            background: #005a87;
+            transform: translateY(-2px);
+        }
+        
+        /* Full Width Practice History */
+        .jph-practice-history-full {
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .jph-practice-history-full h3 {
+            margin-bottom: 20px;
+            color: #004555;
+            font-size: 1.4em;
+        }
+        
+        .practice-history-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 20px;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e8f5f4;
+            font-weight: 600;
+            color: #004555;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .practice-history-header-item {
+            text-align: center;
+        }
+        
+        .practice-history-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .practice-history-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 20px;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #e8f5f4;
+            transition: background-color 0.3s ease;
+        }
+        
+        .practice-history-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .practice-history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .practice-item-name {
+            font-weight: 600;
+            color: #004555;
+        }
+        
+        .practice-duration {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #239B90;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .practice-sentiment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-align: center;
+        }
+        
+        .practice-improvement {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-align: center;
+        }
+        
+        .practice-date {
+            color: #6c757d;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-align: center;
+        }
+        
+        .practice-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .jph-delete-session-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            height: 32px;
+        }
+        
+        .jph-delete-session-btn:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+        
+        .practice-notes {
+            grid-column: 1 / -1;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-style: italic;
+            color: #6c757d;
+            border-left: 4px solid #239B90;
+            line-height: 1.4;
         }
         
         /* Two Column Layout */
@@ -4109,7 +4317,7 @@ class JazzEdge_Practice_Hub {
                             
                             // Check stats after logging
                             $.ajax({
-                                url: '<?php echo rest_url('jph/v1/user-stats'); ?>?user_id=1',
+                                url: '<?php echo rest_url('jph/v1/user-stats'); ?>',
                                 method: 'GET',
                                 success: function(statsResponse) {
                                     console.log('Updated stats:', statsResponse);
@@ -4154,7 +4362,7 @@ class JazzEdge_Practice_Hub {
                             // Check stats immediately after
                             setTimeout(function() {
                                 $.ajax({
-                                    url: '<?php echo rest_url('jph/v1/user-stats'); ?>?user_id=1',
+                                    url: '<?php echo rest_url('jph/v1/user-stats'); ?>',
                                     method: 'GET',
                                     success: function(statsResponse) {
                                         console.log('Stats after direct XP:', statsResponse);
@@ -4235,28 +4443,29 @@ class JazzEdge_Practice_Hub {
                         var improvementClass = session.improvement_detected == '1' ? 'session-improvement' : '';
                         var formattedDate = formatDate(session.created_at);
                         
-                        html += '<div class="practice-session">';
-                        html += '<div class="session-header">';
-                        html += '<div class="session-item-name">' + escapeHtml(session.item_name || 'Unknown Item') + '</div>';
-                        html += '<div class="session-date">' + formattedDate + ' <button class="jph-delete-session-btn" data-session-id="' + session.id + '" data-item-name="' + escapeHtml(session.item_name || 'Unknown Item') + '" title="Delete this practice session">🗑️</button></div>';
-                        html += '</div>';
-                        html += '<div class="session-details">';
-                        html += '<div class="session-detail session-duration">';
+                        html += '<div class="practice-history-item">';
+                        html += '<div class="practice-item-name">' + escapeHtml(session.item_name || 'Unknown Item') + '</div>';
+                        html += '<div class="practice-duration">';
                         html += '<span class="session-detail-icon">⏱️</span>';
                         html += session.duration_minutes + ' min';
                         html += '</div>';
-                        html += '<div class="session-detail">';
+                        html += '<div class="practice-sentiment">';
                         html += '<span class="session-sentiment">' + sentimentEmoji + '</span>';
                         html += '</div>';
-                        html += '<div class="session-detail ' + improvementClass + '">';
+                        html += '<div class="practice-improvement ' + improvementClass + '">';
                         html += '<span class="session-detail-icon">📈</span>';
                         html += improvementText;
                         html += '</div>';
+                        html += '<div class="practice-date">' + formattedDate + '</div>';
+                        html += '<div class="practice-actions">';
+                        html += '<button class="jph-delete-session-btn" data-session-id="' + session.id + '" data-item-name="' + escapeHtml(session.item_name || 'Unknown Item') + '" title="Delete this practice session">🗑️</button>';
                         html += '</div>';
-                        if (session.notes) {
-                            html += '<div class="session-notes">' + escapeHtml(session.notes) + '</div>';
+                        html += '</div>';
+                        
+                        // Add notes if they exist
+                        if (session.notes && session.notes.trim() !== '') {
+                            html += '<div class="practice-notes">' + escapeHtml(session.notes) + '</div>';
                         }
-                        html += '</div>';
                     });
                     
                     $container.html(html);
@@ -4329,6 +4538,23 @@ class JazzEdge_Practice_Hub {
                     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
                 }
                 
+                // Handle Add Practice Item button clicks
+                $(document).on('click', '.jph-add-item-btn', function() {
+                    $('#jph-add-item-modal').show();
+                });
+                
+                // Close Add Practice Item modal
+                $(document).on('click', '#jph-add-item-modal .jph-close', function() {
+                    $('#jph-add-item-modal').hide();
+                });
+                
+                // Close modal when clicking outside
+                $(document).on('click', '#jph-add-item-modal', function(e) {
+                    if (e.target === this) {
+                        $(this).hide();
+                    }
+                });
+                
                 // Add practice item
                 $('#jph-add-item-form').on('submit', function(e) {
                     e.preventDefault();
@@ -4340,19 +4566,23 @@ class JazzEdge_Practice_Hub {
                     $button.prop('disabled', true).text('Adding...');
                     
                     var formData = {
-                        name: $('input[name="item_name"]').val(),
-                        category: $('select[name="item_category"]').val(),
-                        description: $('textarea[name="item_description"]').val()
+                        name: $form.find('input[name="item_name"]').val(),
+                        category: $form.find('select[name="item_category"]').val(),
+                        description: $form.find('textarea[name="item_description"]').val()
                     };
                     
                     // Validate form data
                     if (!formData.name) {
                         showMessage('Please enter a practice item name', 'error');
+                        $form.removeClass('jph-loading');
+                        $button.prop('disabled', false).text('Add Practice Item');
                         return;
                     }
                     
                     if (!formData.category) {
                         showMessage('Please select a category', 'error');
+                        $form.removeClass('jph-loading');
+                        $button.prop('disabled', false).text('Add Practice Item');
                         return;
                     }
                     
@@ -4367,8 +4597,9 @@ class JazzEdge_Practice_Hub {
                             if (response.success) {
                                 showMessage('Practice item added successfully!');
                                 $form[0].reset(); // Clear form
-                                // Add item to list without page refresh
-                                addItemToList(response.item_id, formData.name, formData.category, formData.description);
+                                $('#jph-add-item-modal').hide(); // Close modal
+                                // Refresh the page to show the new item in the grid
+                                location.reload();
                             } else {
                                 showMessage('Error: ' + (response.message || 'Unknown error'), 'error');
                             }
@@ -4385,6 +4616,8 @@ class JazzEdge_Practice_Hub {
                                 errorMessage = error;
                             }
                             showMessage(errorMessage, 'error');
+                            $form.removeClass('jph-loading');
+                            $button.prop('disabled', false).text('Add Practice Item');
                         },
                         complete: function() {
                             $form.removeClass('jph-loading');

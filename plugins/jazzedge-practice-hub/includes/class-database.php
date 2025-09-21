@@ -127,11 +127,14 @@ class JPH_Database {
     public function add_practice_item($user_id, $name, $category = 'custom', $description = '') {
         $table_name = $this->tables['practice_items'];
         
-        // Check if user already has this name
+        // Check if user already has this name (only active items)
         $existing = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT id FROM {$table_name} WHERE user_id = %d AND name = %s",
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND name = %s AND is_active = 1",
             $user_id, $name
         ));
+        
+        // Debug: Log the query and result
+        error_log("JPH Debug: Checking for duplicate name '{$name}' for user {$user_id}. Found: " . ($existing ? $existing : 'none'));
         
         if ($existing) {
             return new WP_Error('duplicate_name', 'You already have a practice item with this name');
