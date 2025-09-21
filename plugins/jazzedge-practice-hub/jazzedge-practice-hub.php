@@ -122,6 +122,15 @@ class JazzEdge_Practice_Hub {
         
         add_submenu_page(
             'jazzedge-practice-hub',
+            __('Students', 'jazzedge-practice-hub'),
+            __('Students', 'jazzedge-practice-hub'),
+            'manage_options',
+            'jph-students',
+            array($this, 'students_page')
+        );
+        
+        add_submenu_page(
+            'jazzedge-practice-hub',
             __('Settings', 'jazzedge-practice-hub'),
             __('Settings', 'jazzedge-practice-hub'),
             'manage_options',
@@ -815,6 +824,429 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
+     * Students page
+     */
+    public function students_page() {
+        ?>
+        <div class="wrap">
+            <h1>👥 Practice Hub Students</h1>
+            
+            <div class="jph-students-overview">
+                <div class="jph-students-stats">
+                    <div class="jph-stat-card">
+                        <h3>Total Students</h3>
+                        <p id="total-students">Loading...</p>
+                    </div>
+                    <div class="jph-stat-card">
+                        <h3>Active This Week</h3>
+                        <p id="active-students">Loading...</p>
+                    </div>
+                    <div class="jph-stat-card">
+                        <h3>Total Practice Hours</h3>
+                        <p id="total-hours">Loading...</p>
+                    </div>
+                    <div class="jph-stat-card">
+                        <h3>Average Level</h3>
+                        <p id="average-level">Loading...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="jph-students-filters">
+                <div class="jph-filter-group">
+                    <label for="student-search">Search Students:</label>
+                    <input type="text" id="student-search" placeholder="Search by name or email...">
+                </div>
+                <div class="jph-filter-group">
+                    <label for="level-filter">Filter by Level:</label>
+                    <select id="level-filter">
+                        <option value="">All Levels</option>
+                        <option value="1">Level 1</option>
+                        <option value="2">Level 2</option>
+                        <option value="3">Level 3+</option>
+                    </select>
+                </div>
+                <div class="jph-filter-group">
+                    <label for="activity-filter">Activity Status:</label>
+                    <select id="activity-filter">
+                        <option value="">All Students</option>
+                        <option value="active">Active (7 days)</option>
+                        <option value="inactive">Inactive (30+ days)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="jph-students-table-container">
+                <table class="jph-students-table">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Level</th>
+                            <th>XP</th>
+                            <th>Streak</th>
+                            <th>Last Practice</th>
+                            <th>Total Sessions</th>
+                            <th>Total Hours</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="students-table-body">
+                        <tr>
+                            <td colspan="8" class="jph-loading">Loading students...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="jph-students-actions">
+                <button type="button" class="button button-primary" onclick="refreshStudents()">Refresh Data</button>
+                <button type="button" class="button button-secondary" onclick="exportStudents()">Export CSV</button>
+                <button type="button" class="button button-secondary" onclick="showStudentAnalytics()">View Analytics</button>
+            </div>
+        </div>
+        
+        <style>
+        .jph-students-overview {
+            margin: 20px 0;
+        }
+        
+        .jph-students-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .jph-stat-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-stat-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .jph-stat-card p {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+            color: #0073aa;
+        }
+        
+        .jph-students-filters {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: end;
+        }
+        
+        .jph-filter-group {
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;
+        }
+        
+        .jph-filter-group label {
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .jph-filter-group input,
+        .jph-filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .jph-students-table-container {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .jph-students-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .jph-students-table th {
+            background: #f8f9fa;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        .jph-students-table td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+            vertical-align: middle;
+        }
+        
+        .jph-students-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .jph-loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+        }
+        
+        .jph-student-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .jph-student-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #0073aa;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .jph-student-details h4 {
+            margin: 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .jph-student-details p {
+            margin: 0;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .jph-level-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .jph-level-1 { background: #28a745; }
+        .jph-level-2 { background: #007bff; }
+        .jph-level-3 { background: #6f42c1; }
+        .jph-level-4 { background: #fd7e14; }
+        .jph-level-5 { background: #dc3545; }
+        
+        .jph-xp-display {
+            font-weight: 600;
+            color: #0073aa;
+        }
+        
+        .jph-streak-display {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .jph-streak-fire {
+            color: #ff6b35;
+            font-size: 16px;
+        }
+        
+        .jph-last-practice {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .jph-sessions-count {
+            font-weight: 600;
+            color: #28a745;
+        }
+        
+        .jph-hours-display {
+            font-weight: 600;
+            color: #6f42c1;
+        }
+        
+        .jph-student-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .jph-student-actions .button {
+            padding: 4px 8px;
+            font-size: 12px;
+            height: auto;
+            line-height: 1.2;
+        }
+        
+        .jph-students-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .jph-students-actions .button {
+            margin: 0;
+        }
+        </style>
+        
+        <script>
+        // Load students data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStudentsData();
+            loadStudentsStats();
+        });
+        
+        // Load students statistics
+        function loadStudentsStats() {
+            fetch('<?php echo rest_url('jph/v1/students/stats'); ?>', {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('total-students').textContent = data.stats.total_students;
+                    document.getElementById('active-students').textContent = data.stats.active_students;
+                    document.getElementById('total-hours').textContent = data.stats.total_hours;
+                    document.getElementById('average-level').textContent = data.stats.average_level;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading stats:', error);
+            });
+        }
+        
+        // Load students table data
+        function loadStudentsData() {
+            const tbody = document.getElementById('students-table-body');
+            tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">Loading students...</td></tr>';
+            
+            fetch('<?php echo rest_url('jph/v1/students'); ?>', {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderStudentsTable(data.students);
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">Error loading students</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading students:', error);
+                tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">Error loading students</td></tr>';
+            });
+        }
+        
+        // Render students table
+        function renderStudentsTable(students) {
+            const tbody = document.getElementById('students-table-body');
+            
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">No students found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = students.map(student => `
+                <tr>
+                    <td>
+                        <div class="jph-student-info">
+                            <div class="jph-student-avatar">${student.display_name.charAt(0).toUpperCase()}</div>
+                            <div class="jph-student-details">
+                                <h4>${student.display_name}</h4>
+                                <p>${student.user_email}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="jph-level-badge jph-level-${student.stats.current_level}">Level ${student.stats.current_level}</span></td>
+                    <td><span class="jph-xp-display">${student.stats.total_xp} XP</span></td>
+                    <td>
+                        <div class="jph-streak-display">
+                            <span class="jph-streak-fire">🔥</span>
+                            <span>${student.stats.current_streak} days</span>
+                        </div>
+                    </td>
+                    <td><span class="jph-last-practice">${formatDate(student.stats.last_practice_date)}</span></td>
+                    <td><span class="jph-sessions-count">${student.stats.total_sessions}</span></td>
+                    <td><span class="jph-hours-display">${Math.round(student.stats.total_minutes / 60 * 10) / 10}h</span></td>
+                    <td>
+                        <div class="jph-student-actions">
+                            <button type="button" class="button button-small" onclick="viewStudentDetails(${student.ID})">View</button>
+                            <button type="button" class="button button-small" onclick="editStudentStats(${student.ID})">Edit</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // Format date for display
+        function formatDate(dateString) {
+            if (!dateString) return 'Never';
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays} days ago`;
+            if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+            return date.toLocaleDateString();
+        }
+        
+        // Student actions
+        function viewStudentDetails(userId) {
+            alert('View student details for user ID: ' + userId);
+        }
+        
+        function editStudentStats(userId) {
+            alert('Edit student stats for user ID: ' + userId);
+        }
+        
+        function refreshStudents() {
+            loadStudentsData();
+            loadStudentsStats();
+        }
+        
+        function exportStudents() {
+            alert('Export students to CSV - Coming Soon');
+        }
+        
+        function showStudentAnalytics() {
+            alert('Student analytics - Coming Soon');
+        }
+        </script>
+        <?php
+    }
+    
+    /**
      * Settings page
      */
     public function settings_page() {
@@ -896,6 +1328,19 @@ class JazzEdge_Practice_Hub {
         register_rest_route('jph/v1', '/gamification/stats', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_gamification_stats'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        // Students endpoints
+        register_rest_route('jph/v1', '/students', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_students'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/students/stats', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_students_stats'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
@@ -1400,6 +1845,123 @@ class JazzEdge_Practice_Hub {
      */
     private function calculate_level_from_xp($xp) {
         return floor(sqrt($xp / 100)) + 1;
+    }
+    
+    /**
+     * REST API: Get all students with their gamification stats
+     */
+    public function rest_get_students($request) {
+        try {
+            global $wpdb;
+            
+            // Get all users who have practice stats
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            $users_table = $wpdb->prefix . 'users';
+            
+            $query = "
+                SELECT u.ID, u.user_email, u.display_name, s.*
+                FROM {$users_table} u
+                LEFT JOIN {$table_name} s ON u.ID = s.user_id
+                WHERE s.user_id IS NOT NULL
+                ORDER BY s.total_xp DESC, u.display_name ASC
+            ";
+            
+            $results = $wpdb->get_results($query);
+            
+            $students = array();
+            foreach ($results as $row) {
+                $students[] = array(
+                    'ID' => (int) $row->ID,
+                    'user_email' => $row->user_email,
+                    'display_name' => $row->display_name ?: $row->user_email,
+                    'stats' => array(
+                        'total_xp' => (int) $row->total_xp,
+                        'current_level' => (int) $row->current_level,
+                        'current_streak' => (int) $row->current_streak,
+                        'longest_streak' => (int) $row->longest_streak,
+                        'total_sessions' => (int) $row->total_sessions,
+                        'total_minutes' => (int) $row->total_minutes,
+                        'badges_earned' => (int) $row->badges_earned,
+                        'hearts_count' => (int) $row->hearts_count,
+                        'gems_balance' => (int) $row->gems_balance,
+                        'last_practice_date' => $row->last_practice_date
+                    )
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'students' => $students,
+                'total_count' => count($students),
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_students_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get students statistics
+     */
+    public function rest_get_students_stats($request) {
+        try {
+            global $wpdb;
+            
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            // Get total students
+            $total_students = $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+            
+            // Get active students (practiced in last 7 days)
+            $active_students = $wpdb->get_var("
+                SELECT COUNT(*) FROM {$table_name} 
+                WHERE last_practice_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ");
+            
+            // Get total practice hours
+            $total_minutes = $wpdb->get_var("SELECT SUM(total_minutes) FROM {$table_name}");
+            $total_hours = round($total_minutes / 60, 1);
+            
+            // Get average level
+            $average_level = $wpdb->get_var("SELECT AVG(current_level) FROM {$table_name}");
+            $average_level = round($average_level, 1);
+            
+            // Get level distribution
+            $level_distribution = $wpdb->get_results("
+                SELECT current_level, COUNT(*) as count 
+                FROM {$table_name} 
+                GROUP BY current_level 
+                ORDER BY current_level ASC
+            ");
+            
+            // Get streak statistics
+            $streak_stats = $wpdb->get_row("
+                SELECT 
+                    AVG(current_streak) as avg_streak,
+                    MAX(current_streak) as max_streak,
+                    AVG(longest_streak) as avg_longest_streak
+                FROM {$table_name}
+            ");
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'stats' => array(
+                    'total_students' => (int) $total_students,
+                    'active_students' => (int) $active_students,
+                    'total_hours' => $total_hours,
+                    'average_level' => $average_level,
+                    'level_distribution' => $level_distribution,
+                    'streak_stats' => array(
+                        'average_current_streak' => round($streak_stats->avg_streak, 1),
+                        'max_current_streak' => (int) $streak_stats->max_streak,
+                        'average_longest_streak' => round($streak_stats->avg_longest_streak, 1)
+                    )
+                ),
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_students_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     /**
