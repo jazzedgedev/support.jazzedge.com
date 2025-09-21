@@ -1,0 +1,29 @@
+/* JazzEdge Practice Hub - Student Dashboard Styles */
+
+/* Coming Soon - Student dashboard styles will be added in Phase 5 */
+.jph-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.jph-dashboard-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.jph-dashboard-card h3 {
+    margin-top: 0;
+    color: #333;
+}
+
+.jph-coming-soon {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    padding: 40px 20px;
+}

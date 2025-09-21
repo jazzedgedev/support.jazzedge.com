@@ -1,0 +1,337 @@
+/**
+ * Admin CSS for Fluent Support AI Integration
+ */
+
+.fluent-support-ai-settings {
+    max-width: 1200px;
+}
+
+.fluent-support-ai-settings .postbox {
+    margin-bottom: 20px;
+}
+
+.fluent-support-ai-settings .postbox-header h2 {
+    margin: 0;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.api-test-result {
+    margin-left: 10px;
+    font-weight: bold;
+}
+
+.api-test-result .success {
+    color: #46b450;
+}
+
+.api-test-result .error {
+    color: #dc3232;
+}
+
+.api-test-result .testing {
+    color: #00a0d2;
+}
+
+.api-test-result .saving {
+    color: #f56e28;
+}
+
+/* Button Layout */
+.submit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.submit .button {
+    margin-right: 0;
+}
+
+.submit .button-primary {
+    background: #0073aa;
+    border-color: #0073aa;
+}
+
+.submit .button-primary:hover {
+    background: #005a87;
+    border-color: #005a87;
+}
+
+.prompt-management {
+    margin-top: 20px;
+}
+
+.add-prompt-form {
+    background: #f9f9f9;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 30px;
+}
+
+.add-prompt-form h3 {
+    margin-top: 0;
+    color: #23282d;
+}
+
+.existing-prompts h3 {
+    margin-bottom: 15px;
+    color: #23282d;
+}
+
+.prompts-list {
+    display: grid;
+    gap: 15px;
+}
+
+.prompt-item {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.prompt-header h4 {
+    margin: 0;
+    color: #23282d;
+    font-size: 16px;
+}
+
+.prompt-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.prompt-description {
+    color: #666;
+    font-style: italic;
+    margin-bottom: 10px;
+}
+
+.prompt-content {
+    margin-top: 10px;
+}
+
+.prompt-content pre {
+    background: #f1f1f1;
+    padding: 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Modal Styles */
+.edit-prompt-modal {
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: #fff;
+    padding: 0;
+    border-radius: 4px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90%;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    padding: 20px 20px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #23282d;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.modal-body {
+    padding: 0 20px 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .prompt-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .prompt-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 20px;
+    }
+}
+
+/* Loading States */
+.ai-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    color: #666;
+}
+
+.ai-loading .spinner {
+    float: none;
+    margin: 0;
+}
+
+/* Form Improvements */
+.form-table th {
+    width: 150px;
+    vertical-align: top;
+    padding-top: 15px;
+}
+
+.form-table td {
+    padding-top: 10px;
+}
+
+.form-table textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Button Styles */
+.button.button-small {
+    padding: 4px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.button-link-delete {
+    color: #a00 !important;
+}
+
+.button-link-delete:hover {
+    color: #dc3232 !important;
+}
+
+/* Success/Error Messages */
+.notice {
+    margin: 15px 0;
+    padding: 12px;
+    border-left: 4px solid;
+}
+
+.notice.notice-success {
+    border-left-color: #46b450;
+    background: #ecf7ed;
+}
+
+.notice.notice-error {
+    border-left-color: #dc3232;
+    background: #fbeaea;
+}
+
+/* Instructions Styling */
+.fluent-support-ai-settings ol,
+.fluent-support-ai-settings ul {
+    margin-left: 20px;
+}
+
+.fluent-support-ai-settings li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.fluent-support-ai-settings h4 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    color: #23282d;
+}
+
+/* Katahdin AI Branding */
+.katahdin-ai-branding {
+    text-align: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.katahdin-ai-branding p {
+    margin-bottom: 15px;
+    color: #495057;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.katahdin-logo-container {
+    margin: 15px 0;
+}
+
+.katahdin-logo {
+    transition: opacity 0.3s ease;
+    border-radius: 4px;
+}
+
+.katahdin-logo:hover {
+    opacity: 0.8;
+}
+
+.katahdin-link {
+    color: #0073aa;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.katahdin-link:hover {
+    color: #005a87;
+    text-decoration: underline;
+}
+
+.katahdin-link img {
+    transition: transform 0.2s ease;
+}
+
+.katahdin-link:hover img {
+    transform: scale(1.05);
+}

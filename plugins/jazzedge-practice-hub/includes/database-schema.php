@@ -1,0 +1,484 @@
+<?php
+/**
+ * Database Schema Design for JazzEdge Practice Hub
+ * 
+ * @package JazzEdge_Practice_Hub
+ */
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * Database Schema Design
+ * 
+ * This file contains the complete database schema design for the JazzEdge Practice Hub.
+ * It defines all tables, columns, indexes, and relationships needed for the system.
+ */
+
+class JPH_Database_Schema {
+    
+    /**
+     * Get the complete database schema
+     */
+    public static function get_schema() {
+        return array(
+            'practice_items' => self::get_practice_items_schema(),
+            'practice_sessions' => self::get_practice_sessions_schema(),
+            'user_stats' => self::get_user_stats_schema(),
+            'user_badges' => self::get_user_badges_schema()
+        );
+    }
+    
+    /**
+     * Practice Items Table Schema
+     * 
+     * Stores practice items for each user:
+     * - JazzEdge Practice Curriculum™ (always present)
+     * - Up to 2 custom practice items
+     */
+    private static function get_practice_items_schema() {
+        return array(
+            'table_name' => 'jph_practice_items',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique practice item ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'name' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 255,
+                    'not_null' => true,
+                    'description' => 'Practice item name'
+                ),
+                'category' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'default' => "'custom'",
+                    'description' => 'Item category (jpc, custom, etc.)'
+                ),
+                'description' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Optional description'
+                ),
+                'is_active' => array(
+                    'type' => 'TINYINT',
+                    'length' => 1,
+                    'default' => 1,
+                    'description' => 'Whether item is active (0/1)'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When item was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When item was last updated'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'category' => array('category'),
+                'user_category' => array('user_id', 'category')
+            ),
+            'constraints' => array(
+                'unique_user_name' => 'UNIQUE KEY unique_user_name (user_id, name)'
+            )
+        );
+    }
+    
+    /**
+     * Practice Sessions Table Schema
+     * 
+     * Logs each practice session with performance data:
+     * - Duration, sentiment score, improvement detection
+     * - Notes and AI analysis results
+     */
+    private static function get_practice_sessions_schema() {
+        return array(
+            'table_name' => 'jph_practice_sessions',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique session ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'practice_item_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'Reference to practice item'
+                ),
+                'duration_minutes' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'Practice duration in minutes'
+                ),
+                'sentiment_score' => array(
+                    'type' => 'TINYINT',
+                    'length' => 1,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'How well they did (1-5 scale)'
+                ),
+                'improvement_detected' => array(
+                    'type' => 'TINYINT',
+                    'length' => 1,
+                    'default' => 0,
+                    'description' => 'Did they improve? (0/1)'
+                ),
+                'notes' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Practice notes from student'
+                ),
+                'ai_analysis' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'AI analysis results (JSON)'
+                ),
+                'xp_earned' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'default' => 0,
+                    'description' => 'XP earned for this session'
+                ),
+                'session_hash' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 64,
+                    'not_null' => true,
+                    'description' => 'Hash to prevent duplicate sessions'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When session was logged'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'practice_item_id' => array('practice_item_id'),
+                'created_at' => array('created_at'),
+                'user_date' => array('user_id', 'created_at'),
+                'session_hash' => array('session_hash')
+            ),
+            'constraints' => array(
+                'unique_session_hash' => 'UNIQUE KEY unique_session_hash (session_hash)',
+                'foreign_key_item' => 'FOREIGN KEY (practice_item_id) REFERENCES jph_practice_items(id) ON DELETE CASCADE'
+            )
+        );
+    }
+    
+    /**
+     * User Stats Table Schema
+     * 
+     * Stores gamification data for each user:
+     * - XP, level, streak, virtual currency
+     * - Performance metrics and achievements
+     */
+    private static function get_user_stats_schema() {
+        return array(
+            'table_name' => 'jph_user_stats',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique stats record ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'unique' => true,
+                    'description' => 'WordPress user ID (one record per user)'
+                ),
+                'total_xp' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Total experience points earned'
+                ),
+                'current_level' => array(
+                    'type' => 'TINYINT',
+                    'length' => 3,
+                    'unsigned' => true,
+                    'default' => 1,
+                    'description' => 'Current user level'
+                ),
+                'current_streak' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Current practice streak (days)'
+                ),
+                'longest_streak' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Longest streak achieved'
+                ),
+                'total_sessions' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Total practice sessions logged'
+                ),
+                'total_minutes' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Total practice minutes'
+                ),
+                'hearts_count' => array(
+                    'type' => 'TINYINT',
+                    'length' => 3,
+                    'unsigned' => true,
+                    'default' => 5,
+                    'description' => 'Hearts currency (Duolingo-style)'
+                ),
+                'gems_balance' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Gems currency balance'
+                ),
+                'badges_earned' => array(
+                    'type' => 'TINYINT',
+                    'length' => 3,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Total badges earned'
+                ),
+                'last_practice_date' => array(
+                    'type' => 'DATE',
+                    'null' => true,
+                    'description' => 'Last practice session date'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When stats record was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When stats were last updated'
+                )
+            ),
+            'indexes' => array(
+                'total_xp' => array('total_xp'),
+                'current_level' => array('current_level'),
+                'current_streak' => array('current_streak')
+            )
+        );
+    }
+    
+    /**
+     * User Badges Table Schema
+     * 
+     * Tracks which badges each user has earned:
+     * - Many-to-many relationship between users and badges
+     * - Includes earned date and badge metadata
+     */
+    private static function get_user_badges_schema() {
+        return array(
+            'table_name' => 'jph_user_badges',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique badge record ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'badge_key' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'not_null' => true,
+                    'description' => 'Badge identifier (e.g., "first_session", "week_streak")'
+                ),
+                'badge_name' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'not_null' => true,
+                    'description' => 'Human-readable badge name'
+                ),
+                'badge_description' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Badge description'
+                ),
+                'badge_icon' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'null' => true,
+                    'description' => 'Badge icon identifier'
+                ),
+                'earned_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When badge was earned'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'badge_key' => array('badge_key'),
+                'user_badge' => array('user_id', 'badge_key'),
+                'earned_at' => array('earned_at')
+            ),
+            'constraints' => array(
+                'unique_user_badge' => 'UNIQUE KEY unique_user_badge (user_id, badge_key)'
+            )
+        );
+    }
+    
+    /**
+     * Get SQL CREATE TABLE statements
+     */
+    public static function get_create_statements() {
+        $schema = self::get_schema();
+        $statements = array();
+        
+        foreach ($schema as $table_name => $table_schema) {
+            $statements[$table_name] = self::build_create_statement($table_schema);
+        }
+        
+        return $statements;
+    }
+    
+    /**
+     * Build CREATE TABLE statement for a table
+     */
+    private static function build_create_statement($table_schema) {
+        $table_name = $table_schema['table_name'];
+        $columns = $table_schema['columns'];
+        $indexes = isset($table_schema['indexes']) ? $table_schema['indexes'] : array();
+        $constraints = isset($table_schema['constraints']) ? $table_schema['constraints'] : array();
+        
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (\n";
+        
+        // Add columns
+        $column_definitions = array();
+        foreach ($columns as $column_name => $column_def) {
+            $column_definitions[] = self::build_column_definition($column_name, $column_def);
+        }
+        
+        // Add indexes
+        foreach ($indexes as $index_name => $index_columns) {
+            $column_list = '`' . implode('`, `', $index_columns) . '`';
+            $column_definitions[] = "KEY `{$index_name}` ({$column_list})";
+        }
+        
+        // Add constraints
+        foreach ($constraints as $constraint_name => $constraint_def) {
+            $column_definitions[] = $constraint_def;
+        }
+        
+        $sql .= "  " . implode(",\n  ", $column_definitions) . "\n";
+        $sql .= ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+        
+        return $sql;
+    }
+    
+    /**
+     * Build column definition
+     */
+    private static function build_column_definition($column_name, $column_def) {
+        $definition = "`{$column_name}` ";
+        
+        // Type and length
+        $definition .= $column_def['type'];
+        if (isset($column_def['length'])) {
+            $definition .= "({$column_def['length']})";
+        }
+        
+        // Unsigned
+        if (isset($column_def['unsigned']) && $column_def['unsigned']) {
+            $definition .= " UNSIGNED";
+        }
+        
+        // Auto increment
+        if (isset($column_def['auto_increment']) && $column_def['auto_increment']) {
+            $definition .= " AUTO_INCREMENT";
+        }
+        
+        // Not null
+        if (isset($column_def['not_null']) && $column_def['not_null']) {
+            $definition .= " NOT NULL";
+        }
+        
+        // Default value
+        if (isset($column_def['default'])) {
+            $definition .= " DEFAULT " . $column_def['default'];
+        }
+        
+        // Primary key
+        if (isset($column_def['primary_key']) && $column_def['primary_key']) {
+            $definition .= " PRIMARY KEY";
+        }
+        
+        // Unique
+        if (isset($column_def['unique']) && $column_def['unique']) {
+            $definition .= " UNIQUE";
+        }
+        
+        return $definition;
+    }
+}
+
+/**
+ * Example usage:
+ * 
+ * $schema = JPH_Database_Schema::get_schema();
+ * $create_statements = JPH_Database_Schema::get_create_statements();
+ * 
+ * foreach ($create_statements as $table_name => $sql) {
+ *     $wpdb->query($sql);
+ * }
+ */
