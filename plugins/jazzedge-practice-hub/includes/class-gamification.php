@@ -142,7 +142,7 @@ class JPH_Gamification {
     /**
      * Calculate level from XP (exponential growth)
      */
-    private function calculate_level_from_xp($xp) {
+    public function calculate_level_from_xp($xp) {
         // Level formula: Level = floor(sqrt(XP / 100)) + 1
         // This means: Level 1 = 0-99 XP, Level 2 = 100-399 XP, Level 3 = 400-899 XP, etc.
         return floor(sqrt($xp / 100)) + 1;
@@ -258,9 +258,12 @@ class JPH_Gamification {
             );
         }
         
+        // Calculate current level based on total XP
+        $calculated_level = $this->calculate_level_from_xp($stats->total_xp);
+        
         return array(
             'total_xp' => (int) $stats->total_xp,
-            'current_level' => (int) $stats->current_level,
+            'current_level' => $calculated_level,
             'current_streak' => (int) $stats->current_streak,
             'longest_streak' => (int) $stats->longest_streak,
             'total_sessions' => (int) $stats->total_sessions,

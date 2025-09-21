@@ -622,6 +622,33 @@ class JazzEdge_Practice_Hub {
             });
         }
         
+        function backfillUserStats() {
+            const resultsDiv = document.getElementById('jph-gamification-results');
+            resultsDiv.className = 'jph-gamification-results show loading';
+            resultsDiv.textContent = 'Backfilling user stats from existing practice sessions...';
+            
+            fetch('<?php echo rest_url('jph/v1/backfill-stats'); ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultsDiv.className = 'jph-gamification-results show success';
+                resultsDiv.textContent = 'User Stats Backfilled Successfully!\n\n' + 
+                    'Sessions Processed: ' + data.stats.total_sessions_processed + '\n' +
+                    'Total XP Added: ' + data.stats.total_xp_added + '\n' +
+                    'Users Updated: ' + data.stats.users_updated + '\n\n' +
+                    'User Details:\n' + JSON.stringify(data.stats.processed_users, null, 2);
+            })
+            .catch(error => {
+                resultsDiv.className = 'jph-gamification-results show error';
+                resultsDiv.textContent = 'Error backfilling user stats: ' + error.message;
+            });
+        }
+        
         // Test REST API
         function testRestAPI() {
             const resultsDiv = document.getElementById('jph-test-results');
@@ -1658,33 +1685,6 @@ class JazzEdge_Practice_Hub {
         function showStudentAnalytics() {
             alert('Student analytics - Coming Soon');
         }
-        
-        function backfillUserStats() {
-            const resultsDiv = document.getElementById('jph-gamification-results');
-            resultsDiv.className = 'jph-gamification-results show loading';
-            resultsDiv.textContent = 'Backfilling user stats from existing practice sessions...';
-            
-            fetch('<?php echo rest_url('jph/v1/backfill-stats'); ?>', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                resultsDiv.className = 'jph-gamification-results show success';
-                resultsDiv.textContent = 'User Stats Backfilled Successfully!\n\n' + 
-                    'Sessions Processed: ' + data.stats.total_sessions_processed + '\n' +
-                    'Total XP Added: ' + data.stats.total_xp_added + '\n' +
-                    'Users Updated: ' + data.stats.users_updated + '\n\n' +
-                    'User Details:\n' + JSON.stringify(data.stats.processed_users, null, 2);
-            })
-            .catch(error => {
-                resultsDiv.className = 'jph-gamification-results show error';
-                resultsDiv.textContent = 'Error backfilling user stats: ' + error.message;
-            });
-        }
         </script>
         <?php
     }
@@ -2345,14 +2345,19 @@ class JazzEdge_Practice_Hub {
             $results = $wpdb->get_results($query);
             
             $students = array();
+            $gamification = new JPH_Gamification();
+            
             foreach ($results as $row) {
+                // Calculate current level based on total XP
+                $calculated_level = $gamification->calculate_level_from_xp($row->total_xp);
+                
                 $students[] = array(
                     'ID' => (int) $row->ID,
                     'user_email' => $row->user_email,
                     'display_name' => $row->display_name ?: $row->user_email,
                     'stats' => array(
                         'total_xp' => (int) $row->total_xp,
-                        'current_level' => (int) $row->current_level,
+                        'current_level' => $calculated_level,
                         'current_streak' => (int) $row->current_streak,
                         'longest_streak' => (int) $row->longest_streak,
                         'total_sessions' => (int) $row->total_sessions,
@@ -2464,13 +2469,17 @@ class JazzEdge_Practice_Hub {
                 return new WP_Error('student_not_found', 'Student not found', array('status' => 404));
             }
             
+            // Calculate current level based on total XP
+            $gamification = new JPH_Gamification();
+            $calculated_level = $gamification->calculate_level_from_xp($result->total_xp);
+            
             $student = array(
                 'ID' => (int) $result->ID,
                 'user_email' => $result->user_email,
                 'display_name' => $result->display_name ?: $result->user_email,
                 'stats' => array(
                     'total_xp' => (int) $result->total_xp,
-                    'current_level' => (int) $result->current_level,
+                    'current_level' => $calculated_level,
                     'current_streak' => (int) $result->current_streak,
                     'longest_streak' => (int) $result->longest_streak,
                     'total_sessions' => (int) $result->total_sessions,
