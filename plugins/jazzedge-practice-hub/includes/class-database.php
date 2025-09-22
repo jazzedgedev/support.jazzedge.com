@@ -335,10 +335,13 @@ class JPH_Database {
     public function update_user_stats($user_id, $stats_data) {
         $table_name = $this->tables['user_stats'];
         
-        $result = $this->wpdb->replace(
+        // Use UPDATE instead of REPLACE to avoid overwriting other fields
+        $result = $this->wpdb->update(
             $table_name,
-            array_merge(array('user_id' => $user_id), $stats_data),
-            array_fill(0, count($stats_data) + 1, '%s')
+            $stats_data,
+            array('user_id' => $user_id),
+            array_fill(0, count($stats_data), '%s'),
+            array('%d')
         );
         
         return $result !== false;

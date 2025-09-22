@@ -902,6 +902,10 @@ class JazzEdge_Practice_Hub {
                         <option value="inactive">Inactive (30+ days)</option>
                     </select>
                 </div>
+                <div class="jph-filter-group">
+                    <button type="button" class="button button-primary" id="search-students-btn">🔍 Search</button>
+                    <button type="button" class="button button-secondary" id="clear-filters-btn">Clear Filters</button>
+                </div>
             </div>
             
             <div class="jph-students-table-container">
@@ -1025,6 +1029,11 @@ class JazzEdge_Practice_Hub {
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
+        }
+        
+        .jph-filter-group button {
+            margin-top: 20px;
+            margin-right: 10px;
         }
         
         .jph-students-table-container {
@@ -1313,6 +1322,31 @@ class JazzEdge_Practice_Hub {
         document.addEventListener('DOMContentLoaded', function() {
             loadStudentsData();
             loadStudentsStats();
+            
+            // Add event listeners for search and filter buttons
+            document.getElementById('search-students-btn').addEventListener('click', function() {
+                const filters = {
+                    search: document.getElementById('student-search').value.trim(),
+                    level: document.getElementById('level-filter').value,
+                    activity: document.getElementById('activity-filter').value
+                };
+                loadStudentsData(filters);
+            });
+            
+            // Clear filters button
+            document.getElementById('clear-filters-btn').addEventListener('click', function() {
+                document.getElementById('student-search').value = '';
+                document.getElementById('level-filter').value = '';
+                document.getElementById('activity-filter').value = '';
+                loadStudentsData(); // Load all students
+            });
+            
+            // Allow Enter key to trigger search
+            document.getElementById('student-search').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    document.getElementById('search-students-btn').click();
+                }
+            });
         });
         
         // Load students statistics
@@ -1338,11 +1372,19 @@ class JazzEdge_Practice_Hub {
         }
         
         // Load students table data
-        function loadStudentsData() {
+        function loadStudentsData(filters = {}) {
             const tbody = document.getElementById('students-table-body');
             tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">Loading students...</td></tr>';
             
-            fetch('<?php echo rest_url('jph/v1/students'); ?>', {
+            // Build query string from filters
+            const params = new URLSearchParams();
+            if (filters.search) params.append('search', filters.search);
+            if (filters.level) params.append('level', filters.level);
+            if (filters.activity) params.append('activity', filters.activity);
+            
+            const url = '<?php echo rest_url('jph/v1/students'); ?>' + (params.toString() ? '?' + params.toString() : '');
+            
+            fetch(url, {
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1406,12 +1448,38 @@ class JazzEdge_Practice_Hub {
         // Format date for display
         function formatDate(dateString) {
             if (!dateString) return 'Never';
-            const date = new Date(dateString);
+            
+            // Handle date-only strings (YYYY-MM-DD) by adding time
+            let dateToCheck = dateString;
+            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                dateToCheck = dateString + 'T00:00:00';
+            }
+            
+            const date = new Date(dateToCheck);
             const now = new Date();
+            
+            // Check if it's today
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const checkDate = new Date(date);
+            checkDate.setHours(0, 0, 0, 0);
+            
+            if (checkDate.getTime() === today.getTime()) {
+                return 'Today';
+            }
+            
+            // Check if it's yesterday
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            if (checkDate.getTime() === yesterday.getTime()) {
+                return 'Yesterday';
+            }
+            
+            // Calculate days difference
             const diffTime = Math.abs(now - date);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
-            if (diffDays === 1) return 'Yesterday';
             if (diffDays < 7) return `${diffDays} days ago`;
             if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
             return date.toLocaleDateString();
@@ -2071,7 +2139,12 @@ class JazzEdge_Practice_Hub {
     public function rest_add_practice_item($request) {
         try {
             $database = new JPH_Database();
-            $user_id = $request->get_param('user_id') ?: 1; // Default to user 1 for testing
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            
+            if (!$user_id) {
+                $user_id = 1; // Fallback to user 1 for testing
+            }
+            
             $name = $request->get_param('name');
             $category = $request->get_param('category') ?: 'custom';
             $description = $request->get_param('description') ?: '';
@@ -2103,7 +2176,12 @@ class JazzEdge_Practice_Hub {
     public function rest_log_practice_session($request) {
         try {
             $database = new JPH_Database();
-            $user_id = $request->get_param('user_id') ?: 1; // Default to user 1 for testing
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            
+            if (!$user_id) {
+                $user_id = 1; // Fallback to user 1 for testing
+            }
+            
             $practice_item_id = $request->get_param('practice_item_id');
             $duration_minutes = $request->get_param('duration_minutes');
             $sentiment_score = $request->get_param('sentiment_score');
@@ -2143,8 +2221,10 @@ class JazzEdge_Practice_Hub {
             // Check for level up
             $level_result = $gamification->check_level_up($user_id);
             
-            // Update total minutes in stats
-            $database->update_user_stats($user_id, array('total_minutes' => $duration_minutes));
+            // Update total minutes in stats (add to existing total)
+            $current_stats = $gamification->get_user_stats($user_id);
+            $new_total_minutes = $current_stats['total_minutes'] + $duration_minutes;
+            $database->update_user_stats($user_id, array('total_minutes' => $new_total_minutes));
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -2192,7 +2272,11 @@ class JazzEdge_Practice_Hub {
     public function rest_get_user_stats($request) {
         try {
             $gamification = new JPH_Gamification();
-            $user_id = $request->get_param('user_id') ?: 1; // Default to user 1 for testing
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            
+            if (!$user_id) {
+                $user_id = 1; // Fallback to user 1 for testing
+            }
             
             $stats = $gamification->get_user_stats($user_id);
             
@@ -2326,17 +2410,62 @@ class JazzEdge_Practice_Hub {
         try {
             global $wpdb;
             
+            // Get filter parameters
+            $search = $request->get_param('search');
+            $level = $request->get_param('level');
+            $activity = $request->get_param('activity');
+            
             // Get all users who have practice stats
             $table_name = $wpdb->prefix . 'jph_user_stats';
             $users_table = $wpdb->prefix . 'users';
             
-            $query = "
+            // Build WHERE conditions
+            $where_conditions = array("s.user_id IS NOT NULL");
+            $where_values = array();
+            
+            // Search filter
+            if (!empty($search)) {
+                $where_conditions[] = "(u.display_name LIKE %s OR u.user_email LIKE %s)";
+                $search_term = '%' . $wpdb->esc_like($search) . '%';
+                $where_values[] = $search_term;
+                $where_values[] = $search_term;
+            }
+            
+            // Level filter
+            if (!empty($level)) {
+                if ($level === '3') {
+                    // Level 3+ (XP >= 500)
+                    $where_conditions[] = "s.total_xp >= 500";
+                } else {
+                    // Specific level (XP range)
+                    $min_xp = ($level - 1) * 100;
+                    $max_xp = $level * 100 - 1;
+                    $where_conditions[] = "s.total_xp >= %d AND s.total_xp <= %d";
+                    $where_values[] = $min_xp;
+                    $where_values[] = $max_xp;
+                }
+            }
+            
+            // Activity filter
+            if (!empty($activity)) {
+                if ($activity === 'active') {
+                    // Active within 7 days
+                    $where_conditions[] = "s.last_practice_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+                } elseif ($activity === 'inactive') {
+                    // Inactive for 30+ days
+                    $where_conditions[] = "(s.last_practice_date < DATE_SUB(CURDATE(), INTERVAL 30 DAY) OR s.last_practice_date IS NULL)";
+                }
+            }
+            
+            $where_clause = implode(' AND ', $where_conditions);
+            
+            $query = $wpdb->prepare("
                 SELECT u.ID, u.user_email, u.display_name, s.*
                 FROM {$users_table} u
                 LEFT JOIN {$table_name} s ON u.ID = s.user_id
-                WHERE s.user_id IS NOT NULL
+                WHERE {$where_clause}
                 ORDER BY s.total_xp DESC, u.display_name ASC
-            ";
+            ", $where_values);
             
             $results = $wpdb->get_results($query);
             
@@ -2637,6 +2766,9 @@ class JazzEdge_Practice_Hub {
             $users_updated = 0;
             
             foreach ($processed_users as $user_id => $stats) {
+                // Calculate streak based on practice dates
+                $streak_data = $this->calculate_streak_from_sessions($user_id, $sessions);
+                
                 // Check if user stats exist
                 $existing = $wpdb->get_row($wpdb->prepare(
                     "SELECT * FROM {$user_stats_table} WHERE user_id = %d",
@@ -2651,7 +2783,9 @@ class JazzEdge_Practice_Hub {
                             'total_xp' => $stats['total_xp'],
                             'total_sessions' => $stats['total_sessions'],
                             'total_minutes' => $stats['total_minutes'],
-                            'last_practice_date' => date('Y-m-d', strtotime($stats['last_practice_date']))
+                            'last_practice_date' => date('Y-m-d', strtotime($stats['last_practice_date'])),
+                            'current_streak' => $streak_data['current_streak'],
+                            'longest_streak' => $streak_data['longest_streak']
                         ),
                         array('user_id' => $user_id),
                         array('%d', '%d', '%d', '%s'),
@@ -2665,8 +2799,8 @@ class JazzEdge_Practice_Hub {
                             'user_id' => $user_id,
                             'total_xp' => $stats['total_xp'],
                             'current_level' => $gamification->calculate_level_from_xp($stats['total_xp']),
-                            'current_streak' => 0, // Will be calculated separately
-                            'longest_streak' => 0,
+                            'current_streak' => $streak_data['current_streak'],
+                            'longest_streak' => $streak_data['longest_streak'],
                             'total_sessions' => $stats['total_sessions'],
                             'total_minutes' => $stats['total_minutes'],
                             'hearts_count' => 5,
@@ -2695,6 +2829,98 @@ class JazzEdge_Practice_Hub {
         } catch (Exception $e) {
             return new WP_Error('backfill_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
+    }
+    
+    /**
+     * Calculate streak from practice sessions
+     */
+    private function calculate_streak_from_sessions($user_id, $sessions) {
+        // Filter sessions for this user
+        $user_sessions = array_filter($sessions, function($session) use ($user_id) {
+            return $session->user_id == $user_id;
+        });
+        
+        if (empty($user_sessions)) {
+            return array('current_streak' => 0, 'longest_streak' => 0);
+        }
+        
+        // Get unique practice dates
+        $practice_dates = array();
+        foreach ($user_sessions as $session) {
+            $date = date('Y-m-d', strtotime($session->created_at));
+            if (!in_array($date, $practice_dates)) {
+                $practice_dates[] = $date;
+            }
+        }
+        
+        // Sort dates in descending order (most recent first)
+        rsort($practice_dates);
+        
+        if (empty($practice_dates)) {
+            return array('current_streak' => 0, 'longest_streak' => 0);
+        }
+        
+        // Calculate current streak
+        $current_streak = 0;
+        $today = date('Y-m-d');
+        $yesterday = date('Y-m-d', strtotime('-1 day'));
+        
+        // Check if they practiced today or yesterday
+        if (in_array($today, $practice_dates)) {
+            $current_streak = 1;
+            $check_date = $today;
+        } elseif (in_array($yesterday, $practice_dates)) {
+            $current_streak = 1;
+            $check_date = $yesterday;
+        } else {
+            // No recent practice, streak is 0
+            return array('current_streak' => 0, 'longest_streak' => $this->calculate_longest_streak($practice_dates));
+        }
+        
+        // Count consecutive days
+        for ($i = 1; $i < count($practice_dates); $i++) {
+            $expected_date = date('Y-m-d', strtotime($check_date . ' -' . $i . ' days'));
+            if (in_array($expected_date, $practice_dates)) {
+                $current_streak++;
+            } else {
+                break;
+            }
+        }
+        
+        return array(
+            'current_streak' => $current_streak,
+            'longest_streak' => $this->calculate_longest_streak($practice_dates)
+        );
+    }
+    
+    /**
+     * Calculate longest streak from practice dates
+     */
+    private function calculate_longest_streak($practice_dates) {
+        if (empty($practice_dates)) {
+            return 0;
+        }
+        
+        // Sort dates in ascending order
+        sort($practice_dates);
+        
+        $longest_streak = 1;
+        $current_streak = 1;
+        
+        for ($i = 1; $i < count($practice_dates); $i++) {
+            $prev_date = strtotime($practice_dates[$i - 1]);
+            $curr_date = strtotime($practice_dates[$i]);
+            
+            // Check if dates are consecutive
+            if ($curr_date - $prev_date == 86400) { // 86400 seconds = 1 day
+                $current_streak++;
+            } else {
+                $longest_streak = max($longest_streak, $current_streak);
+                $current_streak = 1;
+            }
+        }
+        
+        return max($longest_streak, $current_streak);
     }
     
     /**
@@ -4511,17 +4737,41 @@ class JazzEdge_Practice_Hub {
                 }
                 
                 function formatDate(dateString) {
-                    var date = new Date(dateString);
+                    if (!dateString) return 'Never';
+                    
+                    // Handle date-only strings (YYYY-MM-DD) by adding time
+                    var dateToCheck = dateString;
+                    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        dateToCheck = dateString + 'T00:00:00';
+                    }
+                    
+                    var date = new Date(dateToCheck);
                     var now = new Date();
+                    
+                    // Check if it's today
+                    var today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    var checkDate = new Date(date);
+                    checkDate.setHours(0, 0, 0, 0);
+                    
+                    if (checkDate.getTime() === today.getTime()) {
+                        return 'Today';
+                    }
+                    
+                    // Check if it's yesterday
+                    var yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    
+                    if (checkDate.getTime() === yesterday.getTime()) {
+                        return 'Yesterday';
+                    }
+                    
+                    // Calculate days difference
                     var diffTime = Math.abs(now - date);
                     var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                     
-                    if (diffDays === 1) {
-                        return 'Today';
-                    } else if (diffDays === 2) {
-                        return 'Yesterday';
-                    } else if (diffDays <= 7) {
-                        return diffDays - 1 + ' days ago';
+                    if (diffDays <= 7) {
+                        return diffDays + ' days ago';
                     } else {
                         return date.toLocaleDateString();
                     }
