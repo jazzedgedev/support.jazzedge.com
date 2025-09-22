@@ -27,6 +27,7 @@ class JPH_Database_Schema {
             'practice_items' => self::get_practice_items_schema(),
             'practice_sessions' => self::get_practice_sessions_schema(),
             'user_stats' => self::get_user_stats_schema(),
+            'badges' => self::get_badges_schema(),
             'user_badges' => self::get_user_badges_schema()
         );
     }
@@ -307,6 +308,94 @@ class JPH_Database_Schema {
                 'total_xp' => array('total_xp'),
                 'current_level' => array('current_level'),
                 'current_streak' => array('current_streak')
+            )
+        );
+    }
+    
+    /**
+     * Badges Table Schema
+     * 
+     * Defines available badges in the system:
+     * - Badge metadata, images, and requirements
+     * - Admin-managed badge definitions
+     */
+    private static function get_badges_schema() {
+        return array(
+            'table_name' => 'jph_badges',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique badge ID'
+                ),
+                'badge_key' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'not_null' => true,
+                    'unique' => true,
+                    'description' => 'Unique badge identifier'
+                ),
+                'name' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'not_null' => true,
+                    'description' => 'Badge display name'
+                ),
+                'description' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Badge description'
+                ),
+                'image_url' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 500,
+                    'null' => true,
+                    'description' => 'Badge image URL'
+                ),
+                'category' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'default' => "'achievement'",
+                    'description' => 'Badge category (achievement, milestone, special)'
+                ),
+                'rarity' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 20,
+                    'default' => "'common'",
+                    'description' => 'Badge rarity (common, rare, epic, legendary)'
+                ),
+                'xp_reward' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'XP reward for earning this badge'
+                ),
+                'is_active' => array(
+                    'type' => 'TINYINT',
+                    'length' => 1,
+                    'default' => 1,
+                    'description' => 'Whether badge is active (0/1)'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When badge was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When badge was last updated'
+                )
+            ),
+            'indexes' => array(
+                'badge_key' => array('badge_key'),
+                'category' => array('category'),
+                'rarity' => array('rarity'),
+                'is_active' => array('is_active')
             )
         );
     }

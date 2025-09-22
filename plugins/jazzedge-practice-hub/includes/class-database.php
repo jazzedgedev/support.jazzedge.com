@@ -37,6 +37,7 @@ class JPH_Database {
             'practice_items' => $wpdb->prefix . 'jph_practice_items',
             'practice_sessions' => $wpdb->prefix . 'jph_practice_sessions',
             'user_stats' => $wpdb->prefix . 'jph_user_stats',
+            'badges' => $wpdb->prefix . 'jph_badges',
             'user_badges' => $wpdb->prefix . 'jph_user_badges'
         );
     }
@@ -429,5 +430,148 @@ class JPH_Database {
         } catch (Exception $e) {
             return new WP_Error('delete_session_error', 'Error deleting practice session: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Get all badges
+     */
+    public function get_badges($active_only = true) {
+        $table_name = $this->tables['badges'];
+        
+        $where_clause = $active_only ? 'WHERE is_active = 1' : '';
+        
+        $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY category, name ASC";
+        
+        return $this->wpdb->get_results($query, ARRAY_A);
+    }
+    
+    /**
+     * Get badge by ID
+     */
+    public function get_badge($badge_id) {
+        $table_name = $this->tables['badges'];
+        
+        return $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $badge_id
+        ), ARRAY_A);
+    }
+    
+    /**
+     * Get badge by key
+     */
+    public function get_badge_by_key($badge_key) {
+        $table_name = $this->tables['badges'];
+        
+        return $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE badge_key = %s",
+            $badge_key
+        ), ARRAY_A);
+    }
+    
+    /**
+     * Add new badge
+     */
+    public function add_badge($badge_data) {
+        $table_name = $this->tables['badges'];
+        
+        // Check if badge_key already exists
+        $existing = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE badge_key = %s",
+            $badge_data['badge_key']
+        ));
+        
+        if ($existing) {
+            return new WP_Error('duplicate_badge_key', 'Badge key already exists');
+        }
+        
+        $result = $this->wpdb->insert(
+            $table_name,
+            $badge_data,
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('insert_failed', 'Failed to add badge: ' . $this->wpdb->last_error);
+        }
+        
+        return $this->wpdb->insert_id;
+    }
+    
+    /**
+     * Update badge
+     */
+    public function update_badge($badge_id, $badge_data) {
+        $table_name = $this->tables['badges'];
+        
+        $result = $this->wpdb->update(
+            $table_name,
+            $badge_data,
+            array('id' => $badge_id),
+            array_fill(0, count($badge_data), '%s'),
+            array('%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Delete badge (soft delete)
+     */
+    public function delete_badge($badge_id) {
+        $table_name = $this->tables['badges'];
+        
+        $result = $this->wpdb->update(
+            $table_name,
+            array('is_active' => 0),
+            array('id' => $badge_id),
+            array('%d'),
+            array('%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Get user's earned badges
+     */
+    public function get_user_badges($user_id) {
+        $table_name = $this->tables['user_badges'];
+        
+        return $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY earned_at DESC",
+            $user_id
+        ), ARRAY_A);
+    }
+    
+    /**
+     * Award badge to user
+     */
+    public function award_badge($user_id, $badge_key, $badge_name, $badge_description = '', $badge_icon = '') {
+        $table_name = $this->tables['user_badges'];
+        
+        // Check if user already has this badge
+        $existing = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND badge_key = %s",
+            $user_id, $badge_key
+        ));
+        
+        if ($existing) {
+            return false; // Already has this badge
+        }
+        
+        $result = $this->wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'badge_key' => $badge_key,
+                'badge_name' => $badge_name,
+                'badge_description' => $badge_description,
+                'badge_icon' => $badge_icon
+            ),
+            array('%d', '%s', '%s', '%s', '%s')
+        );
+        
+        return $result !== false;
     }
 }

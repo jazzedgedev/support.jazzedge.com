@@ -129,14 +129,23 @@ class JazzEdge_Practice_Hub {
             array($this, 'students_page')
         );
         
-        add_submenu_page(
-            'jazzedge-practice-hub',
-            __('Settings', 'jazzedge-practice-hub'),
-            __('Settings', 'jazzedge-practice-hub'),
-            'manage_options',
-            'jph-settings',
-            array($this, 'settings_page')
-        );
+            add_submenu_page(
+                'jazzedge-practice-hub',
+                __('Badges', 'jazzedge-practice-hub'),
+                __('Badges', 'jazzedge-practice-hub'),
+                'manage_options',
+                'jph-badges',
+                array($this, 'badges_page')
+            );
+            
+            add_submenu_page(
+                'jazzedge-practice-hub',
+                __('Settings', 'jazzedge-practice-hub'),
+                __('Settings', 'jazzedge-practice-hub'),
+                'manage_options',
+                'jph-settings',
+                array($this, 'settings_page')
+            );
     }
     
     /**
@@ -950,6 +959,126 @@ class JazzEdge_Practice_Hub {
             </div>
         </div>
         
+        <!-- Badges Page -->
+        <div id="jph-badges-page" style="display: none;">
+            <div class="wrap">
+                <h1>🏆 Badge Management</h1>
+                
+                <div class="jph-badges-overview">
+                    <div class="jph-badges-stats">
+                        <div class="jph-stat-card">
+                            <h3>Total Badges</h3>
+                            <p id="total-badges">Loading...</p>
+                        </div>
+                        <div class="jph-stat-card">
+                            <h3>Active Badges</h3>
+                            <p id="active-badges">Loading...</p>
+                        </div>
+                        <div class="jph-stat-card">
+                            <h3>Categories</h3>
+                            <p id="badge-categories">Loading...</p>
+                        </div>
+                        <div class="jph-stat-card">
+                            <h3>Total Awards</h3>
+                            <p id="total-awards">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="jph-badges-actions">
+                    <button type="button" class="button button-primary" id="add-badge-btn">➕ Add New Badge</button>
+                    <button type="button" class="button button-secondary" id="refresh-badges-btn">🔄 Refresh</button>
+                </div>
+                
+                <div class="jph-badges-table-container">
+                    <table class="jph-badges-table">
+                        <thead>
+                            <tr>
+                                <th>Badge</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Rarity</th>
+                                <th>XP Reward</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="badges-table-body">
+                            <tr>
+                                <td colspan="7" class="jph-loading">Loading badges...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add Badge Modal -->
+        <div id="jph-add-badge-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content" style="max-width: 600px;">
+                <div class="jph-modal-header">
+                    <h2>🏆 Add New Badge</h2>
+                    <span class="jph-modal-close" onclick="closeAddBadgeModal()">&times;</span>
+                </div>
+                <div class="jph-modal-body">
+                    <form id="jph-add-badge-form" enctype="multipart/form-data">
+                        <div class="jph-form-group">
+                            <label for="badge-key">Badge Key (unique identifier):</label>
+                            <input type="text" id="badge-key" name="badge_key" required placeholder="e.g., first_session, week_streak">
+                            <small>Use lowercase letters, numbers, and underscores only</small>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-name">Badge Name:</label>
+                            <input type="text" id="badge-name" name="name" required placeholder="e.g., First Session">
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-description">Description:</label>
+                            <textarea id="badge-description" name="description" rows="3" placeholder="Describe what this badge represents..."></textarea>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-image">Badge Image:</label>
+                            <input type="file" id="badge-image" name="badge_image" accept="image/*">
+                            <small>Recommended: 64x64px PNG with transparent background</small>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-category">Category:</label>
+                            <select id="badge-category" name="category">
+                                <option value="achievement">Achievement</option>
+                                <option value="milestone">Milestone</option>
+                                <option value="special">Special</option>
+                                <option value="streak">Streak</option>
+                                <option value="level">Level</option>
+                            </select>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-rarity">Rarity:</label>
+                            <select id="badge-rarity" name="rarity">
+                                <option value="common">Common</option>
+                                <option value="rare">Rare</option>
+                                <option value="epic">Epic</option>
+                                <option value="legendary">Legendary</option>
+                            </select>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-xp-reward">XP Reward:</label>
+                            <input type="number" id="badge-xp-reward" name="xp_reward" min="0" value="0">
+                        </div>
+                        
+                        <div class="jph-form-actions">
+                            <button type="submit" class="button button-primary">Create Badge</button>
+                            <button type="button" class="button button-secondary" onclick="closeAddBadgeModal()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
         <!-- Edit Student Modal -->
         <div id="jph-edit-student-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
@@ -1034,6 +1163,137 @@ class JazzEdge_Practice_Hub {
         .jph-filter-group button {
             margin-top: 20px;
             margin-right: 10px;
+        }
+        
+        /* Badges Page Styles */
+        .jph-badges-overview {
+            margin: 20px 0;
+        }
+        
+        .jph-badges-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .jph-badges-actions {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .jph-badges-table-container {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .jph-badges-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .jph-badges-table th,
+        .jph-badges-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .jph-badges-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .jph-badge-image {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid #ddd;
+        }
+        
+        .jph-badge-rarity {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .jph-badge-rarity.common {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+        
+        .jph-badge-rarity.rare {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .jph-badge-rarity.epic {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .jph-badge-rarity.legendary {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .jph-badge-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .jph-badge-status.active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .jph-badge-status.inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .jph-form-group {
+            margin-bottom: 20px;
+        }
+        
+        .jph-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .jph-form-group input,
+        .jph-form-group select,
+        .jph-form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .jph-form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .jph-form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
         }
         
         .jph-students-table-container {
@@ -1758,6 +2018,309 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
+     * Badges page JavaScript
+     */
+    private function badges_page_js() {
+        ?>
+        <script>
+        // Load badges data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBadgesData();
+            loadBadgesStats();
+            
+            // Add event listeners
+            document.getElementById('add-badge-btn').addEventListener('click', function() {
+                document.getElementById('jph-add-badge-modal').style.display = 'block';
+            });
+            
+            document.getElementById('refresh-badges-btn').addEventListener('click', function() {
+                loadBadgesData();
+                loadBadgesStats();
+            });
+            
+            // Add badge form submission
+            document.getElementById('jph-add-badge-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addBadge();
+            });
+        });
+        
+        // Load badges statistics
+        function loadBadgesStats() {
+            fetch('<?php echo rest_url('jph/v1/badges/stats'); ?>', {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('total-badges').textContent = data.stats.total_badges;
+                    document.getElementById('active-badges').textContent = data.stats.active_badges;
+                    document.getElementById('badge-categories').textContent = data.stats.category_count;
+                    document.getElementById('total-awards').textContent = data.stats.total_awards;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading badge stats:', error);
+            });
+        }
+        
+        // Load badges table data
+        function loadBadgesData() {
+            const tbody = document.getElementById('badges-table-body');
+            tbody.innerHTML = '<tr><td colspan="7" class="jph-loading">Loading badges...</td></tr>';
+            
+            fetch('<?php echo rest_url('jph/v1/badges'); ?>', {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderBadgesTable(data.badges);
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="jph-loading">Error loading badges</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading badges:', error);
+                tbody.innerHTML = '<tr><td colspan="7" class="jph-loading">Error loading badges</td></tr>';
+            });
+        }
+        
+        // Render badges table
+        function renderBadgesTable(badges) {
+            const tbody = document.getElementById('badges-table-body');
+            
+            if (badges.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="jph-loading">No badges found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = badges.map(badge => `
+                <tr>
+                    <td>
+                        ${badge.image_url ? 
+                            `<img src="${badge.image_url}" alt="${badge.name}" class="jph-badge-image">` : 
+                            `<div class="jph-badge-image" style="background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 20px;">🏆</div>`
+                        }
+                    </td>
+                    <td>
+                        <strong>${badge.name}</strong>
+                        <br><small>${badge.badge_key}</small>
+                    </td>
+                    <td>${badge.category}</td>
+                    <td><span class="jph-badge-rarity ${badge.rarity}">${badge.rarity}</span></td>
+                    <td>${badge.xp_reward} XP</td>
+                    <td><span class="jph-badge-status ${badge.is_active ? 'active' : 'inactive'}">${badge.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td>
+                        <button class="button button-small" onclick="editBadge(${badge.id})">Edit</button>
+                        <button class="button button-small button-link-delete" onclick="deleteBadge(${badge.id})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // Add new badge
+        function addBadge() {
+            const form = document.getElementById('jph-add-badge-form');
+            const formData = new FormData(form);
+            
+            fetch('<?php echo rest_url('jph/v1/badges'); ?>', {
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Badge created successfully!');
+                    closeAddBadgeModal();
+                    loadBadgesData();
+                    loadBadgesStats();
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error creating badge:', error);
+                alert('Error creating badge: ' + error);
+            });
+        }
+        
+        // Edit badge
+        function editBadge(badgeId) {
+            alert('Edit badge functionality - Coming Soon');
+        }
+        
+        // Delete badge
+        function deleteBadge(badgeId) {
+            if (confirm('Are you sure you want to delete this badge?')) {
+                fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeId, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Badge deleted successfully!');
+                        loadBadgesData();
+                        loadBadgesStats();
+                    } else {
+                        alert('Error: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting badge:', error);
+                    alert('Error deleting badge: ' + error);
+                });
+            }
+        }
+        
+        // Close add badge modal
+        function closeAddBadgeModal() {
+            document.getElementById('jph-add-badge-modal').style.display = 'none';
+            document.getElementById('jph-add-badge-form').reset();
+        }
+        </script>
+        <?php
+    }
+    
+    /**
+     * Badges page
+     */
+    public function badges_page() {
+        ?>
+        <div class="wrap">
+            <h1>🏆 Badge Management</h1>
+            
+            <div class="jph-badges-overview">
+                <div class="jph-badges-stats">
+                    <div class="jph-stat-card">
+                        <h3>Total Badges</h3>
+                        <p id="total-badges">Loading...</p>
+                    </div>
+                    <div class="jph-stat-card">
+                        <h3>Active Badges</h3>
+                        <p id="active-badges">Loading...</p>
+                    </div>
+                    <div class="jph-stat-card">
+                        <h3>Categories</h3>
+                        <p id="badge-categories">Loading...</p>
+                    </div>
+                    <div class="jph-stat-card">
+                        <h3>Total Awards</h3>
+                        <p id="total-awards">Loading...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="jph-badges-actions">
+                <button type="button" class="button button-primary" id="add-badge-btn">➕ Add New Badge</button>
+                <button type="button" class="button button-secondary" id="refresh-badges-btn">🔄 Refresh</button>
+            </div>
+            
+            <div class="jph-badges-table-container">
+                <table class="jph-badges-table">
+                    <thead>
+                        <tr>
+                            <th>Badge</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Rarity</th>
+                            <th>XP Reward</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="badges-table-body">
+                        <tr>
+                            <td colspan="7" class="jph-loading">Loading badges...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Add Badge Modal -->
+        <div id="jph-add-badge-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content" style="max-width: 600px;">
+                <div class="jph-modal-header">
+                    <h2>🏆 Add New Badge</h2>
+                    <span class="jph-modal-close" onclick="closeAddBadgeModal()">&times;</span>
+                </div>
+                <div class="jph-modal-body">
+                    <form id="jph-add-badge-form" enctype="multipart/form-data">
+                        <div class="jph-form-group">
+                            <label for="badge-key">Badge Key (unique identifier):</label>
+                            <input type="text" id="badge-key" name="badge_key" required placeholder="e.g., first_session, week_streak">
+                            <small>Use lowercase letters, numbers, and underscores only</small>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-name">Badge Name:</label>
+                            <input type="text" id="badge-name" name="name" required placeholder="e.g., First Session">
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-description">Description:</label>
+                            <textarea id="badge-description" name="description" rows="3" placeholder="Describe what this badge represents..."></textarea>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-image">Badge Image:</label>
+                            <input type="file" id="badge-image" name="badge_image" accept="image/*">
+                            <small>Recommended: 64x64px PNG with transparent background</small>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-category">Category:</label>
+                            <select id="badge-category" name="category">
+                                <option value="achievement">Achievement</option>
+                                <option value="milestone">Milestone</option>
+                                <option value="special">Special</option>
+                                <option value="streak">Streak</option>
+                                <option value="level">Level</option>
+                            </select>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-rarity">Rarity:</label>
+                            <select id="badge-rarity" name="rarity">
+                                <option value="common">Common</option>
+                                <option value="rare">Rare</option>
+                                <option value="epic">Epic</option>
+                                <option value="legendary">Legendary</option>
+                            </select>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-xp-reward">XP Reward:</label>
+                            <input type="number" id="badge-xp-reward" name="xp_reward" min="0" value="0">
+                        </div>
+                        
+                        <div class="jph-form-actions">
+                            <button type="submit" class="button button-primary">Create Badge</button>
+                            <button type="button" class="button button-secondary" onclick="closeAddBadgeModal()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <?php $this->badges_page_js(); ?>
+        <?php
+    }
+    
+    /**
      * Settings page
      */
     public function settings_page() {
@@ -1885,6 +2448,64 @@ class JazzEdge_Practice_Hub {
         register_rest_route('jph/v1', '/backfill-stats', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_backfill_user_stats'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        // Badge management endpoints
+        register_rest_route('jph/v1', '/badges', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_badges'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/badges', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_add_badge'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_badge'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param, $request, $key) {
+                        return is_numeric($param);
+                    }
+                )
+            )
+        ));
+        
+        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_badge'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param, $request, $key) {
+                        return is_numeric($param);
+                    }
+                )
+            )
+        ));
+        
+        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'rest_delete_badge'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param, $request, $key) {
+                        return is_numeric($param);
+                    }
+                )
+            )
+        ));
+        
+        register_rest_route('jph/v1', '/badges/stats', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_badges_stats'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
@@ -2828,6 +3449,225 @@ class JazzEdge_Practice_Hub {
             ));
         } catch (Exception $e) {
             return new WP_Error('backfill_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get all badges
+     */
+    public function rest_get_badges($request) {
+        try {
+            $database = new JPH_Database();
+            $badges = $database->get_badges(false); // Get all badges, including inactive
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'badges' => $badges,
+                'total_count' => count($badges),
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get badge by ID
+     */
+    public function rest_get_badge($request) {
+        try {
+            $badge_id = $request->get_param('id');
+            $database = new JPH_Database();
+            $badge = $database->get_badge($badge_id);
+            
+            if (!$badge) {
+                return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'badge' => $badge,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Add new badge
+     */
+    public function rest_add_badge($request) {
+        try {
+            $database = new JPH_Database();
+            
+            // Get form data
+            $badge_key = $request->get_param('badge_key');
+            $name = $request->get_param('name');
+            $description = $request->get_param('description');
+            $category = $request->get_param('category');
+            $rarity = $request->get_param('rarity');
+            $xp_reward = $request->get_param('xp_reward');
+            
+            // Handle file upload
+            $image_url = '';
+            if (isset($_FILES['badge_image']) && $_FILES['badge_image']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = wp_upload_dir();
+                $badge_dir = $upload_dir['basedir'] . '/jph-badges';
+                
+                // Create directory if it doesn't exist
+                if (!file_exists($badge_dir)) {
+                    wp_mkdir_p($badge_dir);
+                }
+                
+                $file_extension = pathinfo($_FILES['badge_image']['name'], PATHINFO_EXTENSION);
+                $filename = sanitize_file_name($badge_key . '.' . $file_extension);
+                $file_path = $badge_dir . '/' . $filename;
+                
+                if (move_uploaded_file($_FILES['badge_image']['tmp_name'], $file_path)) {
+                    $image_url = $upload_dir['baseurl'] . '/jph-badges/' . $filename;
+                }
+            }
+            
+            $badge_data = array(
+                'badge_key' => $badge_key,
+                'name' => $name,
+                'description' => $description,
+                'image_url' => $image_url,
+                'category' => $category,
+                'rarity' => $rarity,
+                'xp_reward' => $xp_reward,
+                'is_active' => 1
+            );
+            
+            $result = $database->add_badge($badge_data);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Badge created successfully',
+                'badge_id' => $result,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('add_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update badge
+     */
+    public function rest_update_badge($request) {
+        try {
+            $badge_id = $request->get_param('id');
+            $database = new JPH_Database();
+            
+            // Get form data
+            $badge_data = array();
+            if ($request->get_param('name')) $badge_data['name'] = $request->get_param('name');
+            if ($request->get_param('description')) $badge_data['description'] = $request->get_param('description');
+            if ($request->get_param('category')) $badge_data['category'] = $request->get_param('category');
+            if ($request->get_param('rarity')) $badge_data['rarity'] = $request->get_param('rarity');
+            if ($request->get_param('xp_reward')) $badge_data['xp_reward'] = $request->get_param('xp_reward');
+            
+            // Handle file upload
+            if (isset($_FILES['badge_image']) && $_FILES['badge_image']['error'] === UPLOAD_ERR_OK) {
+                $upload_dir = wp_upload_dir();
+                $badge_dir = $upload_dir['basedir'] . '/jph-badges';
+                
+                // Create directory if it doesn't exist
+                if (!file_exists($badge_dir)) {
+                    wp_mkdir_p($badge_dir);
+                }
+                
+                $file_extension = pathinfo($_FILES['badge_image']['name'], PATHINFO_EXTENSION);
+                $filename = sanitize_file_name($badge_id . '.' . $file_extension);
+                $file_path = $badge_dir . '/' . $filename;
+                
+                if (move_uploaded_file($_FILES['badge_image']['tmp_name'], $file_path)) {
+                    $badge_data['image_url'] = $upload_dir['baseurl'] . '/jph-badges/' . $filename;
+                }
+            }
+            
+            $result = $database->update_badge($badge_id, $badge_data);
+            
+            if (!$result) {
+                return new WP_Error('update_failed', 'Failed to update badge', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Badge updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Delete badge (soft delete)
+     */
+    public function rest_delete_badge($request) {
+        try {
+            $badge_id = $request->get_param('id');
+            $database = new JPH_Database();
+            
+            $result = $database->delete_badge($badge_id);
+            
+            if (!$result) {
+                return new WP_Error('delete_failed', 'Failed to delete badge', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Badge deleted successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('delete_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get badge statistics
+     */
+    public function rest_get_badges_stats($request) {
+        try {
+            global $wpdb;
+            
+            $badges_table = $wpdb->prefix . 'jph_badges';
+            $user_badges_table = $wpdb->prefix . 'jph_user_badges';
+            
+            // Get total badges
+            $total_badges = $wpdb->get_var("SELECT COUNT(*) FROM {$badges_table}");
+            
+            // Get active badges
+            $active_badges = $wpdb->get_var("SELECT COUNT(*) FROM {$badges_table} WHERE is_active = 1");
+            
+            // Get categories count
+            $categories = $wpdb->get_results("SELECT category, COUNT(*) as count FROM {$badges_table} WHERE is_active = 1 GROUP BY category");
+            $category_count = count($categories);
+            
+            // Get total awards
+            $total_awards = $wpdb->get_var("SELECT COUNT(*) FROM {$user_badges_table}");
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'stats' => array(
+                    'total_badges' => (int) $total_badges,
+                    'active_badges' => (int) $active_badges,
+                    'category_count' => $category_count,
+                    'total_awards' => (int) $total_awards,
+                    'categories' => $categories
+                ),
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_badges_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
