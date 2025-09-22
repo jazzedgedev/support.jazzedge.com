@@ -257,12 +257,13 @@ class JazzEdge_Practice_Hub {
                                 </ul>
                             </div>
                         </div>
-                        <div class="jph-gamification-actions">
-                            <button type="button" class="button button-primary" onclick="testGamification()">Test Gamification</button>
-                            <button type="button" class="button button-secondary" onclick="showGamificationStats()">Show User Stats</button>
-                            <button type="button" class="button button-secondary" onclick="simulatePractice()">Simulate Practice</button>
-                            <button type="button" class="button button-secondary" onclick="backfillUserStats()">Backfill User Stats</button>
-                        </div>
+                <div class="jph-gamification-actions">
+                    <button type="button" class="button button-primary" onclick="testGamification()">Test Gamification</button>
+                    <button type="button" class="button button-secondary" onclick="showGamificationStats()">Show User Stats</button>
+                    <button type="button" class="button button-secondary" onclick="simulatePractice()">Simulate Practice</button>
+                    <button type="button" class="button button-secondary" onclick="backfillUserStats()">Backfill User Stats</button>
+                    <button type="button" class="button button-secondary" onclick="checkAndAwardBadges()">Check & Award Badges</button>
+                </div>
                         <div id="jph-gamification-results" class="jph-gamification-results"></div>
                     </div>
                 </div>
@@ -658,6 +659,42 @@ class JazzEdge_Practice_Hub {
             });
         }
         
+        function checkAndAwardBadges() {
+            const resultsDiv = document.getElementById('jph-gamification-results');
+            resultsDiv.className = 'jph-gamification-results show loading';
+            resultsDiv.textContent = 'Checking and awarding badges...';
+            
+            fetch('<?php echo rest_url('jph/v1/check-badges'); ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.count > 0) {
+                        resultsDiv.className = 'jph-gamification-results show success';
+                        resultsDiv.textContent = '🎉 ' + data.message + '\n\n' +
+                            'Badges Awarded: ' + data.count + '\n' +
+                            'New Badges:\n' + 
+                            data.newly_awarded.map(badge => '- ' + badge.name + ' (' + badge.xp_reward + ' XP)').join('\n');
+                    } else {
+                        resultsDiv.className = 'jph-gamification-results show info';
+                        resultsDiv.textContent = 'ℹ️ ' + data.message + '\n\nNo new badges to award at this time.';
+                    }
+                } else {
+                    resultsDiv.className = 'jph-gamification-results show error';
+                    resultsDiv.textContent = '❌ Error: ' + data.message;
+                }
+            })
+            .catch(error => {
+                resultsDiv.className = 'jph-gamification-results show error';
+                resultsDiv.textContent = '❌ Error checking badges: ' + error.message;
+            });
+        }
+        
         // Test REST API
         function testRestAPI() {
             const resultsDiv = document.getElementById('jph-test-results');
@@ -924,7 +961,9 @@ class JazzEdge_Practice_Hub {
                             <th>Student</th>
                             <th>Level</th>
                             <th>XP</th>
-                            <th>Streak</th>
+                            <th>Current Streak</th>
+                            <th>Longest Streak</th>
+                            <th>Badges</th>
                             <th>Last Practice</th>
                             <th>Total Sessions</th>
                             <th>Total Hours</th>
@@ -933,7 +972,7 @@ class JazzEdge_Practice_Hub {
                     </thead>
                     <tbody id="students-table-body">
                         <tr>
-                            <td colspan="8" class="jph-loading">Loading students...</td>
+                            <td colspan="10" class="jph-loading">Loading students...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -987,6 +1026,7 @@ class JazzEdge_Practice_Hub {
                 
                 <div class="jph-badges-actions">
                     <button type="button" class="button button-primary" id="add-badge-btn">➕ Add New Badge</button>
+                    <button type="button" class="button button-secondary" id="create-default-badges-btn">🏆 Create Default Badges</button>
                     <button type="button" class="button button-secondary" id="refresh-badges-btn">🔄 Refresh</button>
                 </div>
                 
@@ -1397,6 +1437,16 @@ class JazzEdge_Practice_Hub {
             font-size: 16px;
         }
         
+        .jph-badges-display {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .jph-badge-icon {
+            font-size: 16px;
+        }
+        
         .jph-last-practice {
             font-size: 12px;
             color: #666;
@@ -1655,12 +1705,12 @@ class JazzEdge_Practice_Hub {
                 if (data.success) {
                     renderStudentsTable(data.students);
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">Error loading students</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="10" class="jph-loading">Error loading students</td></tr>';
                 }
             })
             .catch(error => {
                 console.error('Error loading students:', error);
-                tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">Error loading students</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="jph-loading">Error loading students</td></tr>';
             });
         }
         
@@ -1669,7 +1719,7 @@ class JazzEdge_Practice_Hub {
             const tbody = document.getElementById('students-table-body');
             
             if (students.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">No students found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="jph-loading">No students found</td></tr>';
                 return;
             }
             
@@ -1690,6 +1740,18 @@ class JazzEdge_Practice_Hub {
                         <div class="jph-streak-display">
                             <span class="jph-streak-fire">🔥</span>
                             <span>${student.stats.current_streak} days</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="jph-streak-display">
+                            <span class="jph-streak-fire">🏆</span>
+                            <span>${student.stats.longest_streak} days</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="jph-badges-display">
+                            <span class="jph-badge-icon">🏅</span>
+                            <span>${student.stats.badges_earned}</span>
                         </div>
                     </td>
                     <td><span class="jph-last-practice">${formatDate(student.stats.last_practice_date)}</span></td>
@@ -2038,6 +2100,11 @@ class JazzEdge_Practice_Hub {
                 loadBadgesStats();
             });
             
+            // Create default badges button
+            document.getElementById('create-default-badges-btn').addEventListener('click', function() {
+                createDefaultBadges();
+            });
+            
             // Add badge form submission
             document.getElementById('jph-add-badge-form').addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -2114,7 +2181,7 @@ class JazzEdge_Practice_Hub {
                         <br><small>${badge.badge_key}</small>
                     </td>
                     <td>${badge.category}</td>
-                    <td><span class="jph-badge-rarity ${badge.rarity}">${badge.rarity}</span></td>
+                    <td><span class="jph-badge-rarity ${badge.rarity || 'common'}">${badge.rarity || 'common'}</span></td>
                     <td>${badge.xp_reward} XP</td>
                     <td><span class="jph-badge-status ${badge.is_active ? 'active' : 'inactive'}">${badge.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td>
@@ -2186,10 +2253,38 @@ class JazzEdge_Practice_Hub {
         }
         
         // Close add badge modal
-        function closeAddBadgeModal() {
-            document.getElementById('jph-add-badge-modal').style.display = 'none';
-            document.getElementById('jph-add-badge-form').reset();
-        }
+            function closeAddBadgeModal() {
+                document.getElementById('jph-add-badge-modal').style.display = 'none';
+                document.getElementById('jph-add-badge-form').reset();
+            }
+            
+            // Create default badges
+            function createDefaultBadges() {
+                if (!confirm('This will create 6 default badges. Continue?')) {
+                    return;
+                }
+                
+                fetch('<?php echo rest_url('jph/v1/create-default-badges'); ?>', {
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Default badges created successfully!');
+                        loadBadgesData();
+                        loadBadgesStats();
+                    } else {
+                        alert('Error creating default badges: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error creating default badges:', error);
+                    alert('Error creating default badges');
+                });
+            }
         </script>
         <?php
     }
@@ -2507,6 +2602,27 @@ class JazzEdge_Practice_Hub {
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_badges_stats'),
             'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        // User badges endpoint
+        register_rest_route('jph/v1', '/user-badges', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_user_badges'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Create default badges endpoint
+        register_rest_route('jph/v1', '/create-default-badges', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_create_default_badges'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        // Check and award badges endpoint
+        register_rest_route('jph/v1', '/check-badges', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_check_and_award_badges'),
+            'permission_callback' => '__return_true'
         ));
         
         // Database operations endpoints
@@ -3092,10 +3208,15 @@ class JazzEdge_Practice_Hub {
             
             $students = array();
             $gamification = new JPH_Gamification();
+            $database = new JPH_Database();
             
             foreach ($results as $row) {
                 // Calculate current level based on total XP
                 $calculated_level = $gamification->calculate_level_from_xp($row->total_xp);
+                
+                // Get user's earned badges
+                $user_badges = $database->get_user_badges($row->ID);
+                $badge_count = count($user_badges);
                 
                 $students[] = array(
                     'ID' => (int) $row->ID,
@@ -3108,11 +3229,12 @@ class JazzEdge_Practice_Hub {
                         'longest_streak' => (int) $row->longest_streak,
                         'total_sessions' => (int) $row->total_sessions,
                         'total_minutes' => (int) $row->total_minutes,
-                        'badges_earned' => (int) $row->badges_earned,
+                        'badges_earned' => $badge_count,
                         'hearts_count' => (int) $row->hearts_count,
                         'gems_balance' => (int) $row->gems_balance,
                         'last_practice_date' => $row->last_practice_date
-                    )
+                    ),
+                    'badges' => $user_badges
                 );
             }
             
@@ -3672,6 +3794,261 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
+     * REST API: Get user's badges
+     */
+    public function rest_get_user_badges($request) {
+        try {
+            $user_id = get_current_user_id() ?: 1; // Default to user 1 for testing
+            
+            $database = new JPH_Database();
+            
+            // Get user's earned badges
+            $user_badges = $database->get_user_badges($user_id);
+            
+            // Get all available badges
+            $all_badges = $database->get_badges(true); // Only active badges
+            
+            // Create a map of earned badges by badge_key
+            $earned_badges_map = array();
+            foreach ($user_badges as $earned_badge) {
+                $earned_badges_map[$earned_badge['badge_key']] = $earned_badge;
+            }
+            
+            // Combine all badges with earned status
+            $badges_with_status = array();
+            foreach ($all_badges as $badge) {
+                $is_earned = isset($earned_badges_map[$badge['badge_key']]);
+                $badge_data = $badge;
+                $badge_data['is_earned'] = $is_earned;
+                
+                if ($is_earned) {
+                    $badge_data['earned_at'] = $earned_badges_map[$badge['badge_key']]['earned_at'];
+                }
+                
+                $badges_with_status[] = $badge_data;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'badges' => $badges_with_status,
+                'earned_count' => count($user_badges),
+                'total_count' => count($all_badges),
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_user_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Check and award badges for a user
+     */
+    public function check_and_award_badges($user_id) {
+        $database = new JPH_Database();
+        $gamification = new JPH_Gamification();
+        
+        // Get user stats
+        $user_stats = $gamification->get_user_stats($user_id);
+        
+        // Get user's practice sessions
+        $sessions = $database->get_practice_sessions($user_id);
+        
+        // Get all available badges
+        $all_badges = $database->get_badges(true);
+        
+        // Get user's already earned badges
+        $earned_badges = $database->get_user_badges($user_id);
+        $earned_badge_keys = array_column($earned_badges, 'badge_key');
+        
+        $newly_awarded = array();
+        
+        foreach ($all_badges as $badge) {
+            // Skip if already earned
+            if (in_array($badge['badge_key'], $earned_badge_keys)) {
+                continue;
+            }
+            
+            $should_award = false;
+            
+            switch ($badge['badge_key']) {
+                case 'first_session':
+                    if ($user_stats['total_sessions'] >= 1) {
+                        $should_award = true;
+                    }
+                    break;
+                    
+                case 'marathon':
+                    // Check if user has any session >= 60 minutes
+                    foreach ($sessions as $session) {
+                        if ($session['duration_minutes'] >= 60) {
+                            $should_award = true;
+                            break;
+                        }
+                    }
+                    break;
+                    
+                case 'rising_star':
+                    // Count sessions with improvement detected
+                    $improvement_count = 0;
+                    foreach ($sessions as $session) {
+                        if ($session['improvement_detected']) {
+                            $improvement_count++;
+                        }
+                    }
+                    if ($improvement_count >= 10) {
+                        $should_award = true;
+                    }
+                    break;
+                    
+                case 'hot_streak':
+                    if ($user_stats['current_streak'] >= 7) {
+                        $should_award = true;
+                    }
+                    break;
+                    
+                case 'lightning':
+                    if ($user_stats['current_streak'] >= 30) {
+                        $should_award = true;
+                    }
+                    break;
+                    
+                case 'legend':
+                    if ($user_stats['current_streak'] >= 100) {
+                        $should_award = true;
+                    }
+                    break;
+            }
+            
+            if ($should_award) {
+                // Award the badge
+                $database->award_badge(
+                    $user_id,
+                    $badge['badge_key'],
+                    $badge['name'],
+                    $badge['description'],
+                    $badge['image_url']
+                );
+                
+                // Add XP reward
+                if ($badge['xp_reward'] > 0) {
+                    $new_xp = $user_stats['total_xp'] + $badge['xp_reward'];
+                    $database->update_user_stats($user_id, array('total_xp' => $new_xp));
+                }
+                
+                $newly_awarded[] = $badge;
+            }
+        }
+        
+        return $newly_awarded;
+    }
+    
+    /**
+     * Create default badges if none exist
+     */
+    public function create_default_badges() {
+        $database = new JPH_Database();
+        
+        // Check if any badges exist
+        $existing_badges = $database->get_badges(false);
+        if (!empty($existing_badges)) {
+            return; // Badges already exist
+        }
+        
+        $default_badges = array(
+            array(
+                'badge_key' => 'first_session',
+                'name' => 'First Steps',
+                'description' => 'Complete your first practice session',
+                'category' => 'practice',
+                'rarity' => 'common',
+                'xp_reward' => 50
+            ),
+            array(
+                'badge_key' => 'marathon',
+                'name' => 'Marathon',
+                'description' => 'Practice for 60+ minutes in one session',
+                'category' => 'achievement',
+                'rarity' => 'rare',
+                'xp_reward' => 75
+            ),
+            array(
+                'badge_key' => 'rising_star',
+                'name' => 'Rising Star',
+                'description' => 'Report improvement 10 times',
+                'category' => 'improvement',
+                'rarity' => 'rare',
+                'xp_reward' => 200
+            ),
+            array(
+                'badge_key' => 'hot_streak',
+                'name' => 'Hot Streak',
+                'description' => 'Practice for 7 days in a row',
+                'category' => 'streak',
+                'rarity' => 'epic',
+                'xp_reward' => 100
+            ),
+            array(
+                'badge_key' => 'lightning',
+                'name' => 'Lightning',
+                'description' => 'Practice for 30 days in a row',
+                'category' => 'streak',
+                'rarity' => 'epic',
+                'xp_reward' => 500
+            ),
+            array(
+                'badge_key' => 'legend',
+                'name' => 'Legend',
+                'description' => 'Practice for 100 days in a row',
+                'category' => 'streak',
+                'rarity' => 'legendary',
+                'xp_reward' => 1000
+            )
+        );
+        
+        foreach ($default_badges as $badge_data) {
+            $database->add_badge($badge_data);
+        }
+    }
+    
+    /**
+     * REST API: Create default badges
+     */
+    public function rest_create_default_badges($request) {
+        try {
+            $this->create_default_badges();
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Default badges created successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('create_default_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Check and award badges
+     */
+    public function rest_check_and_award_badges($request) {
+        try {
+            $user_id = get_current_user_id() ?: 1; // Default to user 1 for testing
+            
+            $newly_awarded = $this->check_and_award_badges($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'newly_awarded' => $newly_awarded,
+                'count' => count($newly_awarded),
+                'message' => count($newly_awarded) > 0 ? 'New badges awarded!' : 'No new badges to award',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('check_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
      * Calculate streak from practice sessions
      */
     private function calculate_streak_from_sessions($user_id, $sessions) {
@@ -3968,6 +4345,16 @@ class JazzEdge_Practice_Hub {
                         endif;
                     endfor; 
                     ?>
+                </div>
+            </div>
+            
+            <!-- Badges Section -->
+            <div class="jph-badges-section">
+                <h3>🏆 Your Badges 
+                    <span class="badge-count">(<?php echo esc_html($user_stats['badges_earned']); ?>)</span>
+                </h3>
+                <div class="jph-badges-grid" id="jph-badges-grid">
+                    <div class="loading-message">Loading badges...</div>
                 </div>
             </div>
             
@@ -4573,6 +4960,178 @@ class JazzEdge_Practice_Hub {
         }
         
         /* Full Width Practice History */
+        .jph-badges-section {
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .jph-badges-section h3 {
+            margin-bottom: 20px;
+            color: #004555;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .badge-count {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #004555;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+        }
+        
+        .jph-badges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .jph-badge-card {
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            border: 2px solid #e8f5f4;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .jph-badge-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 69, 85, 0.15);
+            border-color: #004555;
+        }
+        
+        .jph-badge-card.earned {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border-color: #ffd700;
+            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.2);
+        }
+        
+        .jph-badge-card.earned:hover {
+            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.3);
+        }
+        
+        .jph-badge-image {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            border: 3px solid #e8f5f4;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-badge-card.earned .jph-badge-image {
+            border-color: #ffd700;
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+        }
+        
+        .jph-badge-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+        
+        .jph-badge-name {
+            font-weight: 600;
+            color: #004555;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            line-height: 1.2;
+        }
+        
+        .jph-badge-description {
+            font-size: 0.8em;
+            color: #666;
+            line-height: 1.3;
+            margin-bottom: 10px;
+        }
+        
+        .jph-badge-rarity {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .jph-badge-rarity.common {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+        
+        .jph-badge-rarity.rare {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .jph-badge-rarity.epic {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .jph-badge-rarity.legendary {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .jph-badge-earned-date {
+            font-size: 0.7em;
+            color: #28a745;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        
+        .jph-badge-locked {
+            opacity: 0.5;
+            filter: grayscale(100%);
+        }
+        
+        .jph-badge-locked .jph-badge-image {
+            background: #f0f0f0;
+            border-color: #ddd;
+        }
+        
+        .jph-badge-locked .jph-badge-name {
+            color: #999;
+        }
+        
+        .jph-badge-locked .jph-badge-description {
+            color: #ccc;
+        }
+        
+        .no-badges-message {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .no-badges-message .emoji {
+            font-size: 2em;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
         .jph-practice-history-full {
             background: white;
             border-radius: 16px;
@@ -5344,6 +5903,9 @@ class JazzEdge_Practice_Hub {
                 // Load practice history
                 loadPracticeHistory();
                 
+                // Check and award badges, then load them
+                checkAndAwardBadges();
+                
                 // Stats Explanation Modal
                 $('#jph-stats-explanation-btn').on('click', function() {
                     $('#jph-stats-explanation-modal').show();
@@ -5491,6 +6053,80 @@ class JazzEdge_Practice_Hub {
                             $('#practice-history-list').html('<div class="no-sessions-message"><span class="emoji">❌</span>Error loading practice history</div>');
                         }
                     });
+                }
+                
+                // Check and award badges
+                function checkAndAwardBadges() {
+                    $.ajax({
+                        url: '<?php echo rest_url('jph/v1/check-badges'); ?>',
+                        method: 'POST',
+                        success: function(response) {
+                            if (response.success) {
+                                if (response.count > 0) {
+                                    console.log('New badges awarded:', response.newly_awarded);
+                                    // Show notification if new badges were awarded
+                                    showMessage('🎉 ' + response.message, 'success');
+                                }
+                            }
+                            // Always load badges after checking
+                            loadBadges();
+                        },
+                        error: function(xhr, status, error) {
+                            console.error('Error checking badges:', error);
+                            // Still load badges even if check fails
+                            loadBadges();
+                        }
+                    });
+                }
+                
+                // Load badges
+                function loadBadges() {
+                    $.ajax({
+                        url: '<?php echo rest_url('jph/v1/user-badges'); ?>',
+                        method: 'GET',
+                        success: function(response) {
+                            if (response.success) {
+                                displayBadges(response.badges);
+                            } else {
+                                $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available</div>');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error('Error loading badges:', error);
+                            $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">❌</span>Error loading badges</div>');
+                        }
+                    });
+                }
+                
+                // Display badges
+                function displayBadges(badges) {
+                    var $container = $('#jph-badges-grid');
+                    
+                    if (!badges || badges.length === 0) {
+                        $container.html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available yet. Keep practicing to earn your first badge!</div>');
+                        return;
+                    }
+                    
+                    var html = '';
+                    badges.forEach(function(badge) {
+                        var earnedClass = badge.is_earned ? 'earned' : 'locked';
+                        var badgeImage = badge.image_url ? 
+                            '<img src="' + badge.image_url + '" alt="' + badge.name + '">' : 
+                            '<span class="badge-emoji">🏆</span>';
+                        
+                        var earnedDate = badge.is_earned && badge.earned_at ? 
+                            '<div class="jph-badge-earned-date">Earned: ' + formatDate(badge.earned_at) + '</div>' : '';
+                        
+                        html += '<div class="jph-badge-card ' + earnedClass + '">';
+                        html += '    <div class="jph-badge-image">' + badgeImage + '</div>';
+                        html += '    <div class="jph-badge-name">' + escapeHtml(badge.name) + '</div>';
+                        html += '    <div class="jph-badge-description">' + escapeHtml(badge.description || '') + '</div>';
+                        html += '    <div class="jph-badge-rarity ' + (badge.rarity || 'common') + '">' + (badge.rarity || 'common') + '</div>';
+                        html += earnedDate;
+                        html += '</div>';
+                    });
+                    
+                    $container.html(html);
                 }
                 
                 // Display practice history
