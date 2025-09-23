@@ -335,7 +335,7 @@ class JPH_Admin {
             LEFT JOIN {$wpdb->prefix}jph_practice_items pi ON ps.practice_item_id = pi.id
             LEFT JOIN {$wpdb->users} u ON ps.user_id = u.ID
             ORDER BY ps.created_at DESC
-            LIMIT 50
+            LIMIT 100
         ");
         
         ?>
