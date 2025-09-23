@@ -2168,14 +2168,14 @@ class JazzEdge_Practice_Hub {
                 if (result.success) {
                     closeEditStudentModal();
                     loadStudentsData(); // Refresh the table
-                    alert('Student stats updated successfully!');
+                    showToast('Student stats updated successfully!', 'success');
                 } else {
-                    alert('Error updating student stats: ' + (result.message || 'Unknown error'));
+                    showToast('Error updating student stats: ' + (result.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error updating student stats:', error);
-                alert('Error updating student stats');
+                showToast('Error updating student stats', 'error');
             });
         }
         
@@ -2207,11 +2207,11 @@ class JazzEdge_Practice_Hub {
         }
         
         function exportStudents() {
-            alert('Export students to CSV - Coming Soon');
+            showToast('Export students to CSV - Coming Soon', 'info');
         }
         
         function showStudentAnalytics() {
-            alert('Student analytics - Coming Soon');
+            showToast('Student analytics - Coming Soon', 'info');
         }
         </script>
         <?php
@@ -2534,14 +2534,14 @@ class JazzEdge_Practice_Hub {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('✅ ' + data.message);
+                    showToast(data.message, 'success');
                 } else {
-                    alert('❌ Error: ' + (data.message || 'Unknown error'));
+                    showToast('Error: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error syncing all badge counts:', error);
-                alert('❌ Error syncing all badge counts: ' + error);
+                showToast('Error syncing all badge counts: ' + error, 'error');
             });
         }
         
@@ -2612,15 +2612,15 @@ class JazzEdge_Practice_Hub {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('✅ ' + data.message);
+                    showToast(data.message, 'success');
                     loadWebhookLog();
                 } else {
-                    alert('❌ Error: ' + (data.message || 'Unknown error'));
+                    showToast('Error: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error clearing webhook log:', error);
-                alert('❌ Error clearing webhook log: ' + error);
+                showToast('Error clearing webhook log: ' + error, 'error');
             });
         }
         
@@ -2628,7 +2628,7 @@ class JazzEdge_Practice_Hub {
         function addBadge() {
             const form = document.getElementById('jph-add-badge-form');
             if (!form) {
-                alert('Form not found');
+                showToast('Form not found', 'error');
                 return;
             }
             
@@ -2646,17 +2646,17 @@ class JazzEdge_Practice_Hub {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Badge created successfully!');
+                    showToast('Badge created successfully!', 'success');
                     closeAddBadgeModal();
                     loadBadgesData();
                     loadBadgesStats();
                 } else {
-                    alert('Error: ' + (data.message || 'Unknown error'));
+                    showToast('Error: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error creating badge:', error);
-                alert('Error creating badge: ' + error);
+                showToast('Error creating badge: ' + error, 'error');
             });
         }
         
@@ -2674,12 +2674,12 @@ class JazzEdge_Practice_Hub {
                 if (data.success) {
                     openEditBadgeModal(data.badge);
                 } else {
-                    alert('Error loading badge: ' + (data.message || 'Unknown error'));
+                    showToast('Error loading badge: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error loading badge:', error);
-                alert('Error loading badge: ' + error);
+                showToast('Error loading badge: ' + error, 'error');
             });
         }
         
@@ -2731,7 +2731,7 @@ class JazzEdge_Practice_Hub {
             const form = document.getElementById('jph-edit-badge-form');
             if (!form) {
                 console.error('Edit form not found');
-                alert('Edit form not found');
+                showToast('Edit form not found', 'error');
                 return;
             }
             
@@ -2765,17 +2765,17 @@ class JazzEdge_Practice_Hub {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Badge updated successfully!');
+                    showToast('Badge updated successfully!', 'success');
                     closeEditBadgeModal();
                     loadBadgesData();
                     loadBadgesStats();
                 } else {
-                    alert('Error: ' + (data.message || 'Unknown error'));
+                    showToast('Error: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error updating badge:', error);
-                alert('Error updating badge: ' + error);
+                showToast('Error updating badge: ' + error, 'error');
             });
         }
         
@@ -2809,16 +2809,16 @@ class JazzEdge_Practice_Hub {
                 .then(data => {
                     console.log('Delete response data:', data);
                     if (data.success) {
-                        alert('Badge deleted successfully!');
+                        showToast('Badge deleted successfully!', 'success');
                         loadBadgesData();
                         loadBadgesStats();
                     } else {
-                        alert('Error: ' + (data.message || 'Unknown error'));
+                        showToast('Error: ' + (data.message || 'Unknown error'), 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error deleting badge:', error);
-                    alert('Error deleting badge: ' + error);
+                    showToast('Error deleting badge: ' + error, 'error');
                 });
             }
         }
@@ -2839,14 +2839,14 @@ class JazzEdge_Practice_Hub {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Migrations completed successfully! You can now update badges with webhook URLs.');
+                    showToast('Migrations completed successfully! You can now update badges with webhook URLs.', 'success');
                 } else {
-                    alert('Migration failed: ' + (data.message || 'Unknown error'));
+                    showToast('Migration failed: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Migration error:', error);
-                alert('Migration error: ' + error);
+                showToast('Migration error: ' + error, 'error');
             });
         }
         
@@ -2867,19 +2867,19 @@ class JazzEdge_Practice_Hub {
                 console.log('Badge awarding response:', data);
                 if (data.success) {
                     if (data.count > 0) {
-                        alert(`Success! ${data.count} new badge(s) awarded: ${data.newly_awarded.map(b => b.name).join(', ')}`);
+                        showToast(`Success! ${data.count} new badge(s) awarded: ${data.newly_awarded.map(b => b.name).join(', ')}`, 'success');
                     } else {
-                        alert('No new badges to award. User already has all eligible badges.');
+                        showToast('No new badges to award. User already has all eligible badges.', 'info');
                     }
                     loadBadgesData();
                     loadBadgesStats();
                 } else {
-                    alert('Badge awarding failed: ' + (data.message || 'Unknown error'));
+                    showToast('Badge awarding failed: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Badge awarding error:', error);
-                alert('Badge awarding error: ' + error);
+                showToast('Badge awarding error: ' + error, 'error');
             });
         }
         
@@ -2936,16 +2936,16 @@ class JazzEdge_Practice_Hub {
             .then(data => {
                 console.log('Sync badge count response:', data);
                 if (data.success) {
-                    alert(`Badge count synced successfully! Updated from ${data.old_count} to ${data.new_count} badges.`);
+                    showToast(`Badge count synced successfully! Updated from ${data.old_count} to ${data.new_count} badges.`, 'success');
                     loadBadgesData();
                     loadBadgesStats();
                 } else {
-                    alert('Badge count sync failed: ' + (data.message || 'Unknown error'));
+                    showToast('Badge count sync failed: ' + (data.message || 'Unknown error'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Badge count sync error:', error);
-                alert('Badge count sync error: ' + error);
+                showToast('Badge count sync error: ' + error, 'error');
             });
         }
         
@@ -2970,16 +2970,16 @@ class JazzEdge_Practice_Hub {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        alert('Default badges created successfully!');
+                        showToast('Default badges created successfully!', 'success');
                         loadBadgesData();
                         loadBadgesStats();
                     } else {
-                        alert('Error creating default badges: ' + (data.message || 'Unknown error'));
+                        showToast('Error creating default badges: ' + (data.message || 'Unknown error'), 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error creating default badges:', error);
-                    alert('Error creating default badges');
+                    showToast('Error creating default badges', 'error');
                 });
             }
         </script>
@@ -3484,6 +3484,70 @@ class JazzEdge_Practice_Hub {
             font-size: 11px;
             color: #666;
             display: block;
+        }
+        
+        /* Toast Notification System */
+        .jph-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            max-width: 400px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+        
+        .jph-toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .jph-toast.success {
+            border-left: 4px solid #28a745;
+        }
+        
+        .jph-toast.error {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .jph-toast.info {
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .jph-toast .toast-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jph-toast .toast-icon {
+            font-size: 16px;
+        }
+        
+        .jph-toast .toast-message {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .jph-toast .toast-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            margin-left: 8px;
+        }
+        
+        .jph-toast .toast-close:hover {
+            color: #666;
         }
         
         .jph-badge-status {
@@ -8641,7 +8705,7 @@ class JazzEdge_Practice_Hub {
                         },
                         error: function(xhr, status, error) {
                             console.error('Error loading more sessions:', error);
-                            alert('Error loading more sessions. Please try again.');
+                            showToast('Error loading more sessions. Please try again.', 'error');
                         },
                         complete: function() {
                             isLoadingMore = false;
@@ -8682,7 +8746,7 @@ class JazzEdge_Practice_Hub {
                         
                     } catch (error) {
                         console.error('Export error:', error);
-                        alert('Export failed. Please try again or contact support.');
+                        showToast('Export failed. Please try again or contact support.', 'error');
                         $btn.html(originalText);
                         $btn.prop('disabled', false);
                     }
@@ -8714,13 +8778,13 @@ class JazzEdge_Practice_Hub {
                                     // Remove height limit to show all sessions
                                     $container.css('max-height', 'none');
                                 } else {
-                                    alert('Error loading all sessions: ' + (response.message || 'Unknown error'));
+                                    showToast('Error loading all sessions: ' + (response.message || 'Unknown error'), 'error');
                                     $btn.html('<span class="btn-icon">👁️</span>View All');
                                 }
                             },
                             error: function(xhr, status, error) {
                                 console.error('Error loading all sessions:', error);
-                                alert('Error loading all sessions. Please try again.');
+                                showToast('Error loading all sessions. Please try again.', 'error');
                                 $btn.html('<span class="btn-icon">👁️</span>View All');
                             }
                         });
@@ -8829,14 +8893,43 @@ class JazzEdge_Practice_Hub {
                     updateBadgeCount(earnedCount);
                 }
                 
-                // Update badge count display
-                function updateBadgeCount(count) {
-                    var $badgeCount = $('#badge-count-display');
-                    if ($badgeCount.length) {
-                        $badgeCount.text('(' + count + ')');
-                        console.log('DEBUG: Updated badge count to:', count);
-                    }
-                }
+        // Update badge count display
+        function updateBadgeCount(count) {
+            var $badgeCount = $('#badge-count-display');
+            if ($badgeCount.length) {
+                $badgeCount.text('(' + count + ')');
+                console.log('DEBUG: Updated badge count to:', count);
+            }
+        }
+        
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 4000) {
+            // Remove existing toasts
+            $('.jph-toast').remove();
+            
+            const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+            
+            const toast = $(`
+                <div class="jph-toast ${type}">
+                    <div class="toast-content">
+                        <span class="toast-icon">${icon}</span>
+                        <span class="toast-message">${message}</span>
+                        <button class="toast-close" onclick="$(this).parent().parent().remove()">×</button>
+                    </div>
+                </div>
+            `);
+            
+            $('body').append(toast);
+            
+            // Show toast
+            setTimeout(() => toast.addClass('show'), 100);
+            
+            // Auto-hide after duration
+            setTimeout(() => {
+                toast.removeClass('show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
                 
                 // Refresh badge count button
                 $('#refresh-badge-count-btn').on('click', function() {

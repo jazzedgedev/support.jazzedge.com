@@ -724,12 +724,12 @@ class JPH_Database {
             return;
         }
         
-        if (empty($badge->webhook_url)) {
+        if (empty($badge['webhook_url'])) {
             $this->log_webhook("No webhook URL configured for badge {$badge_id}", 'info');
             return; // No webhook URL configured
         }
         
-        $this->log_webhook("Found webhook URL for badge {$badge_id}: {$badge->webhook_url}");
+        $this->log_webhook("Found webhook URL for badge {$badge_id}: {$badge['webhook_url']}");
         
         // Get user details
         $user = get_userdata($user_id);
@@ -755,16 +755,17 @@ class JPH_Database {
                 'name' => $badge_name,
                 'description' => $badge_description,
                 'icon' => $badge_icon,
-                'category' => $badge->category,
-                'rarity_level' => $badge->rarity_level,
-                'xp_reward' => $badge->xp_reward
+                'category' => $badge['category'],
+                'rarity_level' => $badge['rarity_level'],
+                'xp_reward' => $badge['xp_reward'],
+                'gem_reward' => $badge['gem_reward']
             )
         );
         
         $this->log_webhook("Created payload for badge {$badge_id}: " . json_encode($payload));
         
         // Send webhook request
-        $result = $this->send_webhook_request($badge->webhook_url, $payload);
+        $result = $this->send_webhook_request($badge['webhook_url'], $payload);
         
         if ($result) {
             $this->log_webhook("Successfully sent webhook for badge {$badge_id}", 'success');
