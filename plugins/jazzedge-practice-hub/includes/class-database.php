@@ -62,6 +62,9 @@ class JPH_Database {
                 error_log("JPH Database: Created table {$table_name}");
             }
             
+            // Run database migrations
+            $this->run_migrations();
+            
             // Verify tables exist
             $this->verify_tables_exist();
             
@@ -70,6 +73,38 @@ class JPH_Database {
         } catch (Exception $e) {
             error_log('JPH Database Error: ' . $e->getMessage());
             return false;
+        }
+    }
+    
+    /**
+     * Run database migrations
+     */
+    public function run_migrations() {
+        // Migration 1: Add earned_at column to user_badges table if it doesn't exist
+        $this->migrate_add_earned_at_column();
+    }
+    
+    /**
+     * Migration: Add earned_date column to user_badges table (if needed)
+     */
+    private function migrate_add_earned_at_column() {
+        $table_name = $this->tables['user_badges'];
+        
+        // Check if earned_date column exists (the actual column name)
+        $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'earned_date'");
+        
+        if (empty($column_exists)) {
+            // Add the earned_date column
+            $sql = "ALTER TABLE {$table_name} ADD COLUMN earned_date DATETIME DEFAULT CURRENT_TIMESTAMP";
+            $result = $this->wpdb->query($sql);
+            
+            if ($result === false) {
+                error_log("JPH Migration Error: Failed to add earned_date column: " . $this->wpdb->last_error);
+            } else {
+                error_log("JPH Migration: Successfully added earned_date column to user_badges table");
+            }
+        } else {
+            error_log("JPH Migration: earned_date column already exists in user_badges table");
         }
     }
     
@@ -442,7 +477,12 @@ class JPH_Database {
         
         $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY category, name ASC";
         
-        return $this->wpdb->get_results($query, ARRAY_A);
+        // DEBUG: Log the query and results
+        error_log("JPH DEBUG: get_badges query: " . $query);
+        $results = $this->wpdb->get_results($query, ARRAY_A);
+        error_log("JPH DEBUG: get_badges results: " . print_r($results, true));
+        
+        return $results;
     }
     
     /**
@@ -538,10 +578,29 @@ class JPH_Database {
     public function get_user_badges($user_id) {
         $table_name = $this->tables['user_badges'];
         
-        return $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY earned_at DESC",
-            $user_id
-        ), ARRAY_A);
+        // Check if earned_date column exists (the actual column name in the table)
+        $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'earned_date'");
+        
+        if (empty($column_exists)) {
+            // Column doesn't exist, use simple query without ORDER BY
+            $query = $this->wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE user_id = %d",
+                $user_id
+            );
+        } else {
+            // Column exists, use full query with ORDER BY
+            $query = $this->wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY earned_date DESC",
+                $user_id
+            );
+        }
+        
+        // DEBUG: Log the query and results
+        error_log("JPH DEBUG: get_user_badges query: " . $query);
+        $results = $this->wpdb->get_results($query, ARRAY_A);
+        error_log("JPH DEBUG: get_user_badges results: " . print_r($results, true));
+        
+        return $results;
     }
     
     /**
@@ -550,9 +609,9 @@ class JPH_Database {
     public function award_badge($user_id, $badge_key, $badge_name, $badge_description = '', $badge_icon = '') {
         $table_name = $this->tables['user_badges'];
         
-        // Check if user already has this badge
+        // Check if user already has this badge (using badge_id instead of badge_key)
         $existing = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT id FROM {$table_name} WHERE user_id = %d AND badge_key = %s",
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND badge_id = %s",
             $user_id, $badge_key
         ));
         
@@ -560,16 +619,17 @@ class JPH_Database {
             return false; // Already has this badge
         }
         
+        // Insert the badge with the correct table structure
         $result = $this->wpdb->insert(
             $table_name,
             array(
                 'user_id' => $user_id,
-                'badge_key' => $badge_key,
-                'badge_name' => $badge_name,
-                'badge_description' => $badge_description,
-                'badge_icon' => $badge_icon
+                'badge_id' => $badge_key, // Use badge_id instead of badge_key
+                'earned_date' => current_time('mysql'), // Use earned_date instead of earned_at
+                'is_displayed' => 1,
+                'showcase_position' => 0
             ),
-            array('%d', '%s', '%s', '%s', '%s')
+            array('%d', '%s', '%s', '%d', '%d')
         );
         
         return $result !== false;
