@@ -2223,6 +2223,43 @@ class JazzEdge_Practice_Hub {
     private function badges_page_js() {
         ?>
         <script>
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 4000) {
+            // Remove existing toasts
+            const existingToasts = document.querySelectorAll('.jph-toast');
+            existingToasts.forEach(toast => toast.remove());
+            
+            const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+            
+            const toast = document.createElement('div');
+            toast.className = `jph-toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <span class="toast-icon">${icon}</span>
+                    <span class="toast-message">${message}</span>
+                    <span class="toast-close">&times;</span>
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Show toast
+            setTimeout(() => toast.classList.add('show'), 100);
+            
+            // Auto-hide
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+            
+            // Manual close
+            const closeBtn = toast.querySelector('.toast-close');
+            closeBtn.addEventListener('click', function() {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            });
+        }
+        
         // Load badges data on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadBadgesData();
@@ -2380,27 +2417,7 @@ class JazzEdge_Practice_Hub {
             
             // Test API button (second instance)
             
-            // Add badge form submission
-            const addForm = document.getElementById('jph-add-badge-form');
-            if (addForm) {
-                addForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                    e.stopPropagation();
-                addBadge();
-                    return false;
-                });
-            }
-            
-            // Edit badge form submission
-            const editForm = document.getElementById('jph-edit-badge-form');
-            if (editForm) {
-                editForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    updateBadge();
-                    return false;
-                });
-            }
+            // Form submission handlers removed - using onclick handlers instead
         });
         
         // Load badges statistics
@@ -2626,7 +2643,10 @@ class JazzEdge_Practice_Hub {
         
         // Add new badge
         function addBadge() {
-            const form = document.getElementById('jph-add-badge-form');
+            let form = document.getElementById('jph-add-badge-form');
+            if (!form) {
+                form = document.getElementById('jph-add-badge-form-2');
+            }
             if (!form) {
                 showToast('Form not found', 'error');
                 return;
@@ -2788,7 +2808,10 @@ class JazzEdge_Practice_Hub {
         // Close add badge modal
         function closeAddBadgeModal() {
             document.getElementById('jph-add-badge-modal').style.display = 'none';
-            document.getElementById('jph-add-badge-form').reset();
+            const form1 = document.getElementById('jph-add-badge-form');
+            const form2 = document.getElementById('jph-add-badge-form-2');
+            if (form1) form1.reset();
+            if (form2) form2.reset();
         }
         
         // Delete badge
@@ -2952,7 +2975,10 @@ class JazzEdge_Practice_Hub {
         // Close add badge modal
             function closeAddBadgeModal() {
                 document.getElementById('jph-add-badge-modal').style.display = 'none';
-                document.getElementById('jph-add-badge-form').reset();
+                const form1 = document.getElementById('jph-add-badge-form');
+                const form2 = document.getElementById('jph-add-badge-form-2');
+                if (form1) form1.reset();
+                if (form2) form2.reset();
             }
             
             // Create default badges
