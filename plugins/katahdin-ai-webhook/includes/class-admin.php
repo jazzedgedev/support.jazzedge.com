@@ -22,6 +22,15 @@ class Katahdin_AI_Webhook_Admin {
         add_action('wp_ajax_katahdin_ai_webhook_test_email', array($this, 'ajax_test_email'));
         add_action('wp_ajax_katahdin_ai_webhook_regenerate_secret', array($this, 'ajax_regenerate_secret'));
         add_action('wp_ajax_katahdin_ai_webhook_comprehensive_debug', array($this, 'ajax_comprehensive_debug'));
+        add_action('wp_ajax_katahdin_ai_webhook_get_logs', array($this, 'ajax_get_logs'));
+        add_action('wp_ajax_katahdin_ai_webhook_get_log_stats', array($this, 'ajax_get_log_stats'));
+        add_action('wp_ajax_katahdin_ai_webhook_cleanup_logs', array($this, 'ajax_cleanup_logs'));
+        add_action('wp_ajax_katahdin_ai_webhook_test_log', array($this, 'ajax_test_log'));
+        add_action('wp_ajax_katahdin_ai_webhook_test_ajax', array($this, 'ajax_test_ajax'));
+        add_action('wp_ajax_katahdin_ai_webhook_create_table', array($this, 'ajax_create_table'));
+        add_action('wp_ajax_katahdin_ai_webhook_debug_logs', array($this, 'ajax_debug_logs'));
+        add_action('wp_ajax_katahdin_ai_webhook_get_log_details', array($this, 'ajax_get_log_details'));
+        add_action('wp_ajax_katahdin_ai_webhook_clear_all_logs', array($this, 'ajax_clear_all_logs'));
         add_action('admin_head', array($this, 'add_admin_styles'));
     }
     
@@ -235,26 +244,29 @@ class Katahdin_AI_Webhook_Admin {
                     <?php submit_button('Save Settings'); ?>
                 </form>
                 
-                <!-- Test Section -->
+                <!-- Core Katahdin AI Hub Testing -->
                 <div class="katahdin-webhook-card">
-                    <h2>🧪 Testing</h2>
-                    <p>Test the webhook and email functionality to ensure everything is working correctly.</p>
+                    <h2>🔧 Katahdin AI Hub Diagnostics</h2>
+                    <p>Core system checks for Katahdin AI Hub integration. These tests are available across all Katahdin AI plugins.</p>
                     
                     <div style="margin: 20px 0;">
                         <button type="button" class="katahdin-webhook-button test-api-key-btn" style="margin-right: 10px;">🔑 Test API Key</button>
+                        <button type="button" class="katahdin-webhook-button secondary check-status-btn" style="margin-right: 10px;">Check Status</button>
+                        <button type="button" class="katahdin-webhook-button primary comprehensive-debug-btn">🔍 Comprehensive Debug</button>
+                    </div>
+                </div>
+
+                <!-- Plugin-Specific Testing -->
+                <div class="katahdin-webhook-card">
+                    <h2>🧪 Webhook Plugin Testing</h2>
+                    <p>Test the webhook and email functionality specific to this plugin.</p>
+                    
+                    <div style="margin: 20px 0;">
                         <button type="button" class="katahdin-webhook-button test-webhook-btn" style="margin-right: 10px;">Test Webhook</button>
                         <button type="button" class="katahdin-webhook-button secondary test-email-btn" style="margin-right: 10px;">Test Email</button>
-                        <button type="button" class="katahdin-webhook-button secondary check-status-btn" style="margin-right: 10px;">Check Status</button>
                         <button type="button" class="katahdin-webhook-button secondary debug-info-btn" style="margin-right: 10px;">Debug Info</button>
                     </div>
-                    
-                    <div style="margin: 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px;">
-                        <h3 style="margin-top: 0; color: #856404;">🔧 Advanced Debugging Tools</h3>
-                        <p style="margin-bottom: 15px; color: #856404;">Use these tools to diagnose integration issues with Katahdin AI Hub:</p>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-                            <button type="button" class="katahdin-webhook-button primary comprehensive-debug-btn">🔍 Comprehensive Debug</button>
-                        </div>
-                    </div>
+                </div>
                     
                     <div id="test-results" style="display: none;">
                         <h3>Test Results</h3>
@@ -710,45 +722,6 @@ class Katahdin_AI_Webhook_Admin {
                 });
             });
             
-            // Debug Plugin Loading
-            $('.debug-plugin-loading-btn').on('click', function() {
-                var $btn = $(this);
-                $('#test-results').show();
-                $('#test-output').html('<p>Checking plugin loading and dependencies...</p>');
-                
-                $btn.prop('disabled', true).text('Checking...');
-                
-                var debugInfo = {
-                    'WordPress Version': '<?php echo get_bloginfo("version"); ?>',
-                    'PHP Version': '<?php echo PHP_VERSION; ?>',
-                    'Plugin Directory': '<?php echo plugin_dir_path(__FILE__); ?>',
-                    'Plugin URL': '<?php echo plugin_dir_url(__FILE__); ?>',
-                    'Active Plugins': <?php echo json_encode(get_option('active_plugins')); ?>,
-                    'Katahdin AI Hub Active': <?php echo is_plugin_active('katahdin-ai-hub/katahdin-ai-hub.php') ? 'true' : 'false'; ?>,
-                    'Katahdin AI Webhook Active': <?php echo is_plugin_active('katahdin-ai-webhook/katahdin-ai-webhook.php') ? 'true' : 'false'; ?>,
-                    'Function Exists katahdin_ai_hub': <?php echo function_exists('katahdin_ai_hub') ? 'true' : 'false'; ?>,
-                    'Function Exists katahdin_ai_webhook': <?php echo function_exists('katahdin_ai_webhook') ? 'true' : 'false'; ?>,
-                    'Class Exists Katahdin_AI_Hub': <?php echo class_exists('Katahdin_AI_Hub') ? 'true' : 'false'; ?>,
-                    'Class Exists Katahdin_AI_Webhook': <?php echo class_exists('Katahdin_AI_Webhook') ? 'true' : 'false'; ?>,
-                    'Class Exists Katahdin_AI_Webhook_Handler': <?php echo class_exists('Katahdin_AI_Webhook_Handler') ? 'true' : 'false'; ?>,
-                    'Class Exists Katahdin_AI_Webhook_Logger': <?php echo class_exists('Katahdin_AI_Webhook_Logger') ? 'true' : 'false'; ?>,
-                    'REST API Available': <?php echo rest_url() ? 'true' : 'false'; ?>,
-                    'Site URL': '<?php echo get_site_url(); ?>',
-                    'Admin URL': '<?php echo admin_url(); ?>',
-                    'REST URL': '<?php echo rest_url(); ?>'
-                };
-                
-                $btn.prop('disabled', false).text('Check Plugin Loading');
-                
-                var html = '<div class="debug-loading-results">';
-                html += '<h4>🔧 Plugin Loading Debug Report</h4>';
-                html += '<div style="margin-bottom: 10px;"><button type="button" class="katahdin-webhook-button secondary copy-debug-btn" data-target="loading-debug-content" style="font-size: 12px; padding: 6px 12px;">📋 Copy Results</button></div>';
-                html += '<pre id="loading-debug-content" style="background: #f1f1f1; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 500px; overflow-y: auto;">' + JSON.stringify(debugInfo, null, 2) + '</pre>';
-                html += '</div>';
-                
-                $('#test-output').html(html);
-            });
-            
             // Simple test
             $('.simple-test-btn').on('click', function() {
                 var $btn = $(this);
@@ -917,6 +890,597 @@ class Katahdin_AI_Webhook_Admin {
         });
         </script>
         <?php
+    }
+    
+    /**
+     * AJAX handler for getting logs
+     */
+    public function ajax_get_logs() {
+        try {
+            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            $limit = intval($_POST['limit'] ?? 50);
+            $offset = intval($_POST['offset'] ?? 0);
+            $status = sanitize_text_field($_POST['status'] ?? '');
+            
+            if (!function_exists('katahdin_ai_webhook')) {
+                wp_send_json_error('Katahdin AI Webhook function not available');
+                return;
+            }
+            
+            $webhook_instance = katahdin_ai_webhook();
+            if (!$webhook_instance) {
+                wp_send_json_error('Katahdin AI Webhook instance not available');
+                return;
+            }
+            
+            if (!isset($webhook_instance->webhook_handler)) {
+                wp_send_json_error('Webhook handler not available');
+                return;
+            }
+            
+            $webhook_handler = $webhook_instance->webhook_handler;
+            $logger = $webhook_handler->get_logger();
+            
+            if (!$logger) {
+                wp_send_json_error('Logger not available');
+                return;
+            }
+            
+            $logs = $logger->get_logs($limit, $offset, $status);
+            
+            wp_send_json_success($logs);
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error getting logs: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler for getting log statistics
+     */
+    public function ajax_get_log_stats() {
+        try {
+            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            if (!function_exists('katahdin_ai_webhook')) {
+                wp_send_json_error('Katahdin AI Webhook function not available');
+                return;
+            }
+            
+            $webhook_instance = katahdin_ai_webhook();
+            if (!$webhook_instance) {
+                wp_send_json_error('Katahdin AI Webhook instance not available');
+                return;
+            }
+            
+            if (!isset($webhook_instance->webhook_handler)) {
+                wp_send_json_error('Webhook handler not available');
+                return;
+            }
+            
+            $webhook_handler = $webhook_instance->webhook_handler;
+            $logger = $webhook_handler->get_logger();
+            
+            if (!$logger) {
+                wp_send_json_error('Logger not available');
+                return;
+            }
+            
+            $stats = $logger->get_log_stats();
+            
+            wp_send_json_success($stats);
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error getting log stats: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler for cleaning up logs
+     */
+    public function ajax_cleanup_logs() {
+        try {
+            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            $retention_days = intval($_POST['retention_days'] ?? 30);
+            
+            // Debug: Log the AJAX call
+            error_log("Katahdin AI Webhook - ajax_cleanup_logs called with retention_days: $retention_days");
+            
+            $webhook_handler = katahdin_ai_webhook()->webhook_handler;
+            $result = $webhook_handler->get_logger()->cleanup_logs($retention_days);
+            
+            // Debug: Log the result
+            error_log("Katahdin AI Webhook - cleanup result: " . print_r($result, true));
+            
+            wp_send_json_success($result);
+            
+        } catch (Exception $e) {
+            error_log("Katahdin AI Webhook - cleanup error: " . $e->getMessage());
+            wp_send_json_error('Error cleaning up logs: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Get logs debug info directly (no AJAX needed) - SAFE VERSION
+     */
+    private function get_logs_debug_info() {
+        try {
+            $debug_info = array(
+                'timestamp' => current_time('mysql'),
+                'wordpress_version' => get_bloginfo('version'),
+                'php_version' => PHP_VERSION,
+                'plugin_status' => array(),
+                'database_status' => array(),
+                'ajax_status' => array(),
+                'class_status' => array(),
+                'file_status' => array(),
+                'error_logs' => array()
+            );
+            
+            // 1. Plugin Status - SAFE CHECKS
+            $debug_info['plugin_status'] = array(
+                'plugin_active' => function_exists('is_plugin_active') ? is_plugin_active('katahdin-ai-webhook/katahdin-ai-webhook.php') : 'Unknown',
+                'plugin_file_exists' => file_exists(WP_PLUGIN_DIR . '/katahdin-ai-webhook/katahdin-ai-webhook.php'),
+                'function_exists_katahdin_ai_webhook' => function_exists('katahdin_ai_webhook'),
+                'class_exists_katahdin_ai_webhook' => class_exists('Katahdin_AI_Webhook'),
+                'class_exists_katahdin_ai_webhook_admin' => class_exists('Katahdin_AI_Webhook_Admin'),
+                'class_exists_katahdin_ai_webhook_logger' => class_exists('Katahdin_AI_Webhook_Logger'),
+                'class_exists_katahdin_ai_webhook_handler' => class_exists('Katahdin_AI_Webhook_Handler')
+            );
+            
+            // 2. Database Status - SAFE CHECKS
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+            
+            $debug_info['database_status'] = array(
+                'table_name' => $table_name,
+                'database_connection' => !empty($wpdb->dbh),
+                'wpdb_last_error' => $wpdb->last_error ?: 'None',
+                'wpdb_last_query' => $wpdb->last_query ?: 'None'
+            );
+            
+            // Safe table check
+            try {
+                $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'");
+                $debug_info['database_status']['table_exists'] = ($table_exists == $table_name);
+                
+                if ($debug_info['database_status']['table_exists']) {
+                    $columns = $wpdb->get_results("DESCRIBE $table_name");
+                    $debug_info['database_status']['table_structure'] = $columns;
+                    $debug_info['database_status']['row_count'] = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+                }
+            } catch (Exception $e) {
+                $debug_info['database_status']['table_check_error'] = $e->getMessage();
+            }
+            
+            // 3. AJAX Status - SAFE CHECKS
+            $debug_info['ajax_status'] = array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'user_can_manage_options' => current_user_can('manage_options'),
+                'current_user_id' => get_current_user_id(),
+                'is_admin' => is_admin()
+            );
+            
+            // Test AJAX handlers - SAFE CHECKS
+            $ajax_handlers = array(
+                'katahdin_ai_webhook_get_log_stats',
+                'katahdin_ai_webhook_get_logs',
+                'katahdin_ai_webhook_test_log',
+                'katahdin_ai_webhook_create_table',
+                'katahdin_ai_webhook_debug_logs'
+            );
+            
+            foreach ($ajax_handlers as $handler) {
+                $debug_info['ajax_status']['handlers'][$handler] = has_action("wp_ajax_$handler");
+            }
+            
+            // 4. Class Status - SAFE CHECKS
+            if (function_exists('katahdin_ai_webhook')) {
+                try {
+                    $webhook_instance = katahdin_ai_webhook();
+                    $debug_info['class_status'] = array(
+                        'webhook_instance_available' => !empty($webhook_instance),
+                        'webhook_instance_class' => $webhook_instance ? get_class($webhook_instance) : 'N/A',
+                        'admin_instance_available' => !empty($webhook_instance->admin),
+                        'webhook_handler_available' => !empty($webhook_instance->webhook_handler)
+                    );
+                    
+                    if (!empty($webhook_instance->webhook_handler) && method_exists($webhook_instance->webhook_handler, 'get_logger')) {
+                        $logger = $webhook_instance->webhook_handler->get_logger();
+                        $debug_info['class_status']['logger_instance_available'] = !empty($logger);
+                        $debug_info['class_status']['logger_class'] = get_class($logger);
+                    }
+                } catch (Exception $e) {
+                    $debug_info['class_status']['error'] = $e->getMessage();
+                }
+            }
+            
+            // 5. File Status - SAFE CHECKS
+            $plugin_path = WP_PLUGIN_DIR . '/katahdin-ai-webhook/';
+            $debug_info['file_status'] = array(
+                'plugin_directory_exists' => is_dir($plugin_path),
+                'plugin_directory_readable' => is_readable($plugin_path),
+                'includes_directory_exists' => is_dir($plugin_path . 'includes/'),
+                'admin_file_exists' => file_exists($plugin_path . 'includes/class-admin.php'),
+                'logger_file_exists' => file_exists($plugin_path . 'includes/class-webhook-logger.php'),
+                'handler_file_exists' => file_exists($plugin_path . 'includes/class-webhook-handler.php')
+            );
+            
+            // 6. Error Logs - SAFE CHECKS
+            $debug_info['error_logs'] = array(
+                'wp_debug' => defined('WP_DEBUG') ? WP_DEBUG : false,
+                'wp_debug_log' => defined('WP_DEBUG_LOG') ? WP_DEBUG_LOG : false,
+                'error_log_location' => ini_get('error_log') ?: 'Not set'
+            );
+            
+            // 7. Test Logger Methods - SAFE CHECKS
+            if (class_exists('Katahdin_AI_Webhook_Logger')) {
+                try {
+                    $logger = new Katahdin_AI_Webhook_Logger();
+                    $debug_info['logger_tests'] = array(
+                        'logger_instantiated' => !empty($logger),
+                        'create_table_method_exists' => method_exists($logger, 'create_table'),
+                        'get_log_stats_method_exists' => method_exists($logger, 'get_log_stats'),
+                        'get_logs_method_exists' => method_exists($logger, 'get_logs'),
+                        'cleanup_logs_method_exists' => method_exists($logger, 'cleanup_logs')
+                    );
+                } catch (Exception $e) {
+                    $debug_info['logger_tests']['error'] = $e->getMessage();
+                }
+            }
+            
+            return json_encode($debug_info, JSON_PRETTY_PRINT);
+            
+        } catch (Exception $e) {
+            return 'Debug error: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine();
+        } catch (Error $e) {
+            return 'Fatal error: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine();
+        }
+    }
+    
+    /**
+     * Comprehensive logs system debug
+     */
+    public function ajax_debug_logs() {
+        try {
+            $debug_info = array(
+                'timestamp' => current_time('mysql'),
+                'wordpress_version' => get_bloginfo('version'),
+                'php_version' => PHP_VERSION,
+                'plugin_status' => array(),
+                'database_status' => array(),
+                'ajax_status' => array(),
+                'class_status' => array(),
+                'file_status' => array(),
+                'error_logs' => array()
+            );
+            
+            // 1. Plugin Status
+            $debug_info['plugin_status'] = array(
+                'plugin_active' => is_plugin_active('katahdin-ai-webhook/katahdin-ai-webhook.php'),
+                'plugin_file_exists' => file_exists(WP_PLUGIN_DIR . '/katahdin-ai-webhook/katahdin-ai-webhook.php'),
+                'function_exists_katahdin_ai_webhook' => function_exists('katahdin_ai_webhook'),
+                'class_exists_katahdin_ai_webhook' => class_exists('Katahdin_AI_Webhook'),
+                'class_exists_katahdin_ai_webhook_admin' => class_exists('Katahdin_AI_Webhook_Admin'),
+                'class_exists_katahdin_ai_webhook_logger' => class_exists('Katahdin_AI_Webhook_Logger'),
+                'class_exists_katahdin_ai_webhook_handler' => class_exists('Katahdin_AI_Webhook_Handler')
+            );
+            
+            // 2. Database Status
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+            
+            $debug_info['database_status'] = array(
+                'table_name' => $table_name,
+                'table_exists' => $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name,
+                'database_connection' => !empty($wpdb->dbh),
+                'wpdb_last_error' => $wpdb->last_error,
+                'wpdb_last_query' => $wpdb->last_query
+            );
+            
+            // Try to get table structure if it exists
+            if ($debug_info['database_status']['table_exists']) {
+                $columns = $wpdb->get_results("DESCRIBE $table_name");
+                $debug_info['database_status']['table_structure'] = $columns;
+                $debug_info['database_status']['row_count'] = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+            }
+            
+            // 3. AJAX Status
+            $debug_info['ajax_status'] = array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce_valid' => wp_verify_nonce($_POST['nonce'] ?? '', 'katahdin_ai_webhook_nonce'),
+                'user_can_manage_options' => current_user_can('manage_options'),
+                'current_user_id' => get_current_user_id(),
+                'is_admin' => is_admin()
+            );
+            
+            // Test AJAX handlers
+            $ajax_handlers = array(
+                'katahdin_ai_webhook_get_log_stats',
+                'katahdin_ai_webhook_get_logs',
+                'katahdin_ai_webhook_test_log',
+                'katahdin_ai_webhook_create_table',
+                'katahdin_ai_webhook_debug_logs'
+            );
+            
+            foreach ($ajax_handlers as $handler) {
+                $debug_info['ajax_status']['handlers'][$handler] = has_action("wp_ajax_$handler");
+            }
+            
+            // 4. Class Status
+            if (function_exists('katahdin_ai_webhook')) {
+                $webhook_instance = katahdin_ai_webhook();
+                $debug_info['class_status'] = array(
+                    'webhook_instance_available' => !empty($webhook_instance),
+                    'webhook_instance_class' => $webhook_instance ? get_class($webhook_instance) : 'N/A',
+                    'admin_instance_available' => !empty($webhook_instance->admin),
+                    'webhook_handler_available' => !empty($webhook_instance->webhook_handler),
+                    'logger_instance_available' => !empty($webhook_instance->webhook_handler) && method_exists($webhook_instance->webhook_handler, 'get_logger')
+                );
+                
+                if ($debug_info['class_status']['logger_instance_available']) {
+                    $logger = $webhook_instance->webhook_handler->get_logger();
+                    $debug_info['class_status']['logger_class'] = get_class($logger);
+                    $debug_info['class_status']['logger_methods'] = get_class_methods($logger);
+                }
+            }
+            
+            // 5. File Status
+            $plugin_path = WP_PLUGIN_DIR . '/katahdin-ai-webhook/';
+            $debug_info['file_status'] = array(
+                'plugin_directory_exists' => is_dir($plugin_path),
+                'plugin_directory_readable' => is_readable($plugin_path),
+                'includes_directory_exists' => is_dir($plugin_path . 'includes/'),
+                'admin_file_exists' => file_exists($plugin_path . 'includes/class-admin.php'),
+                'logger_file_exists' => file_exists($plugin_path . 'includes/class-webhook-logger.php'),
+                'handler_file_exists' => file_exists($plugin_path . 'includes/class-webhook-handler.php')
+            );
+            
+            // 6. Error Logs
+            $debug_info['error_logs'] = array(
+                'wp_debug' => defined('WP_DEBUG') ? WP_DEBUG : false,
+                'wp_debug_log' => defined('WP_DEBUG_LOG') ? WP_DEBUG_LOG : false,
+                'error_log_location' => ini_get('error_log'),
+                'recent_errors' => array()
+            );
+            
+            // Get recent error log entries
+            $error_log_file = ini_get('error_log');
+            if ($error_log_file && file_exists($error_log_file)) {
+                $lines = file($error_log_file);
+                $recent_lines = array_slice($lines, -20); // Last 20 lines
+                $webhook_errors = array_filter($recent_lines, function($line) {
+                    return strpos($line, 'katahdin') !== false || strpos($line, 'webhook') !== false;
+                });
+                $debug_info['error_logs']['recent_errors'] = array_values($webhook_errors);
+            }
+            
+            // 7. Test Logger Methods
+            if (class_exists('Katahdin_AI_Webhook_Logger')) {
+                try {
+                    $logger = new Katahdin_AI_Webhook_Logger();
+                    $debug_info['logger_tests'] = array(
+                        'logger_instantiated' => !empty($logger),
+                        'create_table_method_exists' => method_exists($logger, 'create_table'),
+                        'get_log_stats_method_exists' => method_exists($logger, 'get_log_stats'),
+                        'get_logs_method_exists' => method_exists($logger, 'get_logs'),
+                        'cleanup_logs_method_exists' => method_exists($logger, 'cleanup_logs')
+                    );
+                    
+                    // Test create_table method
+                    if (method_exists($logger, 'create_table')) {
+                        $debug_info['logger_tests']['create_table_result'] = $logger->create_table();
+                    }
+                    
+                } catch (Exception $e) {
+                    $debug_info['logger_tests']['error'] = $e->getMessage();
+                }
+            }
+            
+            wp_send_json_success($debug_info);
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Debug error: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler for creating the logs table
+     */
+    public function ajax_create_table() {
+        try {
+            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            if (!class_exists('Katahdin_AI_Webhook_Logger')) {
+                wp_send_json_error('Logger class not available');
+                return;
+            }
+            
+            $logger = new Katahdin_AI_Webhook_Logger();
+            $result = $logger->create_table();
+            
+            if ($result === false) {
+                global $wpdb;
+                wp_send_json_error('Failed to create table: ' . $wpdb->last_error);
+                return;
+            }
+            
+            wp_send_json_success(array(
+                'message' => 'Logs table created successfully!',
+                'table_name' => $wpdb->prefix . 'katahdin_ai_webhook_logs'
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error creating table: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler for getting log details
+     */
+    public function ajax_get_log_details() {
+        try {
+            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            $log_id = intval($_POST['log_id']);
+            if (!$log_id) {
+                wp_send_json_error('Invalid log ID');
+                return;
+            }
+            
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+            
+            $log = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $table_name WHERE id = %d",
+                $log_id
+            ), ARRAY_A);
+            
+            if (!$log) {
+                wp_send_json_error('Log entry not found');
+                return;
+            }
+            
+            wp_send_json_success($log);
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error retrieving log details: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler for clearing all logs
+     */
+    public function ajax_clear_all_logs() {
+        try {
+            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+            
+            // Simple delete all query
+            $deleted = $wpdb->query("DELETE FROM $table_name");
+            
+            wp_send_json_success(array(
+                'message' => 'All logs cleared successfully',
+                'deleted_count' => $deleted
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error clearing logs: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Simple AJAX test handler
+     */
+    public function ajax_test_ajax() {
+        wp_send_json_success(array(
+            'message' => 'AJAX is working!',
+            'timestamp' => current_time('mysql'),
+            'user_can_manage_options' => current_user_can('manage_options')
+        ));
+    }
+    
+    /**
+     * AJAX handler for testing log entry
+     */
+    public function ajax_test_log() {
+        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions');
+        }
+        
+        try {
+            $webhook_handler = katahdin_ai_webhook()->webhook_handler;
+            $logger = $webhook_handler->get_logger();
+            
+            // Generate a test webhook ID
+            $webhook_id = $logger->generate_webhook_id();
+            
+            // Create test log data
+            $test_data = array(
+                'webhook_id' => $webhook_id,
+                'method' => 'POST',
+                'url' => rest_url('katahdin-ai-webhook/v1/webhook'),
+                'headers' => json_encode(array(
+                    'Content-Type' => 'application/json',
+                    'X-Webhook-Secret' => 'test_secret'
+                )),
+                'body' => json_encode(array(
+                    'form_data' => array(
+                        'name' => 'Test User',
+                        'email' => 'test@example.com',
+                        'message' => 'This is a test log entry created from the admin interface.'
+                    ),
+                    'form_id' => 'test_form',
+                    'entry_id' => 'test_entry_' . time()
+                )),
+                'ip_address' => '127.0.0.1',
+                'user_agent' => 'WordPress Admin Test',
+                'response_code' => 200,
+                'response_body' => json_encode(array(
+                    'success' => true,
+                    'message' => 'Test log entry created successfully',
+                    'test_id' => $webhook_id
+                )),
+                'processing_time_ms' => rand(100, 500),
+                'ai_response' => json_encode(array(
+                    'analysis' => 'This is a test AI analysis response.',
+                    'sentiment' => 'positive',
+                    'confidence' => 0.95
+                )),
+                'email_sent' => 1,
+                'email_response' => 'Test email sent successfully',
+                'status' => 'success'
+            );
+            
+            // Insert the test log
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+            
+            $result = $wpdb->insert($table_name, $test_data);
+            
+            if ($result === false) {
+                wp_send_json_error('Failed to create test log entry: ' . $wpdb->last_error);
+            }
+            
+            wp_send_json_success(array(
+                'message' => 'Test log entry created successfully!',
+                'webhook_id' => $webhook_id,
+                'log_id' => $wpdb->insert_id
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error creating test log: ' . $e->getMessage());
+        }
     }
     
     /**
@@ -1326,9 +1890,47 @@ class Katahdin_AI_Webhook_Admin {
      * Logs page
      */
     public function logs_page() {
+        // Check if table exists and create it if needed
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+        
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            // Table doesn't exist, create it
+            if (class_exists('Katahdin_AI_Webhook_Logger')) {
+                $logger = new Katahdin_AI_Webhook_Logger();
+                $result = $logger->create_table();
+                if ($result !== false) {
+                    echo '<div class="notice notice-success"><p><strong>✅ Logs table created successfully!</strong></p></div>';
+                } else {
+                    echo '<div class="notice notice-error"><p><strong>❌ Failed to create logs table:</strong> ' . $wpdb->last_error . '</p></div>';
+                }
+            } else {
+                echo '<div class="notice notice-error"><p><strong>❌ Logger class not available</strong></p></div>';
+            }
+        }
+        
         ?>
         <div class="wrap">
             <h1>Webhook Logs</h1>
+            
+            <!-- Debug Section -->
+            <div class="katahdin-webhook-debug-section" style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; padding: 20px; margin-bottom: 20px;">
+                <h2>🔍 Logs System Debug 
+                    <button type="button" class="button button-secondary copy-debug-btn" data-target="logs-debug-content" style="font-size: 12px; padding: 6px 12px; margin-left: 10px;">📋 Copy Debug Results</button>
+                    <button type="button" class="button button-secondary toggle-debug-btn" style="font-size: 12px; padding: 6px 12px; margin-left: 5px;">👁️ Toggle Debug</button>
+                </h2>
+                <div id="logs-debug-output" style="display: none;">
+                    <pre id="logs-debug-content" style="background: #fff; border: 1px solid #ccc; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 11px; max-height: 200px; overflow-y: auto; line-height: 1.2;"><?php 
+                    try {
+                        echo $this->get_logs_debug_info();
+                    } catch (Exception $e) {
+                        echo 'Debug method failed: ' . $e->getMessage();
+                    } catch (Error $e) {
+                        echo 'Fatal error in debug: ' . $e->getMessage();
+                    }
+                    ?></pre>
+                </div>
+            </div>
             
             <div class="katahdin-webhook-logs-container">
                 <!-- Log Statistics -->
@@ -1350,6 +1952,8 @@ class Katahdin_AI_Webhook_Admin {
                         <option value="pending">Pending</option>
                     </select>
                     <button id="refresh-logs" class="button">Refresh</button>
+                    <button id="create-table-btn" class="button button-secondary">Create Logs Table</button>
+                    <button id="test-log-btn" class="button button-primary">Test Log Entry</button>
                     <button id="cleanup-logs" class="button button-secondary">Cleanup Old Logs</button>
                 </div>
                 
@@ -1484,189 +2088,6 @@ class Katahdin_AI_Webhook_Admin {
         }
         </style>
         
-        <script>
-        jQuery(document).ready(function($) {
-            let currentOffset = 0;
-            let currentStatus = '';
-            const limit = 20;
-            
-            // Load initial data
-            loadStats();
-            loadLogs();
-            
-            // Refresh button
-            $('#refresh-logs').on('click', function() {
-                currentOffset = 0;
-                loadLogs();
-            });
-            
-            // Status filter
-            $('#status-filter').on('change', function() {
-                currentStatus = $(this).val();
-                currentOffset = 0;
-                loadLogs();
-            });
-            
-            // Load more button
-            $('#load-more-logs').on('click', function() {
-                currentOffset += limit;
-                loadLogs(true);
-            });
-            
-            // Cleanup logs
-            $('#cleanup-logs').on('click', function() {
-                if (confirm('Are you sure you want to cleanup old logs? This will delete logs older than 30 days.')) {
-                    cleanupLogs();
-                }
-            });
-            
-            function loadStats() {
-                $.get('<?php echo rest_url('katahdin-ai-webhook/v1/logs/stats'); ?>')
-                    .done(function(response) {
-                        if (response.success) {
-                            displayStats(response.stats);
-                        }
-                    })
-                    .fail(function() {
-                        $('#logs-stats-content').html('<p>Error loading statistics</p>');
-                    });
-            }
-            
-            function loadLogs(append = false) {
-                const url = '<?php echo rest_url('katahdin-ai-webhook/v1/logs'); ?>' + 
-                    '?limit=' + limit + 
-                    '&offset=' + currentOffset + 
-                    (currentStatus ? '&status=' + currentStatus : '');
-                
-                $.get(url)
-                    .done(function(response) {
-                        if (response.success) {
-                            displayLogs(response.logs, append);
-                            $('#load-more-logs').toggle(response.pagination.has_more);
-                        }
-                    })
-                    .fail(function() {
-                        $('#logs-content').html('<p>Error loading logs</p>');
-                    });
-            }
-            
-            function displayStats(stats) {
-                let html = '<div class="stats-grid">';
-                html += '<div class="stat-card"><div class="stat-number">' + stats.total_logs + '</div><div class="stat-label">Total Logs</div></div>';
-                html += '<div class="stat-card"><div class="stat-number">' + stats.recent_24h + '</div><div class="stat-label">Last 24 Hours</div></div>';
-                html += '<div class="stat-card"><div class="stat-number">' + stats.recent_7d + '</div><div class="stat-label">Last 7 Days</div></div>';
-                
-                if (stats.by_status) {
-                    for (const [status, count] of Object.entries(stats.by_status)) {
-                        html += '<div class="stat-card"><div class="stat-number">' + count + '</div><div class="stat-label">' + status.charAt(0).toUpperCase() + status.slice(1) + '</div></div>';
-                    }
-                }
-                
-                html += '</div>';
-                $('#logs-stats-content').html(html);
-            }
-            
-            function displayLogs(logs, append) {
-                if (!append) {
-                    $('#logs-content').html('');
-                }
-                
-                if (logs.length === 0) {
-                    $('#logs-content').html('<p>No logs found</p>');
-                    return;
-                }
-                
-                let html = '<table><thead><tr><th>ID</th><th>Timestamp</th><th>Status</th><th>Method</th><th>Processing Time</th><th>Details</th><th>Actions</th></tr></thead><tbody>';
-                
-                logs.forEach(function(log) {
-                    html += '<tr>';
-                    html += '<td>' + log.id + '</td>';
-                    html += '<td>' + new Date(log.timestamp).toLocaleString() + '</td>';
-                    html += '<td><span class="status-badge status-' + log.status + '">' + log.status + '</span></td>';
-                    html += '<td>' + log.method + '</td>';
-                    html += '<td>' + (log.processing_time_ms ? log.processing_time_ms + 'ms' : '-') + '</td>';
-                    html += '<td class="log-details">' + (log.error_message || 'Success') + '</td>';
-                    html += '<td class="log-actions">';
-                    html += '<button class="button button-small view-log" data-id="' + log.id + '">View</button>';
-                    html += '</td>';
-                    html += '</tr>';
-                });
-                
-                html += '</tbody></table>';
-                
-                if (append) {
-                    $('#logs-content table tbody').append($(html).find('tbody').html());
-                } else {
-                    $('#logs-content').html(html);
-                }
-                
-                // Bind view log buttons
-                $('.view-log').on('click', function() {
-                    const logId = $(this).data('id');
-                    viewLogDetails(logId);
-                });
-            }
-            
-            function viewLogDetails(logId) {
-                $.get('<?php echo rest_url('katahdin-ai-webhook/v1/logs/'); ?>' + logId)
-                    .done(function(response) {
-                        if (response.success) {
-                            showLogModal(response.log);
-                        }
-                    });
-            }
-            
-            function showLogModal(log) {
-                let html = '<div id="log-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">';
-                html += '<div style="background: white; padding: 20px; border-radius: 5px; max-width: 80%; max-height: 80%; overflow: auto;">';
-                html += '<h3>Log Details - ID: ' + log.id + '</h3>';
-                html += '<p><strong>Webhook ID:</strong> ' + log.webhook_id + '</p>';
-                html += '<p><strong>Timestamp:</strong> ' + new Date(log.timestamp).toLocaleString() + '</p>';
-                html += '<p><strong>Status:</strong> <span class="status-badge status-' + log.status + '">' + log.status + '</span></p>';
-                html += '<p><strong>Method:</strong> ' + log.method + '</p>';
-                html += '<p><strong>URL:</strong> ' + log.url + '</p>';
-                html += '<p><strong>IP Address:</strong> ' + log.ip_address + '</p>';
-                html += '<p><strong>Processing Time:</strong> ' + (log.processing_time_ms ? log.processing_time_ms + 'ms' : 'N/A') + '</p>';
-                
-                if (log.error_message) {
-                    html += '<p><strong>Error:</strong> ' + log.error_message + '</p>';
-                }
-                
-                if (log.ai_response) {
-                    html += '<p><strong>AI Response:</strong></p>';
-                    html += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 3px; max-height: 200px; overflow: auto;">' + log.ai_response + '</pre>';
-                }
-                
-                if (log.body) {
-                    html += '<p><strong>Request Body:</strong></p>';
-                    html += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 3px; max-height: 200px; overflow: auto;">' + log.body + '</pre>';
-                }
-                
-                html += '<button onclick="jQuery(\'#log-modal\').remove()" class="button" style="margin-top: 15px;">Close</button>';
-                html += '</div></div>';
-                
-                $('body').append(html);
-            }
-            
-            function cleanupLogs() {
-                $.post('<?php echo rest_url('katahdin-ai-webhook/v1/logs/cleanup'); ?>', {
-                    retention_days: 30
-                })
-                .done(function(response) {
-                    if (response.success) {
-                        alert('Cleaned up ' + response.deleted_count + ' old log entries');
-                        loadStats();
-                        loadLogs();
-                    } else {
-                        alert('Error cleaning up logs');
-                    }
-                })
-                .fail(function() {
-                    alert('Error cleaning up logs');
-                });
-            }
-        });
-        </script>
         <?php
     }
     
@@ -1857,6 +2278,289 @@ class Katahdin_AI_Webhook_Admin {
             }
         }
         </style>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Load initial data
+            loadLogStats();
+            loadLogs();
+            
+            // Copy debug button
+            $('.copy-debug-btn').on('click', function() {
+                var targetId = $(this).data('target');
+                var content = $('#' + targetId).text();
+                
+                // Create a temporary textarea to copy the content
+                var tempTextarea = $('<textarea>');
+                tempTextarea.val(content);
+                $('body').append(tempTextarea);
+                tempTextarea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    $(this).text('✅ Copied!').css('color', 'green');
+                    setTimeout(function() {
+                        $('.copy-debug-btn').text('📋 Copy Debug Results').css('color', '');
+                    }, 2000);
+                } catch (err) {
+                    alert('Failed to copy. Please select and copy manually.');
+                }
+                
+                tempTextarea.remove();
+            });
+            
+            // Toggle debug button
+            $('.toggle-debug-btn').on('click', function() {
+                var $debugOutput = $('#logs-debug-output');
+                var $btn = $(this);
+                
+                if ($debugOutput.is(':visible')) {
+                    $debugOutput.slideUp();
+                    $btn.text('👁️ Show Debug');
+                } else {
+                    $debugOutput.slideDown();
+                    $btn.text('👁️ Hide Debug');
+                }
+            });
+            
+            // Refresh button
+            $('#refresh-logs').on('click', function() {
+                loadLogStats();
+                loadLogs();
+            });
+            
+            // Status filter
+            $('#status-filter').on('change', function() {
+                loadLogs();
+            });
+            
+            // Clear all logs
+            $('#cleanup-logs').on('click', function() {
+                if (confirm('Are you sure you want to delete ALL logs? This cannot be undone.')) {
+                    $.post(ajaxurl, {
+                        action: 'katahdin_ai_webhook_clear_all_logs',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                    }, function(response) {
+                        if (response.success) {
+                            alert('All logs cleared successfully!');
+                            loadLogStats();
+                            loadLogs();
+                        } else {
+                            alert('Error clearing logs: ' + response.data);
+                        }
+                    }).fail(function() {
+                        alert('AJAX Error: Could not clear logs');
+                    });
+                }
+            });
+            
+            // Create table button
+            $('#create-table-btn').on('click', function() {
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('Creating Table...');
+                
+                $.post(ajaxurl, {
+                    action: 'katahdin_ai_webhook_create_table',
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        alert('✅ ' + response.data.message + '\nTable: ' + response.data.table_name);
+                        loadLogStats();
+                        loadLogs();
+                    } else {
+                        alert('❌ Error creating table: ' + response.data);
+                    }
+                }).always(function() {
+                    $btn.prop('disabled', false).text('Create Logs Table');
+                });
+            });
+            
+            // Debug logs system
+            $('#debug-logs-system').on('click', function() {
+                var $btn = $(this);
+                var $output = $('#logs-debug-output');
+                var $pre = $output.find('pre');
+                
+                $btn.prop('disabled', true).text('Running Debug...');
+                $output.show();
+                $pre.text('Running comprehensive logs system debug...');
+                
+                $.post(ajaxurl, {
+                    action: 'katahdin_ai_webhook_debug_logs',
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        $pre.text(JSON.stringify(response.data, null, 2));
+                    } else {
+                        $pre.text('❌ Debug failed: ' + response.data);
+                    }
+                }).always(function() {
+                    $btn.prop('disabled', false).text('Run Logs Debug');
+                });
+            });
+            
+            // Test log button
+            $('#test-log-btn').on('click', function() {
+                var $btn = $(this);
+                $btn.prop('disabled', true).text('Creating Test Log...');
+                
+                $.post(ajaxurl, {
+                    action: 'katahdin_ai_webhook_test_log',
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        alert('✅ ' + response.data.message + '\nWebhook ID: ' + response.data.webhook_id);
+                        loadLogStats();
+                        loadLogs();
+                    } else {
+                        alert('❌ Error creating test log: ' + response.data);
+                    }
+                }).always(function() {
+                    $btn.prop('disabled', false).text('Test Log Entry');
+                });
+            });
+            
+            // View log details
+            $(document).on('click', '.view-log-btn', function() {
+                var logId = $(this).data('log-id');
+                showLogDetails(logId);
+            });
+            
+            function showLogDetails(logId) {
+                // Create modal overlay
+                var modalHtml = '<div id="log-details-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">';
+                modalHtml += '<div style="background: white; border-radius: 8px; padding: 20px; max-width: 80%; max-height: 80%; overflow-y: auto; position: relative;">';
+                modalHtml += '<button id="close-log-modal" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>';
+                modalHtml += '<h3>Log Details</h3>';
+                modalHtml += '<div id="log-details-content">Loading...</div>';
+                modalHtml += '</div></div>';
+                
+                $('body').append(modalHtml);
+                
+                // Close modal handlers
+                $('#close-log-modal, #log-details-modal').on('click', function(e) {
+                    if (e.target === this) {
+                        $('#log-details-modal').remove();
+                    }
+                });
+                
+                // Load log details
+                $.post(ajaxurl, {
+                    action: 'katahdin_ai_webhook_get_log_details',
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                    log_id: logId
+                }, function(response) {
+                    if (response.success) {
+                        var log = response.data;
+                        var detailsHtml = '<div style="font-family: monospace; font-size: 12px;">';
+                        detailsHtml += '<h4>Basic Info</h4>';
+                        detailsHtml += '<p><strong>ID:</strong> ' + log.id + '</p>';
+                        detailsHtml += '<p><strong>Webhook ID:</strong> ' + log.webhook_id + '</p>';
+                        detailsHtml += '<p><strong>Timestamp:</strong> ' + new Date(log.timestamp).toLocaleString() + '</p>';
+                        detailsHtml += '<p><strong>Status:</strong> ' + log.status + '</p>';
+                        detailsHtml += '<p><strong>Method:</strong> ' + log.method + '</p>';
+                        detailsHtml += '<p><strong>Response Code:</strong> ' + (log.response_code || 'N/A') + '</p>';
+                        detailsHtml += '<p><strong>Processing Time:</strong> ' + (log.processing_time_ms ? log.processing_time_ms + 'ms' : 'N/A') + '</p>';
+                        
+                        if (log.headers) {
+                            detailsHtml += '<h4>Headers</h4>';
+                            detailsHtml += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto;">' + log.headers + '</pre>';
+                        }
+                        
+                        if (log.body) {
+                            detailsHtml += '<h4>Request Body</h4>';
+                            detailsHtml += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto;">' + log.body + '</pre>';
+                        }
+                        
+                        if (log.response_body) {
+                            detailsHtml += '<h4>Response Body</h4>';
+                            detailsHtml += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto;">' + log.response_body + '</pre>';
+                        }
+                        
+                        if (log.ai_response) {
+                            detailsHtml += '<h4>AI Response</h4>';
+                            detailsHtml += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto;">' + log.ai_response + '</pre>';
+                        }
+                        
+                        if (log.error_message) {
+                            detailsHtml += '<h4>Error Message</h4>';
+                            detailsHtml += '<pre style="background: #ffe6e6; padding: 10px; border-radius: 4px; overflow-x: auto;">' + log.error_message + '</pre>';
+                        }
+                        
+                        detailsHtml += '</div>';
+                        $('#log-details-content').html(detailsHtml);
+                    } else {
+                        $('#log-details-content').html('<p style="color: red;">Error loading log details: ' + response.data + '</p>');
+                    }
+                });
+            }
+            
+            function loadLogStats() {
+                $('#logs-stats-content').html('<p>Loading statistics...</p>');
+                
+                $.post(ajaxurl, {
+                    action: 'katahdin_ai_webhook_get_log_stats',
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        var stats = response.data;
+                        var html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">';
+                        html += '<div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 6px;"><strong>' + stats.total_logs + '</strong><br>Total Logs</div>';
+                        html += '<div style="text-align: center; padding: 15px; background: #d4edda; border-radius: 6px;"><strong>' + stats.success_logs + '</strong><br>Success</div>';
+                        html += '<div style="text-align: center; padding: 15px; background: #f8d7da; border-radius: 6px;"><strong>' + stats.error_logs + '</strong><br>Errors</div>';
+                        html += '<div style="text-align: center; padding: 15px; background: #fff3cd; border-radius: 6px;"><strong>' + stats.pending_logs + '</strong><br>Pending</div>';
+                        html += '</div>';
+                        $('#logs-stats-content').html(html);
+                    } else {
+                        $('#logs-stats-content').html('<p style="color: red;">❌ Error loading statistics: ' + (response.data || 'Unknown error') + '</p>');
+                    }
+                }).fail(function(xhr, status, error) {
+                    $('#logs-stats-content').html('<p style="color: red;">❌ AJAX Error loading statistics: ' + error + '</p>');
+                });
+            }
+            
+            function loadLogs() {
+                $('#logs-content').html('<p>Loading logs...</p>');
+                
+                var status = $('#status-filter').val();
+                
+                $.post(ajaxurl, {
+                    action: 'katahdin_ai_webhook_get_logs',
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                    limit: 50,
+                    offset: 0,
+                    status: status
+                }, function(response) {
+                    if (response.success) {
+                        var logs = response.data;
+                        if (logs.length > 0) {
+                            var html = '<table class="wp-list-table widefat fixed striped"><thead><tr><th>Time</th><th>Status</th><th>Method</th><th>Response Code</th><th>Processing Time</th><th>Actions</th></tr></thead><tbody>';
+                            
+                            logs.forEach(function(log) {
+                                html += '<tr>';
+                                html += '<td>' + new Date(log.timestamp).toLocaleString() + '</td>';
+                                html += '<td><span class="katahdin-webhook-status ' + log.status + '">' + log.status.charAt(0).toUpperCase() + log.status.slice(1) + '</span></td>';
+                                html += '<td>' + (log.method || 'N/A') + '</td>';
+                                html += '<td>' + (log.response_code || 'N/A') + '</td>';
+                                html += '<td>' + (log.processing_time_ms ? log.processing_time_ms + 'ms' : 'N/A') + '</td>';
+                                html += '<td><button class="button button-small view-log-btn" data-log-id="' + log.id + '">View Details</button></td>';
+                                html += '</tr>';
+                            });
+                            
+                            html += '</tbody></table>';
+                            $('#logs-content').html(html);
+                        } else {
+                            $('#logs-content').html('<p>No logs found.</p>');
+                        }
+                    } else {
+                        $('#logs-content').html('<p style="color: red;">❌ Error loading logs: ' + (response.data || 'Unknown error') + '</p>');
+                    }
+                }).fail(function(xhr, status, error) {
+                    $('#logs-content').html('<p style="color: red;">❌ AJAX Error loading logs: ' + error + '</p>');
+                });
+            }
+        });
+        </script>
         <?php
     }
     

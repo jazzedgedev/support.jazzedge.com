@@ -20,7 +20,7 @@ class Katahdin_AI_Webhook_Handler {
     /**
      * Get logger instance (lazy loading)
      */
-    private function get_logger() {
+    public function get_logger() {
         if (!$this->logger) {
             $this->logger = new Katahdin_AI_Webhook_Logger();
         }
@@ -51,7 +51,7 @@ class Katahdin_AI_Webhook_Handler {
             'permission_callback' => '__return_true', // Allow all requests, we'll handle auth in the callback
             'args' => array(
                 'form_data' => array(
-                    'required' => true,
+                    'required' => false,
                     'type' => 'object',
                     'description' => 'Form submission data from FluentForm'
                 ),
@@ -163,10 +163,30 @@ class Katahdin_AI_Webhook_Handler {
         $log_id = $this->get_logger()->log_request($webhook_id, $request_data);
         
         try {
-            // Get form data
+            // Get form data - handle different formats
             $form_data = $request->get_param('form_data');
             $form_id = $request->get_param('form_id');
             $entry_id = $request->get_param('entry_id');
+            
+            // If form_data is not provided, try to get data from request body or other params
+            if (empty($form_data)) {
+                $body = $request->get_body();
+                if (!empty($body)) {
+                    $body_data = json_decode($body, true);
+                    if ($body_data) {
+                        // FluentForm might send data directly in the body
+                        $form_data = $body_data;
+                    }
+                }
+                
+                // If still empty, try to get from all params
+                if (empty($form_data)) {
+                    $all_params = $request->get_params();
+                    // Remove known parameters
+                    unset($all_params['form_id'], $all_params['entry_id']);
+                    $form_data = $all_params;
+                }
+            }
             
             if (empty($form_data)) {
                 $this->get_logger()->update_log($log_id, array(
@@ -203,7 +223,7 @@ class Katahdin_AI_Webhook_Handler {
             }
             
             // Update log with success
-            $this->logger->update_log($log_id, array(
+            $this->get_logger()->update_log($log_id, array(
                 'status' => 'success',
                 'response_code' => 200,
                 'processing_time_ms' => $processing_time,
@@ -223,7 +243,7 @@ class Katahdin_AI_Webhook_Handler {
         } catch (Exception $e) {
             $processing_time = round((microtime(true) - $start_time) * 1000);
             
-            $this->logger->update_log($log_id, array(
+            $this->get_logger()->update_log($log_id, array(
                 'status' => 'error',
                 'error_message' => $e->getMessage(),
                 'response_code' => 500,
@@ -661,7 +681,7 @@ class Katahdin_AI_Webhook_Handler {
      * Get log statistics
      */
     public function get_log_stats($request) {
-        $stats = $this->get_logger()->get_stats();
+        $stats = $this->get_logger()->get_log_stats();
         
         return rest_ensure_response(array(
             'success' => true,
@@ -675,12 +695,12 @@ class Katahdin_AI_Webhook_Handler {
     public function cleanup_logs($request) {
         $retention_days = $request->get_param('retention_days') ?: 30;
         
-        $deleted = $this->get_logger()->cleanup_old_logs($retention_days);
+        $result = $this->get_logger()->cleanup_logs($retention_days);
         
         return rest_ensure_response(array(
             'success' => true,
-            'message' => "Cleaned up {$deleted} old log entries",
-            'deleted_count' => $deleted,
+            'message' => "Cleaned up {$result['deleted_count']} old log entries",
+            'deleted_count' => $result['deleted_count'],
             'retention_days' => $retention_days
         ));
     }

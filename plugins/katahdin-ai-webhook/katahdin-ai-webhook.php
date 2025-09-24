@@ -365,10 +365,8 @@ function katahdin_ai_webhook_deactivate() {
 // Initialize the plugin
 if (!function_exists('katahdin_ai_webhook_init')) {
 function katahdin_ai_webhook_init() {
-    if (function_exists('katahdin_ai_hub')) {
-        return Katahdin_AI_Webhook::instance();
-    }
-    return null;
+    // Always initialize the plugin, even if hub is not available
+    return Katahdin_AI_Webhook::instance();
 }
 }
 
@@ -379,3 +377,6 @@ if (!function_exists('katahdin_ai_webhook_started')) {
     }
     katahdin_ai_webhook_init();
 }
+
+// Ensure plugin is initialized on WordPress init
+add_action('init', 'katahdin_ai_webhook_init', 5);

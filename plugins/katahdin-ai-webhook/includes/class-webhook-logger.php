@@ -175,14 +175,13 @@ class Katahdin_AI_Webhook_Logger {
         }
         
         $sql = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY timestamp DESC LIMIT %d OFFSET %d";
+        
+        // Always add limit and offset to the values array
         $where_values[] = $limit;
         $where_values[] = $offset;
         
-        if (!empty($where_values)) {
-            $sql = $wpdb->prepare($sql, $where_values);
-        } else {
-            $sql = $wpdb->prepare($sql, $limit, $offset);
-        }
+        // Prepare the SQL with all values
+        $sql = $wpdb->prepare($sql, $where_values);
         
         return $wpdb->get_results($sql);
     }
@@ -275,6 +274,59 @@ class Katahdin_AI_Webhook_Logger {
         $host = $_SERVER['HTTP_HOST'];
         $uri = $_SERVER['REQUEST_URI'];
         return $protocol . '://' . $host . $uri;
+    }
+    
+    /**
+     * Get log statistics
+     */
+    public function get_log_stats() {
+        global $wpdb;
+        
+        $stats = array();
+        
+        // Total logs
+        $stats['total_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name}");
+        
+        // Success logs
+        $stats['success_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE status = 'success'");
+        
+        // Error logs
+        $stats['error_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE status = 'error'");
+        
+        // Pending logs
+        $stats['pending_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE status = 'pending'");
+        
+        // Recent activity (last 24 hours)
+        $stats['recent_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+        
+        return $stats;
+    }
+    
+    /**
+     * Cleanup old logs
+     */
+    public function cleanup_logs($retention_days = 30) {
+        global $wpdb;
+        
+        // Debug: Log the cleanup attempt
+        error_log("Katahdin AI Webhook - cleanup_logs called with retention_days: $retention_days");
+        
+        // Special case: if retention_days is 0, delete all logs
+        if ($retention_days == 0) {
+            $deleted = $wpdb->query("DELETE FROM {$this->table_name}");
+            error_log("Katahdin AI Webhook - deleted all logs: $deleted");
+        } else {
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$this->table_name} WHERE timestamp < DATE_SUB(NOW(), INTERVAL %d DAY)",
+                $retention_days
+            ));
+            error_log("Katahdin AI Webhook - deleted old logs: $deleted");
+        }
+        
+        return array(
+            'deleted_count' => $deleted,
+            'retention_days' => $retention_days
+        );
     }
     
     /**
