@@ -132,14 +132,23 @@ class JazzEdge_Practice_Hub {
             array($this, 'students_page')
         );
         
-            add_submenu_page(
-                'jazzedge-practice-hub',
-                __('Badges', 'jazzedge-practice-hub'),
-                __('Badges', 'jazzedge-practice-hub'),
-                'manage_options',
-                'jph-badges',
-                array($this, 'badges_page')
-            );
+        add_submenu_page(
+            'jazzedge-practice-hub',
+            __('Badges', 'jazzedge-practice-hub'),
+            __('Badges', 'jazzedge-practice-hub'),
+            'manage_options',
+            'jph-badges',
+            array($this, 'badges_page')
+        );
+        
+        add_submenu_page(
+            'jazzedge-practice-hub',
+            __('Lesson Favorites', 'jazzedge-practice-hub'),
+            __('Lesson Favorites', 'jazzedge-practice-hub'),
+            'manage_options',
+            'jph-lesson-favorites',
+            array($this, 'lesson_favorites_page')
+        );
             
             add_submenu_page(
                 'jazzedge-practice-hub',
@@ -4197,6 +4206,7 @@ class JazzEdge_Practice_Hub {
             'callback' => array($this, 'rest_delete_practice_item'),
             'permission_callback' => '__return_true'
         ));
+        
     }
     
     /**
@@ -6719,6 +6729,562 @@ class JazzEdge_Practice_Hub {
         }
     }
     
+    
+    /**
+     * REST API: Add lesson favorite
+     */
+    public function rest_add_lesson_favorite($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $title = sanitize_text_field($request->get_param('title'));
+            $url = esc_url_raw($request->get_param('url'));
+            $category = sanitize_text_field($request->get_param('category')) ?: 'lesson';
+            $description = sanitize_textarea_field($request->get_param('description'));
+            
+            if (empty($title) || empty($url)) {
+                return new WP_Error('missing_data', 'Title and URL are required', array('status' => 400));
+            }
+            
+            $favorite_data = array(
+                'user_id' => $user_id,
+                'title' => $title,
+                'url' => $url,
+                'category' => $category,
+                'description' => $description
+            );
+            
+            $result = $database->add_lesson_favorite($favorite_data);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Lesson favorite added successfully',
+                'favorite_id' => $result,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('add_favorite_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update lesson favorite
+     */
+    public function rest_update_lesson_favorite($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            $favorite_id = $request->get_param('id');
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            if (!$favorite_id) {
+                return new WP_Error('missing_id', 'Favorite ID is required', array('status' => 400));
+            }
+            
+            $favorite_data = array();
+            
+            if ($request->get_param('title')) {
+                $favorite_data['title'] = sanitize_text_field($request->get_param('title'));
+            }
+            if ($request->get_param('url')) {
+                $favorite_data['url'] = esc_url_raw($request->get_param('url'));
+            }
+            if ($request->get_param('category')) {
+                $favorite_data['category'] = sanitize_text_field($request->get_param('category'));
+            }
+            if ($request->get_param('description')) {
+                $favorite_data['description'] = sanitize_textarea_field($request->get_param('description'));
+            }
+            
+            if (empty($favorite_data)) {
+                return new WP_Error('no_data', 'No data provided to update', array('status' => 400));
+            }
+            
+            $result = $database->update_lesson_favorite($favorite_id, $favorite_data);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Lesson favorite updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_favorite_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Delete lesson favorite
+     */
+    public function rest_delete_lesson_favorite($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            $favorite_id = $request->get_param('id');
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            if (!$favorite_id) {
+                return new WP_Error('missing_id', 'Favorite ID is required', array('status' => 400));
+            }
+            
+            $result = $database->delete_lesson_favorite($favorite_id);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Lesson favorite deleted successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('delete_favorite_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Lesson Favorites admin page
+     */
+    public function lesson_favorites_page() {
+        ?>
+        <div class="wrap">
+            <h1>📚 Lesson Favorites Management</h1>
+            
+            <div class="jph-admin-stats">
+                <div class="jph-stat-card">
+                    <h3>Total Favorites</h3>
+                    <div class="jph-stat-number" id="total-favorites">Loading...</div>
+                </div>
+                <div class="jph-stat-card">
+                    <h3>Active Users</h3>
+                    <div class="jph-stat-number" id="active-users">Loading...</div>
+                </div>
+                <div class="jph-stat-card">
+                    <h3>Most Popular Category</h3>
+                    <div class="jph-stat-number" id="popular-category">Loading...</div>
+                </div>
+            </div>
+            
+            <div class="jph-admin-actions">
+                <button type="button" class="button button-primary" id="refresh-favorites-btn">🔄 Refresh</button>
+                <button type="button" class="button button-secondary" id="export-favorites-btn">📊 Export CSV</button>
+            </div>
+            
+            <div class="jph-favorites-container">
+                <div class="jph-favorites-filters">
+                    <select id="user-filter">
+                        <option value="">All Users</option>
+                    </select>
+                    <select id="category-filter">
+                        <option value="">All Categories</option>
+                        <option value="lesson">Lesson</option>
+                        <option value="technique">Technique</option>
+                        <option value="theory">Theory</option>
+                        <option value="ear-training">Ear Training</option>
+                        <option value="repertoire">Repertoire</option>
+                        <option value="improvisation">Improvisation</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <input type="text" id="search-filter" placeholder="Search favorites...">
+                </div>
+                
+                <div class="jph-favorites-table-container">
+                    <table class="wp-list-table widefat fixed striped" id="favorites-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>URL</th>
+                                <th>Description</th>
+                                <th>Date Added</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="favorites-tbody">
+                            <tr>
+                                <td colspan="7" class="loading">Loading lesson favorites...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        .jph-admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .jph-stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .jph-stat-card h3 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .jph-stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0073aa;
+        }
+        
+        .jph-admin-actions {
+            margin: 20px 0;
+        }
+        
+        .jph-favorites-filters {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            align-items: center;
+        }
+        
+        .jph-favorites-filters select,
+        .jph-favorites-filters input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .jph-favorites-table-container {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-favorites-table-container table {
+            margin: 0;
+        }
+        
+        .jph-favorites-table-container th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        
+        .jph-favorites-table-container td {
+            vertical-align: top;
+            padding: 12px 8px;
+        }
+        
+        .jph-favorites-table-container .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jph-favorites-table-container .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #0073aa;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .jph-favorites-table-container .lesson-url {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .jph-favorites-table-container .lesson-description {
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .jph-favorites-table-container .actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .jph-favorites-table-container .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn-view {
+            background: #0073aa;
+            color: white;
+        }
+        
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+        </style>
+        
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLessonFavoritesStats();
+            loadLessonFavorites();
+            loadUsers();
+            
+            // Event listeners
+            document.getElementById('refresh-favorites-btn').addEventListener('click', function() {
+                loadLessonFavoritesStats();
+                loadLessonFavorites();
+            });
+            
+            document.getElementById('export-favorites-btn').addEventListener('click', exportFavorites);
+            
+            document.getElementById('user-filter').addEventListener('change', filterFavorites);
+            document.getElementById('category-filter').addEventListener('change', filterFavorites);
+            document.getElementById('search-filter').addEventListener('input', filterFavorites);
+        });
+        
+        function loadLessonFavoritesStats() {
+            // This would be a new endpoint to get stats
+            // For now, we'll calculate from the favorites data
+            fetch('<?php echo rest_url('jph/v1/lesson-favorites'); ?>', {
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const favorites = data.favorites;
+                    const uniqueUsers = new Set(favorites.map(f => f.user_id)).size;
+                    const categories = favorites.reduce((acc, f) => {
+                        acc[f.category] = (acc[f.category] || 0) + 1;
+                        return acc;
+                    }, {});
+                    const popularCategory = Object.keys(categories).reduce((a, b) => categories[a] > categories[b] ? a : b, 'lesson');
+                    
+                    document.getElementById('total-favorites').textContent = favorites.length;
+                    document.getElementById('active-users').textContent = uniqueUsers;
+                    document.getElementById('popular-category').textContent = popularCategory.charAt(0).toUpperCase() + popularCategory.slice(1);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading stats:', error);
+            });
+        }
+        
+        function loadLessonFavorites() {
+            fetch('<?php echo rest_url('jph/v1/lesson-favorites'); ?>', {
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderFavoritesTable(data.favorites);
+                } else {
+                    document.getElementById('favorites-tbody').innerHTML = '<tr><td colspan="7" class="loading">Error loading favorites</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading favorites:', error);
+                document.getElementById('favorites-tbody').innerHTML = '<tr><td colspan="7" class="loading">Error loading favorites</td></tr>';
+            });
+        }
+        
+        function loadUsers() {
+            fetch('<?php echo rest_url('jph/v1/students'); ?>', {
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const userSelect = document.getElementById('user-filter');
+                    userSelect.innerHTML = '<option value="">All Users</option>';
+                    data.students.forEach(student => {
+                        const option = document.createElement('option');
+                        option.value = student.id;
+                        option.textContent = student.display_name;
+                        userSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading users:', error);
+            });
+        }
+        
+        function renderFavoritesTable(favorites) {
+            const tbody = document.getElementById('favorites-tbody');
+            
+            if (favorites.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="loading">No lesson favorites found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = favorites.map(favorite => `
+                <tr>
+                    <td>
+                        <div class="user-info">
+                            <div class="user-avatar">${favorite.user_display_name ? favorite.user_display_name.charAt(0).toUpperCase() : 'U'}</div>
+                            <div>
+                                <div>${favorite.user_display_name || 'Unknown User'}</div>
+                                <small>ID: ${favorite.user_id}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td><strong>${escapeHtml(favorite.title)}</strong></td>
+                    <td><span class="category-badge">${escapeHtml(favorite.category)}</span></td>
+                    <td class="lesson-url">
+                        <a href="${escapeHtml(favorite.url)}" target="_blank" title="${escapeHtml(favorite.url)}">
+                            ${escapeHtml(favorite.url.length > 30 ? favorite.url.substring(0, 30) + '...' : favorite.url)}
+                        </a>
+                    </td>
+                    <td class="lesson-description" title="${escapeHtml(favorite.description || '')}">
+                        ${escapeHtml(favorite.description || '')}
+                    </td>
+                    <td>${new Date(favorite.created_at).toLocaleDateString()}</td>
+                    <td class="actions">
+                        <a href="${escapeHtml(favorite.url)}" target="_blank" class="btn-small btn-view">View</a>
+                        <button onclick="deleteFavorite(${favorite.id})" class="btn-small btn-delete">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function filterFavorites() {
+            const userFilter = document.getElementById('user-filter').value;
+            const categoryFilter = document.getElementById('category-filter').value;
+            const searchFilter = document.getElementById('search-filter').value.toLowerCase();
+            
+            // This would ideally be done server-side, but for now we'll do client-side filtering
+            loadLessonFavorites();
+        }
+        
+        function deleteFavorite(favoriteId) {
+            if (!confirm('Are you sure you want to delete this lesson favorite?')) {
+                return;
+            }
+            
+            fetch('<?php echo rest_url('jph/v1/lesson-favorites/'); ?>' + favoriteId, {
+                method: 'DELETE',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Lesson favorite deleted successfully!');
+                    loadLessonFavorites();
+                    loadLessonFavoritesStats();
+                } else {
+                    alert('Error deleting lesson favorite: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting favorite:', error);
+                alert('Error deleting lesson favorite. Please try again.');
+            });
+        }
+        
+        function exportFavorites() {
+            fetch('<?php echo rest_url('jph/v1/lesson-favorites'); ?>', {
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const csv = convertToCSV(data.favorites);
+                    downloadCSV(csv, 'lesson-favorites.csv');
+                } else {
+                    alert('Error exporting favorites');
+                }
+            })
+            .catch(error => {
+                console.error('Error exporting favorites:', error);
+                alert('Error exporting favorites. Please try again.');
+            });
+        }
+        
+        function convertToCSV(favorites) {
+            const headers = ['User ID', 'User Name', 'Title', 'Category', 'URL', 'Description', 'Date Added'];
+            const rows = favorites.map(f => [
+                f.user_id,
+                f.user_display_name || 'Unknown',
+                f.title,
+                f.category,
+                f.url,
+                f.description || '',
+                f.created_at
+            ]);
+            
+            return [headers, ...rows].map(row => 
+                row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')
+            ).join('\n');
+        }
+        
+        function downloadCSV(csv, filename) {
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        </script>
+        <?php
+    }
+    
     /**
      * Register shortcodes
      */
@@ -6782,6 +7348,14 @@ class JazzEdge_Practice_Hub {
                 
             </div>
             
+            <!-- Lesson Favorites Section -->
+            <div class="jph-lesson-favorites-section">
+                <h3>⭐ My Lesson Favorites</h3>
+                <div class="jph-favorites-container" id="lesson-favorites-container">
+                    <div class="loading">Loading your lesson favorites...</div>
+                </div>
+            </div>
+            
             <div class="jph-practice-items">
                  <!-- Stats Explanation Button -->
                  <div class="stats-explanation-button">
@@ -6830,6 +7404,9 @@ class JazzEdge_Practice_Hub {
                             <div class="item-actions">
                                 <button class="jph-add-item-btn" type="button">
                                     Add Practice Item
+                                </button>
+                                <button class="jph-add-favorite-btn" type="button" onclick="addLessonFavorite()">
+                                    ⭐ Add Lesson Favorite
                                 </button>
                             </div>
                         </div>
@@ -7011,8 +7588,29 @@ class JazzEdge_Practice_Hub {
                 <h3>➕ Add Practice Item</h3>
                 <form id="jph-add-item-form">
                     <div class="form-group">
+                        <label>Choose Practice Type:</label>
+                        <div class="practice-type-selection">
+                            <label class="radio-option">
+                                <input type="radio" name="practice_type" value="custom" checked>
+                                <span>Enter your own practice item</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="practice_type" value="favorite">
+                                <span>Choose from lesson favorites</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" id="custom-title-group">
                         <label>Title:</label>
                         <input type="text" name="item_name" placeholder="e.g., Major Scale Practice" required>
+                    </div>
+                    
+                    <div class="form-group" id="favorite-selection-group" style="display: none;">
+                        <label>Select Lesson Favorite:</label>
+                        <select name="lesson_favorite" id="lesson-favorite-select">
+                            <option value="">Loading favorites...</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Category:</label>
@@ -7440,6 +8038,119 @@ class JazzEdge_Practice_Hub {
             margin-bottom: 30px;
         }
         
+        /* Lesson Favorites Section */
+        .jph-lesson-favorites-section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .jph-lesson-favorites-section h3 {
+            margin: 0 0 20px 0;
+            color: #2A3940;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .jph-favorites-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        
+        .jph-favorite-item {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-favorite-item:hover {
+            border-color: #ff6b35;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.2);
+        }
+        
+        .jph-favorite-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2A3940;
+            margin-bottom: 8px;
+        }
+        
+        .jph-favorite-category {
+            display: inline-block;
+            background: #ff6b35;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .jph-favorite-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        
+        .jph-favorite-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .jph-favorite-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .jph-favorite-btn-primary {
+            background: #0073aa;
+            color: white;
+        }
+        
+        .jph-favorite-btn-primary:hover {
+            background: #005a87;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .jph-favorite-btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .jph-favorite-btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .jph-favorites-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .jph-favorites-empty h4 {
+            margin: 0 0 10px 0;
+            color: #2A3940;
+        }
+        
+        .jph-favorites-empty p {
+            margin: 0 0 20px 0;
+        }
+        
         .jph-items-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -7475,6 +8186,59 @@ class JazzEdge_Practice_Hub {
         .jph-add-item-btn:hover {
             background: #005a87;
             transform: translateY(-2px);
+        }
+        
+        .jph-add-favorite-btn {
+            background: #ff6b35;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+        
+        .jph-add-favorite-btn:hover {
+            background: #e55a2b;
+            transform: translateY(-2px);
+        }
+        
+        .practice-type-selection {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .radio-option:hover {
+            border-color: #0073aa;
+            background-color: #f8f9fa;
+        }
+        
+        .radio-option input[type="radio"] {
+            margin: 0;
+        }
+        
+        .radio-option input[type="radio"]:checked + span {
+            font-weight: 600;
+            color: #0073aa;
+        }
+        
+        .radio-option:has(input[type="radio"]:checked) {
+            border-color: #0073aa;
+            background-color: #e3f2fd;
         }
         
         /* Full Width Practice History */
@@ -8837,11 +9601,92 @@ class JazzEdge_Practice_Hub {
                             }
                             // Always load badges after checking
                             loadBadges();
+                            loadLessonFavorites();
                         },
                         error: function(xhr, status, error) {
                             console.error('Error checking badges:', error);
                             // Still load badges even if check fails
                             loadBadges();
+                            loadLessonFavorites();
+                        }
+                    });
+                }
+                
+                // Load lesson favorites
+                function loadLessonFavorites() {
+                    console.log('DEBUG: Loading lesson favorites...');
+                    $.ajax({
+                        url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
+                        method: 'GET',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        success: function(response) {
+                            console.log('DEBUG: Lesson favorites response:', response);
+                            if (response.success) {
+                                displayLessonFavorites(response.favorites);
+                            } else {
+                                console.error('Error loading lesson favorites:', response.message);
+                                $('#lesson-favorites-container').html('<div class="jph-favorites-empty"><h4>No lesson favorites found</h4><p>Start adding lessons to your favorites!</p></div>');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error('Error loading lesson favorites:', error);
+                            $('#lesson-favorites-container').html('<div class="jph-favorites-empty"><h4>Error loading favorites</h4><p>Please try refreshing the page.</p></div>');
+                        }
+                    });
+                }
+                
+                // Display lesson favorites
+                function displayLessonFavorites(favorites) {
+                    const container = $('#lesson-favorites-container');
+                    
+                    if (favorites.length === 0) {
+                        container.html('<div class="jph-favorites-empty"><h4>No lesson favorites yet</h4><p>Start adding lessons to your favorites!</p></div>');
+                        return;
+                    }
+                    
+                    let html = '';
+                    favorites.forEach(function(favorite) {
+                        html += `
+                            <div class="jph-favorite-item">
+                                <div class="jph-favorite-title">${escapeHtml(favorite.title)}</div>
+                                <div class="jph-favorite-category">${escapeHtml(favorite.category)}</div>
+                                <div class="jph-favorite-description">${escapeHtml(favorite.description || '')}</div>
+                                <div class="jph-favorite-actions">
+                                    <a href="${escapeHtml(favorite.url)}" target="_blank" class="jph-favorite-btn jph-favorite-btn-primary">View Lesson</a>
+                                    <button onclick="deleteLessonFavorite(${favorite.id})" class="jph-favorite-btn jph-favorite-btn-danger">Remove</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    container.html(html);
+                }
+                
+                // Delete lesson favorite
+                function deleteLessonFavorite(favoriteId) {
+                    if (!confirm('Are you sure you want to remove this lesson favorite?')) {
+                        return;
+                    }
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('jph/v1/lesson-favorites/'); ?>' + favoriteId,
+                        method: 'DELETE',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                showToast('Lesson favorite removed successfully!', 'success');
+                                loadLessonFavorites();
+                            } else {
+                                showToast('Error removing lesson favorite: ' + (response.message || 'Unknown error'), 'error');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error('Error removing lesson favorite:', error);
+                            showToast('Error removing lesson favorite. Please try again.', 'error');
                         }
                     });
                 }
@@ -9104,7 +9949,116 @@ class JazzEdge_Practice_Hub {
                 // Handle Add Practice Item button clicks
                 $(document).on('click', '.jph-add-item-btn', function() {
                     $('#jph-add-item-modal').show();
+                    loadLessonFavorites();
                 });
+                
+                // Handle practice type radio button changes
+                $(document).on('change', 'input[name="practice_type"]', function() {
+                    var practiceType = $(this).val();
+                    if (practiceType === 'custom') {
+                        $('#custom-title-group').show();
+                        $('#favorite-selection-group').hide();
+                        $('input[name="item_name"]').prop('required', true);
+                        $('select[name="lesson_favorite"]').prop('required', false);
+                    } else if (practiceType === 'favorite') {
+                        $('#custom-title-group').hide();
+                        $('#favorite-selection-group').show();
+                        $('input[name="item_name"]').prop('required', false);
+                        $('select[name="lesson_favorite"]').prop('required', true);
+                    }
+                });
+                
+                // Handle lesson favorite selection
+                $(document).on('change', '#lesson-favorite-select', function() {
+                    var selectedOption = $(this).find('option:selected');
+                    if (selectedOption.val()) {
+                        var title = selectedOption.data('title');
+                        var category = selectedOption.data('category');
+                        var description = selectedOption.data('description');
+                        
+                        // Auto-fill the form fields
+                        $('input[name="item_name"]').val(title);
+                        $('select[name="item_category"]').val(category);
+                        $('textarea[name="item_description"]').val(description);
+                    }
+                });
+                
+                // Load lesson favorites
+                function loadLessonFavorites() {
+                    $.ajax({
+                        url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
+                        method: 'GET',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                var select = $('#lesson-favorite-select');
+                                select.empty();
+                                
+                                if (response.favorites.length === 0) {
+                                    select.append('<option value="">No lesson favorites found</option>');
+                                } else {
+                                    select.append('<option value="">Select a lesson favorite...</option>');
+                                    $.each(response.favorites, function(index, favorite) {
+                                        select.append('<option value="' + favorite.id + '" data-title="' + escapeHtml(favorite.title) + '" data-category="' + escapeHtml(favorite.category) + '" data-description="' + escapeHtml(favorite.description || '') + '">' + escapeHtml(favorite.title) + '</option>');
+                                    });
+                                }
+                            } else {
+                                $('#lesson-favorite-select').html('<option value="">Error loading favorites</option>');
+                            }
+                        },
+                        error: function() {
+                            $('#lesson-favorite-select').html('<option value="">Error loading favorites</option>');
+                        }
+                    });
+                }
+                
+                // Add lesson favorite function (called by button)
+                function addLessonFavorite() {
+                    var title = prompt('Enter lesson title:');
+                    if (!title) return;
+                    
+                    var url = prompt('Enter lesson URL:');
+                    if (!url) return;
+                    
+                    var category = prompt('Enter category (optional):') || 'lesson';
+                    var description = prompt('Enter description (optional):') || '';
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
+                        method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        data: {
+                            title: title,
+                            url: url,
+                            category: category,
+                            description: description
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                showMessage('Lesson favorite added successfully!');
+                                loadLessonFavorites(); // Refresh the dropdown
+                            } else {
+                                showMessage('Error: ' + (response.message || 'Unknown error'), 'error');
+                            }
+                        },
+                        error: function(xhr) {
+                            var errorMessage = 'Error adding lesson favorite';
+                            try {
+                                var response = JSON.parse(xhr.responseText);
+                                if (response.message) {
+                                    errorMessage = response.message;
+                                }
+                            } catch (e) {
+                                // Use default error message
+                            }
+                            showMessage(errorMessage, 'error');
+                        }
+                    });
+                }
                 
                 // Close Add Practice Item modal
                 $(document).on('click', '#jph-add-item-modal .jph-close', function() {

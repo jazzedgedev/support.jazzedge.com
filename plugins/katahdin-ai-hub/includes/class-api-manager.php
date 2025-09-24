@@ -127,6 +127,31 @@ class Katahdin_AI_Hub_API_Manager {
     }
     
     /**
+     * Debug method to test API key retrieval
+     */
+    public function debug_api_key() {
+        $encrypted_key = get_option('katahdin_ai_hub_openai_key');
+        
+        $result = array(
+            'raw_key_exists' => !empty($encrypted_key),
+            'raw_key_length' => $encrypted_key ? strlen($encrypted_key) : 0,
+            'raw_key_preview' => $encrypted_key ? substr($encrypted_key, 0, 8) . '...' : 'Not found',
+            'starts_with_sk' => $encrypted_key ? strpos($encrypted_key, 'sk-') === 0 : false
+        );
+        
+        // Safely test get_api_key method
+        try {
+            $retrieved_key = $this->get_api_key();
+            $result['get_api_key_result'] = $retrieved_key ? 'SUCCESS' : 'FAILED';
+            $result['retrieved_key_length'] = $retrieved_key ? strlen($retrieved_key) : 0;
+        } catch (Exception $e) {
+            $result['get_api_key_result'] = 'ERROR: ' . $e->getMessage();
+        }
+        
+        return $result;
+    }
+    
+    /**
      * Get API key (encrypted)
      */
     private function get_api_key() {
@@ -135,14 +160,16 @@ class Katahdin_AI_Hub_API_Manager {
             return false;
         }
         
-        // If the key is not encrypted (legacy), return as is
-        if (strlen($encrypted_key) < 50) {
-            return $encrypted_key;
+        // Check if the key looks like a raw OpenAI API key (starts with sk-)
+        if (strpos($encrypted_key, 'sk-') === 0) {
+            return $encrypted_key; // Return raw key if it starts with sk-
         }
         
-        // Decrypt the API key
+        // Otherwise, try to decrypt it
         return $this->decrypt_api_key($encrypted_key);
     }
+    
+    // Force reload - updated API key detection logic
     
     /**
      * Set API key (encrypted)

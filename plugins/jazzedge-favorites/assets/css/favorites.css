@@ -1,0 +1,197 @@
+/* Jazzedge Favorites Plugin Styles */
+
+.jf-favorites-container {
+    margin: 10px 0;
+}
+
+.jf-favorites-btn {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(249, 115, 22, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jf-favorites-btn:hover {
+    background: linear-gradient(135deg, #ea580c, #dc2626);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(249, 115, 22, 0.4);
+}
+
+.jf-favorites-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.jf-favorites-btn.jf-favorites-added {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.jf-favorites-btn.jf-favorites-added:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+}
+
+.jf-favorites-message {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    display: none;
+}
+
+.jf-favorites-message.jf-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.jf-favorites-message.jf-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.jf-favorites-message.jf-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .jf-favorites-btn {
+        padding: 10px 20px;
+        font-size: 13px;
+    }
+}
+
+/* Integration with practice hub */
+.jph-add-favorite-btn {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.jph-add-favorite-btn:hover {
+    background: linear-gradient(135deg, #ea580c, #dc2626);
+    transform: translateY(-1px);
+}
+
+/* Lesson favorites dropdown styling */
+.lesson-favorite-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    transition: border-color 0.3s ease;
+}
+
+.lesson-favorite-select:focus {
+    outline: none;
+    border-color: #f97316;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+/* Favorite item display */
+.jf-favorite-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.jf-favorite-item:hover {
+    border-color: #f97316;
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.1);
+}
+
+.jf-favorite-title {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+}
+
+.jf-favorite-category {
+    font-size: 12px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 8px;
+}
+
+.jf-favorite-description {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.jf-favorite-url {
+    color: #f97316;
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.jf-favorite-url:hover {
+    text-decoration: underline;
+}
+
+.jf-favorite-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.jf-favorite-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.jf-favorite-btn-primary {
+    background: #f97316;
+    color: white;
+}
+
+.jf-favorite-btn-primary:hover {
+    background: #ea580c;
+}
+
+.jf-favorite-btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.jf-favorite-btn-danger:hover {
+    background: #dc2626;
+}

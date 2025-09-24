@@ -467,6 +467,7 @@ class JPH_Database_Schema {
         );
     }
     
+    
     /**
      * Get SQL CREATE TABLE statements
      */
