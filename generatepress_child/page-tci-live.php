@@ -17,8 +17,7 @@ add_filter('generate_footer_widget_areas', fn()=> 0);
 get_header();
 ?>
 
-<!-- HLS.js for HLS streaming support -->
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<!-- FVPlayer handles HLS streaming natively -->
 
 <style>
 /* ===== Brand Palette ===== */
@@ -211,24 +210,6 @@ body {
   width: 100%;
 }
 
-.tci-video-wrapper {
-  position: relative;
-  padding-top: 56.25%;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  background: #000;
-}
-
-.tci-video-wrapper iframe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  border-radius: 20px;
-}
 
 /* ===== Content Sections ===== */
 .tci-section {
@@ -422,24 +403,6 @@ body {
 }
 </style>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const video = document.getElementById('bunny-video');
-  const videoSrc = 'https://vz-0696d3da-4b7.b-cdn.net/70c5d7a6-49f5-4d00-a2b1-8904e2877115/playlist.m3u8';
-  
-  if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    // Safari supports HLS natively
-    video.src = videoSrc;
-  } else if (Hls.isSupported()) {
-    // Use HLS.js for other browsers
-    const hls = new Hls();
-    hls.loadSource(videoSrc);
-    hls.attachMedia(video);
-  } else {
-    console.error('HLS is not supported in this browser');
-  }
-});
-</script>
 
 <main class="tci-landing">
   <!-- Hero Section -->
@@ -458,25 +421,13 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </section>
 
+
   <!-- Video Section -->
   <section class="tci-video-section" id="video">
     <div class="container">
-      <div class="tci-video-container">
-    <h2 class="tci-section-title">Watch a Sample Class</h2>
-    <p class="tci-section-text">See exactly what you'll learn in The Confident Improviser™ LIVE classes</p>
-        <div class="tci-video-wrapper">
-          <video 
-            id="bunny-video" 
-            controls 
-            preload="metadata" 
-            width="100%" 
-            height="100%" 
-            style="position:absolute;top:0;left:0;width:100%;height:100%;">
-            <source src="https://vz-0696d3da-4b7.b-cdn.net/70c5d7a6-49f5-4d00-a2b1-8904e2877115/playlist.m3u8" type="application/x-mpegURL">
-            <p>Your browser does not support the video tag.</p>
-          </video>
-        </div>
-      </div>
+      <h2 class="tci-section-title">Watch a Sample Class</h2>
+      <p class="tci-section-text">See exactly what you'll learn in The Confident Improviser™ LIVE classes</p>
+      <?php echo do_shortcode("[fvplayer src='https://vz-0696d3da-4b7.b-cdn.net/1297d6f8-67d9-4c7e-b049-c92fbc930830/playlist.m3u8' splash='https://support.jazzedge.com/wp-content/uploads/2025/09/tci-live-splash.jpeg']"); ?>
     </div>
   </section>
 

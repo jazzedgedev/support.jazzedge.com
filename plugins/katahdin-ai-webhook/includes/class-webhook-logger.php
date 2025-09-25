@@ -44,11 +44,17 @@ class Katahdin_AI_Webhook_Logger {
             email_response text,
             error_message text,
             status varchar(20) DEFAULT 'pending',
+            form_email varchar(255),
+            form_name varchar(255),
+            form_id varchar(50),
+            entry_id varchar(50),
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY webhook_id (webhook_id),
             KEY timestamp (timestamp),
-            KEY status (status)
+            KEY status (status),
+            KEY form_email (form_email),
+            KEY form_id (form_id)
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -137,6 +143,26 @@ class Katahdin_AI_Webhook_Logger {
         
         if (isset($data['status'])) {
             $update_data['status'] = $data['status'];
+            $update_format[] = '%s';
+        }
+        
+        if (isset($data['form_email'])) {
+            $update_data['form_email'] = $data['form_email'];
+            $update_format[] = '%s';
+        }
+        
+        if (isset($data['form_name'])) {
+            $update_data['form_name'] = $data['form_name'];
+            $update_format[] = '%s';
+        }
+        
+        if (isset($data['form_id'])) {
+            $update_data['form_id'] = $data['form_id'];
+            $update_format[] = '%s';
+        }
+        
+        if (isset($data['entry_id'])) {
+            $update_data['entry_id'] = $data['entry_id'];
             $update_format[] = '%s';
         }
         

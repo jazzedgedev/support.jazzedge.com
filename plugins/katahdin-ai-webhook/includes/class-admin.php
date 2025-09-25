@@ -31,6 +31,7 @@ class Katahdin_AI_Webhook_Admin {
         add_action('wp_ajax_katahdin_ai_webhook_debug_logs', array($this, 'ajax_debug_logs'));
         add_action('wp_ajax_katahdin_ai_webhook_get_log_details', array($this, 'ajax_get_log_details'));
         add_action('wp_ajax_katahdin_ai_webhook_clear_all_logs', array($this, 'ajax_clear_all_logs'));
+        add_action('wp_ajax_katahdin_ai_webhook_delete_log', array($this, 'ajax_delete_log'));
         add_action('admin_head', array($this, 'add_admin_styles'));
     }
     
@@ -1398,6 +1399,43 @@ class Katahdin_AI_Webhook_Admin {
     }
     
     /**
+     * AJAX handler for deleting a single log entry
+     */
+    public function ajax_delete_log() {
+        try {
+            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            $log_id = intval($_POST['log_id']);
+            if (!$log_id) {
+                wp_send_json_error('Invalid log ID');
+                return;
+            }
+            
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+            
+            $deleted = $wpdb->delete($table_name, array('id' => $log_id));
+            
+            if ($deleted === false) {
+                wp_send_json_error('Failed to delete log entry');
+                return;
+            }
+            
+            wp_send_json_success(array(
+                'message' => 'Log entry deleted successfully',
+                'deleted_count' => $deleted
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error deleting log: ' . $e->getMessage());
+        }
+    }
+    
+    /**
      * Simple AJAX test handler
      */
     public function ajax_test_ajax() {
@@ -2426,6 +2464,34 @@ class Katahdin_AI_Webhook_Admin {
                 showLogDetails(logId);
             });
             
+            // Delete log entry
+            $(document).on('click', '.delete-log-btn', function() {
+                var logId = $(this).data('log-id');
+                var $btn = $(this);
+                
+                if (confirm('Are you sure you want to delete this log entry? This cannot be undone.')) {
+                    $btn.prop('disabled', true).text('Deleting...');
+                    
+                    $.post(ajaxurl, {
+                        action: 'katahdin_ai_webhook_delete_log',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        log_id: logId
+                    }, function(response) {
+                        if (response.success) {
+                            alert('Log entry deleted successfully!');
+                            loadLogStats();
+                            loadLogs();
+                        } else {
+                            alert('Error deleting log: ' + response.data);
+                            $btn.prop('disabled', false).html('🗑️');
+                        }
+                    }).fail(function() {
+                        alert('AJAX Error: Could not delete log');
+                        $btn.prop('disabled', false).html('🗑️');
+                    });
+                }
+            });
+            
             function showLogDetails(logId) {
                 // Create modal overlay
                 var modalHtml = '<div id="log-details-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">';
@@ -2534,16 +2600,23 @@ class Katahdin_AI_Webhook_Admin {
                     if (response.success) {
                         var logs = response.data;
                         if (logs.length > 0) {
-                            var html = '<table class="wp-list-table widefat fixed striped"><thead><tr><th>Time</th><th>Status</th><th>Method</th><th>Response Code</th><th>Processing Time</th><th>Actions</th></tr></thead><tbody>';
+                            var html = '<table class="wp-list-table widefat fixed striped"><thead><tr><th>Time</th><th>Status</th><th>Email</th><th>Name</th><th>Response Code</th><th>Actions</th></tr></thead><tbody>';
                             
                             logs.forEach(function(log) {
+                                // Use the extracted form data from database columns
+                                var email = log.form_email || 'N/A';
+                                var name = log.form_name || 'N/A';
+                                
                                 html += '<tr>';
                                 html += '<td>' + new Date(log.timestamp).toLocaleString() + '</td>';
                                 html += '<td><span class="katahdin-webhook-status ' + log.status + '">' + log.status.charAt(0).toUpperCase() + log.status.slice(1) + '</span></td>';
-                                html += '<td>' + (log.method || 'N/A') + '</td>';
+                                html += '<td style="font-size: 12px;">' + email + '</td>';
+                                html += '<td style="font-size: 12px;">' + name + '</td>';
                                 html += '<td>' + (log.response_code || 'N/A') + '</td>';
-                                html += '<td>' + (log.processing_time_ms ? log.processing_time_ms + 'ms' : 'N/A') + '</td>';
-                                html += '<td><button class="button button-small view-log-btn" data-log-id="' + log.id + '">View Details</button></td>';
+                                html += '<td style="white-space: nowrap;">';
+                                html += '<button class="button button-small view-log-btn" data-log-id="' + log.id + '" style="padding: 2px 6px; margin-right: 3px;" title="View Details">👁️</button>';
+                                html += '<button class="button button-small delete-log-btn" data-log-id="' + log.id + '" style="padding: 2px 6px; background: transparent; color: #dc3545; border: 1px solid #dc3545;" title="Delete Log">🗑️</button>';
+                                html += '</td>';
                                 html += '</tr>';
                             });
                             

@@ -188,6 +188,9 @@ class Katahdin_AI_Webhook_Handler {
                 }
             }
             
+            // Extract email and name from form data for easier database storage
+            $extracted_data = $this->extract_form_data($form_data, $request->get_body());
+            
             if (empty($form_data)) {
                 $this->get_logger()->update_log($log_id, array(
                     'status' => 'error',
@@ -222,14 +225,18 @@ class Katahdin_AI_Webhook_Handler {
                 return $result;
             }
             
-            // Update log with success
+            // Update log with success and extracted form data
             $this->get_logger()->update_log($log_id, array(
                 'status' => 'success',
                 'response_code' => 200,
                 'processing_time_ms' => $processing_time,
                 'ai_response' => isset($result['ai_response']) ? json_encode($result['ai_response']) : null,
                 'email_sent' => isset($result['email_sent']) ? $result['email_sent'] : 0,
-                'email_response' => isset($result['email_response']) ? $result['email_response'] : null
+                'email_response' => isset($result['email_response']) ? $result['email_response'] : null,
+                'form_email' => $extracted_data['email'],
+                'form_name' => $extracted_data['name'],
+                'form_id' => $form_id,
+                'entry_id' => $entry_id
             ));
             
             return rest_ensure_response(array(
@@ -703,5 +710,70 @@ class Katahdin_AI_Webhook_Handler {
             'deleted_count' => $result['deleted_count'],
             'retention_days' => $retention_days
         ));
+    }
+    
+    /**
+     * Extract email and name from form data
+     */
+    private function extract_form_data($form_data, $request_body = '') {
+        $email = '';
+        $name = '';
+        
+        // Debug logging
+        error_log('Katahdin AI Webhook - extract_form_data called');
+        error_log('Katahdin AI Webhook - form_data type: ' . gettype($form_data));
+        error_log('Katahdin AI Webhook - form_data: ' . print_r($form_data, true));
+        error_log('Katahdin AI Webhook - request_body: ' . substr($request_body, 0, 200) . '...');
+        
+        // Try to parse form_data if it's an array
+        if (is_array($form_data)) {
+            // Direct email field
+            if (isset($form_data['email'])) {
+                $email = $form_data['email'];
+            }
+            
+            // Name fields - check various possible structures
+            if (isset($form_data['names']['first_name']) && isset($form_data['names']['last_name'])) {
+                $name = $form_data['names']['first_name'] . ' ' . $form_data['names']['last_name'];
+            } elseif (isset($form_data['first_name']) && isset($form_data['last_name'])) {
+                $name = $form_data['first_name'] . ' ' . $form_data['last_name'];
+            } elseif (isset($form_data['name'])) {
+                $name = $form_data['name'];
+            } elseif (isset($form_data['names'])) {
+                $name = $form_data['names'];
+            }
+            
+            // Check user_inputs for names
+            if (empty($name) && isset($form_data['__submission']['user_inputs']['names'])) {
+                $name = $form_data['__submission']['user_inputs']['names'];
+            }
+        }
+        
+        // If we still don't have data, try parsing the request body as JSON
+        if (empty($email) || empty($name)) {
+            $body_data = json_decode($request_body, true);
+            if ($body_data) {
+                if (empty($email) && isset($body_data['email'])) {
+                    $email = $body_data['email'];
+                }
+                
+                if (empty($name)) {
+                    if (isset($body_data['names']['first_name']) && isset($body_data['names']['last_name'])) {
+                        $name = $body_data['names']['first_name'] . ' ' . $body_data['names']['last_name'];
+                    } elseif (isset($body_data['__submission']['user_inputs']['names'])) {
+                        $name = $body_data['__submission']['user_inputs']['names'];
+                    }
+                }
+            }
+        }
+        
+        $result = array(
+            'email' => $email ?: 'N/A',
+            'name' => $name ?: 'N/A'
+        );
+        
+        error_log('Katahdin AI Webhook - extracted result: ' . print_r($result, true));
+        
+        return $result;
     }
 }
