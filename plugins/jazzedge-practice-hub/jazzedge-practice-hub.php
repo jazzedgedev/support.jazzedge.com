@@ -66,6 +66,9 @@ class JazzEdge_Practice_Hub {
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_scripts'));
         add_action('rest_api_init', array($this, 'register_rest_routes'));
         
+        // Register cron hooks
+        add_action('jph_daily_milestone_check', array($this, 'daily_milestone_check'));
+        
         // Register AJAX handlers
         add_action('wp_ajax_jph_award_first_steps_badge', array($this, 'ajax_award_first_steps_badge'));
         
@@ -6132,8 +6135,11 @@ class JazzEdge_Practice_Hub {
             $new_total_minutes = $current_stats['total_minutes'] + $duration_minutes;
             $database->update_user_stats($user_id, array('total_minutes' => $new_total_minutes));
             
+            // Get updated stats after all updates (including total_sessions increment from add_xp)
+            $updated_stats = $gamification->get_user_stats($user_id);
+            
             // Check for webhook milestones
-            $this->check_practice_session_milestones($user_id, $current_stats, $streak_result);
+            $this->check_practice_session_milestones($user_id, $updated_stats, $streak_result);
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -7357,6 +7363,7 @@ class JazzEdge_Practice_Hub {
                     break;
                     
                 case 'first_session':
+                case 'practice_sessions':
                     if ($user_stats['total_sessions'] >= $criteria_value) {
                         $should_award = true;
                     }
@@ -7435,6 +7442,11 @@ class JazzEdge_Practice_Hub {
                 
                 $newly_awarded[] = $badge;
             }
+        }
+        
+        // Check for badge milestones if any badges were awarded
+        if (!empty($newly_awarded)) {
+            $this->check_badge_milestones($user_id);
         }
         
         return $newly_awarded;
@@ -8592,14 +8604,18 @@ class JazzEdge_Practice_Hub {
      * Track milestone event in FluentCRM
      */
     private function track_milestone_event($milestone, $user_id, $additional_data = array()) {
+        error_log("JPH Event Tracking: Attempting to track milestone '$milestone' for user $user_id");
+        
         $settings = get_option('jph_webhook_settings', array());
         
         if (empty($settings['enabled'])) {
+            error_log("JPH Event Tracking: Event tracking is disabled");
             return array('success' => false, 'message' => 'Event tracking disabled');
         }
         
         $milestone_settings = $settings['milestones'][$milestone] ?? array();
         if (empty($milestone_settings['enabled'])) {
+            error_log("JPH Event Tracking: Milestone '$milestone' is disabled");
             return array('success' => false, 'message' => "Milestone {$milestone} is disabled");
         }
         
@@ -8632,14 +8648,19 @@ class JazzEdge_Practice_Hub {
         }
         
         try {
+            error_log("JPH Event Tracking: Calling FluentCRM action hook with data: " . print_r($event_data, true));
+            
             // Track the event using FluentCRM action hook
             do_action('fluent_crm/track_event_activity', $event_data, true);
+            
+            error_log("JPH Event Tracking: FluentCRM action hook called successfully");
             
             // Log the event attempt
             $this->log_event($milestone, $user_id, $event_data, true);
             
             return array('success' => true, 'message' => 'Event tracked successfully in FluentCRM');
         } catch (Exception $e) {
+            error_log("JPH Event Tracking: Exception occurred: " . $e->getMessage());
             $this->log_event($milestone, $user_id, $event_data, false, $e->getMessage());
             return array('success' => false, 'message' => 'Event tracking failed: ' . $e->getMessage());
         }
@@ -8762,16 +8783,15 @@ class JazzEdge_Practice_Hub {
     /**
      * Check for practice session milestones and trigger events
      */
-    private function check_practice_session_milestones($user_id, $current_stats, $streak_result) {
-        $database = new JPH_Database();
-        
-        // Get updated stats after the session
-        $updated_stats = $database->get_user_stats($user_id);
+    private function check_practice_session_milestones($user_id, $updated_stats, $streak_result) {
         $total_sessions = $updated_stats['total_sessions'] ?? 0;
         $current_streak = $streak_result['current_streak'] ?? 0;
         
+        error_log("JPH Milestone Check: User $user_id has $total_sessions total sessions");
+        
         // Check first practice session milestone
         if ($total_sessions === 1) {
+            error_log("JPH Milestone: Triggering first_practice_session for user $user_id");
             $this->track_milestone_event('first_practice_session', $user_id, array(
                 'session_count' => $total_sessions,
                 'stats' => $updated_stats
@@ -8782,6 +8802,7 @@ class JazzEdge_Practice_Hub {
         $session_milestones = array(5, 10, 25, 50, 100);
         foreach ($session_milestones as $milestone) {
             if ($total_sessions === $milestone) {
+                error_log("JPH Milestone: Triggering practice_sessions_{$milestone} for user $user_id");
                 $this->track_milestone_event("practice_sessions_{$milestone}", $user_id, array(
                     'session_count' => $total_sessions,
                     'stats' => $updated_stats
@@ -8793,11 +8814,114 @@ class JazzEdge_Practice_Hub {
         $streak_milestones = array(3, 7, 14, 30, 100);
         foreach ($streak_milestones as $milestone) {
             if ($current_streak === $milestone) {
+                error_log("JPH Milestone: Triggering streak_{$milestone}_days for user $user_id");
                 $this->track_milestone_event("streak_{$milestone}_days", $user_id, array(
                     'current_streak' => $current_streak,
                     'stats' => $updated_stats
                 ));
             }
+        }
+        
+        // Check time-based milestones (first week/month complete)
+        $this->check_time_based_milestones($user_id, $updated_stats);
+    }
+    
+    /**
+     * Daily cron job to check time-based milestones for all users
+     */
+    public function daily_milestone_check() {
+        error_log('JPH Cron: Starting daily milestone check');
+        
+        $database = new JPH_Database();
+        $gamification = new JPH_Gamification();
+        
+        // Get all users who have practice sessions
+        $users_with_sessions = $database->wpdb->get_results("
+            SELECT DISTINCT user_id 
+            FROM {$database->tables['practice_sessions']} 
+            ORDER BY user_id
+        ");
+        
+        $milestones_checked = 0;
+        $milestones_triggered = 0;
+        
+        foreach ($users_with_sessions as $user_data) {
+            $user_id = $user_data->user_id;
+            $user_stats = $gamification->get_user_stats($user_id);
+            
+            if ($user_stats) {
+                $result = $this->check_time_based_milestones($user_id, $user_stats, true);
+                $milestones_checked++;
+                
+                if ($result['triggered']) {
+                    $milestones_triggered += $result['count'];
+                }
+            }
+        }
+        
+        error_log("JPH Cron: Checked $milestones_checked users, triggered $milestones_triggered milestones");
+    }
+    
+    /**
+     * Check for time-based milestones (first week/month complete)
+     */
+    private function check_time_based_milestones($user_id, $updated_stats, $from_cron = false) {
+        $last_practice_date = $updated_stats['last_practice_date'] ?? null;
+        
+        if (!$last_practice_date) {
+            return $from_cron ? array('triggered' => false, 'count' => 0) : null;
+        }
+        
+        // Get user's first practice session to determine when they started
+        $database = new JPH_Database();
+        $first_session = $database->wpdb->get_row($database->wpdb->prepare(
+            "SELECT created_at FROM {$database->tables['practice_sessions']} 
+             WHERE user_id = %d 
+             ORDER BY created_at ASC 
+             LIMIT 1",
+            $user_id
+        ));
+        
+        if (!$first_session) {
+            return $from_cron ? array('triggered' => false, 'count' => 0) : null;
+        }
+        
+        $first_practice_date = new DateTime($first_session->created_at);
+        $current_date = new DateTime();
+        $days_since_start = $first_practice_date->diff($current_date)->days;
+        
+        $milestones_triggered = 0;
+        $context = $from_cron ? 'Cron' : 'Session';
+        
+        error_log("JPH Time Milestone ($context): User $user_id started $days_since_start days ago");
+        
+        // Check first week complete (7 days since first practice)
+        if ($days_since_start === 7) {
+            error_log("JPH Milestone ($context): Triggering first_week_complete for user $user_id");
+            $this->track_milestone_event('first_week_complete', $user_id, array(
+                'days_since_start' => $days_since_start,
+                'stats' => $updated_stats,
+                'triggered_by' => $from_cron ? 'cron' : 'session'
+            ));
+            $milestones_triggered++;
+        }
+        
+        // Check first month complete (30 days since first practice)
+        if ($days_since_start === 30) {
+            error_log("JPH Milestone ($context): Triggering first_month_complete for user $user_id");
+            $this->track_milestone_event('first_month_complete', $user_id, array(
+                'days_since_start' => $days_since_start,
+                'stats' => $updated_stats,
+                'triggered_by' => $from_cron ? 'cron' : 'session'
+            ));
+            $milestones_triggered++;
+        }
+        
+        if ($from_cron) {
+            return array(
+                'triggered' => $milestones_triggered > 0,
+                'count' => $milestones_triggered
+            );
         }
     }
     
@@ -9695,11 +9819,11 @@ class JazzEdge_Practice_Hub {
                 <h2>🎹 Your Practice Dashboard</h2>
                 <div class="jph-stats">
                     <div class="stat">
-                        <span class="stat-value"><?php echo esc_html($user_stats['current_level']); ?></span>
+                        <span class="stat-value">⭐<?php echo esc_html($user_stats['current_level']); ?></span>
                         <span class="stat-label">Level</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value"><?php echo esc_html($user_stats['total_xp']); ?></span>
+                        <span class="stat-value">⚡<?php echo esc_html($user_stats['total_xp']); ?></span>
                         <span class="stat-label">XP</span>
                     </div>
                     <div class="stat">
@@ -9777,11 +9901,10 @@ class JazzEdge_Practice_Hub {
             
             <!-- Badges Section -->
             <div class="jph-badges-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="margin-bottom: 10px;">
                     <h3 style="margin: 0;">🏆 Your Badges 
                         <span class="badge-count" id="badge-count-display">(<?php echo esc_html($user_stats['badges_earned']); ?>)</span>
-                </h3>
-                    <button type="button" class="button button-small" id="refresh-badge-count-btn" style="font-size: 12px; padding: 4px 8px;">🔄 Refresh Count</button>
+                    </h3>
                 </div>
                 <div class="jph-badges-grid" id="jph-badges-grid">
                     <div class="loading-message">Loading badges...</div>
@@ -12549,11 +12672,6 @@ class JazzEdge_Practice_Hub {
             }, duration);
         }
                 
-                // Refresh badge count button
-                $('#refresh-badge-count-btn').on('click', function() {
-                    console.log('DEBUG: Refresh badge count button clicked');
-                    loadBadges();
-                });
                 
                 // Get progress text for unearned badges
                 
@@ -13225,6 +13343,11 @@ class JazzEdge_Practice_Hub {
         // Flush rewrite rules
         flush_rewrite_rules();
         
+        // Schedule daily milestone check
+        if (!wp_next_scheduled('jph_daily_milestone_check')) {
+            wp_schedule_event(time(), 'daily', 'jph_daily_milestone_check');
+        }
+        
         error_log('JPH: Plugin activated successfully - Version ' . $plugin_version);
     }
     
@@ -13237,6 +13360,7 @@ class JazzEdge_Practice_Hub {
         
         // Clear any scheduled events
         wp_clear_scheduled_hook('jph_daily_cleanup');
+        wp_clear_scheduled_hook('jph_daily_milestone_check');
         
         error_log('JPH: Plugin deactivated');
     }

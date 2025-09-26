@@ -102,6 +102,9 @@ class JPH_Database {
         
         // Migration 2: Add webhook_url column to badges table if it doesn't exist
         $this->migrate_add_webhook_url_column();
+        
+        // Migration 3: Add source column to gems_transactions table if it doesn't exist
+        $this->migrate_add_source_column_to_gems_transactions();
     }
     
     /**
@@ -142,6 +145,24 @@ class JPH_Database {
             if ($result === false) {
                 error_log("JPH Migration Error: Failed to add webhook_url column: " . $this->wpdb->last_error);
             }
+        }
+    }
+    
+    /**
+     * Migration: Add source column to gems_transactions table (if needed)
+     */
+    private function migrate_add_source_column_to_gems_transactions() {
+        $table_name = $this->tables['gems_transactions'];
+        
+        // Check if source column exists
+        $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'source'");
+        
+        if (empty($column_exists)) {
+            // Add the source column
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN source VARCHAR(100) NOT NULL DEFAULT '' AFTER amount");
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD INDEX source (source)");
+            
+            error_log('JPH Database: Migration completed - source column added to gems_transactions table');
         }
     }
     
