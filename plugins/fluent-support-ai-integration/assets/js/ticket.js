@@ -132,4 +132,60 @@ jQuery(document).ready(function($) {
     
     // Add tooltip for keyboard shortcut
     $('#generate-ai-reply').attr('title', 'Generate AI Reply (Ctrl+Shift+A)');
+    
+    // Handle autologin link copy functionality
+    $(document).on('click', '.copy-autologin-btn', function(e) {
+        e.preventDefault();
+        var url = $(this).data('url');
+        var $successDiv = $(this).siblings('.copy-success-message');
+        
+        // Try modern clipboard API first
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(url).then(function() {
+                showCopySuccess($successDiv);
+            }).catch(function(err) {
+                // Fallback to older method
+                fallbackCopyToClipboard(url, $successDiv);
+            });
+        } else {
+            // Fallback for older browsers or non-secure contexts
+            fallbackCopyToClipboard(url, $successDiv);
+        }
+    });
+    
+    /**
+     * Fallback copy method for older browsers
+     */
+    function fallbackCopyToClipboard(text, $successDiv) {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+            showCopySuccess($successDiv);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            alert('Failed to copy link. Please copy manually: ' + text);
+        }
+        
+        document.body.removeChild(textArea);
+    }
+    
+    /**
+     * Show copy success message
+     */
+    function showCopySuccess($successDiv) {
+        if ($successDiv.length) {
+            $successDiv.show();
+            setTimeout(function() {
+                $successDiv.fadeOut();
+            }, 2000);
+        }
+    }
 });

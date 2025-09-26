@@ -28,7 +28,9 @@ class JPH_Database_Schema {
             'practice_sessions' => self::get_practice_sessions_schema(),
             'user_stats' => self::get_user_stats_schema(),
             'badges' => self::get_badges_schema(),
-            'user_badges' => self::get_user_badges_schema()
+            'user_badges' => self::get_user_badges_schema(),
+            'lesson_favorites' => self::get_lesson_favorites_schema(),
+            'gems_transactions' => self::get_gems_transactions_schema()
         );
     }
     
@@ -380,6 +382,12 @@ class JPH_Database_Schema {
                     'default' => 1,
                     'description' => 'Whether badge is active (0/1)'
                 ),
+                'display_order' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'default' => 0,
+                    'description' => 'Display order for dashboard (lower numbers first)'
+                ),
                 'created_at' => array(
                     'type' => 'DATETIME',
                     'default' => 'CURRENT_TIMESTAMP',
@@ -395,7 +403,8 @@ class JPH_Database_Schema {
                 'badge_key' => array('badge_key'),
                 'category' => array('category'),
                 'rarity' => array('rarity'),
-                'is_active' => array('is_active')
+                'is_active' => array('is_active'),
+                'display_order' => array('display_order')
             )
         );
     }
@@ -463,6 +472,78 @@ class JPH_Database_Schema {
             ),
             'constraints' => array(
                 'unique_user_badge' => 'UNIQUE KEY unique_user_badge (user_id, badge_key)'
+            )
+        );
+    }
+    
+    /**
+     * Lesson Favorites Table Schema
+     * 
+     * Stores user's favorite lessons with metadata:
+     * - Title, URL, category, description
+     * - User-specific favorites
+     */
+    private static function get_lesson_favorites_schema() {
+        return array(
+            'table_name' => 'jph_lesson_favorites',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique lesson favorite ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'title' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 255,
+                    'not_null' => true,
+                    'description' => 'Lesson title'
+                ),
+                'url' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 500,
+                    'not_null' => true,
+                    'description' => 'Lesson URL'
+                ),
+                'category' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'default' => "'lesson'",
+                    'description' => 'Lesson category (lesson, technique, theory, etc.)'
+                ),
+                'description' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Optional lesson description'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When favorite was added'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When favorite was last updated'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'category' => array('category'),
+                'user_category' => array('user_id', 'category'),
+                'created_at' => array('created_at')
+            ),
+            'constraints' => array(
+                'unique_user_title' => 'UNIQUE KEY unique_user_title (user_id, title)'
             )
         );
     }
@@ -559,6 +640,77 @@ class JPH_Database_Schema {
         }
         
         return $definition;
+    }
+    
+    /**
+     * Gems Transactions Table Schema
+     * 
+     * Tracks all gem transactions for audit and history:
+     * - Earned from badges, practice sessions, etc.
+     * - Spent on items, features, etc.
+     */
+    private static function get_gems_transactions_schema() {
+        return array(
+            'table_name' => 'jph_gems_transactions',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique transaction ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'transaction_type' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'not_null' => true,
+                    'description' => 'Type of transaction (earned, spent, bonus, etc.)'
+                ),
+                'amount' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'Amount of gems (positive for earned, negative for spent)'
+                ),
+                'source' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'not_null' => true,
+                    'description' => 'Source of transaction (badge_id, practice_session, manual, etc.)'
+                ),
+                'description' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Human-readable description of the transaction'
+                ),
+                'balance_after' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'User\'s gem balance after this transaction'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When transaction occurred'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'transaction_type' => array('transaction_type'),
+                'source' => array('source'),
+                'created_at' => array('created_at'),
+                'user_type' => array('user_id', 'transaction_type')
+            )
+        );
     }
 }
 

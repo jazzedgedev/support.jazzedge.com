@@ -109,6 +109,7 @@ class FluentSupportAI {
         require_once FLUENT_SUPPORT_AI_PLUGIN_DIR . 'includes/class-prompt-manager.php';
         require_once FLUENT_SUPPORT_AI_PLUGIN_DIR . 'includes/class-openai-client.php';
         require_once FLUENT_SUPPORT_AI_PLUGIN_DIR . 'includes/class-ai-reply-generator.php';
+        require_once FLUENT_SUPPORT_AI_PLUGIN_DIR . 'includes/class-webhook-handler.php';
         
         // Include test class only in debug mode
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -239,8 +240,14 @@ class FluentSupportAI {
         
         // Add AI Reply widget
         $widgets['ai_reply'] = [
-            'title' => '🤖 AI Reply Generator',
+            'header' => '🤖 AI Reply Generator',
             'body_html' => $this->build_ai_widget($prompts, $ticket_data)
+        ];
+        
+        // Add Customer Tools widget (membership info, autologin, etc.)
+        $widgets['customer_tools'] = [
+            'header' => '🔍 Customer Tools',
+            'body_html' => $this->build_customer_tools_widget($ticket_data)
         ];
         
         return $widgets;
@@ -437,17 +444,30 @@ class FluentSupportAI {
             $html .= '</a>';
         }
         
+        // Settings link
+        $html .= '<p style="text-align: center; margin-top: 15px;">';
+        $html .= '<a href="' . admin_url('admin.php?page=fluent-support-ai-settings') . '" target="_blank" class="button button-link">⚙️ AI Settings</a>';
+        $html .= '</p>';
+        
+        $html .= '</div>';
+        
+        return $html;
+    }
+    
+    /**
+     * Build Customer Tools widget HTML
+     */
+    private function build_customer_tools_widget($ticket_data = null) {
+        $html = '<div id="fluent-support-customer-tools-widget">';
+
         // Customer Tools
         if ($ticket_data && isset($ticket_data['customer_email']) && !empty($ticket_data['customer_email'])) {
-            $html .= '<h4 style="margin: 10px 0 5px 0; color: #0073aa;">🔍 Customer Tools:</h4>';
-            
             // Find in Keap link
             $keap_search_url = 'https://app.infusionsoft.com/core/app/searchResults/searchResults?searchTerm=' . urlencode($ticket_data['customer_email']);
             $html .= '<div style="background: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #0073aa;">';
-            $html .= '<a href="' . esc_url($keap_search_url) . '" target="_blank" style="text-decoration: none; color: #0073aa; font-weight: bold;">';
+            $html .= '<a href="' . esc_url($keap_search_url) . '" target="_blank" style="text-decoration: none; color: #0073aa; font-weight: bold; transition: color 0.2s;" onmouseover="this.style.color=\'#0056b3\'" onmouseout="this.style.color=\'#0073aa\'">';
             $html .= '🔍 Find in Keap';
-            $html .= '</a><br>';
-            $html .= '<small style="color: #666;">Search for: ' . esc_html($ticket_data['customer_email']) . '</small>';
+            $html .= '</a>';
             $html .= '</div>';
 
             // Keap Tags (debug, show up to 5)
@@ -616,17 +636,29 @@ class FluentSupportAI {
                 }
             }
 
-            // Show debug info only
-            $html .= '<div style="background: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #ff9800;">';
-            $html .= '<details>';
-            $html .= '<summary style="cursor: pointer; font-size: 12px; color: #666;">Debug Info</summary>';
-            $html .= '<div style="background: #f0f0f0; padding: 8px; margin-top: 5px; font-size: 11px; font-family: monospace;">';
+            // Autologin Link button (copy only)
+            $contact_id = '';
+            $contact_email = $ticket_data['customer_email'];
+            
+            // Extract contact ID from debug info
             foreach ($debug_info as $info) {
-                $html .= esc_html($info) . '<br>';
+                if (strpos($info, 'Contact ID:') !== false) {
+                    $contact_id = trim(str_replace('Contact ID:', '', $info));
+                    break;
+                }
             }
-            $html .= '</div>';
-            $html .= '</details>';
-            $html .= '</div>';
+            
+            if ($contact_id && $contact_email) {
+                $autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($contact_email) . '&redir=/dashboard/';
+                $html .= '<div style="background: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #28a745;">';
+                $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
+                $html .= '<span style="color: #28a745; font-weight: bold; flex: 1;">🔗 Autologin Link</span>';
+                $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($autologin_url) . '" style="background: #007cba; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#0056b3\'" onmouseout="this.style.background=\'#007cba\'">📋 Copy</button>';
+                $html .= '</div>';
+                $html .= '<small style="color: #666;">Contact ID: ' . esc_html($contact_id) . ' | Email: ' . esc_html($contact_email) . '</small>';
+                $html .= '<div class="copy-success-message" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;">✅ Copied to clipboard!</div>';
+                $html .= '</div>';
+            }
             
             // Keap Membership Status
             if (isset($has_academy) || isset($has_homeschool) || isset($has_jazzpiano) || isset($has_pianowithwillie)) {
@@ -653,16 +685,6 @@ class FluentSupportAI {
                 $html .= '</div>';
             }
 
-            // Open in Academy link (only show if they have Academy membership)
-            if (isset($has_academy) && $has_academy) {
-                $academy_url = 'https://jazzedge.academy/willie/login_as_student.php?code=g8Cd8NEoEel43AjcWrjgk365Fashdj1j4kjsVRmYg&email=' . urlencode($ticket_data['customer_email']);
-                $html .= '<div style="background: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #28a745;">';
-                $html .= '<a href="' . esc_url($academy_url) . '" target="_blank" style="text-decoration: none; color: #28a745; font-weight: bold;">';
-                $html .= '🎓 Open in Academy';
-                $html .= '</a><br>';
-                $html .= '<small style="color: #666;">Login as: ' . esc_html($ticket_data['customer_email']) . '</small>';
-                $html .= '</div>';
-            }
         }
         
         // JazzEdge Membership Status (compact)
@@ -702,17 +724,26 @@ class FluentSupportAI {
                 $search_url = 'https://jazzedge.com/wp-admin/users.php?s=' . urlencode($customer_email);
                 if ($user_id) {
                     $edit_url = 'https://jazzedge.com/wp-admin/user-edit.php?user_id=' . $user_id . '&wp_http_referer=%2Fwp-admin%2Fusers.php%3Fs%3D' . rawurlencode($customer_email) . '%26action%3D-1%26new_role%26paged%3D1%26action2%3D-1%26new_role2';
-                    $html .= '<div style="background:#f9f9f9;padding:8px;margin-bottom:5px;border-left:3px solid #0073aa;"><a href="' . esc_url($edit_url) . '" target="_blank" style="text-decoration:none;color:#0073aa;font-weight:bold;">🧑‍💼 Open at Jazzedge</a></div>';
+                    $html .= '<div style="background:#f9f9f9;padding:8px;margin-bottom:5px;border-left:3px solid #0073aa;"><a href="' . esc_url($edit_url) . '" target="_blank" style="text-decoration:none;color:#0073aa;font-weight:bold;transition:color 0.2s;" onmouseover="this.style.color=\'#0056b3\'" onmouseout="this.style.color=\'#0073aa\'">🧑‍💼 Open at Jazzedge</a></div>';
                 } else {
-                    $html .= '<div style="background:#f9f9f9;padding:8px;margin-bottom:5px;border-left:3px solid #0073aa;"><a href="' . esc_url($search_url) . '" target="_blank" style="text-decoration:none;color:#0073aa;font-weight:bold;">🧑‍💼 Search at Jazzedge</a></div>';
+                    $html .= '<div style="background:#f9f9f9;padding:8px;margin-bottom:5px;border-left:3px solid #0073aa;"><a href="' . esc_url($search_url) . '" target="_blank" style="text-decoration:none;color:#0073aa;font-weight:bold;transition:color 0.2s;" onmouseover="this.style.color=\'#0056b3\'" onmouseout="this.style.color=\'#0073aa\'">🧑‍💼 Search at Jazzedge</a></div>';
                 }
             }
         }
-
-        // Settings link
-        $html .= '<p style="text-align: center; margin-top: 15px;">';
-        $html .= '<a href="' . admin_url('admin.php?page=fluent-support-ai-settings') . '" class="button button-link">⚙️ AI Settings</a>';
-        $html .= '</p>';
+        
+        // Debug info at bottom
+        if (isset($debug_info) && !empty($debug_info)) {
+            $html .= '<div style="background: #f9f9f9; padding: 8px; margin-top: 10px; border-left: 3px solid #ff9800;">';
+            $html .= '<details>';
+            $html .= '<summary style="cursor: pointer; font-size: 12px; color: #666;">Debug Info</summary>';
+            $html .= '<div style="background: #f0f0f0; padding: 8px; margin-top: 5px; font-size: 11px; font-family: monospace;">';
+            foreach ($debug_info as $info) {
+                $html .= esc_html($info) . '<br>';
+            }
+            $html .= '</div>';
+            $html .= '</details>';
+            $html .= '</div>';
+        }
         
         $html .= '</div>';
         
@@ -1852,4 +1883,5 @@ function fluent_support_ai() {
 
 // Start the plugin
 fluent_support_ai();
+
 

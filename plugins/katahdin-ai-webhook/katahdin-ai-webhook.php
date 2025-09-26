@@ -62,6 +62,9 @@ if (file_exists($includes_path . 'class-plugin-debugger.php')) {
 if (file_exists($includes_path . 'class-email-sender.php')) {
     require_once $includes_path . 'class-email-sender.php';
 }
+if (file_exists($includes_path . 'class-form-prompts.php')) {
+    require_once $includes_path . 'class-form-prompts.php';
+}
 
 /**
  * Main Katahdin AI Webhook Plugin Class
@@ -98,6 +101,11 @@ class Katahdin_AI_Webhook {
      * Plugin Debugger
      */
     public $debugger;
+    
+    /**
+     * Form Prompts Manager
+     */
+    public $form_prompts;
     
     /**
      * Get single instance
@@ -152,6 +160,9 @@ class Katahdin_AI_Webhook {
             }
             if (class_exists('Katahdin_AI_Plugin_Debugger')) {
                 $this->debugger = new Katahdin_AI_Plugin_Debugger(self::PLUGIN_ID, 'Katahdin AI Webhook');
+            }
+            if (class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+                $this->form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
             }
         } catch (Exception $e) {
             error_log('Katahdin AI Webhook component initialization error: ' . $e->getMessage());
@@ -348,6 +359,12 @@ function katahdin_ai_webhook_activate() {
     if (class_exists('Katahdin_AI_Webhook_Logger')) {
         $logger = new Katahdin_AI_Webhook_Logger();
         $logger->create_table();
+    }
+    
+    // Create form prompts table
+    if (class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+        $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+        $form_prompts->create_table();
     }
     
     // Set default options

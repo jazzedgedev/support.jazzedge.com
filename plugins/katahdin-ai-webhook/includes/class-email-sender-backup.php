@@ -142,21 +142,25 @@ class Katahdin_AI_Webhook_Email_Sender {
         $html .= '<strong>Site:</strong> ' . esc_html($site_name) . ' (' . esc_html($site_url) . ')<br>';
         $html .= '<strong>AI Model:</strong> ' . esc_html(get_option('katahdin_ai_webhook_model', 'gpt-3.5-turbo')) . '<br>';
         
-        $html .= '</div>
-            </div>';
-        
         // Add prompt text if provided
         if ($prompt_text) {
-            $html .= '
+            $html .= '</div>
+            </div>
+            
             <div class="section">
                 <h2>📝 Prompt Used</h2>
                 <div class="form-data">
                     ' . nl2br(esc_html($prompt_text)) . '
                 </div>
-            </div>';
+            </div>
+            
+            <div class="section">
+                <h2>ℹ️ Additional Metadata</h2>
+                <div class="metadata">';
         }
         
-        $html .= '
+        $html .= '</div>
+            </div>
         </div>
         
         <div class="footer">

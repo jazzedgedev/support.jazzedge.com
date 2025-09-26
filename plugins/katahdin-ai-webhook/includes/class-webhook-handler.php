@@ -396,8 +396,10 @@ class Katahdin_AI_Webhook_Handler {
      */
     public function process_data($form_data, $form_id = null, $entry_id = null) {
         try {
-            // Get AI prompt
-            $prompt = get_option('katahdin_ai_webhook_prompt', 'Analyze the following form submission data and provide insights, recommendations, or summaries as appropriate. Be concise but informative.');
+            // Get form-specific prompt or default prompt
+            $prompt_data = $this->get_prompt_for_form($form_id);
+            $prompt = $prompt_data['prompt'];
+            $prompt_title = $prompt_data['title'];
             
             // Prepare data for AI analysis
             $data_for_analysis = $this->prepare_data_for_analysis($form_data, $form_id, $entry_id);
@@ -415,8 +417,8 @@ class Katahdin_AI_Webhook_Handler {
             // Extract AI response
             $ai_analysis = $this->extract_ai_response($ai_response);
             
-            // Send email with results
-            $email_result = $this->send_analysis_email($form_data, $ai_analysis, $form_id, $entry_id);
+            // Send email with results (including prompt metadata)
+            $email_result = $this->send_analysis_email($form_data, $ai_analysis, $form_id, $entry_id, $prompt_title, $prompt);
             
             if (is_wp_error($email_result)) {
                 error_log('Email sending failed: ' . $email_result->get_error_message());
@@ -430,13 +432,40 @@ class Katahdin_AI_Webhook_Handler {
                 'success' => true,
                 'analysis' => $ai_analysis,
                 'analysis_id' => uniqid('analysis_', true),
-                'email_sent' => !is_wp_error($email_result)
+                'email_sent' => !is_wp_error($email_result),
+                'prompt_used' => $prompt_title
             );
             
         } catch (Exception $e) {
             error_log('Katahdin AI Webhook processing error: ' . $e->getMessage());
             return new WP_Error('processing_error', 'Error processing form data: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Get prompt for form processing
+     */
+    private function get_prompt_for_form($form_id) {
+        // Try to get form-specific prompt
+        if ($form_id && class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $prompt_data = $form_prompts->get_prompt_by_form_id($form_id);
+            
+            if ($prompt_data) {
+                return array(
+                    'prompt' => $prompt_data['prompt'],
+                    'title' => $prompt_data['title'],
+                    'form_id' => $prompt_data['form_id']
+                );
+            }
+        }
+        
+        // Return default prompt if no form-specific prompt found
+        return array(
+            'prompt' => get_option('katahdin_ai_webhook_prompt', 'Analyze the following form submission data and provide insights, recommendations, or summaries as appropriate. Be concise but informative.'),
+            'title' => 'Default Prompt',
+            'form_id' => 'default'
+        );
     }
     
     /**
@@ -533,14 +562,14 @@ class Katahdin_AI_Webhook_Handler {
     /**
      * Send analysis email
      */
-    private function send_analysis_email($form_data, $analysis, $form_id, $entry_id) {
+    private function send_analysis_email($form_data, $analysis, $form_id, $entry_id, $prompt_title = null, $prompt_text = null) {
         $email_sender = katahdin_ai_webhook()->email_sender;
         
         if (!$email_sender) {
             return new WP_Error('email_sender_not_available', 'Email sender not available');
         }
         
-        return $email_sender->send_analysis_email($form_data, $analysis, $form_id, $entry_id);
+        return $email_sender->send_analysis_email($form_data, $analysis, $form_id, $entry_id, $prompt_title, $prompt_text);
     }
     
     /**

@@ -38,7 +38,9 @@ class JPH_Database {
             'practice_sessions' => $wpdb->prefix . 'jph_practice_sessions',
             'user_stats' => $wpdb->prefix . 'jph_user_stats',
             'badges' => $wpdb->prefix . 'jph_badges',
-            'user_badges' => $wpdb->prefix . 'jph_user_badges'
+            'user_badges' => $wpdb->prefix . 'jph_user_badges',
+            'lesson_favorites' => $wpdb->prefix . 'jph_lesson_favorites',
+            'gems_transactions' => $wpdb->prefix . 'jph_gems_transactions'
         );
     }
     
@@ -51,15 +53,20 @@ class JPH_Database {
             $schema = JPH_Database_Schema::get_schema();
             $create_statements = JPH_Database_Schema::get_create_statements();
             
-            // Create each table
+            // Create each table using dbDelta for better compatibility
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            
             foreach ($create_statements as $table_name => $sql) {
-                $result = $this->wpdb->query($sql);
+                // Convert to dbDelta format
+                $dbdelta_sql = $this->convert_to_dbdelta_format($sql);
                 
-                if ($result === false) {
-                    throw new Exception("Failed to create table {$table_name}: " . $this->wpdb->last_error);
+                $result = dbDelta($dbdelta_sql);
+                
+                if (empty($result)) {
+                    error_log("JPH Database: Table {$table_name} already exists or created successfully");
+                } else {
+                    error_log("JPH Database: Created/updated table {$table_name}");
                 }
-                
-                error_log("JPH Database: Created table {$table_name}");
             }
             
             // Run database migrations
@@ -74,6 +81,16 @@ class JPH_Database {
             error_log('JPH Database Error: ' . $e->getMessage());
             return false;
         }
+    }
+    
+    /**
+     * Convert SQL to dbDelta format
+     */
+    private function convert_to_dbdelta_format($sql) {
+        // dbDelta expects specific formatting
+        $sql = str_replace('CREATE TABLE IF NOT EXISTS', 'CREATE TABLE', $sql);
+        $sql = str_replace('ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci', '', $sql);
+        return $sql;
     }
     
     /**
@@ -132,15 +149,22 @@ class JPH_Database {
      * Verify all tables exist
      */
     private function verify_tables_exist() {
+        $missing_tables = array();
+        
         foreach ($this->tables as $table_name) {
             $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
             
             if (!$table_exists) {
-                throw new Exception("Table {$table_name} was not created successfully");
+                $missing_tables[] = $table_name;
             }
         }
         
-        error_log('JPH Database: All tables verified successfully');
+        if (!empty($missing_tables)) {
+            error_log('JPH Database: Missing tables: ' . implode(', ', $missing_tables));
+            throw new Exception('Missing required tables: ' . implode(', ', $missing_tables));
+        }
+        
+        error_log('JPH Database: All required tables verified (' . count($this->tables) . ' tables)');
     }
     
     /**
@@ -161,6 +185,37 @@ class JPH_Database {
      */
     public function get_table_names() {
         return $this->tables;
+    }
+    
+    /**
+     * Get database status
+     */
+    public function get_database_status() {
+        $status = array(
+            'tables' => array(),
+            'total_tables' => 0,
+            'missing_tables' => array(),
+            'plugin_version' => get_option('jph_plugin_version', '0.0.0')
+        );
+        
+        foreach ($this->tables as $table_key => $table_name) {
+            $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+            $row_count = $table_exists ? $this->wpdb->get_var("SELECT COUNT(*) FROM {$table_name}") : 0;
+            
+            $status['tables'][$table_key] = array(
+                'name' => $table_name,
+                'exists' => (bool) $table_exists,
+                'row_count' => (int) $row_count
+            );
+            
+            if (!$table_exists) {
+                $status['missing_tables'][] = $table_name;
+            }
+        }
+        
+        $status['total_tables'] = count($this->tables);
+        
+        return $status;
     }
     
     /**
@@ -526,11 +581,99 @@ class JPH_Database {
         
         $where_clause = $active_only ? 'WHERE is_active = 1' : '';
         
-        $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY category, name ASC";
+        $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY display_order ASC, category, name ASC";
         
         $results = $this->wpdb->get_results($query, ARRAY_A);
         
         return $results;
+    }
+    
+    /**
+     * Update badge display order
+     */
+    public function update_badge_display_order($badge_id, $display_order) {
+        $table_name = $this->tables['badges'];
+        
+        $result = $this->wpdb->update(
+            $table_name,
+            array('display_order' => $display_order),
+            array('id' => $badge_id),
+            array('%d'),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update badge display order: ' . $this->wpdb->last_error);
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Update multiple badge display orders
+     */
+    public function update_badge_display_orders($badge_orders) {
+        $table_name = $this->tables['badges'];
+        
+        foreach ($badge_orders as $badge_id => $display_order) {
+            $result = $this->wpdb->update(
+                $table_name,
+                array('display_order' => $display_order),
+                array('id' => $badge_id),
+                array('%d'),
+                array('%d')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to update badge display order for badge ' . $badge_id . ': ' . $this->wpdb->last_error);
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Record a gems transaction
+     */
+    public function record_gems_transaction($user_id, $transaction_type, $amount, $source, $description = '') {
+        $table_name = $this->tables['gems_transactions'];
+        
+        // Get current user stats to calculate balance after
+        $user_stats = $this->get_user_stats($user_id);
+        $balance_after = $user_stats['gems_balance'] + $amount;
+        
+        $result = $this->wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'transaction_type' => $transaction_type,
+                'amount' => $amount,
+                'source' => $source,
+                'description' => $description,
+                'balance_after' => $balance_after
+            ),
+            array('%d', '%s', '%d', '%s', '%s', '%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('insert_failed', 'Failed to record gems transaction: ' . $this->wpdb->last_error);
+        }
+        
+        return $this->wpdb->insert_id;
+    }
+    
+    /**
+     * Get gems transactions for a user
+     */
+    public function get_gems_transactions($user_id, $limit = 50) {
+        $table_name = $this->tables['gems_transactions'];
+        
+        $results = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
+            $user_id, $limit
+        ), ARRAY_A);
+        
+        return $results ?: array();
     }
     
     /**
@@ -573,10 +716,17 @@ class JPH_Database {
             return new WP_Error('duplicate_badge_name', 'Badge name already exists');
         }
         
+        // Set default display_order if not provided
+        if (!isset($badge_data['display_order'])) {
+            // Get the highest display_order and add 1
+            $max_order = $this->wpdb->get_var("SELECT MAX(display_order) FROM {$table_name}");
+            $badge_data['display_order'] = ($max_order ? $max_order + 1 : 1);
+        }
+        
         // Create format array based on the data
         $formats = array();
         foreach ($badge_data as $key => $value) {
-            if (in_array($key, array('xp_reward', 'gem_reward', 'criteria_value', 'is_active'))) {
+            if (in_array($key, array('xp_reward', 'gem_reward', 'criteria_value', 'is_active', 'display_order'))) {
                 $formats[] = '%d'; // Integer
             } else {
                 $formats[] = '%s'; // String
@@ -845,7 +995,155 @@ class JPH_Database {
         }
     }
     
+    /**
+     * Get user's lesson favorites
+     */
+    public function get_lesson_favorites($user_id = null) {
+        $table_name = $this->tables['lesson_favorites'];
+        
+        if ($user_id) {
+            // Get favorites for specific user
+            $results = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY created_at DESC",
+                $user_id
+            ), ARRAY_A);
+        } else {
+            // Get all favorites (for admin)
+            $results = $this->wpdb->get_results("
+                SELECT lf.*, u.display_name as user_display_name 
+                FROM {$table_name} lf 
+                LEFT JOIN {$this->wpdb->users} u ON lf.user_id = u.ID 
+                ORDER BY lf.created_at DESC
+            ", ARRAY_A);
+        }
+        
+        return $results ?: array();
+    }
+    
+    /**
+     * Add lesson favorite
+     */
+    public function add_lesson_favorite($favorite_data) {
+        $table_name = $this->tables['lesson_favorites'];
+        
+        // Check if user already has this title (prevent duplicates)
+        $existing = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND title = %s",
+            $favorite_data['user_id'], $favorite_data['title']
+        ));
+        
+        if ($existing) {
+            return new WP_Error('duplicate_title', 'You already have a favorite with this title');
+        }
+        
+        $result = $this->wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $favorite_data['user_id'],
+                'title' => $favorite_data['title'],
+                'url' => $favorite_data['url'],
+                'category' => $favorite_data['category'],
+                'description' => $favorite_data['description']
+            ),
+            array('%d', '%s', '%s', '%s', '%s')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('insert_failed', 'Failed to add lesson favorite: ' . $this->wpdb->last_error);
+        }
+        
+        return $this->wpdb->insert_id;
+    }
+    
+    /**
+     * Update lesson favorite
+     */
+    public function update_lesson_favorite($favorite_id, $favorite_data) {
+        $table_name = $this->tables['lesson_favorites'];
+        
+        // Check if favorite exists
+        $favorite = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $favorite_id
+        ), ARRAY_A);
+        
+        if (!$favorite) {
+            return new WP_Error('favorite_not_found', 'Lesson favorite not found');
+        }
+        
+        // Prepare update data
+        $update_data = array();
+        $update_format = array();
+        
+        if (isset($favorite_data['title'])) {
+            $update_data['title'] = $favorite_data['title'];
+            $update_format[] = '%s';
+        }
+        
+        if (isset($favorite_data['url'])) {
+            $update_data['url'] = $favorite_data['url'];
+            $update_format[] = '%s';
+        }
+        
+        if (isset($favorite_data['category'])) {
+            $update_data['category'] = $favorite_data['category'];
+            $update_format[] = '%s';
+        }
+        
+        if (isset($favorite_data['description'])) {
+            $update_data['description'] = $favorite_data['description'];
+            $update_format[] = '%s';
+        }
+        
+        if (empty($update_data)) {
+            return new WP_Error('no_changes', 'No changes provided');
+        }
+        
+        $result = $this->wpdb->update(
+            $table_name,
+            $update_data,
+            array('id' => $favorite_id),
+            $update_format,
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update lesson favorite: ' . $this->wpdb->last_error);
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Delete lesson favorite
+     */
+    public function delete_lesson_favorite($favorite_id) {
+        $table_name = $this->tables['lesson_favorites'];
+        
+        // Check if favorite exists
+        $favorite = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $favorite_id
+        ), ARRAY_A);
+        
+        if (!$favorite) {
+            return new WP_Error('favorite_not_found', 'Lesson favorite not found');
+        }
+        
+        $result = $this->wpdb->delete(
+            $table_name,
+            array('id' => $favorite_id),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('delete_failed', 'Failed to delete lesson favorite: ' . $this->wpdb->last_error);
+        }
+        
+        return true;
+    }
     
     
     
 }
+

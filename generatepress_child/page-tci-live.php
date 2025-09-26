@@ -246,9 +246,10 @@ body {
 /* ===== Quotes Section ===== */
 .tci-quotes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 30px;
   margin-top: 40px;
+  align-items: start;
 }
 
 .tci-quote {
@@ -282,9 +283,18 @@ body {
 /* ===== Benefits Grid ===== */
 .tci-benefits-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 30px;
   margin-top: 40px;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.tci-benefit:nth-child(5) {
+  grid-column: 1 / -1;
+  max-width: 400px;
+  margin: 0 auto;
 }
 
 .tci-benefit {
@@ -362,9 +372,20 @@ body {
     padding: 60px 0;
   }
   
+  .tci-quotes {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
   .tci-benefits-grid {
     grid-template-columns: 1fr;
     gap: 20px;
+  }
+  
+  .tci-benefit:nth-child(5) {
+    grid-column: 1;
+    max-width: none;
+    margin: 0;
   }
   
   .tci-cta-buttons {
@@ -409,9 +430,9 @@ body {
   <section class="tci-hero">
     <div class="container">
       <div class="tci-hero-content">
-    <div class="tci-logo">JAZZ EDGE</div>
+    <div class="tci-logo">JAZZEDGE ACADEMY</div>
     <div class="tci-eyebrow">The Confident Improviser™ LIVE</div>
-    <h1 class="tci-title">Master Jazz Piano in <span class="highlight">Live Classes</span></h1>
+    <h1 class="tci-title">Finally! Improvisation Made Simple with <span class="highlight">Brain Science</span></h1>
     <p class="tci-description">Join beginner and advanced live classes designed by Willie Myette, founder of Jazzedge Academy. Learn the 5 pillars of improvisation with neuroscience-backed teaching methods.</p>
       <div class="tci-cta-buttons">
         <a href="https://jazzedge.academy/join" class="tci-btn-primary">Join Live Classes</a>

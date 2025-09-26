@@ -32,6 +32,12 @@ class Katahdin_AI_Webhook_Admin {
         add_action('wp_ajax_katahdin_ai_webhook_get_log_details', array($this, 'ajax_get_log_details'));
         add_action('wp_ajax_katahdin_ai_webhook_clear_all_logs', array($this, 'ajax_clear_all_logs'));
         add_action('wp_ajax_katahdin_ai_webhook_delete_log', array($this, 'ajax_delete_log'));
+        add_action('wp_ajax_katahdin_ai_webhook_add_prompt', array($this, 'ajax_add_prompt'));
+        add_action('wp_ajax_katahdin_ai_webhook_update_prompt', array($this, 'ajax_update_prompt'));
+        add_action('wp_ajax_katahdin_ai_webhook_delete_prompt', array($this, 'ajax_delete_prompt'));
+        add_action('wp_ajax_katahdin_ai_webhook_toggle_prompt', array($this, 'ajax_toggle_prompt'));
+        add_action('wp_ajax_katahdin_ai_webhook_get_prompts', array($this, 'ajax_get_prompts'));
+        add_action('wp_ajax_katahdin_ai_webhook_get_prompt_by_id', array($this, 'ajax_get_prompt_by_id'));
         add_action('admin_head', array($this, 'add_admin_styles'));
     }
     
@@ -68,6 +74,16 @@ class Katahdin_AI_Webhook_Admin {
             'manage_options',
             'katahdin-ai-webhook-logs',
             array($this, 'logs_page')
+        );
+        
+        // Submenu for form prompts
+        add_submenu_page(
+            'katahdin-ai-webhook',
+            'Form Prompts',
+            'Form Prompts',
+            'manage_options',
+            'katahdin-ai-webhook-prompts',
+            array($this, 'prompts_page')
         );
     }
     
@@ -2739,6 +2755,581 @@ class Katahdin_AI_Webhook_Admin {
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ));
+        }
+    }
+    
+    /**
+     * Prompts management page
+     */
+    public function prompts_page() {
+        ?>
+        <div class="wrap katahdin-webhook-admin">
+            <div class="katahdin-webhook-header">
+                <h1>📝 Form Prompts Management</h1>
+                <p>Manage AI prompts for different forms. Each form can have its own custom prompt for analysis.</p>
+            </div>
+            
+            <div class="katahdin-webhook-content">
+                <div class="katahdin-webhook-section">
+                    <div class="section-header">
+                        <h2>Add New Prompt</h2>
+                        <button type="button" class="button button-primary" id="add-prompt-btn">Add New Prompt</button>
+                    </div>
+                    
+                    <div id="prompt-form-container" style="display: none;">
+                        <form id="prompt-form" class="katahdin-form">
+                            <table class="form-table">
+                                <tr>
+                                    <th scope="row">Title</th>
+                                    <td>
+                                        <input type="text" id="prompt-title" name="title" class="regular-text" placeholder="e.g., Contact Form Analysis" required>
+                                        <p class="description">A descriptive title to identify this prompt</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Form ID</th>
+                                    <td>
+                                        <input type="text" id="prompt-form-id" name="form_id" class="regular-text" placeholder="e.g., contact_form_123" required>
+                                        <p class="description">The form ID that will trigger this prompt</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Prompt</th>
+                                    <td>
+                                        <textarea id="prompt-text" name="prompt" rows="8" cols="50" class="large-text" placeholder="Enter your AI prompt here..." required></textarea>
+                                        <p class="description">The prompt that will be sent to the AI along with the form data</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Status</th>
+                                    <td>
+                                        <label>
+                                            <input type="checkbox" id="prompt-active" name="is_active" checked> Active
+                                        </label>
+                                        <p class="description">Only active prompts will be used for form processing</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p class="submit">
+                                <button type="submit" class="button button-primary">Save Prompt</button>
+                                <button type="button" class="button" id="cancel-prompt-form">Cancel</button>
+                            </p>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="katahdin-webhook-section">
+                    <div class="section-header">
+                        <h2>Existing Prompts</h2>
+                        <div class="prompt-stats" id="prompt-stats">
+                            <span class="stat-item">Total: <strong id="total-prompts">0</strong></span>
+                            <span class="stat-item">Active: <strong id="active-prompts">0</strong></span>
+                            <span class="stat-item">Inactive: <strong id="inactive-prompts">0</strong></span>
+                        </div>
+                    </div>
+                    
+                    <div id="prompts-list">
+                        <p class="loading">Loading prompts...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Load prompts on page load
+            loadPrompts();
+            
+            // Add prompt button
+            $('#add-prompt-btn').on('click', function() {
+                $('#prompt-form-container').show();
+                $('#prompt-form')[0].reset();
+                $('#prompt-active').prop('checked', true);
+                $('#prompt-form-id').focus();
+            });
+            
+            // Cancel form
+            $('#cancel-prompt-form').on('click', function() {
+                $('#prompt-form-container').hide();
+                resetForm();
+            });
+            
+            // Submit form
+            $('#prompt-form').on('submit', function(e) {
+                e.preventDefault();
+                savePrompt();
+            });
+            
+            function loadPrompts() {
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'katahdin_ai_webhook_get_prompts',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            displayPrompts(response.data.prompts);
+                            updateStats(response.data.stats);
+                        } else {
+                            $('#prompts-list').html('<p class="error">Error loading prompts: ' + response.data + '</p>');
+                        }
+                    },
+                    error: function() {
+                        $('#prompts-list').html('<p class="error">Failed to load prompts</p>');
+                    }
+                });
+            }
+            
+            function displayPrompts(prompts) {
+                if (prompts.length === 0) {
+                    $('#prompts-list').html('<p class="no-data">No prompts found. Add your first prompt above.</p>');
+                    return;
+                }
+                
+                var html = '<table class="wp-list-table widefat fixed striped">';
+                html += '<thead><tr>';
+                html += '<th>Title</th><th>Form ID</th><th>Status</th><th>Created</th><th>Actions</th>';
+                html += '</tr></thead><tbody>';
+                
+                prompts.forEach(function(prompt) {
+                    var statusClass = prompt.is_active == 1 ? 'active' : 'inactive';
+                    var statusText = prompt.is_active == 1 ? 'Active' : 'Inactive';
+                    var createdDate = new Date(prompt.created_at).toLocaleDateString();
+                    
+                    html += '<tr>';
+                    html += '<td><strong>' + escapeHtml(prompt.title) + '</strong></td>';
+                    html += '<td><code>' + escapeHtml(prompt.form_id) + '</code></td>';
+                    html += '<td><span class="status-' + statusClass + '">' + statusText + '</span></td>';
+                    html += '<td>' + createdDate + '</td>';
+                    html += '<td>';
+                    html += '<button class="button button-small edit-prompt" data-id="' + prompt.id + '">Edit</button> ';
+                    html += '<button class="button button-small toggle-prompt" data-id="' + prompt.id + '" data-status="' + prompt.is_active + '">' + (prompt.is_active == 1 ? 'Deactivate' : 'Activate') + '</button> ';
+                    html += '<button class="button button-small button-link-delete delete-prompt" data-id="' + prompt.id + '">Delete</button>';
+                    html += '</td>';
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                $('#prompts-list').html(html);
+                
+                // Bind event handlers
+                $('.edit-prompt').on('click', function() {
+                    editPrompt($(this).data('id'));
+                });
+                
+                $('.toggle-prompt').on('click', function() {
+                    togglePrompt($(this).data('id'));
+                });
+                
+                $('.delete-prompt').on('click', function() {
+                    if (confirm('Are you sure you want to delete this prompt?')) {
+                        deletePrompt($(this).data('id'));
+                    }
+                });
+            }
+            
+            function updateStats(stats) {
+                $('#total-prompts').text(stats.total);
+                $('#active-prompts').text(stats.active);
+                $('#inactive-prompts').text(stats.inactive);
+            }
+            
+            function savePrompt() {
+                var isEdit = $('#prompt-id').length > 0;
+                var action = isEdit ? 'katahdin_ai_webhook_update_prompt' : 'katahdin_ai_webhook_add_prompt';
+                
+                var formData = {
+                    action: action,
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                    title: $('#prompt-title').val(),
+                    form_id: $('#prompt-form-id').val(),
+                    prompt: $('#prompt-text').val(),
+                    is_active: $('#prompt-active').is(':checked') ? 1 : 0
+                };
+                
+                // Add ID for edit mode
+                if (isEdit) {
+                    formData.id = $('#prompt-id').val();
+                }
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: formData,
+                    success: function(response) {
+                        if (response.success) {
+                            $('#prompt-form-container').hide();
+                            resetForm();
+                            loadPrompts();
+                            alert(isEdit ? 'Prompt updated successfully!' : 'Prompt saved successfully!');
+                        } else {
+                            alert('Error ' + (isEdit ? 'updating' : 'saving') + ' prompt: ' + response.data);
+                        }
+                    },
+                    error: function() {
+                        alert('Failed to ' + (isEdit ? 'update' : 'save') + ' prompt');
+                    }
+                });
+            }
+            
+            function editPrompt(id) {
+                // Load prompt data and populate form for editing
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'katahdin_ai_webhook_get_prompt_by_id',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        id: id
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var prompt = response.data;
+                            $('#prompt-title').val(prompt.title);
+                            $('#prompt-form-id').val(prompt.form_id);
+                            $('#prompt-text').val(prompt.prompt);
+                            $('#prompt-active').prop('checked', prompt.is_active == 1);
+                            
+                            // Add hidden field for edit mode
+                            if (!$('#prompt-id').length) {
+                                $('#prompt-form').append('<input type="hidden" id="prompt-id" name="id">');
+                            }
+                            $('#prompt-id').val(id);
+                            
+                            // Change form title and button text
+                            $('.section-header h2').text('Edit Prompt');
+                            $('#prompt-form button[type="submit"]').text('Update Prompt');
+                            
+                            $('#prompt-form-container').show();
+                            $('#prompt-title').focus();
+                        } else {
+                            alert('Error loading prompt: ' + response.data);
+                        }
+                    },
+                    error: function() {
+                        alert('Failed to load prompt');
+                    }
+                });
+            }
+            
+            function resetForm() {
+                $('#prompt-form')[0].reset();
+                $('#prompt-active').prop('checked', true);
+                $('#prompt-id').remove();
+                $('.section-header h2').text('Add New Prompt');
+                $('#prompt-form button[type="submit"]').text('Save Prompt');
+            }
+            
+            function togglePrompt(id) {
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'katahdin_ai_webhook_toggle_prompt',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        id: id
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            loadPrompts();
+                        } else {
+                            alert('Error toggling prompt: ' + response.data);
+                        }
+                    },
+                    error: function() {
+                        alert('Failed to toggle prompt');
+                    }
+                });
+            }
+            
+            function deletePrompt(id) {
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'katahdin_ai_webhook_delete_prompt',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        id: id
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            loadPrompts();
+                        } else {
+                            alert('Error deleting prompt: ' + response.data);
+                        }
+                    },
+                    error: function() {
+                        alert('Failed to delete prompt');
+                    }
+                });
+            }
+            
+            function escapeHtml(text) {
+                var map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+            }
+        });
+        </script>
+        
+        <style>
+        .prompt-stats {
+            display: inline-block;
+            margin-left: 20px;
+        }
+        .stat-item {
+            margin-right: 15px;
+            color: #666;
+        }
+        .status-active {
+            color: #46b450;
+            font-weight: bold;
+        }
+        .status-inactive {
+            color: #dc3232;
+            font-weight: bold;
+        }
+        .no-data, .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error {
+            color: #dc3232;
+        }
+        </style>
+        <?php
+    }
+    
+    /**
+     * AJAX handler to get all prompts
+     */
+    public function ajax_get_prompts() {
+        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+                wp_send_json_error('Form prompts class not available');
+            }
+            
+            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $prompts = $form_prompts->get_all_prompts();
+            $stats = $form_prompts->get_stats();
+            
+            wp_send_json_success(array(
+                'prompts' => $prompts,
+                'stats' => $stats
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error($e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler to add a new prompt
+     */
+    public function ajax_add_prompt() {
+        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            $title = sanitize_text_field($_POST['title']);
+            $form_id = sanitize_text_field($_POST['form_id']);
+            $prompt = sanitize_textarea_field($_POST['prompt']);
+            $is_active = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1;
+            
+            if (empty($title) || empty($form_id) || empty($prompt)) {
+                wp_send_json_error('All fields are required');
+            }
+            
+            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+                wp_send_json_error('Form prompts class not available');
+            }
+            
+            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            
+            // Check if table exists first
+            if (!$form_prompts->table_exists()) {
+                $form_prompts->force_create_table();
+                
+                // Check again
+                if (!$form_prompts->table_exists()) {
+                    wp_send_json_error('Failed to create prompts table. Please check database permissions.');
+                }
+            }
+            
+            $result = $form_prompts->add_prompt($title, $form_id, $prompt);
+            
+            if (is_wp_error($result)) {
+                wp_send_json_error($result->get_error_message());
+            }
+            
+            wp_send_json_success('Prompt added successfully');
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Exception: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler to update a prompt
+     */
+    public function ajax_update_prompt() {
+        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            $id = (int) $_POST['id'];
+            $title = sanitize_text_field($_POST['title']);
+            $form_id = sanitize_text_field($_POST['form_id']);
+            $prompt = sanitize_textarea_field($_POST['prompt']);
+            $is_active = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1;
+            
+            if (empty($id) || empty($title) || empty($form_id) || empty($prompt)) {
+                wp_send_json_error('All fields are required');
+            }
+            
+            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+                wp_send_json_error('Form prompts class not available');
+            }
+            
+            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $result = $form_prompts->update_prompt($id, $title, $form_id, $prompt, $is_active);
+            
+            if (is_wp_error($result)) {
+                wp_send_json_error($result->get_error_message());
+            }
+            
+            wp_send_json_success('Prompt updated successfully');
+            
+        } catch (Exception $e) {
+            wp_send_json_error($e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler to delete a prompt
+     */
+    public function ajax_delete_prompt() {
+        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            $id = (int) $_POST['id'];
+            
+            if (empty($id)) {
+                wp_send_json_error('Invalid prompt ID');
+            }
+            
+            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+                wp_send_json_error('Form prompts class not available');
+            }
+            
+            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $result = $form_prompts->delete_prompt($id);
+            
+            if (is_wp_error($result)) {
+                wp_send_json_error($result->get_error_message());
+            }
+            
+            wp_send_json_success('Prompt deleted successfully');
+            
+        } catch (Exception $e) {
+            wp_send_json_error($e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler to toggle prompt status
+     */
+    public function ajax_toggle_prompt() {
+        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            $id = (int) $_POST['id'];
+            
+            if (empty($id)) {
+                wp_send_json_error('Invalid prompt ID');
+            }
+            
+            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+                wp_send_json_error('Form prompts class not available');
+            }
+            
+            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $result = $form_prompts->toggle_prompt_status($id);
+            
+            if (is_wp_error($result)) {
+                wp_send_json_error($result->get_error_message());
+            }
+            
+            wp_send_json_success(array(
+                'new_status' => $result,
+                'message' => $result ? 'Prompt activated' : 'Prompt deactivated'
+            ));
+            
+        } catch (Exception $e) {
+            wp_send_json_error($e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX handler to get prompt by ID
+     */
+    public function ajax_get_prompt_by_id() {
+        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            $id = (int) $_POST['id'];
+            
+            if (empty($id)) {
+                wp_send_json_error('Invalid prompt ID');
+            }
+            
+            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+                wp_send_json_error('Form prompts class not available');
+            }
+            
+            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $prompt = $form_prompts->get_prompt_by_id($id);
+            
+            if (!$prompt) {
+                wp_send_json_error('Prompt not found');
+            }
+            
+            wp_send_json_success($prompt);
+            
+        } catch (Exception $e) {
+            wp_send_json_error($e->getMessage());
         }
     }
 }
