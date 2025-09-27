@@ -9,13 +9,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Katahdin_AI_Webhook_Logger {
+class Katahdin_AI_Forms_Logger {
     
     private $table_name;
     
     public function __construct() {
         global $wpdb;
-        $this->table_name = $wpdb->prefix . 'katahdin_ai_webhook_logs';
+        $this->table_name = $wpdb->prefix . 'katahdin_ai_forms_logs';
     }
     
     /**

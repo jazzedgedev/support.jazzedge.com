@@ -1,7 +1,7 @@
 <?php
 /**
- * Webhook Handler for Katahdin AI Webhook
- * Handles incoming webhook data from FluentForm
+ * Forms Handler for Katahdin AI Forms
+ * Handles incoming form data from FluentForm
  */
 
 // Prevent direct access
@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Katahdin_AI_Webhook_Handler {
+class Katahdin_AI_Forms_Handler {
     
     private $logger;
     
@@ -22,7 +22,7 @@ class Katahdin_AI_Webhook_Handler {
      */
     public function get_logger() {
         if (!$this->logger) {
-            $this->logger = new Katahdin_AI_Webhook_Logger();
+            $this->logger = new Katahdin_AI_Forms_Logger();
         }
         return $this->logger;
     }
@@ -38,14 +38,14 @@ class Katahdin_AI_Webhook_Handler {
      * Initialize REST API endpoints
      */
     public function init_rest_api() {
-        $this->register_webhook_endpoint();
+        $this->register_forms_endpoint();
     }
     
     /**
-     * Register webhook endpoint
+     * Register forms endpoint
      */
-    public function register_webhook_endpoint() {
-        register_rest_route('katahdin-ai-webhook/v1', '/webhook', array(
+    public function register_forms_endpoint() {
+        register_rest_route('katahdin-ai-forms/v1', '/forms', array(
             'methods' => 'POST',
             'callback' => array($this, 'handle_webhook'),
             'permission_callback' => '__return_true', // Allow all requests, we'll handle auth in the callback
@@ -55,10 +55,10 @@ class Katahdin_AI_Webhook_Handler {
                     'type' => 'object',
                     'description' => 'Form submission data from FluentForm'
                 ),
-                'form_id' => array(
-                    'required' => false,
+                'prompt_id' => array(
+                    'required' => true,
                     'type' => 'string',
-                    'description' => 'FluentForm ID'
+                    'description' => 'Prompt ID to use for AI analysis'
                 ),
                 'entry_id' => array(
                     'required' => false,
@@ -69,28 +69,28 @@ class Katahdin_AI_Webhook_Handler {
         ));
         
         // Test endpoint
-        register_rest_route('katahdin-ai-webhook/v1', '/test', array(
+        register_rest_route('katahdin-ai-forms/v1', '/test', array(
             'methods' => 'POST',
-            'callback' => array($this, 'test_webhook'),
+            'callback' => array($this, 'test_forms'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Status check endpoint
-        register_rest_route('katahdin-ai-webhook/v1', '/status', array(
+        register_rest_route('katahdin-ai-forms/v1', '/status', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_status'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Debug endpoint
-        register_rest_route('katahdin-ai-webhook/v1', '/debug', array(
+        register_rest_route('katahdin-ai-forms/v1', '/debug', array(
             'methods' => 'GET',
             'callback' => array($this, 'debug_info'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Logs endpoints
-        register_rest_route('katahdin-ai-webhook/v1', '/logs', array(
+        register_rest_route('katahdin-ai-forms/v1', '/logs', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_logs'),
             'permission_callback' => array($this, 'check_admin_permission'),
@@ -113,19 +113,19 @@ class Katahdin_AI_Webhook_Handler {
             )
         ));
         
-        register_rest_route('katahdin-ai-webhook/v1', '/logs/(?P<id>\d+)', array(
+        register_rest_route('katahdin-ai-forms/v1', '/logs/(?P<id>\d+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_log'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
-        register_rest_route('katahdin-ai-webhook/v1', '/logs/stats', array(
+        register_rest_route('katahdin-ai-forms/v1', '/logs/stats', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_log_stats'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
-        register_rest_route('katahdin-ai-webhook/v1', '/logs/cleanup', array(
+        register_rest_route('katahdin-ai-forms/v1', '/logs/cleanup', array(
             'methods' => 'POST',
             'callback' => array($this, 'cleanup_logs'),
             'permission_callback' => array($this, 'check_admin_permission'),
@@ -144,8 +144,8 @@ class Katahdin_AI_Webhook_Handler {
      * Handle incoming webhook
      */
     public function handle_webhook($request) {
-        // Check webhook authentication first
-        $auth_result = $this->check_webhook_permission($request);
+        // Check forms authentication first
+        $auth_result = $this->check_forms_permission($request);
         if (is_wp_error($auth_result)) {
             return $auth_result;
         }
@@ -165,7 +165,7 @@ class Katahdin_AI_Webhook_Handler {
         try {
             // Get form data - handle different formats
             $form_data = $request->get_param('form_data');
-            $form_id = $request->get_param('form_id');
+            $prompt_id = $request->get_param('prompt_id');
             $entry_id = $request->get_param('entry_id');
             
             // If form_data is not provided, try to get data from request body or other params
@@ -183,7 +183,7 @@ class Katahdin_AI_Webhook_Handler {
                 if (empty($form_data)) {
                     $all_params = $request->get_params();
                     // Remove known parameters
-                    unset($all_params['form_id'], $all_params['entry_id']);
+                    unset($all_params['prompt_id'], $all_params['entry_id']);
                     $form_data = $all_params;
                 }
             }
@@ -200,18 +200,28 @@ class Katahdin_AI_Webhook_Handler {
                 return new WP_Error('invalid_data', 'No form data provided', array('status' => 400));
             }
             
-            // Check if webhook is enabled
-            if (!get_option('katahdin_ai_webhook_enabled', true)) {
+            // Check if forms processing is enabled
+            if (!get_option('katahdin_ai_forms_enabled', true)) {
                 $this->get_logger()->update_log($log_id, array(
                     'status' => 'error',
-                    'error_message' => 'Webhook processing is disabled',
+                    'error_message' => 'Forms processing is disabled',
                     'response_code' => 503
                 ));
-                return new WP_Error('webhook_disabled', 'Webhook processing is disabled', array('status' => 503));
+                return new WP_Error('forms_disabled', 'Forms processing is disabled', array('status' => 503));
+            }
+            
+            // Validate prompt_id is provided
+            if (empty($prompt_id)) {
+                $this->get_logger()->update_log($log_id, array(
+                    'status' => 'error',
+                    'error_message' => 'prompt_id is required',
+                    'response_code' => 400
+                ));
+                return new WP_Error('missing_prompt_id', 'prompt_id is required', array('status' => 400));
             }
             
             // Process the data
-            $result = $this->process_data($form_data, $form_id, $entry_id);
+            $result = $this->process_data($form_data, $prompt_id, $entry_id);
             
             $processing_time = round((microtime(true) - $start_time) * 1000);
             
@@ -235,7 +245,7 @@ class Katahdin_AI_Webhook_Handler {
                 'email_response' => isset($result['email_response']) ? $result['email_response'] : null,
                 'form_email' => $extracted_data['email'],
                 'form_name' => $extracted_data['name'],
-                'form_id' => $form_id,
+                'prompt_id' => $prompt_id,
                 'entry_id' => $entry_id
             ));
             
@@ -257,7 +267,7 @@ class Katahdin_AI_Webhook_Handler {
                 'processing_time_ms' => $processing_time
             ));
             
-            error_log('Katahdin AI Webhook error: ' . $e->getMessage());
+            error_log('Katahdin AI Forms error: ' . $e->getMessage());
             return new WP_Error('processing_error', 'Error processing webhook: ' . $e->getMessage(), array('status' => 500));
         }
     }
@@ -293,17 +303,17 @@ class Katahdin_AI_Webhook_Handler {
     }
     
     /**
-     * Test webhook endpoint
+     * Test forms endpoint
      */
-    public function test_webhook($request) {
+    public function test_forms($request) {
         $test_data = array(
             'name' => 'John Doe',
             'email' => 'john@example.com',
             'message' => 'This is a test message for AI analysis.',
-            'form_id' => 'test_form'
+            'prompt_id' => 'test_prompt'
         );
         
-        $result = $this->process_data($test_data, 'test_form', 'test_entry');
+        $result = $this->process_data($test_data, 'test_prompt', 'test_entry');
         
         if (is_wp_error($result)) {
             return new WP_Error('test_failed', $result->get_error_message(), array('status' => 400));
@@ -311,7 +321,7 @@ class Katahdin_AI_Webhook_Handler {
         
         return rest_ensure_response(array(
             'success' => true,
-            'message' => 'Test webhook processed successfully',
+            'message' => 'Test forms processed successfully',
             'test_data' => $test_data,
             'analysis_result' => $result
         ));
@@ -324,10 +334,10 @@ class Katahdin_AI_Webhook_Handler {
         $status = $this->check_katahdin_hub_status();
         
         return rest_ensure_response(array(
-            'webhook_enabled' => get_option('katahdin_ai_webhook_enabled', true),
-            'webhook_url' => katahdin_ai_webhook()->get_webhook_url(),
+            'forms_enabled' => get_option('katahdin_ai_forms_enabled', true),
+            'forms_url' => katahdin_ai_forms()->get_forms_url(),
             'katahdin_hub_status' => $status,
-            'plugin_version' => KATAHDIN_AI_WEBHOOK_VERSION,
+            'plugin_version' => KATAHDIN_AI_FORMS_VERSION,
             'timestamp' => current_time('mysql')
         ));
     }
@@ -339,8 +349,8 @@ class Katahdin_AI_Webhook_Handler {
         global $wpdb;
         
         $debug_info = array(
-            'plugin_id' => Katahdin_AI_Webhook::PLUGIN_ID,
-            'plugin_version' => KATAHDIN_AI_WEBHOOK_VERSION,
+            'plugin_id' => Katahdin_AI_Forms::PLUGIN_ID,
+            'plugin_version' => KATAHDIN_AI_FORMS_VERSION,
             'katahdin_hub_function_exists' => function_exists('katahdin_ai_hub'),
             'katahdin_hub_instance' => null,
             'plugin_registration' => null,
@@ -359,7 +369,7 @@ class Katahdin_AI_Webhook_Handler {
             
             // Check plugin registration
             if ($hub && $hub->plugin_registry) {
-                $plugin = $hub->plugin_registry->get_plugin(Katahdin_AI_Webhook::PLUGIN_ID);
+                $plugin = $hub->plugin_registry->get_plugin(Katahdin_AI_Forms::PLUGIN_ID);
                 $debug_info['plugin_registration'] = array(
                     'registered' => $plugin ? true : false,
                     'plugin_data' => $plugin
@@ -379,7 +389,7 @@ class Katahdin_AI_Webhook_Handler {
         $table_name = $wpdb->prefix . 'katahdin_ai_plugins';
         $plugin_data = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM $table_name WHERE plugin_id = %s",
-            Katahdin_AI_Webhook::PLUGIN_ID
+            Katahdin_AI_Forms::PLUGIN_ID
         ), ARRAY_A);
         
         $debug_info['database_check'] = array(
@@ -394,15 +404,21 @@ class Katahdin_AI_Webhook_Handler {
     /**
      * Process form data with AI analysis
      */
-    public function process_data($form_data, $form_id = null, $entry_id = null) {
+    public function process_data($form_data, $prompt_id = null, $entry_id = null) {
         try {
-            // Get form-specific prompt or default prompt
-            $prompt_data = $this->get_prompt_for_form($form_id);
+            // Get prompt-specific data
+            $prompt_data = $this->get_prompt_for_form($prompt_id);
+            if (!$prompt_data) {
+                return new WP_Error('prompt_not_found', 'No prompt found for prompt_id: ' . $prompt_id);
+            }
+            
             $prompt = $prompt_data['prompt'];
             $prompt_title = $prompt_data['title'];
+            $email_address = $prompt_data['email_address'];
+            $email_subject = $prompt_data['email_subject'];
             
             // Prepare data for AI analysis
-            $data_for_analysis = $this->prepare_data_for_analysis($form_data, $form_id, $entry_id);
+            $data_for_analysis = $this->prepare_data_for_analysis($form_data, $prompt_id, $entry_id);
             
             // Create AI prompt
             $full_prompt = $prompt . "\n\nForm Data:\n" . $data_for_analysis;
@@ -418,7 +434,7 @@ class Katahdin_AI_Webhook_Handler {
             $ai_analysis = $this->extract_ai_response($ai_response);
             
             // Send email with results (including prompt metadata)
-            $email_result = $this->send_analysis_email($form_data, $ai_analysis, $form_id, $entry_id, $prompt_title, $prompt);
+            $email_result = $this->send_analysis_email($form_data, $ai_analysis, $prompt_id, $entry_id, $prompt_title, $prompt, $email_address, $email_subject);
             
             if (is_wp_error($email_result)) {
                 error_log('Email sending failed: ' . $email_result->get_error_message());
@@ -426,7 +442,7 @@ class Katahdin_AI_Webhook_Handler {
             }
             
             // Log the analysis
-            $this->log_analysis($form_data, $ai_analysis, $form_id, $entry_id);
+            $this->log_analysis($form_data, $ai_analysis, $prompt_id, $entry_id);
             
             return array(
                 'success' => true,
@@ -437,7 +453,7 @@ class Katahdin_AI_Webhook_Handler {
             );
             
         } catch (Exception $e) {
-            error_log('Katahdin AI Webhook processing error: ' . $e->getMessage());
+            error_log('Katahdin AI Forms processing error: ' . $e->getMessage());
             return new WP_Error('processing_error', 'Error processing form data: ' . $e->getMessage());
         }
     }
@@ -445,38 +461,36 @@ class Katahdin_AI_Webhook_Handler {
     /**
      * Get prompt for form processing
      */
-    private function get_prompt_for_form($form_id) {
-        // Try to get form-specific prompt
-        if ($form_id && class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
-            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
-            $prompt_data = $form_prompts->get_prompt_by_form_id($form_id);
+    private function get_prompt_for_form($prompt_id) {
+        // Try to get prompt-specific data
+        if ($prompt_id && class_exists('Katahdin_AI_Forms_Form_Prompts')) {
+            $form_prompts = new Katahdin_AI_Forms_Form_Prompts();
+            $prompt_data = $form_prompts->get_prompt_by_prompt_id($prompt_id);
             
             if ($prompt_data) {
                 return array(
                     'prompt' => $prompt_data['prompt'],
                     'title' => $prompt_data['title'],
-                    'form_id' => $prompt_data['form_id']
+                    'prompt_id' => $prompt_data['prompt_id'],
+                    'email_address' => $prompt_data['email_address'],
+                    'email_subject' => $prompt_data['email_subject']
                 );
             }
         }
         
-        // Return default prompt if no form-specific prompt found
-        return array(
-            'prompt' => get_option('katahdin_ai_webhook_prompt', 'Analyze the following form submission data and provide insights, recommendations, or summaries as appropriate. Be concise but informative.'),
-            'title' => 'Default Prompt',
-            'form_id' => 'default'
-        );
+        // Return null if no prompt found - forms must specify a valid prompt_id
+        return null;
     }
     
     /**
      * Prepare data for AI analysis
      */
-    private function prepare_data_for_analysis($form_data, $form_id, $entry_id) {
+    private function prepare_data_for_analysis($form_data, $prompt_id, $entry_id) {
         $prepared_data = array();
         
         // Add metadata
-        if ($form_id) {
-            $prepared_data['Form ID'] = $form_id;
+        if ($prompt_id) {
+            $prepared_data['Prompt ID'] = $prompt_id;
         }
         if ($entry_id) {
             $prepared_data['Entry ID'] = $entry_id;
@@ -529,13 +543,13 @@ class Katahdin_AI_Webhook_Handler {
         );
         
         $options = array(
-            'model' => get_option('katahdin_ai_webhook_model', 'gpt-3.5-turbo'),
-            'max_tokens' => (int) get_option('katahdin_ai_webhook_max_tokens', 1000),
-            'temperature' => (float) get_option('katahdin_ai_webhook_temperature', 0.7)
+            'model' => get_option('katahdin_ai_forms_model', 'gpt-3.5-turbo'),
+            'max_tokens' => (int) get_option('katahdin_ai_forms_max_tokens', 1000),
+            'temperature' => (float) get_option('katahdin_ai_forms_temperature', 0.7)
         );
         
         // Make API call
-        $result = $hub->make_api_call(Katahdin_AI_Webhook::PLUGIN_ID, 'chat/completions', $data, $options);
+        $result = $hub->make_api_call(Katahdin_AI_Forms::PLUGIN_ID, 'chat/completions', $data, $options);
         
         return $result;
     }
@@ -562,42 +576,42 @@ class Katahdin_AI_Webhook_Handler {
     /**
      * Send analysis email
      */
-    private function send_analysis_email($form_data, $analysis, $form_id, $entry_id, $prompt_title = null, $prompt_text = null) {
-        $email_sender = katahdin_ai_webhook()->email_sender;
+    private function send_analysis_email($form_data, $analysis, $prompt_id, $entry_id, $prompt_title = null, $prompt_text = null, $email_address = null, $email_subject = null) {
+        $email_sender = katahdin_ai_forms()->email_sender;
         
         if (!$email_sender) {
             return new WP_Error('email_sender_not_available', 'Email sender not available');
         }
         
-        return $email_sender->send_analysis_email($form_data, $analysis, $form_id, $entry_id, $prompt_title, $prompt_text);
+        return $email_sender->send_analysis_email($form_data, $analysis, $prompt_id, $entry_id, $prompt_title, $prompt_text, $email_address, $email_subject);
     }
     
     /**
      * Log analysis for debugging
      */
-    private function log_analysis($form_data, $analysis, $form_id, $entry_id) {
+    private function log_analysis($form_data, $analysis, $prompt_id, $entry_id) {
         $log_entry = array(
             'timestamp' => current_time('mysql'),
-            'form_id' => $form_id,
+            'prompt_id' => $prompt_id,
             'entry_id' => $entry_id,
             'form_data' => $form_data,
             'analysis' => $analysis
         );
         
         // Store in WordPress options for recent logs (keep last 50)
-        $logs = get_option('katahdin_ai_webhook_logs', array());
+        $logs = get_option('katahdin_ai_forms_logs', array());
         array_unshift($logs, $log_entry);
         $logs = array_slice($logs, 0, 50); // Keep only last 50 entries
-        update_option('katahdin_ai_webhook_logs', $logs);
+        update_option('katahdin_ai_forms_logs', $logs);
     }
     
     /**
-     * Check webhook permission
+     * Check forms permission
      */
-    public function check_webhook_permission($request) {
-        // Check webhook secret
+    public function check_forms_permission($request) {
+        // Check forms secret
         $provided_secret = $request->get_header('X-Webhook-Secret');
-        $expected_secret = get_option('katahdin_ai_webhook_webhook_secret', '');
+        $expected_secret = get_option('katahdin_ai_forms_webhook_secret', '');
         
         // For testing purposes, allow requests if no secret is provided AND no secret is expected
         if (empty($expected_secret) && empty($provided_secret)) {
@@ -625,7 +639,7 @@ class Katahdin_AI_Webhook_Handler {
      * Get recent logs
      */
     public function get_recent_logs($limit = 10) {
-        $logs = get_option('katahdin_ai_webhook_logs', array());
+        $logs = get_option('katahdin_ai_forms_logs', array());
         return array_slice($logs, 0, $limit);
     }
     
@@ -749,10 +763,10 @@ class Katahdin_AI_Webhook_Handler {
         $name = '';
         
         // Debug logging
-        error_log('Katahdin AI Webhook - extract_form_data called');
-        error_log('Katahdin AI Webhook - form_data type: ' . gettype($form_data));
-        error_log('Katahdin AI Webhook - form_data: ' . print_r($form_data, true));
-        error_log('Katahdin AI Webhook - request_body: ' . substr($request_body, 0, 200) . '...');
+        error_log('Katahdin AI Forms - extract_form_data called');
+        error_log('Katahdin AI Forms - form_data type: ' . gettype($form_data));
+        error_log('Katahdin AI Forms - form_data: ' . print_r($form_data, true));
+        error_log('Katahdin AI Forms - request_body: ' . substr($request_body, 0, 200) . '...');
         
         // Try to parse form_data if it's an array
         if (is_array($form_data)) {
@@ -801,7 +815,7 @@ class Katahdin_AI_Webhook_Handler {
             'name' => $name ?: 'N/A'
         );
         
-        error_log('Katahdin AI Webhook - extracted result: ' . print_r($result, true));
+        error_log('Katahdin AI Forms - extracted result: ' . print_r($result, true));
         
         return $result;
     }

@@ -1,6 +1,6 @@
 <?php
 /**
- * Form Prompts Manager for Katahdin AI Webhook
+ * Form Prompts Manager for Katahdin AI Forms
  * Handles storage and retrieval of form-specific AI prompts
  */
 
@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Katahdin_AI_Webhook_Form_Prompts {
+class Katahdin_AI_Forms_Form_Prompts {
     
     /**
      * Table name for form prompts
@@ -21,7 +21,7 @@ class Katahdin_AI_Webhook_Form_Prompts {
      */
     public function __construct() {
         global $wpdb;
-        $this->table_name = $wpdb->prefix . 'katahdin_ai_webhook_prompts';
+        $this->table_name = $wpdb->prefix . 'katahdin_ai_forms_prompts';
     }
     
     /**
@@ -35,13 +35,15 @@ class Katahdin_AI_Webhook_Form_Prompts {
         $sql = "CREATE TABLE {$this->table_name} (
             id int(11) NOT NULL AUTO_INCREMENT,
             title varchar(255) NOT NULL,
-            form_id varchar(100) NOT NULL,
+            prompt_id varchar(100) NOT NULL,
             prompt text NOT NULL,
+            email_address varchar(255) NOT NULL,
+            email_subject varchar(255) NOT NULL,
             is_active tinyint(1) DEFAULT 1,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY form_id (form_id),
+            UNIQUE KEY prompt_id (prompt_id),
             KEY is_active (is_active)
         ) $charset_collate;";
         
@@ -78,15 +80,15 @@ class Katahdin_AI_Webhook_Form_Prompts {
     }
     
     /**
-     * Get prompt by form ID
+     * Get prompt by prompt ID
      */
-    public function get_prompt_by_form_id($form_id) {
+    public function get_prompt_by_prompt_id($prompt_id) {
         global $wpdb;
         
         $result = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$this->table_name} WHERE form_id = %s AND is_active = 1",
-                $form_id
+                "SELECT * FROM {$this->table_name} WHERE prompt_id = %s AND is_active = 1",
+                $prompt_id
             ),
             ARRAY_A
         );
@@ -114,7 +116,7 @@ class Katahdin_AI_Webhook_Form_Prompts {
     /**
      * Add new prompt
      */
-    public function add_prompt($title, $form_id, $prompt) {
+    public function add_prompt($title, $prompt_id, $prompt, $email_address, $email_subject) {
         global $wpdb;
         
         // Ensure table exists
@@ -122,21 +124,23 @@ class Katahdin_AI_Webhook_Form_Prompts {
             $this->create_table();
         }
         
-        // Check if form_id already exists
-        $existing = $this->get_prompt_by_form_id($form_id);
+        // Check if prompt_id already exists
+        $existing = $this->get_prompt_by_prompt_id($prompt_id);
         if ($existing) {
-            return new WP_Error('form_id_exists', 'A prompt for this form ID already exists');
+            return new WP_Error('prompt_id_exists', 'A prompt for this prompt ID already exists');
         }
         
         $result = $wpdb->insert(
             $this->table_name,
             array(
                 'title' => sanitize_text_field($title),
-                'form_id' => sanitize_text_field($form_id),
+                'prompt_id' => sanitize_text_field($prompt_id),
                 'prompt' => sanitize_textarea_field($prompt),
+                'email_address' => sanitize_email($email_address),
+                'email_subject' => sanitize_text_field($email_subject),
                 'is_active' => 1
             ),
-            array('%s', '%s', '%s', '%d')
+            array('%s', '%s', '%s', '%s', '%s', '%d')
         );
         
         if ($result === false) {
@@ -149,32 +153,34 @@ class Katahdin_AI_Webhook_Form_Prompts {
     /**
      * Update prompt
      */
-    public function update_prompt($id, $title, $form_id, $prompt, $is_active = 1) {
+    public function update_prompt($id, $title, $prompt_id, $prompt, $email_address, $email_subject, $is_active = 1) {
         global $wpdb;
         
-        // Check if form_id already exists for a different prompt
+        // Check if prompt_id already exists for a different prompt
         $existing = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT id FROM {$this->table_name} WHERE form_id = %s AND id != %d",
-                $form_id,
+                "SELECT id FROM {$this->table_name} WHERE prompt_id = %s AND id != %d",
+                $prompt_id,
                 $id
             )
         );
         
         if ($existing) {
-            return new WP_Error('form_id_exists', 'A prompt for this form ID already exists');
+            return new WP_Error('prompt_id_exists', 'A prompt for this prompt ID already exists');
         }
         
         $result = $wpdb->update(
             $this->table_name,
             array(
                 'title' => sanitize_text_field($title),
-                'form_id' => sanitize_text_field($form_id),
+                'prompt_id' => sanitize_text_field($prompt_id),
                 'prompt' => sanitize_textarea_field($prompt),
+                'email_address' => sanitize_email($email_address),
+                'email_subject' => sanitize_text_field($email_subject),
                 'is_active' => (int) $is_active
             ),
             array('id' => $id),
-            array('%s', '%s', '%s', '%d'),
+            array('%s', '%s', '%s', '%s', '%s', '%d'),
             array('%d')
         );
         
@@ -236,23 +242,21 @@ class Katahdin_AI_Webhook_Form_Prompts {
     /**
      * Get prompt for form processing
      */
-    public function get_prompt_for_form($form_id) {
-        $prompt_data = $this->get_prompt_by_form_id($form_id);
+    public function get_prompt_for_form($prompt_id) {
+        $prompt_data = $this->get_prompt_by_prompt_id($prompt_id);
         
         if ($prompt_data) {
             return array(
                 'prompt' => $prompt_data['prompt'],
                 'title' => $prompt_data['title'],
-                'form_id' => $prompt_data['form_id']
+                'prompt_id' => $prompt_data['prompt_id'],
+                'email_address' => $prompt_data['email_address'],
+                'email_subject' => $prompt_data['email_subject']
             );
         }
         
-        // Return default prompt if no form-specific prompt found
-        return array(
-            'prompt' => get_option('katahdin_ai_webhook_prompt', 'Analyze the following form submission data and provide insights, recommendations, or summaries as appropriate. Be concise but informative.'),
-            'title' => 'Default Prompt',
-            'form_id' => 'default'
-        );
+        // Return null if no prompt found - forms must specify a valid prompt_id
+        return null;
     }
     
     /**
@@ -298,13 +302,15 @@ class Katahdin_AI_Webhook_Form_Prompts {
         $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (
             id int(11) NOT NULL AUTO_INCREMENT,
             title varchar(255) NOT NULL,
-            form_id varchar(100) NOT NULL,
+            prompt_id varchar(100) NOT NULL,
             prompt text NOT NULL,
+            email_address varchar(255) NOT NULL,
+            email_subject varchar(255) NOT NULL,
             is_active tinyint(1) DEFAULT 1,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY form_id (form_id),
+            UNIQUE KEY prompt_id (prompt_id),
             KEY is_active (is_active)
         ) $charset_collate;";
         

@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin Interface for Katahdin AI Webhook
+ * Admin Interface for Katahdin AI Forms
  * Provides admin settings and management interface
  */
 
@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Katahdin_AI_Webhook_Admin {
+class Katahdin_AI_Forms_Admin {
     
     /**
      * Initialize admin interface
@@ -17,27 +17,27 @@ class Katahdin_AI_Webhook_Admin {
     public function init() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
-        add_action('wp_ajax_katahdin_ai_webhook_test_api_key', array($this, 'ajax_test_api_key'));
-        add_action('wp_ajax_katahdin_ai_webhook_test_webhook', array($this, 'ajax_test_webhook'));
-        add_action('wp_ajax_katahdin_ai_webhook_test_email', array($this, 'ajax_test_email'));
-        add_action('wp_ajax_katahdin_ai_webhook_regenerate_secret', array($this, 'ajax_regenerate_secret'));
-        add_action('wp_ajax_katahdin_ai_webhook_comprehensive_debug', array($this, 'ajax_comprehensive_debug'));
-        add_action('wp_ajax_katahdin_ai_webhook_get_logs', array($this, 'ajax_get_logs'));
-        add_action('wp_ajax_katahdin_ai_webhook_get_log_stats', array($this, 'ajax_get_log_stats'));
-        add_action('wp_ajax_katahdin_ai_webhook_cleanup_logs', array($this, 'ajax_cleanup_logs'));
-        add_action('wp_ajax_katahdin_ai_webhook_test_log', array($this, 'ajax_test_log'));
-        add_action('wp_ajax_katahdin_ai_webhook_test_ajax', array($this, 'ajax_test_ajax'));
-        add_action('wp_ajax_katahdin_ai_webhook_create_table', array($this, 'ajax_create_table'));
-        add_action('wp_ajax_katahdin_ai_webhook_debug_logs', array($this, 'ajax_debug_logs'));
-        add_action('wp_ajax_katahdin_ai_webhook_get_log_details', array($this, 'ajax_get_log_details'));
-        add_action('wp_ajax_katahdin_ai_webhook_clear_all_logs', array($this, 'ajax_clear_all_logs'));
-        add_action('wp_ajax_katahdin_ai_webhook_delete_log', array($this, 'ajax_delete_log'));
-        add_action('wp_ajax_katahdin_ai_webhook_add_prompt', array($this, 'ajax_add_prompt'));
-        add_action('wp_ajax_katahdin_ai_webhook_update_prompt', array($this, 'ajax_update_prompt'));
-        add_action('wp_ajax_katahdin_ai_webhook_delete_prompt', array($this, 'ajax_delete_prompt'));
-        add_action('wp_ajax_katahdin_ai_webhook_toggle_prompt', array($this, 'ajax_toggle_prompt'));
-        add_action('wp_ajax_katahdin_ai_webhook_get_prompts', array($this, 'ajax_get_prompts'));
-        add_action('wp_ajax_katahdin_ai_webhook_get_prompt_by_id', array($this, 'ajax_get_prompt_by_id'));
+        add_action('wp_ajax_katahdin_ai_forms_test_api_key', array($this, 'ajax_test_api_key'));
+        add_action('wp_ajax_katahdin_ai_forms_test_forms', array($this, 'ajax_test_forms'));
+        add_action('wp_ajax_katahdin_ai_forms_test_email', array($this, 'ajax_test_email'));
+        add_action('wp_ajax_katahdin_ai_forms_regenerate_secret', array($this, 'ajax_regenerate_secret'));
+        add_action('wp_ajax_katahdin_ai_forms_comprehensive_debug', array($this, 'ajax_comprehensive_debug'));
+        add_action('wp_ajax_katahdin_ai_forms_get_logs', array($this, 'ajax_get_logs'));
+        add_action('wp_ajax_katahdin_ai_forms_get_log_stats', array($this, 'ajax_get_log_stats'));
+        add_action('wp_ajax_katahdin_ai_forms_cleanup_logs', array($this, 'ajax_cleanup_logs'));
+        add_action('wp_ajax_katahdin_ai_forms_test_log', array($this, 'ajax_test_log'));
+        add_action('wp_ajax_katahdin_ai_forms_test_ajax', array($this, 'ajax_test_ajax'));
+        add_action('wp_ajax_katahdin_ai_forms_create_table', array($this, 'ajax_create_table'));
+        add_action('wp_ajax_katahdin_ai_forms_debug_logs', array($this, 'ajax_debug_logs'));
+        add_action('wp_ajax_katahdin_ai_forms_get_log_details', array($this, 'ajax_get_log_details'));
+        add_action('wp_ajax_katahdin_ai_forms_clear_all_logs', array($this, 'ajax_clear_all_logs'));
+        add_action('wp_ajax_katahdin_ai_forms_delete_log', array($this, 'ajax_delete_log'));
+        add_action('wp_ajax_katahdin_ai_forms_add_prompt', array($this, 'ajax_add_prompt'));
+        add_action('wp_ajax_katahdin_ai_forms_update_prompt', array($this, 'ajax_update_prompt'));
+        add_action('wp_ajax_katahdin_ai_forms_delete_prompt', array($this, 'ajax_delete_prompt'));
+        add_action('wp_ajax_katahdin_ai_forms_toggle_prompt', array($this, 'ajax_toggle_prompt'));
+        add_action('wp_ajax_katahdin_ai_forms_get_prompts', array($this, 'ajax_get_prompts'));
+        add_action('wp_ajax_katahdin_ai_forms_get_prompt_by_id', array($this, 'ajax_get_prompt_by_id'));
         add_action('admin_head', array($this, 'add_admin_styles'));
     }
     
@@ -47,10 +47,10 @@ class Katahdin_AI_Webhook_Admin {
     public function add_admin_menu() {
         // Main menu page
         add_menu_page(
-            'Katahdin AI Webhook',
-            'AI Webhook',
+            'Katahdin AI Forms',
+            'AI Forms',
             'manage_options',
-            'katahdin-ai-webhook',
+            'katahdin-ai-forms',
             array($this, 'admin_page'),
             'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>'),
             30
@@ -58,31 +58,31 @@ class Katahdin_AI_Webhook_Admin {
         
         // Submenu for main settings
         add_submenu_page(
-            'katahdin-ai-webhook',
+            'katahdin-ai-forms',
             'Settings',
             'Settings',
             'manage_options',
-            'katahdin-ai-webhook',
+            'katahdin-ai-forms',
             array($this, 'admin_page')
         );
         
         // Submenu for logs
         add_submenu_page(
-            'katahdin-ai-webhook',
-            'Webhook Logs',
+            'katahdin-ai-forms',
+            'Forms Logs',
             'Logs',
             'manage_options',
-            'katahdin-ai-webhook-logs',
+            'katahdin-ai-forms-logs',
             array($this, 'logs_page')
         );
         
         // Submenu for form prompts
         add_submenu_page(
-            'katahdin-ai-webhook',
+            'katahdin-ai-forms',
             'Form Prompts',
             'Form Prompts',
             'manage_options',
-            'katahdin-ai-webhook-prompts',
+            'katahdin-ai-forms-prompts',
             array($this, 'prompts_page')
         );
     }
@@ -91,29 +91,25 @@ class Katahdin_AI_Webhook_Admin {
      * Register settings
      */
     public function register_settings() {
-        register_setting('katahdin_ai_webhook_settings', 'katahdin_ai_webhook_prompt');
-        register_setting('katahdin_ai_webhook_settings', 'katahdin_ai_webhook_email');
-        register_setting('katahdin_ai_webhook_settings', 'katahdin_ai_webhook_email_subject');
-        register_setting('katahdin_ai_webhook_settings', 'katahdin_ai_webhook_enabled');
-        register_setting('katahdin_ai_webhook_settings', 'katahdin_ai_webhook_model');
-        register_setting('katahdin_ai_webhook_settings', 'katahdin_ai_webhook_max_tokens');
-        register_setting('katahdin_ai_webhook_settings', 'katahdin_ai_webhook_temperature');
+        register_setting('katahdin_ai_forms_settings', 'katahdin_ai_forms_enabled');
+        register_setting('katahdin_ai_forms_settings', 'katahdin_ai_forms_model');
+        register_setting('katahdin_ai_forms_settings', 'katahdin_ai_forms_max_tokens');
+        register_setting('katahdin_ai_forms_settings', 'katahdin_ai_forms_temperature');
     }
     
     /**
      * Admin page
      */
     public function admin_page() {
-        $webhook_url = katahdin_ai_webhook()->get_webhook_url();
-        $webhook_secret = katahdin_ai_webhook()->get_webhook_secret();
-        $recent_logs = katahdin_ai_webhook()->webhook_handler->get_recent_logs(5);
-        $katahdin_status = katahdin_ai_webhook()->webhook_handler->check_katahdin_hub_status();
+        $forms_url = katahdin_ai_forms()->get_forms_url();
+        $forms_secret = katahdin_ai_forms()->get_forms_secret();
+        $katahdin_status = katahdin_ai_forms()->forms_handler->check_katahdin_hub_status();
         
         ?>
-        <div class="wrap katahdin-webhook-admin">
-            <div class="katahdin-webhook-header">
-                <h1>🤖 Katahdin AI Webhook</h1>
-                <p>Configure and manage your AI-powered webhook for form processing and analysis</p>
+        <div class="wrap katahdin-forms-admin">
+            <div class="katahdin-forms-header">
+                <h1>🤖 Katahdin AI Forms</h1>
+                <p>Configure and manage your AI-powered forms for processing and analysis</p>
             </div>
             
             <?php if (isset($_GET['settings-updated']) && $_GET['settings-updated']): ?>
@@ -131,15 +127,15 @@ class Katahdin_AI_Webhook_Admin {
                 </div>
             <?php endif; ?>
             
-            <div class="katahdin-ai-webhook-admin">
+            <div class="katahdin-ai-forms-admin">
                 <!-- Status Cards -->
-                <div class="katahdin-webhook-card">
+                <div class="katahdin-forms-card">
                     <h2>📊 System Status</h2>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
                         <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px;">
-                            <h3 style="margin: 0 0 10px 0; color: #333;">📡 Webhook Status</h3>
-                            <span class="katahdin-webhook-status <?php echo get_option('katahdin_ai_webhook_enabled', true) ? 'success' : 'error'; ?>">
-                                <?php echo get_option('katahdin_ai_webhook_enabled', true) ? 'Enabled' : 'Disabled'; ?>
+                            <h3 style="margin: 0 0 10px 0; color: #333;">📡 Forms Status</h3>
+                            <span class="katahdin-forms-status <?php echo get_option('katahdin_ai_forms_enabled', true) ? 'success' : 'error'; ?>">
+                                <?php echo get_option('katahdin_ai_forms_enabled', true) ? 'Enabled' : 'Disabled'; ?>
                             </span>
                         </div>
                         <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px;">
@@ -201,36 +197,30 @@ class Katahdin_AI_Webhook_Admin {
                     
                     <div class="settings-section">
                         <h2>🤖 AI Settings</h2>
+                        <p class="description">AI prompts are now configured per form in the <a href="<?php echo admin_url('admin.php?page=katahdin-ai-forms-prompts'); ?>">Form Prompts</a> section.</p>
                         
                         <table class="form-table">
                             <tr>
-                                <th scope="row">AI Prompt</th>
-                                <td>
-                                    <textarea name="katahdin_ai_webhook_prompt" rows="5" cols="50" class="large-text"><?php echo esc_textarea(get_option('katahdin_ai_webhook_prompt', 'Analyze the following form submission data and provide insights, recommendations, or summaries as appropriate. Be concise but informative.')); ?></textarea>
-                                    <p class="description">The prompt that will be sent to the AI along with the form data.</p>
-                                </td>
-                            </tr>
-                            <tr>
                                 <th scope="row">AI Model</th>
                                 <td>
-                                    <select name="katahdin_ai_webhook_model">
-                                        <option value="gpt-3.5-turbo" <?php selected(get_option('katahdin_ai_webhook_model', 'gpt-3.5-turbo'), 'gpt-3.5-turbo'); ?>>GPT-3.5 Turbo</option>
-                                        <option value="gpt-4" <?php selected(get_option('katahdin_ai_webhook_model', 'gpt-3.5-turbo'), 'gpt-4'); ?>>GPT-4</option>
-                                        <option value="gpt-4-turbo" <?php selected(get_option('katahdin_ai_webhook_model', 'gpt-3.5-turbo'), 'gpt-4-turbo'); ?>>GPT-4 Turbo</option>
+                                    <select name="katahdin_ai_forms_model">
+                                        <option value="gpt-3.5-turbo" <?php selected(get_option('katahdin_ai_forms_model', 'gpt-3.5-turbo'), 'gpt-3.5-turbo'); ?>>GPT-3.5 Turbo</option>
+                                        <option value="gpt-4" <?php selected(get_option('katahdin_ai_forms_model', 'gpt-3.5-turbo'), 'gpt-4'); ?>>GPT-4</option>
+                                        <option value="gpt-4-turbo" <?php selected(get_option('katahdin_ai_forms_model', 'gpt-3.5-turbo'), 'gpt-4-turbo'); ?>>GPT-4 Turbo</option>
                                     </select>
                                 </td>
                             </tr>
                             <tr>
                                 <th scope="row">Max Tokens</th>
                                 <td>
-                                    <input type="number" name="katahdin_ai_webhook_max_tokens" value="<?php echo esc_attr(get_option('katahdin_ai_webhook_max_tokens', 1000)); ?>" min="1" max="4000" />
+                                    <input type="number" name="katahdin_ai_forms_max_tokens" value="<?php echo esc_attr(get_option('katahdin_ai_forms_max_tokens', 1000)); ?>" min="1" max="4000" />
                                     <p class="description">Maximum number of tokens for AI response (1-4000).</p>
                                 </td>
                             </tr>
                             <tr>
                                 <th scope="row">Temperature</th>
                                 <td>
-                                    <input type="number" name="katahdin_ai_webhook_temperature" value="<?php echo esc_attr(get_option('katahdin_ai_webhook_temperature', 0.7)); ?>" min="0" max="2" step="0.1" />
+                                    <input type="number" name="katahdin_ai_forms_temperature" value="<?php echo esc_attr(get_option('katahdin_ai_forms_temperature', 0.7)); ?>" min="0" max="2" step="0.1" />
                                     <p class="description">Controls randomness in AI response (0-2). Lower values are more focused and deterministic.</p>
                                 </td>
                             </tr>
@@ -292,43 +282,6 @@ class Katahdin_AI_Webhook_Admin {
                     </div>
                 </div>
                 
-                <!-- Recent Logs -->
-                <?php if (!empty($recent_logs)): ?>
-                <div class="katahdin-webhook-card">
-                    <h2>📋 Recent Activity</h2>
-                    <div style="overflow-x: auto;">
-                        <table class="wp-list-table widefat fixed striped">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Status</th>
-                                    <th>Method</th>
-                                    <th>Response Code</th>
-                                    <th>Processing Time</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($recent_logs as $log): ?>
-                                <tr>
-                                    <td><?php echo esc_html(date('M j, Y H:i:s', strtotime($log['timestamp']))); ?></td>
-                                    <td>
-                                        <span class="katahdin-webhook-status <?php echo $log['status'] === 'success' ? 'success' : ($log['status'] === 'error' ? 'error' : 'warning'); ?>">
-                                            <?php echo esc_html(ucfirst($log['status'])); ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo esc_html($log['method']); ?></td>
-                                    <td><?php echo esc_html($log['response_code'] ?: 'N/A'); ?></td>
-                                    <td><?php echo esc_html($log['processing_time_ms'] ? $log['processing_time_ms'] . 'ms' : 'N/A'); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p style="margin-top: 15px;">
-                        <a href="<?php echo admin_url('admin.php?page=katahdin-ai-webhook-logs'); ?>" class="katahdin-webhook-button">View All Logs</a>
-                    </p>
-                </div>
-                <?php endif; ?>
                 
                 <!-- Integration Instructions -->
                 <div class="katahdin-webhook-card">
@@ -513,7 +466,7 @@ class Katahdin_AI_Webhook_Admin {
                 if (confirm('Are you sure you want to regenerate the webhook secret? This will break existing integrations until they are updated.')) {
                     $.post(ajaxurl, {
                         action: 'katahdin_ai_webhook_regenerate_secret',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>'
                     }, function(response) {
                         if (response.success) {
                             location.reload();
@@ -780,7 +733,7 @@ class Katahdin_AI_Webhook_Admin {
                     type: 'POST',
                     data: {
                         action: 'katahdin_ai_webhook_comprehensive_debug',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>'
                     },
                     success: function(response) {
                         $btn.prop('disabled', false).text('🔍 Comprehensive Debug');
@@ -914,7 +867,7 @@ class Katahdin_AI_Webhook_Admin {
      */
     public function ajax_get_logs() {
         try {
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -962,7 +915,7 @@ class Katahdin_AI_Webhook_Admin {
      */
     public function ajax_get_log_stats() {
         try {
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1006,7 +959,7 @@ class Katahdin_AI_Webhook_Admin {
      */
     public function ajax_cleanup_logs() {
         try {
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1320,7 +1273,7 @@ class Katahdin_AI_Webhook_Admin {
      */
     public function ajax_create_table() {
         try {
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1355,7 +1308,7 @@ class Katahdin_AI_Webhook_Admin {
      */
     public function ajax_get_log_details() {
         try {
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1392,7 +1345,7 @@ class Katahdin_AI_Webhook_Admin {
      */
     public function ajax_clear_all_logs() {
         try {
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1419,7 +1372,7 @@ class Katahdin_AI_Webhook_Admin {
      */
     public function ajax_delete_log() {
         try {
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1466,7 +1419,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler for testing log entry
      */
     public function ajax_test_log() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions');
@@ -1541,7 +1494,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler for testing API key
      */
     public function ajax_test_api_key() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions');
@@ -1561,7 +1514,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler for testing webhook
      */
     public function ajax_test_webhook() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions');
@@ -1581,7 +1534,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler for testing email
      */
     public function ajax_test_email() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions');
@@ -1601,7 +1554,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler for regenerating webhook secret
      */
     public function ajax_regenerate_secret() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions');
@@ -1625,7 +1578,7 @@ class Katahdin_AI_Webhook_Admin {
             // Log the start of debug
             error_log('Katahdin AI Webhook Debug Hub: Starting debug process');
             
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1751,7 +1704,7 @@ class Katahdin_AI_Webhook_Admin {
         try {
             error_log('Katahdin AI Webhook Debug API Call: Starting debug process');
             
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -1876,7 +1829,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler for debugging REST routes
      */
     public function ajax_debug_rest_routes() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions');
@@ -2393,7 +2346,7 @@ class Katahdin_AI_Webhook_Admin {
                 if (confirm('Are you sure you want to delete ALL logs? This cannot be undone.')) {
                     $.post(ajaxurl, {
                         action: 'katahdin_ai_webhook_clear_all_logs',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>'
                     }, function(response) {
                         if (response.success) {
                             alert('All logs cleared successfully!');
@@ -2490,7 +2443,7 @@ class Katahdin_AI_Webhook_Admin {
                     
                     $.post(ajaxurl, {
                         action: 'katahdin_ai_webhook_delete_log',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>',
                         log_id: logId
                     }, function(response) {
                         if (response.success) {
@@ -2660,7 +2613,7 @@ class Katahdin_AI_Webhook_Admin {
         try {
             error_log('Katahdin AI Webhook Simple Test: Starting');
             
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
@@ -2726,7 +2679,7 @@ class Katahdin_AI_Webhook_Admin {
     public function ajax_comprehensive_debug() {
         try {
             error_log('Katahdin AI Webhook Comprehensive Debug: Starting');
-            check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+            check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
             if (!current_user_can('manage_options')) {
                 wp_die('Insufficient permissions');
             }
@@ -2787,10 +2740,10 @@ class Katahdin_AI_Webhook_Admin {
                                     </td>
                                 </tr>
                                 <tr>
-                                    <th scope="row">Form ID</th>
+                                    <th scope="row">Prompt ID</th>
                                     <td>
-                                        <input type="text" id="prompt-form-id" name="form_id" class="regular-text" placeholder="e.g., contact_form_123" required>
-                                        <p class="description">The form ID that will trigger this prompt</p>
+                                        <input type="text" id="prompt-prompt-id" name="prompt_id" class="regular-text" placeholder="e.g., contact_form_123" required>
+                                        <p class="description">The prompt ID that will be passed via the form to trigger this prompt</p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -2798,6 +2751,20 @@ class Katahdin_AI_Webhook_Admin {
                                     <td>
                                         <textarea id="prompt-text" name="prompt" rows="8" cols="50" class="large-text" placeholder="Enter your AI prompt here..." required></textarea>
                                         <p class="description">The prompt that will be sent to the AI along with the form data</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Email Address</th>
+                                    <td>
+                                        <input type="email" id="prompt-email-address" name="email_address" class="regular-text" placeholder="e.g., admin@example.com" required>
+                                        <p class="description">Email address where the AI analysis results will be sent</p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Email Subject</th>
+                                    <td>
+                                        <input type="text" id="prompt-email-subject" name="email_subject" class="regular-text" placeholder="e.g., AI Analysis Results - Contact Form" required>
+                                        <p class="description">Subject line for the email containing AI analysis results</p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -2845,7 +2812,7 @@ class Katahdin_AI_Webhook_Admin {
                 $('#prompt-form-container').show();
                 $('#prompt-form')[0].reset();
                 $('#prompt-active').prop('checked', true);
-                $('#prompt-form-id').focus();
+                $('#prompt-prompt-id').focus();
             });
             
             // Cancel form
@@ -2865,8 +2832,8 @@ class Katahdin_AI_Webhook_Admin {
                     url: ajaxurl,
                     type: 'POST',
                     data: {
-                        action: 'katahdin_ai_webhook_get_prompts',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>'
+                        action: 'katahdin_ai_forms_get_prompts',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>'
                     },
                     success: function(response) {
                         if (response.success) {
@@ -2981,7 +2948,7 @@ class Katahdin_AI_Webhook_Admin {
                     type: 'POST',
                     data: {
                         action: 'katahdin_ai_webhook_get_prompt_by_id',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>',
                         id: id
                     },
                     success: function(response) {
@@ -3028,7 +2995,7 @@ class Katahdin_AI_Webhook_Admin {
                     type: 'POST',
                     data: {
                         action: 'katahdin_ai_webhook_toggle_prompt',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>',
                         id: id
                     },
                     success: function(response) {
@@ -3050,7 +3017,7 @@ class Katahdin_AI_Webhook_Admin {
                     type: 'POST',
                     data: {
                         action: 'katahdin_ai_webhook_delete_prompt',
-                        nonce: '<?php echo wp_create_nonce('katahdin_ai_webhook_nonce'); ?>',
+                        nonce: '<?php echo wp_create_nonce('katahdin_ai_forms_nonce'); ?>',
                         id: id
                     },
                     success: function(response) {
@@ -3112,18 +3079,18 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler to get all prompts
      */
     public function ajax_get_prompts() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
         }
         
         try {
-            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+            if (!class_exists('Katahdin_AI_Forms_Form_Prompts')) {
                 wp_send_json_error('Form prompts class not available');
             }
             
-            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $form_prompts = new Katahdin_AI_Forms_Form_Prompts();
             $prompts = $form_prompts->get_all_prompts();
             $stats = $form_prompts->get_stats();
             
@@ -3141,7 +3108,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler to add a new prompt
      */
     public function ajax_add_prompt() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
@@ -3149,15 +3116,17 @@ class Katahdin_AI_Webhook_Admin {
         
         try {
             $title = sanitize_text_field($_POST['title']);
-            $form_id = sanitize_text_field($_POST['form_id']);
+            $prompt_id = sanitize_text_field($_POST['prompt_id']);
             $prompt = sanitize_textarea_field($_POST['prompt']);
+            $email_address = sanitize_email($_POST['email_address']);
+            $email_subject = sanitize_text_field($_POST['email_subject']);
             $is_active = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1;
             
-            if (empty($title) || empty($form_id) || empty($prompt)) {
+            if (empty($title) || empty($prompt_id) || empty($prompt) || empty($email_address) || empty($email_subject)) {
                 wp_send_json_error('All fields are required');
             }
             
-            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+            if (!class_exists('Katahdin_AI_Forms_Form_Prompts')) {
                 wp_send_json_error('Form prompts class not available');
             }
             
@@ -3173,7 +3142,7 @@ class Katahdin_AI_Webhook_Admin {
                 }
             }
             
-            $result = $form_prompts->add_prompt($title, $form_id, $prompt);
+            $result = $form_prompts->add_prompt($title, $prompt_id, $prompt, $email_address, $email_subject);
             
             if (is_wp_error($result)) {
                 wp_send_json_error($result->get_error_message());
@@ -3190,7 +3159,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler to update a prompt
      */
     public function ajax_update_prompt() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
@@ -3199,20 +3168,22 @@ class Katahdin_AI_Webhook_Admin {
         try {
             $id = (int) $_POST['id'];
             $title = sanitize_text_field($_POST['title']);
-            $form_id = sanitize_text_field($_POST['form_id']);
+            $prompt_id = sanitize_text_field($_POST['prompt_id']);
             $prompt = sanitize_textarea_field($_POST['prompt']);
+            $email_address = sanitize_email($_POST['email_address']);
+            $email_subject = sanitize_text_field($_POST['email_subject']);
             $is_active = isset($_POST['is_active']) ? (int) $_POST['is_active'] : 1;
             
-            if (empty($id) || empty($title) || empty($form_id) || empty($prompt)) {
+            if (empty($id) || empty($title) || empty($prompt_id) || empty($prompt) || empty($email_address) || empty($email_subject)) {
                 wp_send_json_error('All fields are required');
             }
             
-            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+            if (!class_exists('Katahdin_AI_Forms_Form_Prompts')) {
                 wp_send_json_error('Form prompts class not available');
             }
             
-            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
-            $result = $form_prompts->update_prompt($id, $title, $form_id, $prompt, $is_active);
+            $form_prompts = new Katahdin_AI_Forms_Form_Prompts();
+            $result = $form_prompts->update_prompt($id, $title, $prompt_id, $prompt, $email_address, $email_subject, $is_active);
             
             if (is_wp_error($result)) {
                 wp_send_json_error($result->get_error_message());
@@ -3229,7 +3200,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler to delete a prompt
      */
     public function ajax_delete_prompt() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
@@ -3242,11 +3213,11 @@ class Katahdin_AI_Webhook_Admin {
                 wp_send_json_error('Invalid prompt ID');
             }
             
-            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+            if (!class_exists('Katahdin_AI_Forms_Form_Prompts')) {
                 wp_send_json_error('Form prompts class not available');
             }
             
-            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $form_prompts = new Katahdin_AI_Forms_Form_Prompts();
             $result = $form_prompts->delete_prompt($id);
             
             if (is_wp_error($result)) {
@@ -3264,7 +3235,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler to toggle prompt status
      */
     public function ajax_toggle_prompt() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
@@ -3277,11 +3248,11 @@ class Katahdin_AI_Webhook_Admin {
                 wp_send_json_error('Invalid prompt ID');
             }
             
-            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+            if (!class_exists('Katahdin_AI_Forms_Form_Prompts')) {
                 wp_send_json_error('Form prompts class not available');
             }
             
-            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $form_prompts = new Katahdin_AI_Forms_Form_Prompts();
             $result = $form_prompts->toggle_prompt_status($id);
             
             if (is_wp_error($result)) {
@@ -3302,7 +3273,7 @@ class Katahdin_AI_Webhook_Admin {
      * AJAX handler to get prompt by ID
      */
     public function ajax_get_prompt_by_id() {
-        check_ajax_referer('katahdin_ai_webhook_nonce', 'nonce');
+        check_ajax_referer('katahdin_ai_forms_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
@@ -3315,11 +3286,11 @@ class Katahdin_AI_Webhook_Admin {
                 wp_send_json_error('Invalid prompt ID');
             }
             
-            if (!class_exists('Katahdin_AI_Webhook_Form_Prompts')) {
+            if (!class_exists('Katahdin_AI_Forms_Form_Prompts')) {
                 wp_send_json_error('Form prompts class not available');
             }
             
-            $form_prompts = new Katahdin_AI_Webhook_Form_Prompts();
+            $form_prompts = new Katahdin_AI_Forms_Form_Prompts();
             $prompt = $form_prompts->get_prompt_by_id($id);
             
             if (!$prompt) {
