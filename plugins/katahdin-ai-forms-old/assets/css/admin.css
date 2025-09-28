@@ -1,0 +1,394 @@
+/* Katahdin AI Forms Admin Styles */
+
+.katahdin-ai-forms-admin {
+    max-width: 1200px;
+}
+
+.status-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.status-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+.status-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.status-card h3 {
+    margin-top: 0;
+    color: #0073aa;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.status-indicator.enabled {
+    color: #46b450;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.status-indicator.disabled {
+    color: #dc3232;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.status-error {
+    font-size: 12px;
+    color: #dc3232;
+    margin-top: 5px;
+    font-style: italic;
+    background: #f8d7da;
+    padding: 5px 8px;
+    border-radius: 3px;
+    border-left: 3px solid #dc3232;
+}
+
+.webhook-url, .secret-key {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.webhook-url code, .secret-key code {
+    flex: 1;
+    background: #f1f1f1;
+    padding: 8px 12px;
+    border-radius: 4px;
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    border: 1px solid #ddd;
+}
+
+.copy-url-btn, .regenerate-secret-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.copy-url-btn:hover, .regenerate-secret-btn:hover {
+    background-color: #f0f0f0;
+}
+
+.settings-section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 25px;
+    margin: 20px 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.settings-section h2 {
+    margin-top: 0;
+    color: #0073aa;
+    border-bottom: 2px solid #0073aa;
+    padding-bottom: 10px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.test-section, .logs-section, .integration-section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 25px;
+    margin: 20px 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.test-section h2, .logs-section h2, .integration-section h2 {
+    margin-top: 0;
+    color: #0073aa;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.test-buttons {
+    margin: 15px 0;
+    display: flex;
+    gap: 10px;
+}
+
+.test-buttons .button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.test-results {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 20px;
+    margin-top: 15px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.test-results h3 {
+    margin-top: 0;
+    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.logs-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+.log-entry {
+    border-bottom: 1px solid #eee;
+    padding: 15px;
+    background: #f9f9f9;
+    transition: background-color 0.3s ease;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-entry:hover {
+    background: #f0f0f0;
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.log-form-id {
+    color: #0073aa;
+    font-weight: bold;
+    background: #e8f4fd;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.log-analysis {
+    font-style: italic;
+    color: #666;
+    line-height: 1.4;
+}
+
+.integration-content {
+    line-height: 1.6;
+}
+
+.integration-content h3 {
+    color: #333;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.integration-content h4 {
+    color: #555;
+    margin-top: 15px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.integration-content code {
+    background: #f1f1f1;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #d63384;
+}
+
+.integration-content pre {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 6px;
+    overflow-x: auto;
+    border: 1px solid #e9ecef;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.integration-content ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.integration-content li {
+    margin-bottom: 5px;
+}
+
+/* Form table styling */
+.form-table th {
+    width: 200px;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-table td {
+    padding: 15px 10px;
+}
+
+.form-table input[type="text"], 
+.form-table input[type="email"], 
+.form-table input[type="number"],
+.form-table textarea,
+.form-table select {
+    width: 100%;
+    max-width: 400px;
+}
+
+.form-table textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.form-table .description {
+    font-style: italic;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .status-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .webhook-url, .secret-key {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .webhook-url code, .secret-key code {
+        margin-bottom: 10px;
+    }
+    
+    .test-buttons {
+        flex-direction: column;
+    }
+    
+    .log-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0073aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Button styles */
+.katahdin-forms-button {
+    background: #0073aa;
+    color: #fff;
+    border: 1px solid #0073aa;
+    border-radius: 4px;
+    padding: 8px 16px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 14px;
+    line-height: 1.4;
+    transition: all 0.3s ease;
+}
+
+.katahdin-forms-button:hover {
+    background: #005a87;
+    border-color: #005a87;
+    color: #fff;
+}
+
+.katahdin-forms-button.secondary {
+    background: #f1f1f1;
+    color: #333;
+    border-color: #ccc;
+}
+
+.katahdin-forms-button.secondary:hover {
+    background: #e1e1e1;
+    border-color: #999;
+    color: #333;
+}
+
+.katahdin-forms-button.primary {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+
+.katahdin-forms-button.primary:hover {
+    background: #005a87;
+    border-color: #005a87;
+    color: #fff;
+}
+
+/* Status indicators */
+.katahdin-forms-status.success {
+    color: #46b450;
+    font-weight: bold;
+}
+
+.katahdin-forms-status.error {
+    color: #dc3232;
+    font-weight: bold;
+}
+
+/* Card styles */
+.katahdin-forms-card {
+    background: #fff;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.katahdin-forms-card h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 20px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 10px;
+}

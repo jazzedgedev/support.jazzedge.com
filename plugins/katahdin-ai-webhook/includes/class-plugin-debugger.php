@@ -320,11 +320,12 @@ class Katahdin_AI_Plugin_Debugger {
         
         // Check plugin-specific options
         $plugin_options = array(
-            'katahdin_ai_forms_enabled',
-            'katahdin_ai_forms_model',
-            'katahdin_ai_forms_max_tokens',
-            'katahdin_ai_forms_temperature',
-            'katahdin_ai_forms_log_retention_days'
+            'katahdin_ai_webhook_enabled',
+            'katahdin_ai_webhook_prompt',
+            'katahdin_ai_webhook_email',
+            'katahdin_ai_webhook_model',
+            'katahdin_ai_webhook_max_tokens',
+            'katahdin_ai_webhook_temperature'
         );
         
         foreach ($plugin_options as $option) {

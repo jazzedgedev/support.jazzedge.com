@@ -1,321 +1,516 @@
 /**
- * Katahdin AI Webhook Admin JavaScript
+ * Katahdin AI Forms Admin JavaScript
+ * Handles AJAX interactions and UI enhancements
  */
 
-jQuery(document).ready(function($) {
+(function($) {
     'use strict';
     
-    // Initialize admin functionality
-    initAdminInterface();
+    // Initialize when document is ready
+    $(document).ready(function() {
+        KatahdinAIForms.init();
+    });
     
-    function initAdminInterface() {
-        // Copy webhook URL functionality
-        initCopyUrlButton();
+    // Main plugin object
+    window.KatahdinAIForms = {
         
-        // Regenerate secret functionality
-        initRegenerateSecretButton();
+        // Initialize the plugin
+        init: function() {
+            this.bindEvents();
+            this.initTooltips();
+            this.initStatusUpdates();
+        },
         
-        // Test webhook functionality
-        initTestWebhookButton();
+        // Bind event handlers
+        bindEvents: function() {
+            // Test buttons
+            $(document).on('click', '#test-forms', this.testForms);
+            $(document).on('click', '#test-email', this.testEmail);
+            $(document).on('click', '#comprehensive-debug', this.comprehensiveDebug);
+            $(document).on('click', '#regenerate-secret', this.regenerateSecret);
+            
+            // Prompt management
+            $(document).on('submit', '#add-prompt-form', this.addPrompt);
+            $(document).on('click', '.delete-prompt', this.deletePrompt);
+            $(document).on('click', '.toggle-prompt', this.togglePrompt);
+            
+            // Log management
+            $(document).on('click', '.view-log', this.viewLog);
+            $(document).on('click', '.delete-log', this.deleteLog);
+            $(document).on('click', '#cleanup-logs', this.cleanupLogs);
+            
+            // Form validation
+            $(document).on('blur', 'input[required]', this.validateField);
+            $(document).on('blur', 'textarea[required]', this.validateField);
+        },
+        
+        // Initialize tooltips
+        initTooltips: function() {
+            if ($.fn.tooltip) {
+                $('[data-tooltip]').tooltip();
+            }
+        },
+        
+        // Initialize status updates
+        initStatusUpdates: function() {
+            // Auto-refresh status every 30 seconds
+            setInterval(this.updateStatus, 30000);
+        },
+        
+        // Test forms endpoint
+        testForms: function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var $results = $('#test-results');
+            
+            KatahdinAIForms.setButtonLoading($button, 'Testing...');
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_test_forms',
+                    nonce: katahdin_ai_forms.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        KatahdinAIForms.showStatus($results, 'success', '<strong>Success:</strong> ' + response.data.message);
+                    } else {
+                        KatahdinAIForms.showStatus($results, 'error', '<strong>Error:</strong> ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    KatahdinAIForms.showStatus($results, 'error', '<strong>Error:</strong> Request failed - ' + error);
+                },
+                complete: function() {
+                    KatahdinAIForms.setButtonNormal($button, 'Test Forms Endpoint');
+                }
+            });
+        },
         
         // Test email functionality
-        initTestEmailButton();
-        
-        // Form validation
-        initFormValidation();
-    }
-    
-    function initCopyUrlButton() {
-        $('.copy-url-btn').on('click', function(e) {
+        testEmail: function(e) {
             e.preventDefault();
             
-            var $btn = $(this);
-            var url = $btn.data('url');
+            var $button = $(this);
+            var $results = $('#test-results');
             
-            if (navigator.clipboard && window.isSecureContext) {
-                // Use modern clipboard API
-                navigator.clipboard.writeText(url).then(function() {
-                    showSuccessMessage('Webhook URL copied to clipboard!');
-                }).catch(function(err) {
-                    console.error('Failed to copy URL: ', err);
-                    fallbackCopyTextToClipboard(url);
-                });
-            } else {
-                // Fallback for older browsers
-                fallbackCopyTextToClipboard(url);
-            }
-        });
-    }
-    
-    function fallbackCopyTextToClipboard(text) {
-        var textArea = document.createElement('textarea');
-        textArea.value = text;
-        
-        // Avoid scrolling to bottom
-        textArea.style.top = '0';
-        textArea.style.left = '0';
-        textArea.style.position = 'fixed';
-        
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        
-        try {
-            var successful = document.execCommand('copy');
-            if (successful) {
-                showSuccessMessage('Webhook URL copied to clipboard!');
-            } else {
-                showErrorMessage('Failed to copy URL to clipboard');
-            }
-        } catch (err) {
-            console.error('Fallback: Oops, unable to copy', err);
-            showErrorMessage('Failed to copy URL to clipboard');
-        }
-        
-        document.body.removeChild(textArea);
-    }
-    
-    function initRegenerateSecretButton() {
-        $('.regenerate-secret-btn').on('click', function(e) {
-            e.preventDefault();
+            KatahdinAIForms.setButtonLoading($button, 'Testing...');
             
-            if (confirm('Are you sure you want to regenerate the webhook secret? This will break existing integrations until they are updated.')) {
-                var $btn = $(this);
-                $btn.prop('disabled', true).text('Regenerating...');
-                
-                $.post(ajaxurl, {
-                    action: 'katahdin_ai_webhook_regenerate_secret',
-                    nonce: katahdin_ai_webhook.nonce
-                }, function(response) {
-                    $btn.prop('disabled', false).text('Regenerate');
-                    
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_test_email',
+                    nonce: katahdin_ai_forms.nonce
+                },
+                success: function(response) {
                     if (response.success) {
-                        showSuccessMessage('Secret regenerated successfully!');
-                        setTimeout(function() {
-                            location.reload();
-                        }, 1500);
+                        KatahdinAIForms.showStatus($results, 'success', '<strong>Success:</strong> ' + response.data.message);
                     } else {
-                        showErrorMessage('Error regenerating secret: ' + response.data);
+                        KatahdinAIForms.showStatus($results, 'error', '<strong>Error:</strong> ' + response.data);
                     }
-                }).fail(function() {
-                    $btn.prop('disabled', false).text('Regenerate');
-                    showErrorMessage('Network error occurred while regenerating secret');
-                });
-            }
-        });
-    }
-    
-    function initTestWebhookButton() {
-        $('.test-webhook-btn').on('click', function(e) {
-            e.preventDefault();
-            
-            var $btn = $(this);
-            var $results = $('#test-results');
-            var $output = $('#test-output');
-            
-            $btn.prop('disabled', true).text('Testing...');
-            $results.show();
-            $output.html('<div class="loading">Testing webhook...</div>');
-            
-            $.post(ajaxurl, {
-                action: 'katahdin_ai_webhook_test_webhook',
-                nonce: katahdin_ai_webhook.nonce
-            }, function(response) {
-                $btn.prop('disabled', false).text('Test Webhook');
-                
-                if (response.success) {
-                    var html = '<div class="success-message">';
-                    html += '<strong>✓ Webhook test successful!</strong><br>';
-                    html += '<pre>' + JSON.stringify(response.data, null, 2) + '</pre>';
-                    html += '</div>';
-                    $output.html(html);
-                } else {
-                    var html = '<div class="error-message">';
-                    html += '<strong>✗ Webhook test failed:</strong><br>';
-                    html += '<pre>' + response.data + '</pre>';
-                    html += '</div>';
-                    $output.html(html);
+                },
+                error: function(xhr, status, error) {
+                    KatahdinAIForms.showStatus($results, 'error', '<strong>Error:</strong> Request failed - ' + error);
+                },
+                complete: function() {
+                    KatahdinAIForms.setButtonNormal($button, 'Test Email');
                 }
-            }).fail(function() {
-                $btn.prop('disabled', false).text('Test Webhook');
-                $output.html('<div class="error-message"><strong>✗ Network error occurred during webhook test</strong></div>');
             });
-        });
-    }
-    
-    function initTestEmailButton() {
-        $('.test-email-btn').on('click', function(e) {
+        },
+        
+        // Comprehensive debug
+        comprehensiveDebug: function(e) {
             e.preventDefault();
             
-            var $btn = $(this);
+            var $button = $(this);
             var $results = $('#test-results');
-            var $output = $('#test-output');
             
-            $btn.prop('disabled', true).text('Testing...');
-            $results.show();
-            $output.html('<div class="loading">Testing email...</div>');
+            KatahdinAIForms.setButtonLoading($button, 'Debugging...');
             
-            $.post(ajaxurl, {
-                action: 'katahdin_ai_webhook_test_email',
-                nonce: katahdin_ai_webhook.nonce
-            }, function(response) {
-                $btn.prop('disabled', false).text('Test Email');
-                
-                if (response.success) {
-                    var html = '<div class="success-message">';
-                    html += '<strong>✓ Email test successful!</strong><br>';
-                    html += '<pre>' + JSON.stringify(response.data, null, 2) + '</pre>';
-                    html += '</div>';
-                    $output.html(html);
-                } else {
-                    var html = '<div class="error-message">';
-                    html += '<strong>✗ Email test failed:</strong><br>';
-                    html += '<pre>' + response.data + '</pre>';
-                    html += '</div>';
-                    $output.html(html);
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_comprehensive_debug',
+                    nonce: katahdin_ai_forms.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var debugHtml = '<strong>Debug Complete:</strong><br><pre>' + 
+                                       JSON.stringify(response.data, null, 2) + '</pre>';
+                        KatahdinAIForms.showStatus($results, 'info', debugHtml);
+                    } else {
+                        KatahdinAIForms.showStatus($results, 'error', '<strong>Debug Error:</strong> ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    KatahdinAIForms.showStatus($results, 'error', '<strong>Error:</strong> Debug request failed - ' + error);
+                },
+                complete: function() {
+                    KatahdinAIForms.setButtonNormal($button, 'Comprehensive Debug');
                 }
-            }).fail(function() {
-                $btn.prop('disabled', false).text('Test Email');
-                $output.html('<div class="error-message"><strong>✗ Network error occurred during email test</strong></div>');
             });
-        });
-    }
-    
-    function initFormValidation() {
-        // Validate email field
-        $('input[name="katahdin_ai_webhook_email"]').on('blur', function() {
-            var email = $(this).val();
-            var $field = $(this);
-            
-            if (email && !isValidEmail(email)) {
-                $field.addClass('error');
-                showFieldError($field, 'Please enter a valid email address');
-            } else {
-                $field.removeClass('error');
-                hideFieldError($field);
-            }
-        });
+        },
         
-        // Validate max tokens
-        $('input[name="katahdin_ai_webhook_max_tokens"]').on('blur', function() {
-            var tokens = parseInt($(this).val());
-            var $field = $(this);
-            
-            if (tokens < 1 || tokens > 4000) {
-                $field.addClass('error');
-                showFieldError($field, 'Max tokens must be between 1 and 4000');
-            } else {
-                $field.removeClass('error');
-                hideFieldError($field);
-            }
-        });
-        
-        // Validate temperature
-        $('input[name="katahdin_ai_webhook_temperature"]').on('blur', function() {
-            var temp = parseFloat($(this).val());
-            var $field = $(this);
-            
-            if (temp < 0 || temp > 2) {
-                $field.addClass('error');
-                showFieldError($field, 'Temperature must be between 0 and 2');
-            } else {
-                $field.removeClass('error');
-                hideFieldError($field);
-            }
-        });
-    }
-    
-    function isValidEmail(email) {
-        var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    }
-    
-    function showFieldError($field, message) {
-        hideFieldError($field);
-        $field.after('<div class="field-error" style="color: #dc3232; font-size: 12px; margin-top: 5px;">' + message + '</div>');
-    }
-    
-    function hideFieldError($field) {
-        $field.siblings('.field-error').remove();
-    }
-    
-    function showSuccessMessage(message) {
-        showMessage(message, 'success');
-    }
-    
-    function showErrorMessage(message) {
-        showMessage(message, 'error');
-    }
-    
-    function showMessage(message, type) {
-        var $message = $('<div class="notice notice-' + type + ' is-dismissible"><p>' + message + '</p></div>');
-        $('.wrap h1').after($message);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(function() {
-            $message.fadeOut(function() {
-                $message.remove();
-            });
-        }, 5000);
-        
-        // Make dismissible
-        $message.on('click', '.notice-dismiss', function() {
-            $message.fadeOut(function() {
-                $message.remove();
-            });
-        });
-    }
-    
-    // Auto-save settings on change (optional enhancement)
-    function initAutoSave() {
-        var autoSaveTimeout;
-        
-        $('.settings-form input, .settings-form textarea, .settings-form select').on('change', function() {
-            clearTimeout(autoSaveTimeout);
-            autoSaveTimeout = setTimeout(function() {
-                // Auto-save could be implemented here
-                console.log('Auto-save triggered');
-            }, 2000);
-        });
-    }
-    
-    // Initialize auto-save if enabled
-    // initAutoSave();
-    
-    // Handle form submission
-    $('.settings-form').on('submit', function(e) {
-        // Clear any existing field errors
-        $('.field-error').remove();
-        $('.error').removeClass('error');
-        
-        // Basic validation before submit
-        var isValid = true;
-        
-        // Check email
-        var email = $('input[name="katahdin_ai_webhook_email"]').val();
-        if (email && !isValidEmail(email)) {
-            showFieldError($('input[name="katahdin_ai_webhook_email"]'), 'Please enter a valid email address');
-            isValid = false;
-        }
-        
-        // Check max tokens
-        var tokens = parseInt($('input[name="katahdin_ai_webhook_max_tokens"]').val());
-        if (tokens < 1 || tokens > 4000) {
-            showFieldError($('input[name="katahdin_ai_webhook_max_tokens"]'), 'Max tokens must be between 1 and 4000');
-            isValid = false;
-        }
-        
-        // Check temperature
-        var temp = parseFloat($('input[name="katahdin_ai_webhook_temperature"]').val());
-        if (temp < 0 || temp > 2) {
-            showFieldError($('input[name="katahdin_ai_webhook_temperature"]'), 'Temperature must be between 0 and 2');
-            isValid = false;
-        }
-        
-        if (!isValid) {
+        // Regenerate webhook secret
+        regenerateSecret: function(e) {
             e.preventDefault();
-            showErrorMessage('Please fix the errors above before saving');
-            return false;
+            
+            var $button = $(this);
+            var $results = $('#test-results');
+            
+            if (!confirm('Are you sure you want to regenerate the webhook secret? This will invalidate any existing webhook configurations.')) {
+                return;
+            }
+            
+            KatahdinAIForms.setButtonLoading($button, 'Regenerating...');
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_regenerate_secret',
+                    nonce: katahdin_ai_forms.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('input[readonly]').val(response.data.secret);
+                        KatahdinAIForms.showStatus($results, 'success', '<strong>Success:</strong> ' + response.data.message);
+                    } else {
+                        KatahdinAIForms.showStatus($results, 'error', '<strong>Error:</strong> ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    KatahdinAIForms.showStatus($results, 'error', '<strong>Error:</strong> Request failed - ' + error);
+                },
+                complete: function() {
+                    KatahdinAIForms.setButtonNormal($button, 'Regenerate Secret');
+                }
+            });
+        },
+        
+        // Add new prompt
+        addPrompt: function(e) {
+            e.preventDefault();
+            
+            var $form = $(this);
+            var $button = $form.find('button[type="submit"]');
+            
+            // Validate form
+            if (!KatahdinAIForms.validateForm($form)) {
+                return;
+            }
+            
+            KatahdinAIForms.setButtonLoading($button, 'Adding...');
+            
+            var formData = {
+                action: 'katahdin_ai_forms_add_prompt',
+                nonce: katahdin_ai_forms.nonce,
+                title: $('#prompt-title').val(),
+                prompt_id: $('#prompt-prompt-id').val(),
+                prompt: $('#prompt-text').val(),
+                email_address: $('#prompt-email').val(),
+                email_subject: $('#prompt-subject').val()
+            };
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: formData,
+                success: function(response) {
+                    if (response.success) {
+                        // Clear form
+                        $form[0].reset();
+                        // Reload page to show new prompt
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.data);
+                        KatahdinAIForms.setButtonNormal($button, 'Add Prompt');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert('Request failed: ' + error);
+                    KatahdinAIForms.setButtonNormal($button, 'Add Prompt');
+                }
+            });
+        },
+        
+        // Delete prompt
+        deletePrompt: function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var id = $button.data('id');
+            
+            if (!confirm('Are you sure you want to delete this prompt? This action cannot be undone.')) {
+                return;
+            }
+            
+            KatahdinAIForms.setButtonLoading($button, 'Deleting...');
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_delete_prompt',
+                    nonce: katahdin_ai_forms.nonce,
+                    id: id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.data);
+                        KatahdinAIForms.setButtonNormal($button, 'Delete');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert('Request failed: ' + error);
+                    KatahdinAIForms.setButtonNormal($button, 'Delete');
+                }
+            });
+        },
+        
+        // Toggle prompt status
+        togglePrompt: function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var id = $button.data('id');
+            
+            KatahdinAIForms.setButtonLoading($button, 'Updating...');
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_toggle_prompt',
+                    nonce: katahdin_ai_forms.nonce,
+                    id: id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.data);
+                        KatahdinAIForms.setButtonNormal($button, 'Toggle');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert('Request failed: ' + error);
+                    KatahdinAIForms.setButtonNormal($button, 'Toggle');
+                }
+            });
+        },
+        
+        // View log details
+        viewLog: function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var id = $button.data('id');
+            
+            KatahdinAIForms.setButtonLoading($button, 'Loading...');
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_get_log_details',
+                    nonce: katahdin_ai_forms.nonce,
+                    log_id: id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        KatahdinAIForms.showLogModal(response.data);
+                    } else {
+                        alert('Error: ' + response.data);
+                    }
+                    KatahdinAIForms.setButtonNormal($button, 'View');
+                },
+                error: function(xhr, status, error) {
+                    alert('Request failed: ' + error);
+                    KatahdinAIForms.setButtonNormal($button, 'View');
+                }
+            });
+        },
+        
+        // Delete log
+        deleteLog: function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var id = $button.data('id');
+            
+            if (!confirm('Are you sure you want to delete this log entry?')) {
+                return;
+            }
+            
+            KatahdinAIForms.setButtonLoading($button, 'Deleting...');
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_delete_log',
+                    nonce: katahdin_ai_forms.nonce,
+                    log_id: id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.data);
+                        KatahdinAIForms.setButtonNormal($button, 'Delete');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert('Request failed: ' + error);
+                    KatahdinAIForms.setButtonNormal($button, 'Delete');
+                }
+            });
+        },
+        
+        // Cleanup logs
+        cleanupLogs: function(e) {
+            e.preventDefault();
+            
+            var $button = $(this);
+            var retentionDays = prompt('Enter retention days (default: 30):', '30');
+            
+            if (!retentionDays || isNaN(retentionDays)) {
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to cleanup logs older than ' + retentionDays + ' days?')) {
+                return;
+            }
+            
+            KatahdinAIForms.setButtonLoading($button, 'Cleaning...');
+            
+            $.ajax({
+                url: katahdin_ai_forms.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'katahdin_ai_forms_cleanup_logs',
+                    nonce: katahdin_ai_forms.nonce,
+                    retention_days: parseInt(retentionDays)
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert('Cleanup completed. Deleted ' + response.data.deleted_count + ' log entries.');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.data.error);
+                        KatahdinAIForms.setButtonNormal($button, 'Cleanup Logs');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    alert('Request failed: ' + error);
+                    KatahdinAIForms.setButtonNormal($button, 'Cleanup Logs');
+                }
+            });
+        },
+        
+        // Validate form
+        validateForm: function($form) {
+            var isValid = true;
+            
+            $form.find('input[required], textarea[required]').each(function() {
+                if (!KatahdinAIForms.validateField.call(this)) {
+                    isValid = false;
+                }
+            });
+            
+            return isValid;
+        },
+        
+        // Validate individual field
+        validateField: function() {
+            var $field = $(this);
+            var value = $field.val().trim();
+            var isValid = true;
+            
+            // Remove existing error styling
+            $field.removeClass('error');
+            $field.siblings('.field-error').remove();
+            
+            // Check if field is empty
+            if (!value) {
+                KatahdinAIForms.showFieldError($field, 'This field is required');
+                isValid = false;
+            }
+            
+            // Email validation
+            if ($field.attr('type') === 'email' && value) {
+                var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(value)) {
+                    KatahdinAIForms.showFieldError($field, 'Please enter a valid email address');
+                    isValid = false;
+                }
+            }
+            
+            // Prompt ID validation
+            if ($field.attr('name') === 'prompt_id' && value) {
+                var promptIdRegex = /^[a-zA-Z0-9_-]+$/;
+                if (!promptIdRegex.test(value)) {
+                    KatahdinAIForms.showFieldError($field, 'Prompt ID can only contain letters, numbers, underscores, and hyphens');
+                    isValid = false;
+                }
+            }
+            
+            return isValid;
+        },
+        
+        // Show field error
+        showFieldError: function($field, message) {
+            $field.addClass('error');
+            $field.after('<div class="field-error" style="color: #d63638; font-size: 12px; margin-top: 5px;">' + message + '</div>');
+        },
+        
+        // Set button loading state
+        setButtonLoading: function($button, text) {
+            $button.prop('disabled', true).text(text);
+        },
+        
+        // Set button normal state
+        setButtonNormal: function($button, text) {
+            $button.prop('disabled', false).text(text);
+        },
+        
+        // Show status message
+        showStatus: function($container, type, message) {
+            $container.removeClass('success error warning info')
+                     .addClass(type)
+                     .html(message)
+                     .show();
+            
+            // Auto-hide after 10 seconds
+            setTimeout(function() {
+                $container.fadeOut();
+            }, 10000);
+        },
+        
+        // Show log modal
+        showLogModal: function(logData) {
+            var modalHtml = '<div id="log-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">' +
+                           '<div style="background: white; padding: 20px; border-radius: 5px; max-width: 80%; max-height: 80%; overflow: auto;">' +
+                           '<h3>Log Details</h3>' +
+                           '<pre>' + JSON.stringify(logData, null, 2) + '</pre>' +
+                           '<button onclick="jQuery(\'#log-modal\').remove()" class="button">Close</button>' +
+                           '</div></div>';
+            
+            $('body').append(modalHtml);
+        },
+        
+        // Update status
+        updateStatus: function() {
+            // This could be used to periodically update status information
+            // For now, it's a placeholder for future enhancements
         }
-    });
-});
+    };
+    
+})(jQuery);

@@ -8836,20 +8836,31 @@ class JazzEdge_Practice_Hub {
         $gamification = new JPH_Gamification();
         
         // Get all users who have practice sessions
-        $users_with_sessions = $database->wpdb->get_results("
+        global $wpdb;
+        $users_with_sessions = $wpdb->get_results("
             SELECT DISTINCT user_id 
-            FROM {$database->tables['practice_sessions']} 
+            FROM {$wpdb->prefix}jph_practice_sessions 
             ORDER BY user_id
         ");
         
         $milestones_checked = 0;
         $milestones_triggered = 0;
+        $streaks_reset = 0;
         
         foreach ($users_with_sessions as $user_data) {
             $user_id = $user_data->user_id;
             $user_stats = $gamification->get_user_stats($user_id);
             
             if ($user_stats) {
+                // Check and reset broken streaks
+                $streak_reset = $this->check_and_reset_broken_streaks($user_id, $user_stats);
+                if ($streak_reset) {
+                    $streaks_reset++;
+                    // Get updated stats after streak reset
+                    $user_stats = $gamification->get_user_stats($user_id);
+                }
+                
+                // Check time-based milestones
                 $result = $this->check_time_based_milestones($user_id, $user_stats, true);
                 $milestones_checked++;
                 
@@ -8859,7 +8870,41 @@ class JazzEdge_Practice_Hub {
             }
         }
         
-        error_log("JPH Cron: Checked $milestones_checked users, triggered $milestones_triggered milestones");
+        error_log("JPH Cron: Checked $milestones_checked users, triggered $milestones_triggered milestones, reset $streaks_reset broken streaks");
+    }
+    
+    /**
+     * Check and reset broken streaks for users who haven't practiced recently
+     */
+    private function check_and_reset_broken_streaks($user_id, $user_stats) {
+        $last_practice_date = $user_stats['last_practice_date'] ?? null;
+        $current_streak = $user_stats['current_streak'] ?? 0;
+        
+        if (!$last_practice_date || $current_streak === 0) {
+            return false; // No streak to reset
+        }
+        
+        $today = current_time('Y-m-d');
+        $yesterday = date('Y-m-d', strtotime('-1 day'));
+        
+        // If last practice was more than 1 day ago, reset streak
+        if ($last_practice_date < $yesterday) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            $wpdb->update(
+                $table_name,
+                array('current_streak' => 0),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+            
+            error_log("JPH Cron: Reset broken streak for user $user_id (last practice: $last_practice_date)");
+            return true;
+        }
+        
+        return false;
     }
     
     /**
@@ -8874,19 +8919,19 @@ class JazzEdge_Practice_Hub {
         
         // Get user's first practice session to determine when they started
         $database = new JPH_Database();
-        $first_session = $database->wpdb->get_row($database->wpdb->prepare(
-            "SELECT created_at FROM {$database->tables['practice_sessions']} 
-             WHERE user_id = %d 
-             ORDER BY created_at ASC 
-             LIMIT 1",
-            $user_id
-        ));
+        $sessions = $database->get_practice_sessions($user_id, 1, 0);
+        
+        if (empty($sessions)) {
+            return $from_cron ? array('triggered' => false, 'count' => 0) : null;
+        }
+        
+        $first_session = $sessions[0];
         
         if (!$first_session) {
             return $from_cron ? array('triggered' => false, 'count' => 0) : null;
         }
         
-        $first_practice_date = new DateTime($first_session->created_at);
+        $first_practice_date = new DateTime($first_session['created_at']);
         $current_date = new DateTime();
         $days_since_start = $first_practice_date->diff($current_date)->days;
         

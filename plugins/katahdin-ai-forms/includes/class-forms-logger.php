@@ -1,25 +1,31 @@
 <?php
 /**
- * Webhook Logging Class
- * 
- * Handles logging of all webhook requests and responses for testing and retention
+ * Forms Logger for Katahdin AI Forms
+ * Handles logging of form submissions and AI analysis results
  */
 
+// Prevent direct access
 if (!defined('ABSPATH')) {
     exit;
 }
 
 class Katahdin_AI_Forms_Logger {
     
+    /**
+     * Table name for logs
+     */
     private $table_name;
     
+    /**
+     * Initialize the logger
+     */
     public function __construct() {
         global $wpdb;
         $this->table_name = $wpdb->prefix . 'katahdin_ai_forms_logs';
     }
     
     /**
-     * Create the webhook logs table
+     * Create the logs table
      */
     public function create_table() {
         global $wpdb;
@@ -27,34 +33,27 @@ class Katahdin_AI_Forms_Logger {
         $charset_collate = $wpdb->get_charset_collate();
         
         $sql = "CREATE TABLE {$this->table_name} (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
+            id int(11) NOT NULL AUTO_INCREMENT,
             webhook_id varchar(50) NOT NULL,
-            timestamp datetime DEFAULT CURRENT_TIMESTAMP,
-            method varchar(10) NOT NULL,
-            url text NOT NULL,
-            headers longtext,
-            body longtext,
-            ip_address varchar(45),
-            user_agent text,
-            response_code int(3),
-            response_body longtext,
-            processing_time_ms int(10),
+            status varchar(20) DEFAULT 'received',
+            request_data longtext,
+            response_code int(11) DEFAULT 200,
             ai_response longtext,
-            email_sent tinyint(1) DEFAULT 0,
-            email_response text,
             error_message text,
-            status varchar(20) DEFAULT 'pending',
+            email_sent tinyint(1) DEFAULT 0,
+            processing_time_ms int(11) DEFAULT 0,
             form_email varchar(255),
             form_name varchar(255),
-            form_id varchar(50),
-            entry_id varchar(50),
+            form_id varchar(100),
+            entry_id varchar(100),
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY webhook_id (webhook_id),
-            KEY timestamp (timestamp),
             KEY status (status),
-            KEY form_email (form_email),
-            KEY form_id (form_id)
+            KEY created_at (created_at),
+            KEY form_id (form_id),
+            KEY entry_id (entry_id)
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -62,244 +61,198 @@ class Katahdin_AI_Forms_Logger {
     }
     
     /**
-     * Log an incoming webhook request
+     * Log a request
      */
     public function log_request($webhook_id, $request_data) {
         global $wpdb;
         
-        $headers = isset($request_data['headers']) ? json_encode($request_data['headers']) : null;
-        $body = isset($request_data['body']) ? json_encode($request_data['body']) : null;
-        $ip_address = $this->get_client_ip();
-        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : null;
-        
-        $result = $wpdb->insert(
-            $this->table_name,
-            array(
-                'webhook_id' => $webhook_id,
-                'method' => $_SERVER['REQUEST_METHOD'],
-                'url' => $this->get_current_url(),
-                'headers' => $headers,
-                'body' => $body,
-                'ip_address' => $ip_address,
-                'user_agent' => $user_agent,
-                'status' => 'received'
-            ),
-            array(
-                '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'
-            )
-        );
-        
-        if ($result === false) {
-            error_log('Katahdin AI Webhook: Failed to log request - ' . $wpdb->last_error);
+        try {
+            $result = $wpdb->insert(
+                $this->table_name,
+                array(
+                    'webhook_id' => sanitize_text_field($webhook_id),
+                    'status' => 'received',
+                    'request_data' => wp_json_encode($request_data),
+                    'created_at' => current_time('mysql')
+                ),
+                array('%s', '%s', '%s', '%s')
+            );
+            
+            if ($result === false) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('Katahdin AI Forms Logger: Failed to insert log - ' . $wpdb->last_error);
+                }
+                return false;
+            }
+            
+            return $wpdb->insert_id;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
             return false;
         }
-        
-        return $wpdb->insert_id;
     }
     
     /**
-     * Update log with processing results
+     * Update a log entry
      */
     public function update_log($log_id, $data) {
         global $wpdb;
         
-        $update_data = array();
-        $update_format = array();
-        
-        if (isset($data['response_code'])) {
-            $update_data['response_code'] = $data['response_code'];
-            $update_format[] = '%d';
-        }
-        
-        if (isset($data['response_body'])) {
-            $update_data['response_body'] = $data['response_body'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['processing_time_ms'])) {
-            $update_data['processing_time_ms'] = $data['processing_time_ms'];
-            $update_format[] = '%d';
-        }
-        
-        if (isset($data['ai_response'])) {
-            $update_data['ai_response'] = $data['ai_response'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['email_sent'])) {
-            $update_data['email_sent'] = $data['email_sent'];
-            $update_format[] = '%d';
-        }
-        
-        if (isset($data['email_response'])) {
-            $update_data['email_response'] = $data['email_response'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['error_message'])) {
-            $update_data['error_message'] = $data['error_message'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['status'])) {
-            $update_data['status'] = $data['status'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['form_email'])) {
-            $update_data['form_email'] = $data['form_email'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['form_name'])) {
-            $update_data['form_name'] = $data['form_name'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['form_id'])) {
-            $update_data['form_id'] = $data['form_id'];
-            $update_format[] = '%s';
-        }
-        
-        if (isset($data['entry_id'])) {
-            $update_data['entry_id'] = $data['entry_id'];
-            $update_format[] = '%s';
-        }
-        
-        if (empty($update_data)) {
+        try {
+            $update_data = array();
+            $format = array();
+            
+            if (isset($data['status'])) {
+                $update_data['status'] = sanitize_text_field($data['status']);
+                $format[] = '%s';
+            }
+            
+            if (isset($data['response_code'])) {
+                $update_data['response_code'] = intval($data['response_code']);
+                $format[] = '%d';
+            }
+            
+            if (isset($data['ai_response'])) {
+                $update_data['ai_response'] = sanitize_textarea_field($data['ai_response']);
+                $format[] = '%s';
+            }
+            
+            if (isset($data['error_message'])) {
+                $update_data['error_message'] = sanitize_textarea_field($data['error_message']);
+                $format[] = '%s';
+            }
+            
+            if (isset($data['email_sent'])) {
+                $update_data['email_sent'] = $data['email_sent'] ? 1 : 0;
+                $format[] = '%d';
+            }
+            
+            if (isset($data['processing_time_ms'])) {
+                $update_data['processing_time_ms'] = intval($data['processing_time_ms']);
+                $format[] = '%d';
+            }
+            
+            if (isset($data['form_email'])) {
+                $update_data['form_email'] = sanitize_email($data['form_email']);
+                $format[] = '%s';
+            }
+            
+            if (isset($data['form_name'])) {
+                $update_data['form_name'] = sanitize_text_field($data['form_name']);
+                $format[] = '%s';
+            }
+            
+            if (isset($data['form_id'])) {
+                $update_data['form_id'] = sanitize_text_field($data['form_id']);
+                $format[] = '%s';
+            }
+            
+            if (isset($data['entry_id'])) {
+                $update_data['entry_id'] = sanitize_text_field($data['entry_id']);
+                $format[] = '%s';
+            }
+            
+            $update_data['updated_at'] = current_time('mysql');
+            $format[] = '%s';
+            
+            if (empty($update_data)) {
+                return false;
+            }
+            
+            $result = $wpdb->update(
+                $this->table_name,
+                $update_data,
+                array('id' => intval($log_id)),
+                $format,
+                array('%d')
+            );
+            
+            if ($result === false) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('Katahdin AI Forms Logger: Failed to update log - ' . $wpdb->last_error);
+                }
+                return false;
+            }
+            
+            return true;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
             return false;
         }
-        
-        $result = $wpdb->update(
-            $this->table_name,
-            $update_data,
-            array('id' => $log_id),
-            $update_format,
-            array('%d')
-        );
-        
-        if ($result === false) {
-            error_log('Katahdin AI Webhook: Failed to update log - ' . $wpdb->last_error);
-            return false;
-        }
-        
-        return true;
     }
     
     /**
-     * Get webhook logs with pagination
+     * Get logs with pagination and filtering
      */
     public function get_logs($limit = 50, $offset = 0, $status = null) {
         global $wpdb;
         
-        $where_clause = '';
-        $where_values = array();
-        
-        if ($status) {
-            $where_clause = 'WHERE status = %s';
-            $where_values[] = $status;
-        }
-        
-        $sql = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY timestamp DESC LIMIT %d OFFSET %d";
-        
-        // Always add limit and offset to the values array
-        $where_values[] = $limit;
-        $where_values[] = $offset;
-        
-        // Prepare the SQL with all values
-        $sql = $wpdb->prepare($sql, $where_values);
-        
-        return $wpdb->get_results($sql);
-    }
-    
-    /**
-     * Get a specific log entry
-     */
-    public function get_log($log_id) {
-        global $wpdb;
-        
-        return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$this->table_name} WHERE id = %d",
-            $log_id
-        ));
-    }
-    
-    /**
-     * Get log statistics
-     */
-    public function get_stats() {
-        global $wpdb;
-        
-        $stats = array();
-        
-        // Total logs
-        $stats['total_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name}");
-        
-        // Logs by status
-        $status_counts = $wpdb->get_results(
-            "SELECT status, COUNT(*) as count FROM {$this->table_name} GROUP BY status"
-        );
-        
-        $stats['by_status'] = array();
-        foreach ($status_counts as $status) {
-            $stats['by_status'][$status->status] = $status->count;
-        }
-        
-        // Recent activity (last 24 hours)
-        $stats['recent_24h'] = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)"
-        );
-        
-        // Recent activity (last 7 days)
-        $stats['recent_7d'] = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
-        );
-        
-        return $stats;
-    }
-    
-    /**
-     * Clean up old logs based on retention policy
-     */
-    public function cleanup_old_logs($retention_days = 30) {
-        global $wpdb;
-        
-        $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$this->table_name} WHERE timestamp < DATE_SUB(NOW(), INTERVAL %d DAY)",
-            $retention_days
-        ));
-        
-        return $deleted;
-    }
-    
-    /**
-     * Get client IP address
-     */
-    private function get_client_ip() {
-        $ip_keys = array('HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR');
-        
-        foreach ($ip_keys as $key) {
-            if (array_key_exists($key, $_SERVER) === true) {
-                foreach (explode(',', $_SERVER[$key]) as $ip) {
-                    $ip = trim($ip);
-                    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
-                        return $ip;
-                    }
+        try {
+            $where_clause = '';
+            $params = array();
+            
+            if ($status) {
+                $where_clause = 'WHERE status = %s';
+                $params[] = sanitize_text_field($status);
+            }
+            
+            $sql = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY created_at DESC LIMIT %d OFFSET %d";
+            $params[] = intval($limit);
+            $params[] = intval($offset);
+            
+            if (!empty($params)) {
+                $results = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+            } else {
+                $results = $wpdb->get_results($sql, ARRAY_A);
+            }
+            
+            // Decode JSON fields
+            foreach ($results as &$log) {
+                if (!empty($log['request_data'])) {
+                    $log['request_data'] = json_decode($log['request_data'], true);
                 }
             }
+            
+            return $results;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return array();
         }
-        
-        return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
     }
     
     /**
-     * Get current URL
+     * Get a single log by ID
      */
-    private function get_current_url() {
-        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'];
-        $uri = $_SERVER['REQUEST_URI'];
-        return $protocol . '://' . $host . $uri;
+    public function get_log_by_id($log_id) {
+        global $wpdb;
+        
+        try {
+            $log = $wpdb->get_row(
+                $wpdb->prepare("SELECT * FROM {$this->table_name} WHERE id = %d", intval($log_id)),
+                ARRAY_A
+            );
+            
+            if ($log && !empty($log['request_data'])) {
+                $log['request_data'] = json_decode($log['request_data'], true);
+            }
+            
+            return $log;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return null;
+        }
     }
     
     /**
@@ -308,24 +261,66 @@ class Katahdin_AI_Forms_Logger {
     public function get_log_stats() {
         global $wpdb;
         
-        $stats = array();
-        
-        // Total logs
-        $stats['total_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name}");
-        
-        // Success logs
-        $stats['success_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE status = 'success'");
-        
-        // Error logs
-        $stats['error_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE status = 'error'");
-        
-        // Pending logs
-        $stats['pending_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE status = 'pending'");
-        
-        // Recent activity (last 24 hours)
-        $stats['recent_logs'] = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
-        
-        return $stats;
+        try {
+            $stats = array();
+            
+            // Total logs
+            $total = $wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name}");
+            $stats['total'] = intval($total);
+            
+            // Logs by status
+            $status_counts = $wpdb->get_results(
+                "SELECT status, COUNT(*) as count FROM {$this->table_name} GROUP BY status",
+                ARRAY_A
+            );
+            
+            $stats['by_status'] = array();
+            foreach ($status_counts as $status) {
+                $stats['by_status'][$status['status']] = intval($status['count']);
+            }
+            
+            // Recent activity (last 24 hours)
+            $recent = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$this->table_name} WHERE created_at >= %s",
+                    date('Y-m-d H:i:s', strtotime('-24 hours'))
+                )
+            );
+            $stats['recent_24h'] = intval($recent);
+            
+            // Average processing time
+            $avg_time = $wpdb->get_var(
+                "SELECT AVG(processing_time_ms) FROM {$this->table_name} WHERE processing_time_ms > 0"
+            );
+            $stats['avg_processing_time_ms'] = round(floatval($avg_time), 2);
+            
+            // Email success rate
+            $email_stats = $wpdb->get_row(
+                "SELECT 
+                    COUNT(*) as total,
+                    SUM(email_sent) as sent
+                FROM {$this->table_name} 
+                WHERE status = 'success'",
+                ARRAY_A
+            );
+            
+            if ($email_stats && $email_stats['total'] > 0) {
+                $stats['email_success_rate'] = round(
+                    ($email_stats['sent'] / $email_stats['total']) * 100, 
+                    2
+                );
+            } else {
+                $stats['email_success_rate'] = 0;
+            }
+            
+            return $stats;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return array();
+        }
     }
     
     /**
@@ -334,31 +329,153 @@ class Katahdin_AI_Forms_Logger {
     public function cleanup_logs($retention_days = 30) {
         global $wpdb;
         
-        // Debug: Log the cleanup attempt
-        error_log("Katahdin AI Webhook - cleanup_logs called with retention_days: $retention_days");
-        
-        // Special case: if retention_days is 0, delete all logs
-        if ($retention_days == 0) {
-            $deleted = $wpdb->query("DELETE FROM {$this->table_name}");
-            error_log("Katahdin AI Webhook - deleted all logs: $deleted");
-        } else {
-            $deleted = $wpdb->query($wpdb->prepare(
-                "DELETE FROM {$this->table_name} WHERE timestamp < DATE_SUB(NOW(), INTERVAL %d DAY)",
-                $retention_days
-            ));
-            error_log("Katahdin AI Webhook - deleted old logs: $deleted");
+        try {
+            $cutoff_date = date('Y-m-d H:i:s', strtotime("-{$retention_days} days"));
+            
+            $deleted = $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM {$this->table_name} WHERE created_at < %s",
+                    $cutoff_date
+                )
+            );
+            
+            return array(
+                'success' => true,
+                'deleted_count' => intval($deleted),
+                'retention_days' => intval($retention_days),
+                'cutoff_date' => $cutoff_date
+            );
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return array(
+                'success' => false,
+                'error' => $e->getMessage()
+            );
         }
+    }
+    
+    /**
+     * Delete a specific log
+     */
+    public function delete_log($log_id) {
+        global $wpdb;
         
-        return array(
-            'deleted_count' => $deleted,
-            'retention_days' => $retention_days
-        );
+        try {
+            $result = $wpdb->delete(
+                $this->table_name,
+                array('id' => intval($log_id)),
+                array('%d')
+            );
+            
+            return $result !== false;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return false;
+        }
+    }
+    
+    /**
+     * Clear all logs
+     */
+    public function clear_all_logs() {
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->query("TRUNCATE TABLE {$this->table_name}");
+            return $result !== false;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return false;
+        }
     }
     
     /**
      * Generate unique webhook ID
      */
     public function generate_webhook_id() {
-        return 'webhook_' . time() . '_' . wp_generate_password(8, false);
+        return 'webhook_' . uniqid() . '_' . time();
+    }
+    
+    /**
+     * Get recent logs (from WordPress options)
+     */
+    public function get_recent_logs($limit = 10) {
+        $logs = get_option('katahdin_ai_forms_recent_logs', array());
+        return array_slice($logs, 0, $limit);
+    }
+    
+    /**
+     * Get logs by form ID
+     */
+    public function get_logs_by_form_id($form_id, $limit = 50) {
+        global $wpdb;
+        
+        try {
+            $results = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$this->table_name} WHERE form_id = %s ORDER BY created_at DESC LIMIT %d",
+                    sanitize_text_field($form_id),
+                    intval($limit)
+                ),
+                ARRAY_A
+            );
+            
+            // Decode JSON fields
+            foreach ($results as &$log) {
+                if (!empty($log['request_data'])) {
+                    $log['request_data'] = json_decode($log['request_data'], true);
+                }
+            }
+            
+            return $results;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return array();
+        }
+    }
+    
+    /**
+     * Get logs by entry ID
+     */
+    public function get_logs_by_entry_id($entry_id, $limit = 50) {
+        global $wpdb;
+        
+        try {
+            $results = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$this->table_name} WHERE entry_id = %s ORDER BY created_at DESC LIMIT %d",
+                    sanitize_text_field($entry_id),
+                    intval($limit)
+                ),
+                ARRAY_A
+            );
+            
+            // Decode JSON fields
+            foreach ($results as &$log) {
+                if (!empty($log['request_data'])) {
+                    $log['request_data'] = json_decode($log['request_data'], true);
+                }
+            }
+            
+            return $results;
+            
+        } catch (Exception $e) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Katahdin AI Forms Logger error: ' . $e->getMessage());
+            }
+            return array();
+        }
     }
 }

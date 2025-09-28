@@ -13,8 +13,6 @@
  * Requires at least: 5.0
  * Tested up to: 6.4
  * Requires PHP: 7.4
- * Network: false
- * Update URI: false
  */
 
 // Prevent direct access
@@ -36,13 +34,14 @@ if (!defined('KATAHDIN_AI_FORMS_PLUGIN_BASENAME')) {
     define('KATAHDIN_AI_FORMS_PLUGIN_BASENAME', plugin_basename(__FILE__));
 }
 
-// Check if Katahdin AI Hub is active (delayed check)
-add_action('admin_notices', function() {
-    // Check if hub function exists or if hub plugin is active
-    if (!function_exists('katahdin_ai_hub') && !is_plugin_active('katahdin-ai-hub/katahdin-ai-hub.php')) {
+// Check if Katahdin AI Hub is active
+if (!function_exists('katahdin_ai_hub')) {
+    add_action('admin_notices', function() {
         echo '<div class="notice notice-error"><p><strong>Katahdin AI Forms</strong> requires <strong>Katahdin AI Hub</strong> to be installed and activated.</p></div>';
-    }
-});
+    });
+    // Don't return early - let the plugin load for debugging
+    error_log('Katahdin AI Forms: Katahdin AI Hub not available, but continuing to load for debugging');
+}
 
 // Include required files
 $includes_path = KATAHDIN_AI_FORMS_PLUGIN_PATH . 'includes/';
@@ -166,10 +165,7 @@ class Katahdin_AI_Forms {
                 $this->form_prompts = new Katahdin_AI_Forms_Form_Prompts();
             }
         } catch (Exception $e) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Katahdin AI Forms component initialization error: ' . $e->getMessage());
-            }
-            // Don't break the plugin if one component fails
+            error_log('Katahdin AI Forms component initialization error: ' . $e->getMessage());
         }
     }
     
@@ -192,9 +188,7 @@ class Katahdin_AI_Forms {
                 $this->email_sender->init();
             }
         } catch (Exception $e) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Katahdin AI Forms initialization error: ' . $e->getMessage());
-            }
+            error_log('Katahdin AI Forms initialization error: ' . $e->getMessage());
         }
     }
     
@@ -253,13 +247,10 @@ class Katahdin_AI_Forms {
      * Try to register with Katahdin AI Hub immediately
      */
     public function try_register_with_hub() {
-        // Check if hub is available (either function exists or plugin is active)
-        if (function_exists('katahdin_ai_hub') || is_plugin_active('katahdin-ai-hub/katahdin-ai-hub.php')) {
-            if (function_exists('katahdin_ai_hub')) {
-                $hub = katahdin_ai_hub();
-                if ($hub && isset($hub->plugin_registry)) {
-                    $this->register_with_hub($hub);
-                }
+        if (function_exists('katahdin_ai_hub')) {
+            $hub = katahdin_ai_hub();
+            if ($hub && isset($hub->plugin_registry)) {
+                $this->register_with_hub($hub);
             }
         }
     }
@@ -268,10 +259,8 @@ class Katahdin_AI_Forms {
      * Register with Katahdin AI Hub
      */
     public function register_with_hub($hub = null) {
-        if (!$hub && (function_exists('katahdin_ai_hub') || is_plugin_active('katahdin-ai-hub/katahdin-ai-hub.php'))) {
-            if (function_exists('katahdin_ai_hub')) {
-                $hub = katahdin_ai_hub();
-            }
+        if (!$hub && function_exists('katahdin_ai_hub')) {
+            $hub = katahdin_ai_hub();
         }
         
         if ($hub && isset($hub->plugin_registry)) {
@@ -292,14 +281,10 @@ class Katahdin_AI_Forms {
                 
                 // Only log errors, not successful registrations
                 if (is_wp_error($result)) {
-                    if (defined('WP_DEBUG') && WP_DEBUG) {
-                        error_log('Katahdin AI Forms registration failed: ' . $result->get_error_message());
-                    }
+                    error_log('Katahdin AI Forms registration failed: ' . $result->get_error_message());
                 }
             } else {
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    error_log('Katahdin AI Forms: Plugin registry does not have register method');
-                }
+                error_log('Katahdin AI Forms: Plugin registry does not have register method');
             }
         }
     }
