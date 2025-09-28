@@ -654,6 +654,24 @@ class JPH_Database {
     }
     
     /**
+     * Get monthly shield purchases for a user
+     */
+    public function get_monthly_shield_purchases($user_id) {
+        $table_name = $this->tables['gems_transactions'];
+        
+        $count = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table_name} 
+             WHERE user_id = %d 
+             AND transaction_type = 'spent' 
+             AND source = 'streak_shield_purchase' 
+             AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)",
+            $user_id
+        ));
+        
+        return (int) $count;
+    }
+    
+    /**
      * Record a gems transaction
      */
     public function record_gems_transaction($user_id, $transaction_type, $amount, $source, $description = '') {

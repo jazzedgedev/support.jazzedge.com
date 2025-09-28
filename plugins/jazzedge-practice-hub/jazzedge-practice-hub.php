@@ -72,6 +72,10 @@ class JazzEdge_Practice_Hub {
         // Register AJAX handlers
         add_action('wp_ajax_jph_award_first_steps_badge', array($this, 'ajax_award_first_steps_badge'));
         
+        // Streak Shield & Recovery AJAX handlers
+        add_action('wp_ajax_jph_purchase_streak_shield', array($this, 'ajax_purchase_streak_shield'));
+        add_action('wp_ajax_jph_repair_streak', array($this, 'ajax_repair_streak'));
+        
         // Event tracking AJAX handlers
         add_action('wp_ajax_jph_test_event', array($this, 'ajax_test_event'));
         add_action('wp_ajax_jph_test_all_events', array($this, 'ajax_test_all_events'));
@@ -8583,6 +8587,64 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
+     * AJAX: Purchase Streak Shield
+     */
+    public function ajax_purchase_streak_shield() {
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_purchase_streak_shield')) {
+            wp_die('Security check failed');
+        }
+        
+        if (!current_user_can('read')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $result = $this->purchase_streak_shield($user_id);
+        
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result['message']);
+        }
+    }
+    
+    /**
+     * AJAX: Repair Streak
+     */
+    public function ajax_repair_streak() {
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_repair_streak')) {
+            wp_die('Security check failed');
+        }
+        
+        if (!current_user_can('read')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $days_to_repair = intval($_POST['days_to_repair'] ?? 1);
+        
+        if ($days_to_repair < 1 || $days_to_repair > 7) {
+            wp_send_json_error('Invalid number of days to repair');
+        }
+        
+        $result = $this->repair_streak($user_id, $days_to_repair);
+        
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result['message']);
+        }
+    }
+    
+    /**
      * AJAX: Get database status
      */
     public function ajax_get_database_status() {
@@ -8874,6 +8936,199 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
+     * Purchase a Streak Shield
+     */
+    public function purchase_streak_shield($user_id) {
+        error_log("JPH Shield: Purchase attempt for user $user_id");
+        
+        $database = new JPH_Database();
+        $user_stats = $database->get_user_stats($user_id);
+        
+        if (!$user_stats) {
+            error_log("JPH Shield: User $user_id not found");
+            return array('success' => false, 'message' => 'User not found');
+        }
+        
+        $shield_cost = 50;
+        $current_gems = $user_stats['gems_balance'] ?? 0;
+        $current_shields = $user_stats['streak_shield_count'] ?? 0;
+        
+        error_log("JPH Shield: User $user_id - Gems: $current_gems, Shields: $current_shields, Cost: $shield_cost");
+        
+        // Check if user has enough gems
+        if ($current_gems < $shield_cost) {
+            error_log("JPH Shield: User $user_id insufficient gems ($current_gems < $shield_cost)");
+            return array('success' => false, 'message' => 'Not enough gems. Need ' . $shield_cost . ' gems.');
+        }
+        
+        // Check shield limits (max 3 active, 5 per month)
+        if ($current_shields >= 3) {
+            error_log("JPH Shield: User $user_id at max shields ($current_shields >= 3)");
+            return array('success' => false, 'message' => 'Maximum 3 shields allowed at once.');
+        }
+        
+        // Check monthly purchase limit
+        $monthly_purchases = $database->get_monthly_shield_purchases($user_id);
+        error_log("JPH Shield: User $user_id monthly purchases: $monthly_purchases");
+        if ($monthly_purchases >= 5) {
+            error_log("JPH Shield: User $user_id monthly limit reached ($monthly_purchases >= 5)");
+            return array('success' => false, 'message' => 'Monthly shield limit reached (5 per month).');
+        }
+        
+        // Deduct gems and add shield
+        $new_gem_balance = $current_gems - $shield_cost;
+        $new_shield_count = $current_shields + 1;
+        
+        error_log("JPH Shield: User $user_id purchasing - New gems: $new_gem_balance, New shields: $new_shield_count");
+        
+        $database->update_user_stats($user_id, array(
+            'gems_balance' => $new_gem_balance,
+            'streak_shield_count' => $new_shield_count
+        ));
+        
+        // Record transaction
+        $database->record_gems_transaction(
+            $user_id,
+            'spent',
+            -$shield_cost,
+            'streak_shield_purchase',
+            'Purchased Streak Shield for ' . $shield_cost . ' gems'
+        );
+        
+        error_log("JPH Shield: User $user_id purchase successful - Shield count: $new_shield_count, Gem balance: $new_gem_balance");
+        
+        return array(
+            'success' => true, 
+            'message' => 'Streak Shield purchased!',
+            'new_gem_balance' => $new_gem_balance,
+            'new_shield_count' => $new_shield_count
+        );
+    }
+    
+    /**
+     * Use a Streak Shield (auto-called when streak would break)
+     */
+    public function use_streak_shield($user_id) {
+        error_log("JPH Shield: Use attempt for user $user_id");
+        
+        $database = new JPH_Database();
+        $user_stats = $database->get_user_stats($user_id);
+        
+        if (!$user_stats) {
+            error_log("JPH Shield: User $user_id not found for shield use");
+            return false;
+        }
+        
+        $current_shields = $user_stats['streak_shield_count'] ?? 0;
+        error_log("JPH Shield: User $user_id has $current_shields shields available");
+        
+        if ($current_shields <= 0) {
+            error_log("JPH Shield: User $user_id has no shields to use");
+            return false;
+        }
+        
+        // Use one shield
+        $new_shield_count = $current_shields - 1;
+        error_log("JPH Shield: User $user_id using shield - New count: $new_shield_count");
+        
+        $database->update_user_stats($user_id, array(
+            'streak_shield_count' => $new_shield_count
+        ));
+        
+        // Record usage
+        $database->record_gems_transaction(
+            $user_id,
+            'spent',
+            0, // No gem cost for using
+            'streak_shield_used',
+            'Used Streak Shield to maintain streak'
+        );
+        
+        error_log("JPH Shield: User $user_id shield used successfully - Remaining: $new_shield_count");
+        return true;
+    }
+    
+    /**
+     * Repair a broken streak
+     */
+    public function repair_streak($user_id, $days_to_repair) {
+        error_log("JPH Recovery: Repair attempt for user $user_id - Days: $days_to_repair");
+        
+        $database = new JPH_Database();
+        $user_stats = $database->get_user_stats($user_id);
+        
+        if (!$user_stats) {
+            error_log("JPH Recovery: User $user_id not found");
+            return array('success' => false, 'message' => 'User not found');
+        }
+        
+        $cost_per_day = 25;
+        $total_cost = $days_to_repair * $cost_per_day;
+        $current_gems = $user_stats['gems_balance'] ?? 0;
+        $current_streak = $user_stats['current_streak'] ?? 0;
+        $last_recovery = $user_stats['last_streak_recovery_date'] ?? null;
+        $weekly_recoveries = $user_stats['streak_recovery_count_this_week'] ?? 0;
+        
+        error_log("JPH Recovery: User $user_id - Gems: $current_gems, Cost: $total_cost, Current streak: $current_streak, Last recovery: $last_recovery, Weekly: $weekly_recoveries");
+        
+        // Check if user has enough gems
+        if ($current_gems < $total_cost) {
+            error_log("JPH Recovery: User $user_id insufficient gems ($current_gems < $total_cost)");
+            return array('success' => false, 'message' => 'Not enough gems. Need ' . $total_cost . ' gems.');
+        }
+        
+        // Check limits (max 7 days, 24h cooldown, 2 per week)
+        if ($days_to_repair > 7) {
+            error_log("JPH Recovery: User $user_id exceeds max days ($days_to_repair > 7)");
+            return array('success' => false, 'message' => 'Maximum 7 days can be repaired at once.');
+        }
+        
+        if ($last_recovery && strtotime($last_recovery) > strtotime('-24 hours')) {
+            error_log("JPH Recovery: User $user_id in cooldown (last recovery: $last_recovery)");
+            return array('success' => false, 'message' => '24-hour cooldown active. Last recovery: ' . $last_recovery);
+        }
+        
+        if ($weekly_recoveries >= 2) {
+            error_log("JPH Recovery: User $user_id weekly limit reached ($weekly_recoveries >= 2)");
+            return array('success' => false, 'message' => 'Weekly recovery limit reached (2 per week).');
+        }
+        
+        // Calculate new streak
+        $new_streak = $current_streak + $days_to_repair;
+        
+        // Deduct gems and update streak
+        $new_gem_balance = $current_gems - $total_cost;
+        $new_weekly_count = $weekly_recoveries + 1;
+        
+        error_log("JPH Recovery: User $user_id repairing - New streak: $new_streak, New gems: $new_gem_balance, New weekly count: $new_weekly_count");
+        
+        $database->update_user_stats($user_id, array(
+            'gems_balance' => $new_gem_balance,
+            'current_streak' => $new_streak,
+            'last_streak_recovery_date' => current_time('Y-m-d'),
+            'streak_recovery_count_this_week' => $new_weekly_count
+        ));
+        
+        // Record transaction
+        $database->record_gems_transaction(
+            $user_id,
+            'spent',
+            -$total_cost,
+            'streak_recovery',
+            'Repaired ' . $days_to_repair . ' days of streak for ' . $total_cost . ' gems'
+        );
+        
+        error_log("JPH Recovery: User $user_id repair successful - New streak: $new_streak, Remaining gems: $new_gem_balance");
+        
+        return array(
+            'success' => true,
+            'message' => 'Streak repaired! +' . $days_to_repair . ' days',
+            'new_gem_balance' => $new_gem_balance,
+            'new_streak' => $new_streak
+        );
+    }
+    
+    /**
      * Check and reset broken streaks for users who haven't practiced recently
      */
     private function check_and_reset_broken_streaks($user_id, $user_stats) {
@@ -8887,21 +9142,31 @@ class JazzEdge_Practice_Hub {
         $today = current_time('Y-m-d');
         $yesterday = date('Y-m-d', strtotime('-1 day'));
         
-        // If last practice was more than 1 day ago, reset streak
+        // If last practice was more than 1 day ago, check for shield first
         if ($last_practice_date < $yesterday) {
-            global $wpdb;
-            $table_name = $wpdb->prefix . 'jph_user_stats';
+            $current_shields = $user_stats['streak_shield_count'] ?? 0;
             
-            $wpdb->update(
-                $table_name,
-                array('current_streak' => 0),
-                array('user_id' => $user_id),
-                array('%d'),
-                array('%d')
-            );
-            
-            error_log("JPH Cron: Reset broken streak for user $user_id (last practice: $last_practice_date)");
-            return true;
+            if ($current_shields > 0) {
+                // Use shield to maintain streak
+                $this->use_streak_shield($user_id);
+                error_log("JPH Cron: Used Streak Shield for user $user_id (last practice: $last_practice_date)");
+                return true;
+            } else {
+                // No shield available, reset streak
+                global $wpdb;
+                $table_name = $wpdb->prefix . 'jph_user_stats';
+                
+                $wpdb->update(
+                    $table_name,
+                    array('current_streak' => 0),
+                    array('user_id' => $user_id),
+                    array('%d'),
+                    array('%d')
+                );
+                
+                error_log("JPH Cron: Reset broken streak for user $user_id (last practice: $last_practice_date)");
+                return true;
+            }
         }
         
         return false;
@@ -9881,6 +10146,43 @@ class JazzEdge_Practice_Hub {
                     </div>
                 </div>
                 
+                <!-- Streak Shield & Recovery Section -->
+                <div class="jph-streak-protection">
+                    <h3>🛡️ Streak Protection</h3>
+                    <div class="jph-protection-stats">
+                        <div class="protection-item">
+                            <span class="protection-icon">🛡️</span>
+                            <span class="protection-label">Shields:</span>
+                            <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
+                        </div>
+                        <div class="protection-actions">
+                            <button type="button" class="button button-secondary" id="purchase-shield-btn" 
+                                    data-cost="50" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
+                                Buy Shield (50 💎)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <?php if (($user_stats['current_streak'] ?? 0) === 0): ?>
+                    <div class="jph-streak-recovery">
+                        <h4>🔧 Streak Recovery Available</h4>
+                        <p>Your streak is broken. You can repair it using gems!</p>
+                        <div class="recovery-options">
+                            <button type="button" class="button button-primary" id="repair-1-day" data-days="1" data-cost="25">
+                                Repair 1 Day (25 💎)
+                            </button>
+                            <button type="button" class="button button-primary" id="repair-3-days" data-days="3" data-cost="75">
+                                Repair 3 Days (75 💎)
+                            </button>
+                            <button type="button" class="button button-primary" id="repair-7-days" data-days="7" data-cost="175">
+                                Repair 7 Days (175 💎)
+                            </button>
+                        </div>
+                        <input type="hidden" id="repair-nonce" value="<?php echo wp_create_nonce('jph_repair_streak'); ?>">
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
 
                 
             </div>
@@ -9949,7 +10251,7 @@ class JazzEdge_Practice_Hub {
                 <div style="margin-bottom: 10px;">
                     <h3 style="margin: 0;">🏆 Your Badges 
                         <span class="badge-count" id="badge-count-display">(<?php echo esc_html($user_stats['badges_earned']); ?>)</span>
-                    </h3>
+                </h3>
                 </div>
                 <div class="jph-badges-grid" id="jph-badges-grid">
                     <div class="loading-message">Loading badges...</div>
@@ -10003,7 +10305,7 @@ class JazzEdge_Practice_Hub {
                     <!-- Practice Item Header -->
                     <div class="log-modal-header">
                         <div class="log-modal-title">
-                            <h3>🎹 Log Practice Session</h3>
+                    <h3>🎹 Log Practice Session</h3>
                             <div class="practice-item-context">
                                 <div class="practice-item-badge">
                                     <span class="item-icon">🎵</span>
@@ -10136,7 +10438,7 @@ class JazzEdge_Practice_Hub {
                                     <p>Enter your own practice item</p>
                                 </div>
                                 <div class="card-radio">
-                                    <input type="radio" name="practice_type" value="custom" checked>
+                                <input type="radio" name="practice_type" value="custom" checked>
                                 </div>
                             </div>
                             <div class="practice-type-card" data-type="favorite">
@@ -10146,7 +10448,7 @@ class JazzEdge_Practice_Hub {
                                     <p>Choose from lesson favorites</p>
                                 </div>
                                 <div class="card-radio">
-                                    <input type="radio" name="practice_type" value="favorite">
+                                <input type="radio" name="practice_type" value="favorite">
                                 </div>
                             </div>
                         </div>
@@ -10157,15 +10459,15 @@ class JazzEdge_Practice_Hub {
                         <input type="text" name="item_name" placeholder="e.g., Major Scale Practice" required>
                     </div>
                     
-                <div class="form-group" id="favorite-selection-group" style="display: none;">
-                    <label>Select Lesson Favorite:</label>
-                    <select name="lesson_favorite" id="lesson-favorite-select">
-                        <option value="">Loading favorites...</option>
-                    </select>
+                    <div class="form-group" id="favorite-selection-group" style="display: none;">
+                        <label>Select Lesson Favorite:</label>
+                        <select name="lesson_favorite" id="lesson-favorite-select">
+                            <option value="">Loading favorites...</option>
+                        </select>
                     <div class="form-help">
                         <small>💡 <strong>No favorites?</strong> Visit lesson pages to add favorites, then return here to create practice items.</small>
                     </div>
-                </div>
+                    </div>
                     <div class="form-group">
                         <label>Category:</label>
                         <select name="item_category" required>
@@ -12127,6 +12429,9 @@ class JazzEdge_Practice_Hub {
             jQuery(document).ready(function($) {
                 console.log('JPH Dashboard initialized');
                 
+                // Initialize Streak Shield & Recovery system
+                initStreakProtection();
+                
                 // Load practice history
                 loadPracticeHistory();
                 
@@ -13344,6 +13649,106 @@ class JazzEdge_Practice_Hub {
         }
         
         // Start initialization
+        // Initialize Streak Shield & Recovery system
+        function initStreakProtection() {
+            console.log('JPH: Initializing Streak Protection system');
+            
+            // Purchase Shield button
+            $(document).on('click', '#purchase-shield-btn', function() {
+                const cost = $(this).data('cost');
+                const nonce = $(this).data('nonce');
+                
+                console.log('JPH: Purchase Shield clicked - Cost:', cost, 'Nonce:', nonce);
+                
+                if (!confirm(`Purchase Streak Shield for ${cost} gems?`)) {
+                    return;
+                }
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'jph_purchase_streak_shield',
+                        nonce: nonce
+                    },
+                    success: function(response) {
+                        console.log('JPH: Purchase Shield response:', response);
+                        
+                        if (response.success) {
+                            // Update UI
+                            $('#shield-count').text(response.data.new_shield_count);
+                            $('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
+                            
+                            // Show success message
+                            showMessage('success', response.data.message);
+                            
+                            // Update button state
+                            if (response.data.new_shield_count >= 3) {
+                                $('#purchase-shield-btn').prop('disabled', true).text('Max Shields (3)');
+                            }
+                        } else {
+                            showMessage('error', response.data || 'Failed to purchase shield');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('JPH: Purchase Shield error:', error);
+                        showMessage('error', 'Network error. Please try again.');
+                    }
+                });
+            });
+            
+            // Repair Streak buttons
+            $(document).on('click', '[id^="repair-"]', function() {
+                const days = $(this).data('days');
+                const cost = $(this).data('cost');
+                const nonce = $('#repair-nonce').val();
+                
+                console.log('JPH: Repair Streak clicked - Days:', days, 'Cost:', cost, 'Nonce:', nonce);
+                
+                if (!confirm(`Repair ${days} day(s) of streak for ${cost} gems?`)) {
+                    return;
+                }
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'jph_repair_streak',
+                        nonce: nonce,
+                        days_to_repair: days
+                    },
+                    success: function(response) {
+                        console.log('JPH: Repair Streak response:', response);
+                        
+                        if (response.success) {
+                            // Update UI
+                            $('.stat-value:contains("🔥")').text('🔥' + response.data.new_streak);
+                            $('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
+                            
+                            // Hide recovery section
+                            $('.jph-streak-recovery').hide();
+                            
+                            // Show success message
+                            showMessage('success', response.data.message);
+                            
+                            // Reload page to update all stats
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            showMessage('error', response.data || 'Failed to repair streak');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('JPH: Repair Streak error:', error);
+                        showMessage('error', 'Network error. Please try again.');
+                    }
+                });
+            });
+            
+            console.log('JPH: Streak Protection system initialized');
+        }
+        
         jphInit();
         </script>
         <?php

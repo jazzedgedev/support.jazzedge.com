@@ -283,6 +283,25 @@ class JPH_Database_Schema {
                     'default' => 0,
                     'description' => 'Gems currency balance'
                 ),
+                'streak_shield_count' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Number of active streak shields'
+                ),
+                'last_streak_recovery_date' => array(
+                    'type' => 'DATE',
+                    'null' => true,
+                    'description' => 'Last date streak recovery was used'
+                ),
+                'streak_recovery_count_this_week' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Number of streak recoveries used this week'
+                ),
                 'badges_earned' => array(
                     'type' => 'TINYINT',
                     'length' => 3,
