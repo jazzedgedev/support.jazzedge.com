@@ -254,7 +254,10 @@ class JPH_Gamification {
                 'badges_earned' => 0,
                 'hearts_count' => 5,
                 'gems_balance' => 0,
-                'last_practice_date' => null
+                'last_practice_date' => null,
+                'streak_shield_count' => 0,
+                'last_streak_recovery_date' => null,
+                'streak_recovery_count_this_week' => 0
             );
         }
         
@@ -271,7 +274,10 @@ class JPH_Gamification {
             'badges_earned' => (int) $stats->badges_earned,
             'hearts_count' => (int) $stats->hearts_count,
             'gems_balance' => (int) $stats->gems_balance,
-            'last_practice_date' => $stats->last_practice_date
+            'last_practice_date' => $stats->last_practice_date,
+            'streak_shield_count' => (int) ($stats->streak_shield_count ?? 0),
+            'last_streak_recovery_date' => $stats->last_streak_recovery_date ?? null,
+            'streak_recovery_count_this_week' => (int) ($stats->streak_recovery_count_this_week ?? 0)
         );
     }
     

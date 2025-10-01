@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: JazzEdge Practice Hub
- * Plugin URI: https://jazzedge.com
- * Description: A neuroscience-backed practice system for online piano learning sites, incorporating spaced repetition, gamification, and AI analysis.
+ * Plugin URI: https://academy.jazzedge.com
+ * Description: A neuroscience-backed practice system for JazzEdge Academy, incorporating spaced repetition, gamification, and AI analysis.
  * Version: 3.0.0
  * Author: JazzEdge
- * Author URI: https://jazzedge.com
+ * Author URI: https://academy.jazzedge.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: jazzedge-practice-hub
@@ -75,6 +75,10 @@ class JazzEdge_Practice_Hub {
         // Streak Shield & Recovery AJAX handlers
         add_action('wp_ajax_jph_purchase_streak_shield', array($this, 'ajax_purchase_streak_shield'));
         add_action('wp_ajax_jph_repair_streak', array($this, 'ajax_repair_streak'));
+        add_action('wp_ajax_jph_test_auto_shield', array($this, 'ajax_test_auto_shield'));
+        
+        // Add nonce for AJAX security
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_ajax_nonce'));
         
         // Event tracking AJAX handlers
         add_action('wp_ajax_jph_test_event', array($this, 'ajax_test_event'));
@@ -112,6 +116,22 @@ class JazzEdge_Practice_Hub {
         
         // Initialize gamification class
         require_once JPH_PLUGIN_PATH . 'includes/class-gamification.php';
+    }
+    
+    /**
+     * Enqueue AJAX nonce for frontend
+     */
+    public function enqueue_ajax_nonce() {
+        // Enqueue on any page that might have the dashboard shortcode
+        if (is_singular() || is_home() || is_front_page() || is_page('hub')) {
+            // Ensure jQuery is enqueued first
+            wp_enqueue_script('jquery');
+            
+            wp_localize_script('jquery', 'jph_ajax', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('jph_ajax_nonce')
+            ));
+        }
     }
     
     /**
@@ -284,7 +304,8 @@ class JazzEdge_Practice_Hub {
                 
                 <div class="jph-section">
                     <h2>🤖 AI Integration</h2>
-                    <p><em>Coming Soon - Katahdin AI Hub integration needed</em></p>
+                    <p id="ai-integration-status">🔄 Checking AI availability...</p>
+                    <p><em>AI features require Katahdin AI Hub plugin to be installed and activated</em></p>
                 </div>
                 
                 <div class="jph-section">
@@ -619,14 +640,7 @@ class JazzEdge_Practice_Hub {
             
             // Display nonce in console for testing
             const nonce = '<?php echo wp_create_nonce('wp_rest'); ?>';
-            console.log('🔑 REST API Nonce for testing:', nonce);
-            console.log('📋 Test URLs:');
-            console.log('GET  https://support.jazzedge.com/wp-json/jph/v1/test');
-            console.log('POST https://support.jazzedge.com/wp-json/jph/v1/database/test-create (NO AUTH)');
-            console.log('GET  https://support.jazzedge.com/wp-json/jph/v1/database/check-tables (AUTH REQUIRED)');
-            console.log('POST https://support.jazzedge.com/wp-json/jph/v1/database/create-tables (AUTH REQUIRED)');
-            console.log('GET  https://support.jazzedge.com/wp-json/jph/v1/database/schema (AUTH REQUIRED)');
-            console.log('🔧 Use this header: X-WP-Nonce: ' + nonce);
+            // REST API endpoints available for testing
         });
         
         // Gamification testing functions
@@ -903,12 +917,31 @@ class JazzEdge_Practice_Hub {
                     restStatus.style.color = 'green';
                     
                     const katahdinStatus = document.getElementById('katahdin-status');
+                    const aiIntegrationStatus = document.getElementById('ai-integration-status');
+                    const aiConfigStatus = document.getElementById('ai-config-status');
+                    
                     if (data.katahdin_hub_available) {
                         katahdinStatus.innerHTML = '✅ Available';
                         katahdinStatus.style.color = 'green';
+                        if (aiIntegrationStatus) {
+                            aiIntegrationStatus.innerHTML = '✅ AI Integration Available';
+                            aiIntegrationStatus.style.color = 'green';
+                        }
+                        if (aiConfigStatus) {
+                            aiConfigStatus.innerHTML = '✅ AI Configuration Available';
+                            aiConfigStatus.style.color = 'green';
+                        }
                     } else {
-                        katahdinStatus.innerHTML = '❌ Not Available';
+                        katahdinStatus.innerHTML = '❌ Not Available (Required)';
                         katahdinStatus.style.color = 'red';
+                        if (aiIntegrationStatus) {
+                            aiIntegrationStatus.innerHTML = '❌ AI Integration Not Available (Install Katahdin AI Hub)';
+                            aiIntegrationStatus.style.color = 'red';
+                        }
+                        if (aiConfigStatus) {
+                            aiConfigStatus.innerHTML = '❌ AI Configuration Not Available (Install Katahdin AI Hub)';
+                            aiConfigStatus.style.color = 'red';
+                        }
                     }
                 })
                 .catch(error => {
@@ -1667,7 +1700,7 @@ class JazzEdge_Practice_Hub {
         /* Modal Styles */
         .jph-modal {
             position: fixed;
-            z-index: 1000;
+            z-index: 999998;
             left: 0;
             top: 0;
             width: 100%;
@@ -2392,29 +2425,6 @@ class JazzEdge_Practice_Hub {
                 });
             }
             
-            // Test webhook button
-            const testWebhookBtn = document.getElementById('test-webhook-btn');
-            if (testWebhookBtn) {
-                testWebhookBtn.addEventListener('click', function() {
-                    document.getElementById('webhook-test-section').style.display = 'block';
-                });
-            }
-            
-            // Close webhook test button
-            const closeWebhookTestBtn = document.getElementById('close-webhook-test-btn');
-            if (closeWebhookTestBtn) {
-                closeWebhookTestBtn.addEventListener('click', function() {
-                    document.getElementById('webhook-test-section').style.display = 'none';
-                });
-            }
-            
-            // Send test webhook button
-            const sendTestWebhookBtn = document.getElementById('send-test-webhook-btn');
-            if (sendTestWebhookBtn) {
-                sendTestWebhookBtn.addEventListener('click', function() {
-                    sendTestWebhook();
-                });
-            }
             
             // Sync badge count button
             const syncBadgeCountBtn = document.getElementById('sync-badge-count-btn');
@@ -2432,32 +2442,6 @@ class JazzEdge_Practice_Hub {
                 });
             }
             
-            // View webhook log button
-            const viewWebhookLogBtn = document.getElementById('view-webhook-log-btn');
-            if (viewWebhookLogBtn) {
-                viewWebhookLogBtn.addEventListener('click', function() {
-                    document.getElementById('webhook-log-section').style.display = 'block';
-                    loadWebhookLog();
-                });
-            }
-            
-            // Refresh webhook log button
-            const refreshWebhookLogBtn = document.getElementById('refresh-webhook-log-btn');
-            if (refreshWebhookLogBtn) {
-                refreshWebhookLogBtn.addEventListener('click', function() {
-                    loadWebhookLog();
-                });
-            }
-            
-            // Clear webhook log button
-            const clearWebhookLogBtn = document.getElementById('clear-webhook-log-btn');
-            if (clearWebhookLogBtn) {
-                clearWebhookLogBtn.addEventListener('click', function() {
-                    if (confirm('Are you sure you want to clear the webhook log?')) {
-                        clearWebhookLog();
-                    }
-                });
-            }
             
             // Create default badges button
             const createDefaultBtn = document.getElementById('create-default-badges-btn');
@@ -2889,83 +2873,6 @@ class JazzEdge_Practice_Hub {
         }
         
         // Load webhook log
-        function loadWebhookLog() {
-            const logContent = document.getElementById('webhook-log-content');
-            if (!logContent) return;
-            
-            logContent.innerHTML = '<div class="loading-message">Loading webhook log...</div>';
-            
-            fetch('<?php echo rest_url('jph/v1/webhook-log'); ?>', {
-                method: 'GET',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    displayWebhookLog(data.log_entries);
-                } else {
-                    logContent.innerHTML = '<div style="color: red;">❌ Error loading webhook log: ' + (data.message || 'Unknown error') + '</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading webhook log:', error);
-                logContent.innerHTML = '<div style="color: red;">❌ Error loading webhook log: ' + error + '</div>';
-            });
-        }
-        
-        // Display webhook log
-        function displayWebhookLog(entries) {
-            const logContent = document.getElementById('webhook-log-content');
-            if (!logContent) return;
-            
-            if (!entries || entries.length === 0) {
-                logContent.innerHTML = '<div style="color: #666;">No webhook log entries found.</div>';
-                return;
-            }
-            
-            let html = '';
-            entries.forEach(entry => {
-                const typeClass = entry.type === 'success' ? 'color: green;' : 
-                                 entry.type === 'error' ? 'color: red;' : 
-                                 'color: #666;';
-                const typeIcon = entry.type === 'success' ? '✅' : 
-                                entry.type === 'error' ? '❌' : 
-                                'ℹ️';
-                
-                html += `<div style="margin-bottom: 5px; ${typeClass}">`;
-                html += `<span style="color: #999;">[${entry.timestamp}]</span> `;
-                html += `<span style="margin-right: 5px;">${typeIcon}</span>`;
-                html += `<span>${entry.message}</span>`;
-                html += `</div>`;
-            });
-            
-            logContent.innerHTML = html;
-        }
-        
-        // Clear webhook log
-        function clearWebhookLog() {
-            fetch('<?php echo rest_url('jph/v1/clear-webhook-log'); ?>', {
-                method: 'POST',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(data.message, 'success');
-                    loadWebhookLog();
-                } else {
-                    showToast('Error: ' + (data.message || 'Unknown error'), 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error clearing webhook log:', error);
-                showToast('Error clearing webhook log: ' + error, 'error');
-            });
-        }
         
         // Add new badge
         function addBadge() {
@@ -3233,41 +3140,6 @@ class JazzEdge_Practice_Hub {
         }
         
         // Test webhook
-        function sendTestWebhook() {
-            const webhookUrl = document.getElementById('test-webhook-url').value;
-            const resultDiv = document.getElementById('webhook-test-result');
-            
-            if (!webhookUrl) {
-                resultDiv.innerHTML = '<div style="color: red;">Please enter a webhook URL</div>';
-                return;
-            }
-            
-            resultDiv.innerHTML = '<div style="color: blue;">Sending test webhook...</div>';
-            
-            fetch('<?php echo rest_url('jph/v1/test-webhook'); ?>', {
-                method: 'POST',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    webhook_url: webhookUrl
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Webhook test response:', data);
-                if (data.success) {
-                    resultDiv.innerHTML = '<div style="color: green;">✅ Webhook sent successfully! Check your webhook URL for the test data.</div>';
-                } else {
-                    resultDiv.innerHTML = '<div style="color: red;">❌ Webhook failed: ' + (data.message || 'Unknown error') + '</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Webhook test error:', error);
-                resultDiv.innerHTML = '<div style="color: red;">❌ Webhook test error: ' + error + '</div>';
-            });
-        }
         
         // Sync badge count
         function syncBadgeCount() {
@@ -3372,42 +3244,13 @@ class JazzEdge_Practice_Hub {
                 <button type="button" class="button button-secondary" id="refresh-badges-btn-2">🔄 Refresh</button>
                 <button type="button" class="button button-secondary" id="run-migrations-btn" style="background: #ff6b6b; color: white;">🔧 Run Migrations</button>
                 <button type="button" class="button button-secondary" id="test-badge-awarding-btn" style="background: #28a745; color: white;">🎯 Test Badge Awarding</button>
-                <button type="button" class="button button-secondary" id="test-webhook-btn" style="background: #17a2b8; color: white;">🔗 Test Webhook</button>
                 <button type="button" class="button button-secondary" id="sync-badge-count-btn" style="background: #6f42c1; color: white;">🔄 Sync Badge Count</button>
                 <button type="button" class="button button-secondary" id="sync-all-badge-counts-btn" style="background: #fd7e14; color: white;">🔄 Sync All Badge Counts</button>
-                <button type="button" class="button button-secondary" id="view-webhook-log-btn" style="background: #6c757d; color: white;">📋 View Webhook Log</button>
                 <button type="button" class="button button-secondary" id="reorder-badges-btn" style="background: #007cba; color: white;">📋 Reorder Badges</button>
                 <button type="button" class="button button-secondary" id="database-status-btn" style="background: #17a2b8; color: white;">🔍 Database Status</button>
             </div>
             
-            <!-- Webhook Test Section -->
-            <div id="webhook-test-section" style="display: none; margin: 20px 0; padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px;">
-                <h4>🔗 Test Webhook</h4>
-                <div class="jph-form-group">
-                    <label for="test-webhook-url">Webhook URL:</label>
-                    <input type="url" id="test-webhook-url" placeholder="https://webhook.site/your-unique-url" style="width: 100%; max-width: 500px;">
-                    <small>Enter a webhook URL to test the webhook system</small>
-                </div>
-                <div class="jph-form-actions">
-                    <button type="button" class="button button-primary" id="send-test-webhook-btn">Send Test Webhook</button>
-                    <button type="button" class="button button-secondary" id="close-webhook-test-btn">Close</button>
-                </div>
-                <div id="webhook-test-result" style="margin-top: 10px;"></div>
-            </div>
             
-            <!-- Webhook Log Section -->
-            <div id="webhook-log-section" style="display: none; margin: 20px 0; padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h4>📋 Webhook Log</h4>
-                    <div>
-                        <button type="button" class="button button-small" id="refresh-webhook-log-btn">🔄 Refresh</button>
-                        <button type="button" class="button button-small button-link-delete" id="clear-webhook-log-btn">🗑️ Clear Log</button>
-                    </div>
-                </div>
-                <div id="webhook-log-content" style="max-height: 400px; overflow-y: auto; background: #fff; border: 1px solid #ddd; padding: 10px; font-family: monospace; font-size: 12px;">
-                    <div class="loading-message">Loading webhook log...</div>
-                </div>
-            </div>
             
             <div class="jph-badges-table-container">
                 <table class="jph-badges-table">
@@ -4126,7 +3969,8 @@ class JazzEdge_Practice_Hub {
             <div class="jph-settings-sections">
                 <div class="jph-settings-section">
                     <h2>🤖 AI Configuration</h2>
-                    <p><em>Coming Soon - Katahdin AI Hub integration</em></p>
+                    <p id="ai-config-status">🔄 Checking AI availability...</p>
+                    <p><em>AI features require Katahdin AI Hub plugin to be installed and activated</em></p>
                 </div>
                 
                 <div class="jph-settings-section">
@@ -4580,23 +4424,7 @@ class JazzEdge_Practice_Hub {
         
         
         // Debug endpoints
-        register_rest_route('jph/v1', '/debug/badges', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_debug_badges'),
-            'permission_callback' => '__return_true'
-        ));
-        
-        register_rest_route('jph/v1', '/debug/user-stats', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_debug_user_stats'),
-            'permission_callback' => '__return_true'
-        ));
-        
-        register_rest_route('jph/v1', '/debug/database', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_debug_database'),
-            'permission_callback' => '__return_true'
-        ));
+        // Debug endpoints removed for production deployment
         
         // Check and award badges endpoint
         register_rest_route('jph/v1', '/check-badges', array(
@@ -4627,12 +4455,6 @@ class JazzEdge_Practice_Hub {
             'permission_callback' => '__return_true'
         ));
         
-        // Test webhook endpoint
-        register_rest_route('jph/v1', '/test-webhook', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'rest_test_webhook'),
-            'permission_callback' => '__return_true'
-        ));
         
         // Sync badge count endpoint
         register_rest_route('jph/v1', '/sync-badge-count', array(
@@ -4641,12 +4463,6 @@ class JazzEdge_Practice_Hub {
             'permission_callback' => '__return_true'
         ));
         
-        // Simple webhook connectivity test endpoint
-        register_rest_route('jph/v1', '/test-connectivity', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'rest_test_connectivity'),
-            'permission_callback' => '__return_true'
-        ));
         
         // Sync all badge counts endpoint
         register_rest_route('jph/v1', '/sync-all-badge-counts', array(
@@ -4655,19 +4471,6 @@ class JazzEdge_Practice_Hub {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
-        // Webhook log endpoint
-        register_rest_route('jph/v1', '/webhook-log', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_get_webhook_log'),
-            'permission_callback' => array($this, 'check_admin_permission')
-        ));
-        
-        // Clear webhook log endpoint
-        register_rest_route('jph/v1', '/clear-webhook-log', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'rest_clear_webhook_log'),
-            'permission_callback' => array($this, 'check_admin_permission')
-        ));
         
         // Direct badge awarding endpoint
         register_rest_route('jph/v1', '/award-first-steps', array(
@@ -6049,10 +5852,10 @@ class JazzEdge_Practice_Hub {
     public function rest_add_practice_item($request) {
         try {
             $database = new JPH_Database();
-            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            $user_id = get_current_user_id();
             
             if (!$user_id) {
-                $user_id = 1; // Fallback to user 1 for testing
+                return new WP_Error('not_logged_in', 'You must be logged in to add practice items', array('status' => 401));
             }
             
             $name = $request->get_param('name');
@@ -6089,10 +5892,15 @@ class JazzEdge_Practice_Hub {
     public function rest_log_practice_session($request) {
         try {
             $database = new JPH_Database();
-            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            $user_id = get_current_user_id();
+            
+            // Only use request parameter if explicitly provided and user is admin
+            if ($request->get_param('user_id') && current_user_can('manage_options')) {
+                $user_id = $request->get_param('user_id');
+            }
             
             if (!$user_id) {
-                $user_id = 1; // Fallback to user 1 for testing
+                return new WP_Error('not_logged_in', 'You must be logged in to log practice sessions', array('status' => 401));
             }
             
             $practice_item_id = $request->get_param('practice_item_id');
@@ -6145,6 +5953,9 @@ class JazzEdge_Practice_Hub {
             // Check for webhook milestones
             $this->check_practice_session_milestones($user_id, $updated_stats, $streak_result);
             
+            // Check and award badges
+            $this->check_and_award_badges($user_id);
+            
             return rest_ensure_response(array(
                 'success' => true,
                 'session_id' => $result,
@@ -6165,7 +5976,11 @@ class JazzEdge_Practice_Hub {
     public function rest_get_practice_sessions($request) {
         try {
             $database = new JPH_Database();
-            $user_id = $request->get_param('user_id') ?: 1; // Default to user 1 for testing
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view practice sessions', array('status' => 401));
+            }
             $limit = $request->get_param('limit') ?: 50; // Default to 50 recent sessions
             $offset = $request->get_param('offset') ?: 0; // Default to 0 for pagination
             
@@ -6192,10 +6007,10 @@ class JazzEdge_Practice_Hub {
     public function rest_get_user_stats($request) {
         try {
             $gamification = new JPH_Gamification();
-            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            $user_id = get_current_user_id();
             
             if (!$user_id) {
-                $user_id = 1; // Fallback to user 1 for testing
+                return new WP_Error('not_logged_in', 'You must be logged in to view stats', array('status' => 401));
             }
             
             $stats = $gamification->get_user_stats($user_id);
@@ -6766,12 +6581,14 @@ class JazzEdge_Practice_Hub {
             $database = new JPH_Database();
             $badges = $database->get_badges(true); // Get only active badges
             
+            // Badges loaded successfully
+            
             // Add awarded count to each badge
             $user_badges_table = $wpdb->prefix . 'jph_user_badges';
             foreach ($badges as &$badge) {
                 $awarded_count = $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(DISTINCT user_id) FROM {$user_badges_table} WHERE badge_id = %s",
-                    $badge['id']
+                    "SELECT COUNT(DISTINCT user_id) FROM {$user_badges_table} WHERE badge_key = %s",
+                    $badge['badge_key']
                 ));
                 $badge['awarded_count'] = (int) $awarded_count;
             }
@@ -7038,7 +6855,7 @@ class JazzEdge_Practice_Hub {
         
         // Get all users who had this badge
         $users_with_badge = $wpdb->get_col($wpdb->prepare(
-            "SELECT DISTINCT user_id FROM {$user_badges_table} WHERE badge_id = %s",
+            "SELECT DISTINCT user_id FROM {$user_badges_table} WHERE badge_key = %s",
             $deleted_badge_id
         ));
         
@@ -7068,7 +6885,7 @@ class JazzEdge_Practice_Hub {
         // Get only badges that are still active
         $query = $wpdb->prepare(
             "SELECT ub.* FROM {$user_badges_table} ub 
-             INNER JOIN {$badges_table} b ON ub.badge_id = b.id 
+             INNER JOIN {$badges_table} b ON ub.badge_key = b.badge_key 
              WHERE ub.user_id = %d AND b.is_active = 1",
             $user_id
         );
@@ -7098,7 +6915,7 @@ class JazzEdge_Practice_Hub {
                 // Count actual active badges for this user
                 $actual_badge_count = $wpdb->get_var($wpdb->prepare(
                     "SELECT COUNT(*) FROM {$user_badges_table} ub 
-                     INNER JOIN {$badges_table} b ON ub.badge_id = b.id 
+                     INNER JOIN {$badges_table} b ON ub.badge_key = b.badge_key 
                      WHERE ub.user_id = %d AND b.is_active = 1",
                     $user_id
                 ));
@@ -7128,102 +6945,7 @@ class JazzEdge_Practice_Hub {
         }
     }
     
-    /**
-     * REST API: Get webhook log
-     */
-    public function rest_get_webhook_log($request) {
-        try {
-            $log_file = WP_CONTENT_DIR . '/jph-webhook.log';
-            
-            if (!file_exists($log_file)) {
-                return rest_ensure_response(array(
-                    'success' => true,
-                    'log_entries' => array(),
-                    'message' => 'No webhook log file found',
-                    'timestamp' => current_time('mysql')
-                ));
-            }
-            
-            $log_content = file_get_contents($log_file);
-            $log_lines = explode("\n", $log_content);
-            
-            // Filter and format log entries
-            $webhook_entries = array();
-            foreach ($log_lines as $line) {
-                if (strpos($line, 'JPH Webhook:') !== false) {
-                    $webhook_entries[] = array(
-                        'timestamp' => $this->extract_timestamp($line),
-                        'message' => trim($line),
-                        'type' => $this->categorize_webhook_log($line)
-                    );
-                }
-            }
-            
-            // Reverse to show newest first
-            $webhook_entries = array_reverse($webhook_entries);
-            
-            return rest_ensure_response(array(
-                'success' => true,
-                'log_entries' => $webhook_entries,
-                'total_entries' => count($webhook_entries),
-                'timestamp' => current_time('mysql')
-            ));
-        } catch (Exception $e) {
-            return new WP_Error('webhook_log_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
     
-    /**
-     * REST API: Clear webhook log
-     */
-    public function rest_clear_webhook_log($request) {
-        try {
-            $log_file = WP_CONTENT_DIR . '/jph-webhook.log';
-            
-            if (file_exists($log_file)) {
-                file_put_contents($log_file, '');
-            }
-            
-            return rest_ensure_response(array(
-                'success' => true,
-                'message' => 'Webhook log cleared successfully',
-                'timestamp' => current_time('mysql')
-            ));
-        } catch (Exception $e) {
-            return new WP_Error('clear_webhook_log_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
-     * Extract timestamp from log line
-     */
-    private function extract_timestamp($line) {
-        if (preg_match('/\[(.*?)\]/', $line, $matches)) {
-            return $matches[1];
-        }
-        return 'Unknown';
-    }
-    
-    /**
-     * Categorize webhook log entry
-     */
-    private function categorize_webhook_log($line) {
-        if (strpos($line, 'Successfully sent') !== false) {
-            return 'success';
-        } elseif (strpos($line, 'Failed to send') !== false) {
-            return 'error';
-        } elseif (strpos($line, 'Error:') !== false) {
-            return 'error';
-        } elseif (strpos($line, 'Attempting to trigger') !== false) {
-            return 'info';
-        } elseif (strpos($line, 'Found webhook URL') !== false) {
-            return 'info';
-        } elseif (strpos($line, 'Created payload') !== false) {
-            return 'info';
-        } else {
-            return 'info';
-        }
-    }
     
     /**
      * REST API: Get badge statistics
@@ -7288,22 +7010,22 @@ class JazzEdge_Practice_Hub {
                 'all_badges_count' => count($all_badges)
             );
             
-            // Create a map of earned badges by badge_id
+            // Create a map of earned badges by badge_key
             $earned_badges_map = array();
             foreach ($user_badges as $earned_badge) {
-                $earned_badges_map[$earned_badge['badge_id']] = $earned_badge;
+                $earned_badges_map[$earned_badge['badge_key']] = $earned_badge;
             }
             
             // Combine all badges with earned status
             $badges_with_status = array();
             foreach ($all_badges as $badge) {
-                $is_earned = isset($earned_badges_map[$badge['id']]);
+                $is_earned = isset($earned_badges_map[$badge['badge_key']]);
                 $badge_data = $badge;
                 $badge_data['is_earned'] = $is_earned;
                 
                 if ($is_earned) {
-                    // Use earned_date instead of earned_at
-                    $badge_data['earned_at'] = $earned_badges_map[$badge['id']]['earned_date'];
+                    // Use earned_at column (actual column name in database)
+                    $badge_data['earned_at'] = $earned_badges_map[$badge['badge_key']]['earned_at'];
                 }
                 
                 $badges_with_status[] = $badge_data;
@@ -7343,13 +7065,13 @@ class JazzEdge_Practice_Hub {
         
         // Get user's already earned badges
         $earned_badges = $database->get_user_badges($user_id);
-        $earned_badge_ids = array_column($earned_badges, 'badge_id');
+        $earned_badge_keys = array_column($earned_badges, 'badge_key');
         
         $newly_awarded = array();
         
         foreach ($all_badges as $badge) {
             // Skip if already earned
-            if (in_array($badge['id'], $earned_badge_ids)) {
+            if (in_array($badge['badge_key'], $earned_badge_keys)) {
                 continue;
             }
             
@@ -7374,9 +7096,9 @@ class JazzEdge_Practice_Hub {
                     break;
                     
                 case 'long_session':
-                    // Check if user has any session >= 60 minutes
+                    // Check if user has any session >= criteria_value minutes
                     foreach ($sessions as $session) {
-                        if ($session['duration_minutes'] >= 60) {
+                        if ($session['duration_minutes'] >= $criteria_value) {
                             $should_award = true;
                             break;
                         }
@@ -7419,7 +7141,7 @@ class JazzEdge_Practice_Hub {
                 // Award the badge
                 $database->award_badge(
                     $user_id,
-                    $badge['id'], // Use badge ID as the key
+                    $badge['badge_key'], // Use badge_key as the key
                     $badge['name'],
                     $badge['description'],
                     $badge['icon'] ?? ''
@@ -7437,7 +7159,7 @@ class JazzEdge_Practice_Hub {
                         $user_id,
                         'earned',
                         $badge['gem_reward'],
-                        'badge_' . $badge['id'],
+                        'badge_' . $badge['badge_key'],
                         'Earned ' . $badge['gem_reward'] . ' gems for earning badge: ' . $badge['name']
                     );
                 }
@@ -7559,70 +7281,6 @@ class JazzEdge_Practice_Hub {
         }
     }
     
-    /**
-     * REST API: Test webhook
-     */
-    public function rest_test_webhook($request) {
-        try {
-            error_log("JPH Webhook Test: Starting webhook test");
-            
-            $json_data = json_decode($request->get_body(), true);
-            error_log("JPH Webhook Test: JSON data received: " . print_r($json_data, true));
-            
-            $webhook_url = sanitize_url($json_data['webhook_url'] ?? '');
-            error_log("JPH Webhook Test: Webhook URL: " . $webhook_url);
-            
-            if (empty($webhook_url)) {
-                error_log("JPH Webhook Test: Missing webhook URL");
-                return new WP_Error('missing_webhook_url', 'Webhook URL is required', array('status' => 400));
-            }
-            
-            $database = new JPH_Database();
-            
-            // Create test payload
-            $test_payload = array(
-                'event' => 'test_webhook',
-                'timestamp' => current_time('mysql'),
-                'badge' => array(
-                    'id' => 'test',
-                    'name' => 'Test Badge',
-                    'description' => 'This is a test webhook',
-                    'icon' => '🧪',
-                    'xp_reward' => 100,
-                    'gem_reward' => 10,
-                    'category' => 'test',
-                    'rarity_level' => 'common'
-                ),
-                'user' => array(
-                    'id' => get_current_user_id(),
-                    'email' => wp_get_current_user()->user_email,
-                    'display_name' => wp_get_current_user()->display_name
-                ),
-                'message' => 'This is a test webhook to verify the webhook system is working correctly.'
-            );
-            
-            error_log("JPH Webhook Test: Created test payload: " . json_encode($test_payload));
-            
-            // Send the webhook
-            $result = $database->send_webhook_request($webhook_url, $test_payload);
-            
-            error_log("JPH Webhook Test: Send result: " . ($result ? 'true' : 'false'));
-            
-            if ($result) {
-                return rest_ensure_response(array(
-                    'success' => true,
-                    'message' => 'Test webhook sent successfully',
-                    'webhook_url' => $webhook_url,
-                    'timestamp' => current_time('mysql')
-                ));
-            } else {
-                return new WP_Error('webhook_failed', 'Failed to send webhook', array('status' => 500));
-            }
-        } catch (Exception $e) {
-            error_log("JPH Webhook Test: Exception: " . $e->getMessage());
-            return new WP_Error('webhook_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
     
     /**
      * REST API: Sync badge count
@@ -7663,51 +7321,6 @@ class JazzEdge_Practice_Hub {
         }
     }
     
-    /**
-     * REST API: Test connectivity
-     */
-    public function rest_test_connectivity($request) {
-        try {
-            $json_data = json_decode($request->get_body(), true);
-            $test_url = sanitize_url($json_data['url'] ?? '');
-            
-            if (empty($test_url)) {
-                return new WP_Error('missing_url', 'URL is required', array('status' => 400));
-            }
-            
-            error_log("JPH Connectivity Test: Testing {$test_url}");
-            
-            // Test basic connectivity
-            $response = wp_remote_get($test_url, array('timeout' => 10));
-            
-            if (is_wp_error($response)) {
-                error_log("JPH Connectivity Test: Failed - " . $response->get_error_message());
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'message' => 'Connectivity test failed: ' . $response->get_error_message(),
-                    'url' => $test_url,
-                    'timestamp' => current_time('mysql')
-                ));
-            } else {
-                $response_code = wp_remote_retrieve_response_code($response);
-                $response_body = wp_remote_retrieve_body($response);
-                
-                error_log("JPH Connectivity Test: Success - Code: {$response_code}");
-                
-                return rest_ensure_response(array(
-                    'success' => true,
-                    'message' => 'Connectivity test successful',
-                    'url' => $test_url,
-                    'response_code' => $response_code,
-                    'response_length' => strlen($response_body),
-                    'timestamp' => current_time('mysql')
-                ));
-            }
-        } catch (Exception $e) {
-            error_log("JPH Connectivity Test: Exception - " . $e->getMessage());
-            return new WP_Error('connectivity_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
     
     
     /**
@@ -7840,100 +7453,7 @@ class JazzEdge_Practice_Hub {
         }
     }
     
-    /**
-     * REST API: Debug badges system
-     */
-    public function rest_debug_badges($request) {
-        try {
-            $user_id = get_current_user_id() ?: 1;
-            $database = new JPH_Database();
-            $gamification = new JPH_Gamification();
-            global $wpdb;
-            
-            // Get table names safely
-            $table_names = $database->get_table_names();
-            $user_badges_table = $table_names['user_badges'];
-            $badges_table = $table_names['badges'];
-            
-            // Get all debug information
-            $debug_info = array(
-                'user_id' => $user_id,
-                'timestamp' => current_time('mysql'),
-                'user_stats' => $gamification->get_user_stats($user_id),
-                'user_badges_raw' => $database->get_user_badges($user_id),
-                'all_badges_raw' => $database->get_badges(true),
-                'badge_count_in_stats' => $gamification->get_user_stats($user_id)['badges_earned'],
-                'actual_badge_count' => count($database->get_user_badges($user_id)),
-                'database_queries' => array(
-                    'user_badges_query' => "SELECT * FROM {$user_badges_table} WHERE user_id = {$user_id}",
-                    'all_badges_query' => "SELECT * FROM {$badges_table} WHERE is_active = 1"
-                )
-            );
-            
-            // Check if earned_date column exists (the actual column name)
-            $column_check = $wpdb->get_results("SHOW COLUMNS FROM {$user_badges_table} LIKE 'earned_date'");
-            $debug_info['earned_date_column_exists'] = !empty($column_check);
-            $debug_info['earned_date_column_info'] = $column_check;
-            
-            // Get table structure
-            $table_structure = $wpdb->get_results("DESCRIBE {$user_badges_table}");
-            $debug_info['user_badges_table_structure'] = $table_structure;
-            
-            return rest_ensure_response($debug_info);
-        } catch (Exception $e) {
-            return new WP_Error('debug_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
-     * REST API: Debug user stats
-     */
-    public function rest_debug_user_stats($request) {
-        try {
-            $user_id = get_current_user_id() ?: 1;
-            $gamification = new JPH_Gamification();
-            
-            $debug_info = array(
-                'user_id' => $user_id,
-                'timestamp' => current_time('mysql'),
-                'user_stats' => $gamification->get_user_stats($user_id),
-                'stats_source' => 'JPH_Gamification::get_user_stats()'
-            );
-            
-            return rest_ensure_response($debug_info);
-        } catch (Exception $e) {
-            return new WP_Error('debug_user_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
-     * REST API: Debug database
-     */
-    public function rest_debug_database($request) {
-        try {
-            $user_id = get_current_user_id() ?: 1;
-            $database = new JPH_Database();
-            global $wpdb;
-            
-            // Get table names safely
-            $table_names = $database->get_table_names();
-            
-            $debug_info = array(
-                'user_id' => $user_id,
-                'timestamp' => current_time('mysql'),
-                'table_names' => $table_names,
-                'tables_exist' => $database->tables_exist(),
-                'user_badges_count' => $wpdb->get_var("SELECT COUNT(*) FROM {$table_names['user_badges']} WHERE user_id = {$user_id}"),
-                'all_badges_count' => $wpdb->get_var("SELECT COUNT(*) FROM {$table_names['badges']} WHERE is_active = 1"),
-                'user_stats_exists' => $wpdb->get_var("SELECT COUNT(*) FROM {$table_names['user_stats']} WHERE user_id = {$user_id}") > 0,
-                'database_errors' => $wpdb->last_error
-            );
-            
-            return rest_ensure_response($debug_info);
-        } catch (Exception $e) {
-            return new WP_Error('debug_database_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
+    // Debug functions removed for production deployment
     
     /**
      * REST API: Check and award badges
@@ -7944,33 +7464,11 @@ class JazzEdge_Practice_Hub {
             
             $newly_awarded = $this->check_and_award_badges($user_id);
             
-            // Add debug information
-            $database = new JPH_Database();
-            $gamification = new JPH_Gamification();
-            $user_stats = $gamification->get_user_stats($user_id);
-            $sessions = $database->get_all_practice_sessions($user_id); // Get all sessions for debug
-            $all_badges = $database->get_badges(true);
-            $earned_badges = $database->get_user_badges($user_id);
-            
             return rest_ensure_response(array(
                 'success' => true,
                 'newly_awarded' => $newly_awarded,
                 'count' => count($newly_awarded),
                 'message' => count($newly_awarded) > 0 ? 'New badges awarded!' : 'No new badges to award',
-                'debug' => array(
-                    'user_stats' => $user_stats,
-                    'total_sessions' => count($sessions),
-                    'total_badges' => count($all_badges),
-                    'earned_badges' => count($earned_badges),
-                    'badge_criteria' => array_map(function($badge) {
-                        return array(
-                            'id' => $badge['id'],
-                            'name' => $badge['name'],
-                            'criteria_type' => $badge['criteria_type'],
-                            'criteria_value' => $badge['criteria_value']
-                        );
-                    }, $all_badges)
-                ),
                 'timestamp' => current_time('mysql')
             ));
         } catch (Exception $e) {
@@ -8013,7 +7511,7 @@ class JazzEdge_Practice_Hub {
             if ($first_steps_badge) {
                 $should_award = $user_stats['total_sessions'] >= intval($first_steps_badge['criteria_value']);
                 $test_results['first_steps'] = array(
-                    'badge_id' => $first_steps_badge['id'],
+                    'badge_key' => $first_steps_badge['badge_key'],
                     'badge_name' => $first_steps_badge['name'],
                     'criteria_type' => $first_steps_badge['criteria_type'],
                     'criteria_value' => $first_steps_badge['criteria_value'],
@@ -8024,7 +7522,7 @@ class JazzEdge_Practice_Hub {
                 
                 // Check if already earned
                 foreach ($earned_badges as $earned) {
-                    if ($earned['badge_id'] == $first_steps_badge['id']) {
+                    if ($earned['badge_key'] == $first_steps_badge['badge_key']) {
                         $test_results['first_steps']['already_earned'] = true;
                         break;
                     }
@@ -8068,7 +7566,7 @@ class JazzEdge_Practice_Hub {
             // Check if user already has this badge
             $user_badges = $database->get_user_badges($user_id);
             foreach ($user_badges as $earned_badge) {
-                if ($earned_badge['badge_id'] == $badge_id) {
+                if ($earned_badge['badge_key'] == $badge['badge_key']) {
                     return new WP_Error('badge_already_earned', 'User already has this badge', array('status' => 400));
                 }
             }
@@ -8076,7 +7574,7 @@ class JazzEdge_Practice_Hub {
             // Award the badge
             $result = $database->award_badge(
                 $user_id,
-                $badge_id,
+                $badge['badge_key'],
                 $badge['name'],
                 $badge['description'],
                 $badge['icon'] ?? ''
@@ -8097,7 +7595,7 @@ class JazzEdge_Practice_Hub {
                         $user_id,
                         'earned',
                         intval($badge['gem_reward']),
-                        'badge_' . $badge_id,
+                        'badge_' . $badge['badge_key'],
                         'Earned ' . intval($badge['gem_reward']) . ' gems for earning badge: ' . $badge['name']
                     );
                 }
@@ -8583,6 +8081,57 @@ class JazzEdge_Practice_Hub {
             wp_send_json_success(array('message' => 'Badge order updated successfully!'));
         } catch (Exception $e) {
             wp_send_json_error('Error: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX: Test Auto-Shield Activation
+     */
+    public function ajax_test_auto_shield() {
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_test_auto_shield')) {
+            wp_die('Security check failed');
+        }
+        
+        if (!current_user_can('read')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $user_id = get_current_user_id();
+        $database = new JPH_Database();
+        $gamification = new JPH_Gamification();
+        
+        // Get current stats
+        $user_stats = $gamification->get_user_stats($user_id);
+        
+        // Simulate missing practice by setting last_practice_date to 2 days ago
+        $two_days_ago = date('Y-m-d', strtotime('-2 days'));
+        
+        $database->update_user_stats($user_id, array(
+            'last_practice_date' => $two_days_ago
+        ));
+        
+        // Run the broken streak check (this should trigger auto-shield if available)
+        $shield_used = $this->check_and_reset_broken_streaks($user_id, $user_stats);
+        
+        // Get updated stats
+        $updated_stats = $gamification->get_user_stats($user_id);
+        
+        if ($shield_used) {
+            wp_send_json_success(array(
+                'message' => 'Auto-shield activated successfully!',
+                'shield_used' => true,
+                'new_shield_count' => $updated_stats['streak_shield_count'],
+                'streak_maintained' => $updated_stats['current_streak'],
+                'last_practice_date' => $updated_stats['last_practice_date']
+            ));
+        } else {
+            wp_send_json_success(array(
+                'message' => 'No shield available or streak was reset',
+                'shield_used' => false,
+                'new_shield_count' => $updated_stats['streak_shield_count'],
+                'streak_maintained' => $updated_stats['current_streak'],
+                'last_practice_date' => $updated_stats['last_practice_date']
+            ));
         }
     }
     
@@ -10145,46 +9694,47 @@ class JazzEdge_Practice_Hub {
                         <span class="stat-label">GEMS</span>
                     </div>
                 </div>
-                
-                <!-- Streak Shield & Recovery Section -->
-                <div class="jph-streak-protection">
-                    <h3>🛡️ Streak Protection</h3>
-                    <div class="jph-protection-stats">
-                        <div class="protection-item">
-                            <span class="protection-icon">🛡️</span>
-                            <span class="protection-label">Shields:</span>
-                            <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
-                        </div>
-                        <div class="protection-actions">
-                            <button type="button" class="button button-secondary" id="purchase-shield-btn" 
-                                    data-cost="50" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
-                                Buy Shield (50 💎)
-                            </button>
-                        </div>
+            </div>
+            
+            <!-- Streak Shield & Recovery Section - Moved outside hero section -->
+            <div class="jph-streak-protection">
+                <h3>🛡️ Streak Protection</h3>
+                <div class="jph-protection-stats">
+                    <div class="protection-item">
+                        <span class="protection-icon">🛡️</span>
+                        <span class="protection-label">Shields:</span>
+                        <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
                     </div>
-                    
-                    <?php if (($user_stats['current_streak'] ?? 0) === 0): ?>
-                    <div class="jph-streak-recovery">
-                        <h4>🔧 Streak Recovery Available</h4>
-                        <p>Your streak is broken. You can repair it using gems!</p>
-                        <div class="recovery-options">
-                            <button type="button" class="button button-primary" id="repair-1-day" data-days="1" data-cost="25">
-                                Repair 1 Day (25 💎)
-                            </button>
-                            <button type="button" class="button button-primary" id="repair-3-days" data-days="3" data-cost="75">
-                                Repair 3 Days (75 💎)
-                            </button>
-                            <button type="button" class="button button-primary" id="repair-7-days" data-days="7" data-cost="175">
-                                Repair 7 Days (175 💎)
-                            </button>
-                        </div>
-                        <input type="hidden" id="repair-nonce" value="<?php echo wp_create_nonce('jph_repair_streak'); ?>">
+                    <div class="protection-actions">
+                        <button type="button" class="button button-secondary" id="purchase-shield-btn" 
+                                data-cost="50" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
+                            Buy Shield (50 💎)
+                        </button>
+                        <button type="button" class="button button-primary" id="test-auto-shield-btn" 
+                                data-nonce="<?php echo wp_create_nonce('jph_test_auto_shield'); ?>">
+                            Test Auto-Shield
+                        </button>
                     </div>
-                    <?php endif; ?>
                 </div>
                 
-
-                
+                <?php if (($user_stats['current_streak'] ?? 0) === 0): ?>
+                <div class="jph-streak-recovery">
+                    <h4>🔧 Streak Recovery Available</h4>
+                    <p>Your streak is broken. You can repair it using gems!</p>
+                    <div class="recovery-options">
+                        <button type="button" class="button button-primary" id="repair-1-day" data-days="1" data-cost="25">
+                            Repair 1 Day (25 💎)
+                        </button>
+                        <button type="button" class="button button-primary" id="repair-3-days" data-days="3" data-cost="75">
+                            Repair 3 Days (75 💎)
+                        </button>
+                        <button type="button" class="button button-primary" id="repair-7-days" data-days="7" data-cost="175">
+                            Repair 7 Days (175 💎)
+                        </button>
+                    </div>
+                    <input type="hidden" id="repair-nonce" value="<?php echo wp_create_nonce('jph_repair_streak'); ?>">
+                </div>
+                <?php endif; ?>
             </div>
             
             
@@ -11958,6 +11508,35 @@ class JazzEdge_Practice_Hub {
             border-radius: 4px;
         }
         
+        /* Modal form button styles */
+        #jph-add-item-form button {
+            background: linear-gradient(135deg, #F04E23, #e0451f);
+            color: white;
+            border: none;
+            padding: 18px 30px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(240, 78, 35, 0.3);
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        #jph-add-item-form button:hover {
+            background: linear-gradient(135deg, #e0451f, #d63e1c);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(240, 78, 35, 0.4);
+        }
+        
+        #jph-add-item-form button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
         #jph-log-form button {
             background: #4CAF50;
             color: white;
@@ -12380,9 +11959,9 @@ class JazzEdge_Practice_Hub {
         
         .jph-messages {
             position: fixed;
-            top: 20px;
+            top: 80px;
             right: 20px;
-            z-index: 1001;
+            z-index: 999999;
             max-width: 400px;
         }
         
@@ -12397,6 +11976,27 @@ class JazzEdge_Practice_Hub {
         
         .jph-message-content.error {
             border-left-color: #f44336;
+        }
+        
+        /* Responsive adjustments for messages */
+        @media (max-width: 768px) {
+            .jph-messages {
+                top: 60px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+        }
+        
+        /* WordPress admin bar adjustments */
+        .admin-bar .jph-messages {
+            top: 100px;
+        }
+        
+        @media (max-width: 782px) {
+            .admin-bar .jph-messages {
+                top: 80px;
+            }
         }
         
         .jph-message-close {
@@ -12416,6 +12016,114 @@ class JazzEdge_Practice_Hub {
             opacity: 0.6;
             pointer-events: none;
         }
+        
+        .jph-streak-protection {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-streak-protection h3 {
+            color: #333;
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .jph-protection-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .protection-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .protection-icon {
+            font-size: 20px;
+        }
+        
+        .protection-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .protection-value {
+            background: #007cba;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .protection-actions .button {
+            background: #666;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .protection-actions .button:hover {
+            background: #555;
+        }
+        
+        .protection-actions .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .jph-streak-recovery {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .jph-streak-recovery h4 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+        
+        .jph-streak-recovery p {
+            margin: 0 0 15px 0;
+            color: #856404;
+        }
+        
+        .recovery-options {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .recovery-options .button {
+            flex: 1;
+            min-width: 120px;
+            background: #007cba;
+            border: none;
+            color: white;
+            padding: 10px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .recovery-options .button:hover {
+            background: #005a87;
+        }
         </style>
         
         <script>
@@ -12427,7 +12135,6 @@ class JazzEdge_Practice_Hub {
             }
             
             jQuery(document).ready(function($) {
-                console.log('JPH Dashboard initialized');
                 
                 // Initialize Streak Shield & Recovery system
                 initStreakProtection();
@@ -12529,7 +12236,6 @@ class JazzEdge_Practice_Hub {
                 }
                 
                 // Add test button to console
-                console.log('JPH: Test gamification with testGamification()');
                 window.testGamification = testGamification;
                 
                 // Stats explanation is now always visible (no toggle function needed)
@@ -12574,7 +12280,6 @@ class JazzEdge_Practice_Hub {
                     });
                 }
                 
-                console.log('JPH: Test direct XP with testDirectXP()');
                 window.testDirectXP = testDirectXP;
                 
                 // Message system
@@ -12613,6 +12318,9 @@ class JazzEdge_Practice_Hub {
                     $.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                         method: 'GET',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
                         data: { limit: sessionsPerLoad },
                         success: function(response) {
                             if (response.success) {
@@ -12645,6 +12353,9 @@ class JazzEdge_Practice_Hub {
                     $.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                         method: 'GET',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
                         data: { 
                             limit: sessionsPerLoad,
                             offset: sessionsLoaded
@@ -12728,6 +12439,9 @@ class JazzEdge_Practice_Hub {
                         $.ajax({
                             url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                             method: 'GET',
+                            headers: {
+                                'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                            },
                             data: { limit: 9999 }, // Get all sessions
                             success: function(response) {
                                 if (response.success) {
@@ -12788,7 +12502,6 @@ class JazzEdge_Practice_Hub {
                 
                 // Load lesson favorites
                 function loadLessonFavorites() {
-                    console.log('DEBUG: Loading lesson favorites...');
                     $.ajax({
                         url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
                         method: 'GET',
@@ -12796,7 +12509,6 @@ class JazzEdge_Practice_Hub {
                             'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                         },
                         success: function(response) {
-                            console.log('DEBUG: Lesson favorites response:', response);
                             if (response.success) {
                                 displayLessonFavorites(response.favorites);
                             } else {
@@ -12942,21 +12654,16 @@ class JazzEdge_Practice_Hub {
                 
                 // Display badges
                 function displayBadges(badges) {
-                    console.log('DEBUG: displayBadges called with:', badges);
                     var $container = $('#jph-badges-grid');
-                    console.log('DEBUG: Container element:', $container);
                     
                     if (!badges || badges.length === 0) {
-                        console.log('DEBUG: No badges to display');
                         $container.html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available yet. Keep practicing to earn your first badge!</div>');
                         return;
                     }
                     
-                    console.log('DEBUG: Processing ' + badges.length + ' badges');
                     var html = '';
                     var earnedCount = 0;
                     badges.forEach(function(badge, index) {
-                        console.log('DEBUG: Processing badge ' + index + ':', badge);
                         var earnedClass = badge.is_earned ? 'earned' : 'locked';
                         if (badge.is_earned) earnedCount++;
                         
@@ -12975,10 +12682,7 @@ class JazzEdge_Practice_Hub {
                         html += '</div>';
                     });
                     
-                    console.log('DEBUG: Earned badges count:', earnedCount);
-                    console.log('DEBUG: Generated HTML length:', html.length);
                     $container.html(html);
-                    console.log('DEBUG: HTML set to container');
                     
                     // Update the badge count display
                     updateBadgeCount(earnedCount);
@@ -12989,7 +12693,6 @@ class JazzEdge_Practice_Hub {
             var $badgeCount = $('#badge-count-display');
             if ($badgeCount.length) {
                 $badgeCount.text('(' + count + ')');
-                console.log('DEBUG: Updated badge count to:', count);
             }
         }
         
@@ -13306,6 +13009,9 @@ class JazzEdge_Practice_Hub {
                         method: 'POST',
                         data: JSON.stringify(formData),
                         contentType: 'application/json',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
                         success: function(response) {
                             if (response.success) {
                                 showMessage('Practice item added successfully!');
@@ -13440,6 +13146,9 @@ class JazzEdge_Practice_Hub {
                         $.ajax({
                             url: '<?php echo rest_url('jph/v1/practice-sessions/'); ?>' + sessionId,
                             method: 'DELETE',
+                            headers: {
+                                'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                            },
                             success: function(response) {
                                 if (response.success) {
                                     showMessage('Practice session deleted successfully!');
@@ -13508,6 +13217,9 @@ class JazzEdge_Practice_Hub {
                         method: 'PUT',
                         data: JSON.stringify(formData),
                         contentType: 'application/json',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
                         success: function(response) {
                             if (response.success) {
                                 showMessage('Practice item updated successfully!');
@@ -13596,6 +13308,9 @@ class JazzEdge_Practice_Hub {
                     $.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                         method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
                         data: JSON.stringify(formData),
                         contentType: 'application/json',
                         success: function(response) {
@@ -13651,40 +13366,48 @@ class JazzEdge_Practice_Hub {
         // Start initialization
         // Initialize Streak Shield & Recovery system
         function initStreakProtection() {
-            console.log('JPH: Initializing Streak Protection system');
+            // Ensure jQuery is available
+            if (typeof jQuery === 'undefined') {
+                console.error('JPH: jQuery not available for Streak Protection');
+                return;
+            }
+            
+            // Ensure jph_ajax is available
+            if (typeof jph_ajax === 'undefined') {
+                console.error('JPH: jph_ajax not available for Streak Protection');
+                return;
+            }
             
             // Purchase Shield button
-            $(document).on('click', '#purchase-shield-btn', function() {
-                const cost = $(this).data('cost');
-                const nonce = $(this).data('nonce');
+            jQuery(document).on('click', '#purchase-shield-btn', function() {
+                const cost = jQuery(this).data('cost');
+                const nonce = jQuery(this).data('nonce');
                 
-                console.log('JPH: Purchase Shield clicked - Cost:', cost, 'Nonce:', nonce);
                 
                 if (!confirm(`Purchase Streak Shield for ${cost} gems?`)) {
                     return;
                 }
                 
-                $.ajax({
-                    url: ajaxurl,
+                jQuery.ajax({
+                    url: jph_ajax.ajax_url,
                     type: 'POST',
                     data: {
                         action: 'jph_purchase_streak_shield',
                         nonce: nonce
                     },
                     success: function(response) {
-                        console.log('JPH: Purchase Shield response:', response);
                         
                         if (response.success) {
                             // Update UI
-                            $('#shield-count').text(response.data.new_shield_count);
-                            $('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
+                            jQuery('#shield-count').text(response.data.new_shield_count);
+                            jQuery('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
                             
                             // Show success message
                             showMessage('success', response.data.message);
                             
                             // Update button state
                             if (response.data.new_shield_count >= 3) {
-                                $('#purchase-shield-btn').prop('disabled', true).text('Max Shields (3)');
+                                jQuery('#purchase-shield-btn').prop('disabled', true).text('Max Shields (3)');
                             }
                         } else {
                             showMessage('error', response.data || 'Failed to purchase shield');
@@ -13692,25 +13415,71 @@ class JazzEdge_Practice_Hub {
                     },
                     error: function(xhr, status, error) {
                         console.error('JPH: Purchase Shield error:', error);
+                        console.error('JPH: XHR response:', xhr.responseText);
+                        console.error('JPH: Status:', status);
+                        showMessage('error', 'Network error. Please try again.');
+                    }
+                });
+            });
+            
+            // Test Auto-Shield button
+            jQuery(document).on('click', '#test-auto-shield-btn', function() {
+                const nonce = jQuery(this).data('nonce');
+                
+                
+                if (!confirm('Test auto-shield activation? This will simulate missing practice for 2 days.')) {
+                    return;
+                }
+                
+                jQuery.ajax({
+                    url: jph_ajax.ajax_url,
+                    type: 'POST',
+                    data: {
+                        action: 'jph_test_auto_shield',
+                        nonce: nonce
+                    },
+                    success: function(response) {
+                        
+                        if (response.success) {
+                            // Update UI
+                            jQuery('#shield-count').text(response.data.new_shield_count);
+                            
+                            // Show result message
+                            if (response.data.shield_used) {
+                                showMessage('success', response.data.message + ' Shield count: ' + response.data.new_shield_count + ', Streak: ' + response.data.streak_maintained);
+                            } else {
+                                showMessage('info', response.data.message + ' Shield count: ' + response.data.new_shield_count + ', Streak: ' + response.data.streak_maintained);
+                            }
+                            
+                            // Reload page to update all stats
+                            setTimeout(() => {
+                                location.reload();
+                            }, 3000);
+                        } else {
+                            showMessage('error', response.data || 'Failed to test auto-shield');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('JPH: Test Auto-Shield error:', error);
+                        console.error('JPH: XHR response:', xhr.responseText);
                         showMessage('error', 'Network error. Please try again.');
                     }
                 });
             });
             
             // Repair Streak buttons
-            $(document).on('click', '[id^="repair-"]', function() {
-                const days = $(this).data('days');
-                const cost = $(this).data('cost');
-                const nonce = $('#repair-nonce').val();
+            jQuery(document).on('click', '[id^="repair-"]', function() {
+                const days = jQuery(this).data('days');
+                const cost = jQuery(this).data('cost');
+                const nonce = jQuery('#repair-nonce').val();
                 
-                console.log('JPH: Repair Streak clicked - Days:', days, 'Cost:', cost, 'Nonce:', nonce);
                 
                 if (!confirm(`Repair ${days} day(s) of streak for ${cost} gems?`)) {
                     return;
                 }
                 
-                $.ajax({
-                    url: ajaxurl,
+                jQuery.ajax({
+                    url: jph_ajax.ajax_url,
                     type: 'POST',
                     data: {
                         action: 'jph_repair_streak',
@@ -13718,15 +13487,14 @@ class JazzEdge_Practice_Hub {
                         days_to_repair: days
                     },
                     success: function(response) {
-                        console.log('JPH: Repair Streak response:', response);
                         
                         if (response.success) {
                             // Update UI
-                            $('.stat-value:contains("🔥")').text('🔥' + response.data.new_streak);
-                            $('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
+                            jQuery('.stat-value:contains("🔥")').text('🔥' + response.data.new_streak);
+                            jQuery('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
                             
                             // Hide recovery section
-                            $('.jph-streak-recovery').hide();
+                            jQuery('.jph-streak-recovery').hide();
                             
                             // Show success message
                             showMessage('success', response.data.message);
@@ -13745,8 +13513,6 @@ class JazzEdge_Practice_Hub {
                     }
                 });
             });
-            
-            console.log('JPH: Streak Protection system initialized');
         }
         
         jphInit();
@@ -13772,20 +13538,58 @@ class JazzEdge_Practice_Hub {
         $current_version = get_option('jph_plugin_version', '0.0.0');
         $plugin_version = '3.0.0'; // Update this when releasing new versions
         
-        // Create database tables
-        $database = new JPH_Database();
-        $tables_created = $database->create_tables();
+        error_log('JPH: Starting plugin activation - Version ' . $plugin_version);
         
-        if (!$tables_created) {
-            error_log('JPH: Failed to create database tables during activation');
-            wp_die('Failed to create database tables. Please check your database permissions and try again.');
+        // Initialize database class first
+        require_once JPH_PLUGIN_PATH . 'includes/class-database.php';
+        
+        // Create database tables with error handling
+        $database = new JPH_Database();
+        
+        try {
+            $tables_created = $database->create_tables();
+            error_log('JPH: Database tables creation attempted');
+        } catch (Exception $e) {
+            error_log('JPH: Database creation failed: ' . $e->getMessage());
+            $tables_created = false;
         }
+        
+        // Create lesson_favorites table specifically (most critical)
+        global $wpdb;
+        $lesson_favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$lesson_favorites_table}'");
+        
+        if (!$table_exists) {
+            error_log('JPH: lesson_favorites table missing, creating manually...');
+            $manual_creation = $this->create_lesson_favorites_table_manually();
+            if (!$manual_creation) {
+                error_log('JPH: Failed to create lesson_favorites table manually');
+            }
+        }
+        
+        // Create other critical tables manually if needed
+        $this->create_missing_tables_manually();
+        
+        // Add missing columns to existing tables
+        $this->add_missing_columns_to_tables();
+        
+        // Fix missing badge keys
+        $this->fix_missing_badge_keys();
+        
+        // Ensure Marathon badge exists with correct config
+        $this->ensure_marathon_badge();
         
         // Run additional migrations and setup
         $this->run_activation_migrations();
         
+        // Add new columns for Streak Shield & Recovery system
+        $this->add_streak_protection_columns();
+        
         // Update plugin version
         update_option('jph_plugin_version', $plugin_version);
+        
+        // Force database schema update to ensure all columns exist
+        $this->force_database_schema_update();
         
         // Set default options
         $this->set_default_options();
@@ -13802,6 +13606,363 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
+     * Manually create lesson_favorites table if missing
+     */
+    private function create_lesson_favorites_table_manually() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        $sql = "CREATE TABLE IF NOT EXISTS `{$table_name}` (
+            `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            `user_id` BIGINT(20) UNSIGNED NOT NULL,
+            `title` VARCHAR(255) NOT NULL,
+            `url` VARCHAR(500) NOT NULL,
+            `category` VARCHAR(50) DEFAULT 'lesson',
+            `description` TEXT NULL,
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `user_id` (`user_id`),
+            KEY `category` (`category`),
+            KEY `user_category` (`user_id`, `category`),
+            KEY `created_at` (`created_at`),
+            UNIQUE KEY `unique_user_title` (`user_id`, `title`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+        
+        $result = $wpdb->query($sql);
+        
+        if ($result === false) {
+            error_log('JPH: Failed to create lesson_favorites table manually: ' . $wpdb->last_error);
+        } else {
+            error_log('JPH: Successfully created lesson_favorites table manually');
+        }
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Create missing tables manually
+     */
+    private function create_missing_tables_manually() {
+        global $wpdb;
+        
+        $tables_to_create = array(
+            'jph_practice_items' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_practice_items` (
+                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `name` VARCHAR(255) NOT NULL,
+                `category` VARCHAR(50) DEFAULT 'custom',
+                `description` TEXT NULL,
+                `is_active` TINYINT(1) DEFAULT 1,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `user_id` (`user_id`),
+                KEY `is_active` (`is_active`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+            
+            'jph_practice_sessions' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_practice_sessions` (
+                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `practice_item_id` BIGINT(20) UNSIGNED NOT NULL,
+                `duration_minutes` INT(11) UNSIGNED NOT NULL,
+                `sentiment_score` TINYINT(1) UNSIGNED NOT NULL,
+                `improvement_detected` TINYINT(1) DEFAULT 0,
+                `notes` TEXT NULL,
+                `ai_analysis` TEXT NULL,
+                `xp_earned` INT(11) DEFAULT 0,
+                `session_hash` VARCHAR(64) NOT NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `user_id` (`user_id`),
+                KEY `practice_item_id` (`practice_item_id`),
+                KEY `created_at` (`created_at`),
+                KEY `session_hash` (`session_hash`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+            
+            'jph_user_stats' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_user_stats` (
+                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `total_xp` INT(11) DEFAULT 0,
+                `current_level` INT(11) DEFAULT 1,
+                `total_sessions` INT(11) DEFAULT 0,
+                `current_streak` INT(11) DEFAULT 0,
+                `longest_streak` INT(11) DEFAULT 0,
+                `badges_earned` INT(11) DEFAULT 0,
+                `gems_balance` INT(11) DEFAULT 0,
+                `streak_shield_count` INT(11) DEFAULT 0,
+                `last_practice_date` DATE NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `user_id` (`user_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+            
+            'jph_badges' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_badges` (
+                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `badge_key` VARCHAR(100) NOT NULL,
+                `name` VARCHAR(255) NOT NULL,
+                `description` TEXT NOT NULL,
+                `icon` VARCHAR(10) NOT NULL,
+                `category` VARCHAR(50) NOT NULL,
+                `rarity` VARCHAR(20) NOT NULL,
+                `xp_reward` INT(11) DEFAULT 0,
+                `gem_reward` INT(11) DEFAULT 0,
+                `criteria_type` VARCHAR(50) NOT NULL,
+                `criteria_value` INT(11) NOT NULL,
+                `is_active` TINYINT(1) DEFAULT 1,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `badge_key` (`badge_key`),
+                KEY `category` (`category`),
+                KEY `is_active` (`is_active`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+            
+            'jph_user_badges' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_user_badges` (
+                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `badge_key` VARCHAR(100) NOT NULL,
+                `earned_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `earned_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `user_id` (`user_id`),
+                KEY `badge_key` (`badge_key`),
+                UNIQUE KEY `unique_user_badge` (`user_id`, `badge_key`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+            
+            'jph_gems_transactions' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_gems_transactions` (
+                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `transaction_type` ENUM('earned', 'spent') NOT NULL,
+                `amount` INT(11) NOT NULL,
+                `source` VARCHAR(100) NOT NULL DEFAULT '',
+                `description` TEXT NULL,
+                `balance_after` INT(11) NOT NULL DEFAULT 0,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `user_id` (`user_id`),
+                KEY `transaction_type` (`transaction_type`),
+                KEY `source` (`source`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
+        );
+        
+        foreach ($tables_to_create as $table_name => $sql) {
+            $full_table_name = $wpdb->prefix . $table_name;
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$full_table_name}'");
+            
+            if (!$table_exists) {
+                error_log("JPH: Creating missing table: {$full_table_name}");
+                $result = $wpdb->query($sql);
+                
+                if ($result === false) {
+                    error_log("JPH: Failed to create table {$full_table_name}: " . $wpdb->last_error);
+                } else {
+                    error_log("JPH: Successfully created table {$full_table_name}");
+                }
+            }
+        }
+    }
+    
+    /**
+     * Add missing columns to existing tables
+     */
+    private function add_missing_columns_to_tables() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_practice_sessions';
+        
+        // Check if table exists
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+        if (!$table_exists) {
+            return; // Table doesn't exist, will be created by create_missing_tables_manually
+        }
+        
+        // Check for missing columns and add them
+        $columns_to_add = array(
+            'sentiment_score' => 'TINYINT(1) UNSIGNED NOT NULL DEFAULT 3',
+            'improvement_detected' => 'TINYINT(1) DEFAULT 0',
+            'ai_analysis' => 'TEXT NULL',
+            'xp_earned' => 'INT(11) DEFAULT 0',
+            'session_hash' => 'VARCHAR(64) NOT NULL DEFAULT ""'
+        );
+        
+        // Also check gems_transactions table for missing columns
+        $gems_table_name = $wpdb->prefix . 'jph_gems_transactions';
+        $gems_table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$gems_table_name}'");
+        
+        if ($gems_table_exists) {
+            $gems_columns_to_add = array(
+                'balance_after' => 'INT(11) NOT NULL DEFAULT 0'
+            );
+            
+            foreach ($gems_columns_to_add as $column_name => $column_definition) {
+                $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$gems_table_name} LIKE '{$column_name}'");
+                
+                if (empty($column_exists)) {
+                    error_log("JPH: Adding missing column {$column_name} to {$gems_table_name}");
+                    $sql = "ALTER TABLE {$gems_table_name} ADD COLUMN {$column_name} {$column_definition}";
+                    $result = $wpdb->query($sql);
+                    
+                    if ($result === false) {
+                        error_log("JPH: Failed to add column {$column_name}: " . $wpdb->last_error);
+                    } else {
+                        error_log("JPH: Successfully added column {$column_name}");
+                    }
+                }
+            }
+        }
+        
+        foreach ($columns_to_add as $column_name => $column_definition) {
+            $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE '{$column_name}'");
+            
+            if (empty($column_exists)) {
+                error_log("JPH: Adding missing column {$column_name} to {$table_name}");
+                $sql = "ALTER TABLE {$table_name} ADD COLUMN {$column_name} {$column_definition}";
+                $result = $wpdb->query($sql);
+                
+                if ($result === false) {
+                    error_log("JPH: Failed to add column {$column_name}: " . $wpdb->last_error);
+                } else {
+                    error_log("JPH: Successfully added column {$column_name}");
+                }
+            }
+        }
+        
+        // Add indexes for new columns
+        $indexes_to_add = array(
+            'session_hash' => 'KEY `session_hash` (`session_hash`)'
+        );
+        
+        foreach ($indexes_to_add as $index_name => $index_definition) {
+            $index_exists = $wpdb->get_results("SHOW INDEX FROM {$table_name} WHERE Key_name = '{$index_name}'");
+            
+            if (empty($index_exists)) {
+                error_log("JPH: Adding missing index {$index_name} to {$table_name}");
+                $sql = "ALTER TABLE {$table_name} ADD {$index_definition}";
+                $result = $wpdb->query($sql);
+                
+                if ($result === false) {
+                    error_log("JPH: Failed to add index {$index_name}: " . $wpdb->last_error);
+                } else {
+                    error_log("JPH: Successfully added index {$index_name}");
+                }
+            }
+        }
+    }
+    
+    /**
+     * Fix missing badge keys for existing badges
+     */
+    private function fix_missing_badge_keys() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        // Check if table exists
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+        if (!$table_exists) {
+            return; // Table doesn't exist
+        }
+        
+        // Check if badge_key column exists
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'badge_key'");
+        if (empty($column_exists)) {
+            error_log('JPH: Adding badge_key column to badges table');
+            $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN badge_key VARCHAR(50) NOT NULL DEFAULT ''");
+        }
+        
+        // Get all badges without badge_key
+        $badges_without_key = $wpdb->get_results("SELECT id, name FROM {$table_name} WHERE badge_key = '' OR badge_key IS NULL", ARRAY_A);
+        
+        if (empty($badges_without_key)) {
+            error_log('JPH: All badges already have badge_key values');
+            return;
+        }
+        
+        error_log('JPH: Found ' . count($badges_without_key) . ' badges without badge_key');
+        
+        // Define badge key mappings based on badge names
+        $badge_key_mappings = array(
+            'First Steps' => 'first_steps',
+            'Marathon' => 'marathon',
+            'Rising Star' => 'rising_star',
+            'Hot Streak' => 'hot_streak',
+            'Lightning' => 'lightning',
+            'Legend' => 'legend'
+        );
+        
+        foreach ($badges_without_key as $badge) {
+            $badge_name = $badge['name'];
+            $badge_id = $badge['id'];
+            
+            // Generate badge key from name if not in mapping
+            if (isset($badge_key_mappings[$badge_name])) {
+                $badge_key = $badge_key_mappings[$badge_name];
+            } else {
+                // Convert name to lowercase, replace spaces with underscores
+                $badge_key = strtolower(str_replace(' ', '_', $badge_name));
+            }
+            
+            // Update the badge with the key
+            $result = $wpdb->update(
+                $table_name,
+                array('badge_key' => $badge_key),
+                array('id' => $badge_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                error_log("JPH: Updated badge '{$badge_name}' with key '{$badge_key}'");
+            } else {
+                error_log("JPH: Failed to update badge '{$badge_name}': " . $wpdb->last_error);
+            }
+        }
+    }
+    
+    /**
+     * Ensure Marathon badge exists with correct configuration
+     */
+    private function ensure_marathon_badge() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        // Check if Marathon badge exists
+        $marathon_badge = $wpdb->get_row("SELECT * FROM {$table_name} WHERE name = 'Marathon'", ARRAY_A);
+        
+        if (!$marathon_badge) {
+            // Create Marathon badge
+            $wpdb->insert($table_name, array(
+                'badge_key' => 'marathon',
+                'name' => 'Marathon',
+                'description' => 'Practice for 60+ minutes in one session',
+                'icon' => '🏃',
+                'category' => 'achievement',
+                'rarity' => 'rare',
+                'xp_reward' => 75,
+                'gem_reward' => 15,
+                'criteria_type' => 'long_session',
+                'criteria_value' => 60,
+                'is_active' => 1
+            ));
+        } else {
+            // Update existing Marathon badge to ensure correct config
+            $wpdb->update(
+                $table_name,
+                array(
+                    'badge_key' => 'marathon',
+                    'criteria_type' => 'long_session',
+                    'criteria_value' => 60,
+                    'is_active' => 1
+                ),
+                array('name' => 'Marathon')
+            );
+        }
+    }
+    
+    /**
      * Plugin deactivation
      */
     public function deactivate() {
@@ -13813,6 +13974,98 @@ class JazzEdge_Practice_Hub {
         wp_clear_scheduled_hook('jph_daily_milestone_check');
         
         error_log('JPH: Plugin deactivated');
+    }
+    
+    /**
+     * Add Streak Shield & Recovery columns to user stats table
+     */
+    private function add_streak_protection_columns() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Check if columns exist
+        $columns = $wpdb->get_col("DESCRIBE {$table_name}");
+        
+        // Add streak_shield_count column if it doesn't exist
+        if (!in_array('streak_shield_count', $columns)) {
+            $result = $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN streak_shield_count INT(11) UNSIGNED DEFAULT 0 COMMENT 'Number of active streak shields'");
+            if ($result !== false) {
+                error_log('JPH: Added streak_shield_count column');
+            } else {
+                error_log('JPH: Failed to add streak_shield_count column: ' . $wpdb->last_error);
+            }
+        }
+        
+        // Add last_streak_recovery_date column if it doesn't exist
+        if (!in_array('last_streak_recovery_date', $columns)) {
+            $result = $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN last_streak_recovery_date DATE NULL COMMENT 'Last date streak recovery was used'");
+            if ($result !== false) {
+                error_log('JPH: Added last_streak_recovery_date column');
+            } else {
+                error_log('JPH: Failed to add last_streak_recovery_date column: ' . $wpdb->last_error);
+            }
+        }
+        
+        // Add streak_recovery_count_this_week column if it doesn't exist
+        if (!in_array('streak_recovery_count_this_week', $columns)) {
+            $result = $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN streak_recovery_count_this_week INT(11) UNSIGNED DEFAULT 0 COMMENT 'Number of streak recoveries used this week'");
+            if ($result !== false) {
+                error_log('JPH: Added streak_recovery_count_this_week column');
+            } else {
+                error_log('JPH: Failed to add streak_recovery_count_this_week column: ' . $wpdb->last_error);
+            }
+        }
+        
+        error_log('JPH: Streak protection columns migration completed');
+    }
+    
+    /**
+     * Force database schema update to ensure all columns exist
+     */
+    private function force_database_schema_update() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Get current columns
+        $columns = $wpdb->get_col("DESCRIBE {$table_name}");
+        error_log('JPH: Current columns: ' . implode(', ', $columns));
+        
+        // Required columns for Streak Shield & Recovery
+        $required_columns = array(
+            'streak_shield_count' => "INT(11) UNSIGNED DEFAULT 0 COMMENT 'Number of active streak shields'",
+            'last_streak_recovery_date' => "DATE NULL COMMENT 'Last date streak recovery was used'",
+            'streak_recovery_count_this_week' => "INT(11) UNSIGNED DEFAULT 0 COMMENT 'Number of streak recoveries used this week'"
+        );
+        
+        // Add missing columns
+        foreach ($required_columns as $column_name => $column_definition) {
+            if (!in_array($column_name, $columns)) {
+                $sql = "ALTER TABLE {$table_name} ADD COLUMN {$column_name} {$column_definition}";
+                $result = $wpdb->query($sql);
+                
+                if ($result !== false) {
+                    error_log("JPH: Successfully added column: {$column_name}");
+                } else {
+                    error_log("JPH: Failed to add column {$column_name}: " . $wpdb->last_error);
+                }
+            } else {
+                error_log("JPH: Column {$column_name} already exists");
+            }
+        }
+        
+        // Verify all columns exist
+        $updated_columns = $wpdb->get_col("DESCRIBE {$table_name}");
+        error_log('JPH: Updated columns: ' . implode(', ', $updated_columns));
+        
+        // Check if all required columns are present
+        $missing_columns = array_diff(array_keys($required_columns), $updated_columns);
+        if (empty($missing_columns)) {
+            error_log('JPH: All required columns are present');
+        } else {
+            error_log('JPH: Missing columns: ' . implode(', ', $missing_columns));
+        }
     }
     
     /**

@@ -6,7 +6,7 @@
 **Subject:** 🎵 Welcome to Your Musical Journey - First Practice Item Added!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -38,7 +38,7 @@
 **Subject:** 🎹 Congratulations on Your First Practice Session!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -74,7 +74,7 @@
 **Subject:** 🏆 You've Earned Your First Badge - Well Done!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -110,7 +110,7 @@
 **Subject:** 📅 Amazing! You've Completed Your First Week!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -146,7 +146,7 @@
 **Subject:** 🌟 One Month Strong - You're Building Something Special!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -184,7 +184,7 @@
 **Subject:** 🎵 5 Sessions Complete - You're on Fire!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -220,7 +220,7 @@
 **Subject:** 🎹 Double Digits! 10 Sessions and Counting!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -256,7 +256,7 @@
 **Subject:** 🎵 25 Sessions - You're No Longer a Beginner!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -292,7 +292,7 @@
 **Subject:** 🏆 50 Sessions - You're a Serious Musician Now!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -328,7 +328,7 @@
 **Subject:** 🎵 100 Sessions - You're a Legend!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -366,7 +366,7 @@
 **Subject:** 🔥 3 Days in a Row - Keep That Streak Alive!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -402,7 +402,7 @@
 **Subject:** 🌟 7 Days Strong - You're Building Habits!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -438,7 +438,7 @@
 **Subject:** 🎵 14 Days - You're Practicing Like a Pro!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -474,7 +474,7 @@
 **Subject:** 🏆 30 Days - You're a Practice Champion!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -510,7 +510,7 @@
 **Subject:** 🎵 100 Days - You're Absolutely Legendary!
 ```
 <!-- wp:image {"id":67,"width":"73px","height":"auto","sizeSlug":"full","linkDestination":"none","align":"center","marginBottom":30} -->
-<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://support.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
+<figure class="wp-block-image aligncenter size-full is-resized" style="margin-bottom:30px"><img src="https://academy.jazzedge.com/wp-content/uploads/2025/08/cropped-Academy-Circle-Logo.png" alt="" class="wp-image-67" style="width:73px;height:auto"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->

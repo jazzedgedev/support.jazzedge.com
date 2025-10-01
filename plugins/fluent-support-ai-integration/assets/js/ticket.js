@@ -137,26 +137,28 @@ jQuery(document).ready(function($) {
     $(document).on('click', '.copy-autologin-btn', function(e) {
         e.preventDefault();
         var url = $(this).data('url');
+        var $button = $(this);
         var $successDiv = $(this).siblings('.copy-success-message');
+        var originalText = $button.html();
         
         // Try modern clipboard API first
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(url).then(function() {
-                showCopySuccess($successDiv);
+                showCopySuccess($button, originalText);
             }).catch(function(err) {
                 // Fallback to older method
-                fallbackCopyToClipboard(url, $successDiv);
+                fallbackCopyToClipboard(url, $button, originalText);
             });
         } else {
             // Fallback for older browsers or non-secure contexts
-            fallbackCopyToClipboard(url, $successDiv);
+            fallbackCopyToClipboard(url, $button, originalText);
         }
     });
     
     /**
      * Fallback copy method for older browsers
      */
-    function fallbackCopyToClipboard(text, $successDiv) {
+    function fallbackCopyToClipboard(text, $button, originalText) {
         var textArea = document.createElement("textarea");
         textArea.value = text;
         textArea.style.position = "fixed";
@@ -168,7 +170,7 @@ jQuery(document).ready(function($) {
         
         try {
             document.execCommand('copy');
-            showCopySuccess($successDiv);
+            showCopySuccess($button, originalText);
         } catch (err) {
             console.error('Failed to copy text: ', err);
             alert('Failed to copy link. Please copy manually: ' + text);
@@ -180,12 +182,15 @@ jQuery(document).ready(function($) {
     /**
      * Show copy success message
      */
-    function showCopySuccess($successDiv) {
-        if ($successDiv.length) {
-            $successDiv.show();
-            setTimeout(function() {
-                $successDiv.fadeOut();
-            }, 2000);
-        }
+    function showCopySuccess($button, originalText) {
+        // Change button text to "Copied!"
+        $button.html('✅ Copied!');
+        $button.css('background', '#28a745');
+        
+        // Reset button after 2 seconds
+        setTimeout(function() {
+            $button.html(originalText);
+            $button.css('background', '#007cba');
+        }, 2000);
     }
 });

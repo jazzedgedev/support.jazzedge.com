@@ -31,7 +31,7 @@ class Katahdin_AI_Hub_Admin {
             'manage_options',
             'katahdin-ai-hub',
             array($this, 'admin_page'),
-            'dashicons-brain',
+            'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18l-9-16-9 16z"/><path d="M8 12l2 2 4-4"/><circle cx="18" cy="6" r="1" fill="currentColor"/><circle cx="20" cy="4" r="0.5" fill="currentColor"/><circle cx="16" cy="8" r="0.5" fill="currentColor"/></svg>'),
             30
         );
     }

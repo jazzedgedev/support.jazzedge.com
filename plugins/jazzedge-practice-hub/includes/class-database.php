@@ -602,7 +602,7 @@ class JPH_Database {
         
         $where_clause = $active_only ? 'WHERE is_active = 1' : '';
         
-        $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY display_order ASC, category, name ASC";
+        $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY category, name ASC";
         
         $results = $this->wpdb->get_results($query, ARRAY_A);
         
@@ -837,8 +837,8 @@ class JPH_Database {
     public function get_user_badges($user_id) {
         $table_name = $this->tables['user_badges'];
         
-        // Check if earned_date column exists (the actual column name in the table)
-        $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'earned_date'");
+        // Check if earned_at column exists (the actual column name in the table)
+        $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'earned_at'");
         
         if (empty($column_exists)) {
             // Column doesn't exist, use simple query without ORDER BY
@@ -849,7 +849,7 @@ class JPH_Database {
         } else {
             // Column exists, use full query with ORDER BY
             $query = $this->wpdb->prepare(
-                "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY earned_date DESC",
+                "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY earned_at DESC",
                 $user_id
             );
         }
@@ -865,9 +865,9 @@ class JPH_Database {
     public function award_badge($user_id, $badge_key, $badge_name, $badge_description = '', $badge_icon = '') {
         $table_name = $this->tables['user_badges'];
         
-        // Check if user already has this badge (using badge_id instead of badge_key)
+        // Check if user already has this badge
         $existing = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT id FROM {$table_name} WHERE user_id = %d AND badge_id = %s",
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND badge_key = %s",
             $user_id, $badge_key
         ));
         
@@ -880,12 +880,13 @@ class JPH_Database {
             $table_name,
             array(
                 'user_id' => $user_id,
-                'badge_id' => $badge_key, // Use badge_id instead of badge_key
-                'earned_date' => current_time('mysql'), // Use earned_date instead of earned_at
-                'is_displayed' => 1,
-                'showcase_position' => 0
+                'badge_key' => $badge_key,
+                'badge_name' => $badge_name,
+                'badge_description' => $badge_description,
+                'badge_icon' => $badge_icon,
+                'earned_at' => current_time('mysql')
             ),
-            array('%d', '%s', '%s', '%d', '%d')
+            array('%d', '%s', '%s', '%s', '%s', '%s')
         );
         
         if ($result !== false) {

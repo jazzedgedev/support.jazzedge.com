@@ -1,6 +1,6 @@
 # JazzEdge Practice Hub
 
-A neuroscience-backed practice system for online piano learning sites, incorporating spaced repetition, gamification, and AI analysis.
+A neuroscience-backed practice system for JazzEdge Academy, incorporating spaced repetition, gamification, and AI analysis.
 
 ## 🎯 **System Requirements**
 
@@ -129,7 +129,7 @@ jazzedge-practice-hub/
 1. Upload plugin to `/wp-content/plugins/jazzedge-practice-hub/`
 2. Activate the plugin
 3. Install and configure Katahdin AI Hub plugin
-4. Configure API settings in Practice Hub admin
+4. Configure settings in Practice Hub admin
 
 ## 📝 **Development Notes**
 

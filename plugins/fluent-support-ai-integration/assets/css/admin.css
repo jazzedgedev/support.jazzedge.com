@@ -335,3 +335,41 @@
 .katahdin-link:hover img {
     transform: scale(1.05);
 }
+
+/* Quick Links Admin Bar Styling */
+#wp-admin-bar-fs-ai-quick-links .ab-item {
+    background-color: #f04e23 !important;
+    color: white !important;
+}
+
+#wp-admin-bar-fs-ai-quick-links .ab-item:hover {
+    background-color: #d63e1a !important;
+    color: white !important;
+}
+
+#wp-admin-bar-fs-ai-quick-links .ab-item:focus {
+    background-color: #f04e23 !important;
+    color: white !important;
+}
+
+/* Quick Links dropdown styling */
+#wp-admin-bar-fs-ai-quick-links .ab-submenu {
+    background: white;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+#wp-admin-bar-fs-ai-quick-links .ab-submenu .ab-item {
+    background: white !important;
+    color: #333 !important;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+#wp-admin-bar-fs-ai-quick-links .ab-submenu .ab-item:hover {
+    background: #f8f9fa !important;
+    color: #f04e23 !important;
+}
+
+#wp-admin-bar-fs-ai-quick-links .ab-submenu .ab-item:last-child {
+    border-bottom: none;
+}

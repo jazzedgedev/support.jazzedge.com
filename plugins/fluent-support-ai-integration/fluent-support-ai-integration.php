@@ -3,7 +3,7 @@
  * Plugin Name: Fluent Support AI Integration
  * Plugin URI: https://katahdin.ai/
  * Description: Integrate OpenAI AI capabilities into Fluent Support ticket system for automated reply generation. Powered by Katahdin AI.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Katahdin AI
  * Author URI: https://katahdin.ai/
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('FLUENT_SUPPORT_AI_VERSION', '1.0.0');
+define('FLUENT_SUPPORT_AI_VERSION', '1.0.1');
 define('FLUENT_SUPPORT_AI_PLUGIN_FILE', __FILE__);
 define('FLUENT_SUPPORT_AI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('FLUENT_SUPPORT_AI_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -66,18 +66,29 @@ class FluentSupportAI {
         add_action('init', array($this, 'init'));
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_enqueue_scripts', array($this, 'admin_enqueue_scripts'));
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_admin_bar_styles'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_bar_styles'));
         add_action('admin_init', array($this, 'handle_form_submission'));
         add_action('admin_init', array($this, 'handle_ticket_viewer'));
         add_action('admin_init', array($this, 'handle_ai_generator'));
+        add_action('admin_init', array($this, 'handle_quick_links'));
         // AJAX handler for AI generation
         add_action('wp_ajax_fluent_support_ai_generate_response', array($this, 'generate_ai_response'));
         // AJAX handler for saving prompts
         add_action('wp_ajax_fluent_support_ai_save_prompt', array($this, 'save_prompt_ajax'));
         // AJAX handler for deleting prompts
         add_action('wp_ajax_fluent_support_ai_delete_prompt', array($this, 'delete_prompt_ajax'));
+        // AJAX handler for quick links
+        add_action('wp_ajax_fluent_support_ai_save_quick_link', array($this, 'save_quick_link_ajax'));
+        add_action('wp_ajax_fluent_support_ai_delete_quick_link', array($this, 'delete_quick_link_ajax'));
+        add_action('wp_ajax_fluent_support_ai_update_quick_link', array($this, 'update_quick_link_ajax'));
+        add_action('wp_ajax_fluent_support_ai_reorder_quick_links', array($this, 'reorder_quick_links_ajax'));
         
         // Add AI interface to Fluent Support widgets
         add_filter('fluent_support/customer_extra_widgets', array($this, 'add_ai_widgets'), 50, 2);
+        
+        // Add admin bar menu for quick links (higher priority to appear on right side)
+        add_action('admin_bar_menu', array($this, 'add_quick_links_admin_bar'), 999);
         
         
         // Activation and deactivation hooks
@@ -152,6 +163,16 @@ class FluentSupportAI {
             array($this, 'ai_generator_page')
         );
         
+        // Add Quick Links page
+        add_submenu_page(
+            'fluent-support-ai-settings',
+            'Quick Links',
+            'Quick Links',
+            'manage_options',
+            'fluent-support-ai-quick-links',
+            array($this, 'quick_links_page')
+        );
+        
         // Also try to add under Fluent Support if it exists
         add_action('admin_menu', array($this, 'add_fluent_support_submenu'), 20);
     }
@@ -212,6 +233,15 @@ class FluentSupportAI {
                     'selectPrompt' => __('Please select a prompt', 'fluent-support-ai'),
                 )
             ));
+        }
+    }
+    
+    /**
+     * Enqueue admin bar styles globally
+     */
+    public function enqueue_admin_bar_styles() {
+        if (is_admin_bar_showing()) {
+            wp_enqueue_style('fluent-support-ai-admin-bar', FLUENT_SUPPORT_AI_PLUGIN_URL . 'assets/css/admin.css', array(), FLUENT_SUPPORT_AI_VERSION);
         }
     }
     
@@ -649,13 +679,25 @@ class FluentSupportAI {
             }
             
             if ($contact_id && $contact_email) {
-                $autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($contact_email) . '&redir=/dashboard/';
+                // Dashboard autologin link
+                $dashboard_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($contact_email) . '&redir=/dashboard/';
                 $html .= '<div style="background: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #28a745;">';
                 $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
-                $html .= '<span style="color: #28a745; font-weight: bold; flex: 1;">🔗 Autologin Link</span>';
-                $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($autologin_url) . '" style="background: #007cba; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#0056b3\'" onmouseout="this.style.background=\'#007cba\'">📋 Copy</button>';
+                $html .= '<span style="color: #28a745; font-weight: bold; flex: 1;">🔗 Dashboard Autologin Link</span>';
+                $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($dashboard_autologin_url) . '" style="background: #007cba; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#0056b3\'" onmouseout="this.style.background=\'#007cba\'">📋 Copy</button>';
                 $html .= '</div>';
                 $html .= '<small style="color: #666;">Contact ID: ' . esc_html($contact_id) . ' | Email: ' . esc_html($contact_email) . '</small>';
+                $html .= '<div class="copy-success-message" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;">✅ Copied to clipboard!</div>';
+                $html .= '</div>';
+                
+                // Card Update autologin link
+                $card_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($contact_email) . '&redir=/card/';
+                $html .= '<div style="background: #fff3cd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #ffc107;">';
+                $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
+                $html .= '<span style="color: #856404; font-weight: bold; flex: 1;">💳 Card Update Autologin Link</span>';
+                $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($card_autologin_url) . '" style="background: #ffc107; color: #212529; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#e0a800\'" onmouseout="this.style.background=\'#ffc107\'">📋 Copy</button>';
+                $html .= '</div>';
+                $html .= '<small style="color: #856404;">Contact ID: ' . esc_html($contact_id) . ' | Email: ' . esc_html($contact_email) . '</small>';
                 $html .= '<div class="copy-success-message" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;">✅ Copied to clipboard!</div>';
                 $html .= '</div>';
             }
@@ -1873,6 +1915,555 @@ class FluentSupportAI {
         
         set_transient($cache_key, $data['data'], 5 * MINUTE_IN_SECONDS);
         return $data['data'];
+    }
+    
+    /**
+     * Handle quick links requests
+     */
+    public function handle_quick_links() {
+        if (isset($_GET['page']) && $_GET['page'] === 'fluent-support-ai-quick-links') {
+            // Security check
+            if (!current_user_can('manage_options')) {
+                wp_die('Access denied. You do not have permission to manage quick links.');
+            }
+        }
+    }
+    
+    /**
+     * Quick Links page callback
+     */
+    public function quick_links_page() {
+        $quick_links = get_option('fluent_support_ai_quick_links', array());
+        
+        ?>
+        <div class="wrap">
+            <h1>🔗 Quick Links</h1>
+            <p>Manage quick links that appear in the admin bar for easy access.</p>
+            
+            <!-- Add New Quick Link Form -->
+            <div class="card" style="max-width: 600px; margin: 20px 0;">
+                <h2>Add New Quick Link</h2>
+                <form id="add-quick-link-form">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label for="link_title">Title</label>
+                            </th>
+                            <td>
+                                <input type="text" id="link_title" name="link_title" class="regular-text" required>
+                                <p class="description">The display name for this link</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="link_url">URL</label>
+                            </th>
+                            <td>
+                                <input type="url" id="link_url" name="link_url" class="regular-text" required>
+                                <p class="description">The URL this link should point to</p>
+                            </td>
+                        </tr>
+                    </table>
+                    <p class="submit">
+                        <button type="submit" class="button button-primary">Add Quick Link</button>
+                    </p>
+                </form>
+            </div>
+            
+            <!-- Existing Quick Links -->
+            <div class="card" style="max-width: 800px;">
+                <h2>Existing Quick Links</h2>
+                <?php if (empty($quick_links)): ?>
+                    <p>No quick links found. Add your first quick link above.</p>
+                <?php else: ?>
+                    <div id="quick-links-list" class="sortable-links">
+                        <?php foreach ($quick_links as $index => $link): ?>
+                            <div class="quick-link-item" data-index="<?php echo esc_attr($index); ?>">
+                                <div class="quick-link-handle" title="Drag to reorder">⋮⋮</div>
+                                <div class="quick-link-content">
+                                    <div class="quick-link-display">
+                                        <strong><?php echo esc_html($link['title']); ?></strong>
+                                        <a href="<?php echo esc_url($link['url']); ?>" target="_blank" class="quick-link-url">
+                                            <?php echo esc_html($link['url']); ?>
+                                        </a>
+                                    </div>
+                                    <div class="quick-link-edit" style="display: none;">
+                                        <input type="text" class="edit-title" value="<?php echo esc_attr($link['title']); ?>" placeholder="Title">
+                                        <input type="url" class="edit-url" value="<?php echo esc_attr($link['url']); ?>" placeholder="URL">
+                                    </div>
+                                </div>
+                                <div class="quick-link-actions">
+                                    <button type="button" class="button button-small edit-quick-link" data-index="<?php echo esc_attr($index); ?>">
+                                        Edit
+                                    </button>
+                                    <button type="button" class="button button-small save-quick-link" data-index="<?php echo esc_attr($index); ?>" style="display: none;">
+                                        Save
+                                    </button>
+                                    <button type="button" class="button button-small cancel-edit" data-index="<?php echo esc_attr($index); ?>" style="display: none;">
+                                        Cancel
+                                    </button>
+                                    <button type="button" class="button button-link-delete delete-quick-link" 
+                                            data-index="<?php echo esc_attr($index); ?>">
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <style>
+        .sortable-links {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .quick-link-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            transition: all 0.2s ease;
+        }
+        
+        .quick-link-item:hover {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .quick-link-item.ui-sortable-helper {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transform: rotate(2deg);
+        }
+        
+        .quick-link-handle {
+            cursor: move;
+            color: #999;
+            font-size: 16px;
+            line-height: 1;
+            padding: 5px;
+            user-select: none;
+        }
+        
+        .quick-link-handle:hover {
+            color: #666;
+        }
+        
+        .quick-link-content {
+            flex: 1;
+        }
+        
+        .quick-link-display {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .quick-link-url {
+            color: #0073aa;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        
+        .quick-link-url:hover {
+            text-decoration: underline;
+        }
+        
+        .quick-link-edit {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .quick-link-edit input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        
+        .quick-link-actions {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+        </style>
+        
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add Quick Link Form
+            document.getElementById('add-quick-link-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                formData.append('action', 'fluent_support_ai_save_quick_link');
+                formData.append('nonce', '<?php echo wp_create_nonce('fluent_support_ai_nonce'); ?>');
+                
+                fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        showMessage('Error adding quick link: ' + (data.data || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('Network error. Please try again.', 'error');
+                });
+            });
+            
+            // Edit Quick Link
+            document.querySelectorAll('.edit-quick-link').forEach(button => {
+                button.addEventListener('click', function() {
+                    const index = this.getAttribute('data-index');
+                    const item = document.querySelector(`[data-index="${index}"]`);
+                    const display = item.querySelector('.quick-link-display');
+                    const edit = item.querySelector('.quick-link-edit');
+                    const editBtn = item.querySelector('.edit-quick-link');
+                    const saveBtn = item.querySelector('.save-quick-link');
+                    const cancelBtn = item.querySelector('.cancel-edit');
+                    
+                    display.style.display = 'none';
+                    edit.style.display = 'flex';
+                    editBtn.style.display = 'none';
+                    saveBtn.style.display = 'inline-block';
+                    cancelBtn.style.display = 'inline-block';
+                });
+            });
+            
+            // Save Quick Link
+            document.querySelectorAll('.save-quick-link').forEach(button => {
+                button.addEventListener('click', function() {
+                    const index = this.getAttribute('data-index');
+                    const item = document.querySelector(`[data-index="${index}"]`);
+                    const title = item.querySelector('.edit-title').value;
+                    const url = item.querySelector('.edit-url').value;
+                    
+                    if (!title || !url) {
+                        showMessage('Title and URL are required.', 'error');
+                        return;
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('action', 'fluent_support_ai_update_quick_link');
+                    formData.append('index', index);
+                    formData.append('title', title);
+                    formData.append('url', url);
+                    formData.append('nonce', '<?php echo wp_create_nonce('fluent_support_ai_nonce'); ?>');
+                    
+                    fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            showMessage('Error updating quick link: ' + (data.data || 'Unknown error'), 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showMessage('Network error. Please try again.', 'error');
+                    });
+                });
+            });
+            
+            // Cancel Edit
+            document.querySelectorAll('.cancel-edit').forEach(button => {
+                button.addEventListener('click', function() {
+                    const index = this.getAttribute('data-index');
+                    const item = document.querySelector(`[data-index="${index}"]`);
+                    const display = item.querySelector('.quick-link-display');
+                    const edit = item.querySelector('.quick-link-edit');
+                    const editBtn = item.querySelector('.edit-quick-link');
+                    const saveBtn = item.querySelector('.save-quick-link');
+                    const cancelBtn = item.querySelector('.cancel-edit');
+                    
+                    display.style.display = 'flex';
+                    edit.style.display = 'none';
+                    editBtn.style.display = 'inline-block';
+                    saveBtn.style.display = 'none';
+                    cancelBtn.style.display = 'none';
+                });
+            });
+            
+            // Delete Quick Link
+            document.querySelectorAll('.delete-quick-link').forEach(button => {
+                button.addEventListener('click', function() {
+                    if (confirm('Are you sure you want to delete this quick link?')) {
+                        const index = this.getAttribute('data-index');
+                        const formData = new FormData();
+                        formData.append('action', 'fluent_support_ai_delete_quick_link');
+                        formData.append('index', index);
+                        formData.append('nonce', '<?php echo wp_create_nonce('fluent_support_ai_nonce'); ?>');
+                        
+                        fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                showMessage('Error deleting quick link: ' + (data.data || 'Unknown error'), 'error');
+                            }
+                        })
+                        .catch(error => {
+                            showMessage('Network error. Please try again.', 'error');
+                        });
+                    }
+                });
+            });
+            
+            // Initialize sortable
+            if (typeof jQuery !== 'undefined' && jQuery.ui && jQuery.ui.sortable) {
+                jQuery('#quick-links-list').sortable({
+                    handle: '.quick-link-handle',
+                    placeholder: 'quick-link-placeholder',
+                    update: function(event, ui) {
+                        const order = [];
+                        jQuery('#quick-links-list .quick-link-item').each(function() {
+                            order.push(jQuery(this).attr('data-index'));
+                        });
+                        
+                        const formData = new FormData();
+                        formData.append('action', 'fluent_support_ai_reorder_quick_links');
+                        formData.append('order', JSON.stringify(order));
+                        formData.append('nonce', '<?php echo wp_create_nonce('fluent_support_ai_nonce'); ?>');
+                        
+                        fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showMessage('Order updated successfully!', 'success');
+                            } else {
+                                showMessage('Error updating order: ' + (data.data || 'Unknown error'), 'error');
+                            }
+                        })
+                        .catch(error => {
+                            showMessage('Network error. Please try again.', 'error');
+                        });
+                    }
+                });
+            }
+            
+            function showMessage(message, type) {
+                const existing = document.querySelector('.success-message, .error-message');
+                if (existing) {
+                    existing.remove();
+                }
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = type === 'success' ? 'success-message' : 'error-message';
+                messageDiv.textContent = message;
+                messageDiv.style.display = 'block';
+                
+                document.querySelector('.wrap h1').insertAdjacentElement('afterend', messageDiv);
+                
+                setTimeout(() => {
+                    messageDiv.remove();
+                }, 3000);
+            }
+        });
+        </script>
+        <?php
+    }
+    
+    /**
+     * Add quick links to admin bar
+     */
+    public function add_quick_links_admin_bar($wp_admin_bar) {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        $quick_links = get_option('fluent_support_ai_quick_links', array());
+        
+        if (empty($quick_links)) {
+            return;
+        }
+        
+        // Add main menu item to the right side (secondary menu)
+        $wp_admin_bar->add_menu(array(
+            'id' => 'fs-ai-quick-links',
+            'title' => 'Quick Links',
+            'href' => '#',
+            'parent' => 'top-secondary',
+            'meta' => array(
+                'class' => 'fs-ai-quick-links-menu',
+                'title' => 'Quick Links'
+            )
+        ));
+        
+        // Add individual links
+        foreach ($quick_links as $index => $link) {
+            $wp_admin_bar->add_menu(array(
+                'id' => 'fs-ai-quick-link-' . $index,
+                'parent' => 'fs-ai-quick-links',
+                'title' => $link['title'],
+                'href' => $link['url'],
+                'meta' => array(
+                    'target' => '_blank'
+                )
+            ));
+        }
+    }
+    
+    /**
+     * Save quick link via AJAX
+     */
+    public function save_quick_link_ajax() {
+        if (!wp_verify_nonce($_POST['nonce'], 'fluent_support_ai_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Access denied');
+        }
+
+        $title = sanitize_text_field($_POST['link_title']);
+        $url = esc_url_raw($_POST['link_url']);
+        
+        if (empty($title) || empty($url)) {
+            wp_send_json_error('Title and URL are required');
+        }
+        
+        $quick_links = get_option('fluent_support_ai_quick_links', array());
+        $quick_links[] = array(
+            'title' => $title,
+            'url' => $url
+        );
+        
+        update_option('fluent_support_ai_quick_links', $quick_links);
+        
+        wp_send_json_success('Quick link added successfully');
+    }
+    
+    /**
+     * Delete quick link via AJAX
+     */
+    public function delete_quick_link_ajax() {
+        if (!wp_verify_nonce($_POST['nonce'], 'fluent_support_ai_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Access denied');
+        }
+
+        $index = intval($_POST['index']);
+        $quick_links = get_option('fluent_support_ai_quick_links', array());
+        
+        if (!isset($quick_links[$index])) {
+            wp_send_json_error('Quick link not found');
+        }
+        
+        unset($quick_links[$index]);
+        $quick_links = array_values($quick_links); // Reindex array
+        
+        update_option('fluent_support_ai_quick_links', $quick_links);
+        
+        wp_send_json_success('Quick link deleted successfully');
+    }
+    
+    /**
+     * Update quick link via AJAX
+     */
+    public function update_quick_link_ajax() {
+        if (!wp_verify_nonce($_POST['nonce'], 'fluent_support_ai_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Access denied');
+        }
+
+        $index = intval($_POST['index']);
+        $title = sanitize_text_field($_POST['title']);
+        $url = esc_url_raw($_POST['url']);
+        
+        if (empty($title) || empty($url)) {
+            wp_send_json_error('Title and URL are required');
+        }
+        
+        $quick_links = get_option('fluent_support_ai_quick_links', array());
+        
+        if (!isset($quick_links[$index])) {
+            wp_send_json_error('Quick link not found');
+        }
+        
+        $quick_links[$index] = array(
+            'title' => $title,
+            'url' => $url
+        );
+        
+        update_option('fluent_support_ai_quick_links', $quick_links);
+        
+        wp_send_json_success('Quick link updated successfully');
+    }
+    
+    /**
+     * Reorder quick links via AJAX
+     */
+    public function reorder_quick_links_ajax() {
+        if (!wp_verify_nonce($_POST['nonce'], 'fluent_support_ai_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Access denied');
+        }
+
+        $order = json_decode(stripslashes($_POST['order']), true);
+        
+        if (!is_array($order)) {
+            wp_send_json_error('Invalid order data');
+        }
+        
+        $quick_links = get_option('fluent_support_ai_quick_links', array());
+        $reordered_links = array();
+        
+        foreach ($order as $index) {
+            if (isset($quick_links[$index])) {
+                $reordered_links[] = $quick_links[$index];
+            }
+        }
+        
+        update_option('fluent_support_ai_quick_links', $reordered_links);
+        
+        wp_send_json_success('Order updated successfully');
     }
 }
 
