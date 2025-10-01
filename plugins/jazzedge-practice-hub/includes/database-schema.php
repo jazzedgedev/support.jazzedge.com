@@ -344,20 +344,12 @@ class JPH_Database_Schema {
         return array(
             'table_name' => 'jph_badges',
             'columns' => array(
-                'id' => array(
-                    'type' => 'BIGINT',
-                    'length' => 20,
-                    'unsigned' => true,
-                    'auto_increment' => true,
-                    'primary_key' => true,
-                    'description' => 'Unique badge ID'
-                ),
                 'badge_key' => array(
                     'type' => 'VARCHAR',
                     'length' => 50,
                     'not_null' => true,
-                    'unique' => true,
-                    'description' => 'Unique badge identifier'
+                    'primary_key' => true,
+                    'description' => 'Unique badge identifier (primary key)'
                 ),
                 'name' => array(
                     'type' => 'VARCHAR',
@@ -439,14 +431,6 @@ class JPH_Database_Schema {
         return array(
             'table_name' => 'jph_user_badges',
             'columns' => array(
-                'id' => array(
-                    'type' => 'BIGINT',
-                    'length' => 20,
-                    'unsigned' => true,
-                    'auto_increment' => true,
-                    'primary_key' => true,
-                    'description' => 'Unique badge record ID'
-                ),
                 'user_id' => array(
                     'type' => 'BIGINT',
                     'length' => 20,
@@ -458,24 +442,7 @@ class JPH_Database_Schema {
                     'type' => 'VARCHAR',
                     'length' => 50,
                     'not_null' => true,
-                    'description' => 'Badge identifier (e.g., "first_session", "week_streak")'
-                ),
-                'badge_name' => array(
-                    'type' => 'VARCHAR',
-                    'length' => 100,
-                    'not_null' => true,
-                    'description' => 'Human-readable badge name'
-                ),
-                'badge_description' => array(
-                    'type' => 'TEXT',
-                    'null' => true,
-                    'description' => 'Badge description'
-                ),
-                'badge_icon' => array(
-                    'type' => 'VARCHAR',
-                    'length' => 100,
-                    'null' => true,
-                    'description' => 'Badge icon identifier'
+                    'description' => 'Badge identifier (foreign key to jph_badges.badge_key)'
                 ),
                 'earned_at' => array(
                     'type' => 'DATETIME',
@@ -486,11 +453,11 @@ class JPH_Database_Schema {
             'indexes' => array(
                 'user_id' => array('user_id'),
                 'badge_key' => array('badge_key'),
-                'user_badge' => array('user_id', 'badge_key'),
                 'earned_at' => array('earned_at')
             ),
             'constraints' => array(
-                'unique_user_badge' => 'UNIQUE KEY unique_user_badge (user_id, badge_key)'
+                'primary_key' => 'PRIMARY KEY (user_id, badge_key)',
+                'foreign_key_badge' => 'FOREIGN KEY (badge_key) REFERENCES jph_badges(badge_key) ON DELETE CASCADE'
             )
         );
     }
@@ -586,7 +553,8 @@ class JPH_Database_Schema {
      * Build CREATE TABLE statement for a table
      */
     private static function build_create_statement($table_schema) {
-        $table_name = $table_schema['table_name'];
+        global $wpdb;
+        $table_name = $wpdb->prefix . $table_schema['table_name'];
         $columns = $table_schema['columns'];
         $indexes = isset($table_schema['indexes']) ? $table_schema['indexes'] : array();
         $constraints = isset($table_schema['constraints']) ? $table_schema['constraints'] : array();

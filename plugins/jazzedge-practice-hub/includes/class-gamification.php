@@ -47,8 +47,6 @@ class JPH_Gamification {
         
         $table_name = $wpdb->prefix . 'jph_user_stats';
         
-        // Debug: Log the operation
-        error_log("JPH: add_xp called for user $user_id with $xp_amount XP");
         
         // Get current stats or create new record
         $stats = $wpdb->get_row($wpdb->prepare(
@@ -57,7 +55,6 @@ class JPH_Gamification {
         ));
         
         if (!$stats) {
-            error_log("JPH: No stats found, creating new record for user $user_id");
             // Create new stats record
             $result = $wpdb->insert(
                 $table_name,
@@ -76,9 +73,7 @@ class JPH_Gamification {
                 ),
                 array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s')
             );
-            error_log("JPH: Insert result: " . print_r($result, true));
         } else {
-            error_log("JPH: Found existing stats, updating for user $user_id");
             // Update existing stats
             $result = $wpdb->update(
                 $table_name,
@@ -90,7 +85,6 @@ class JPH_Gamification {
                 array('%d', '%d'),
                 array('%d')
             );
-            error_log("JPH: Update result: " . print_r($result, true));
         }
         
         return true;

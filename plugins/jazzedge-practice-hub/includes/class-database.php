@@ -602,7 +602,7 @@ class JPH_Database {
         
         $where_clause = $active_only ? 'WHERE is_active = 1' : '';
         
-        $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY category, name ASC";
+        $query = "SELECT * FROM {$table_name} {$where_clause} ORDER BY display_order ASC, category, name ASC";
         
         $results = $this->wpdb->get_results($query, ARRAY_A);
         
@@ -612,15 +612,15 @@ class JPH_Database {
     /**
      * Update badge display order
      */
-    public function update_badge_display_order($badge_id, $display_order) {
+    public function update_badge_display_order($badge_key, $display_order) {
         $table_name = $this->tables['badges'];
         
         $result = $this->wpdb->update(
             $table_name,
             array('display_order' => $display_order),
-            array('id' => $badge_id),
+            array('badge_key' => $badge_key),
             array('%d'),
-            array('%d')
+            array('%s')
         );
         
         if ($result === false) {
@@ -636,17 +636,17 @@ class JPH_Database {
     public function update_badge_display_orders($badge_orders) {
         $table_name = $this->tables['badges'];
         
-        foreach ($badge_orders as $badge_id => $display_order) {
+        foreach ($badge_orders as $badge_key => $display_order) {
             $result = $this->wpdb->update(
                 $table_name,
                 array('display_order' => $display_order),
-                array('id' => $badge_id),
+                array('badge_key' => $badge_key),
                 array('%d'),
-                array('%d')
+                array('%s')
             );
             
             if ($result === false) {
-                return new WP_Error('update_failed', 'Failed to update badge display order for badge ' . $badge_id . ': ' . $this->wpdb->last_error);
+                return new WP_Error('update_failed', 'Failed to update badge display order for badge ' . $badge_key . ': ' . $this->wpdb->last_error);
             }
         }
         
@@ -718,19 +718,7 @@ class JPH_Database {
     /**
      * Get badge by ID
      */
-    public function get_badge($badge_id) {
-        $table_name = $this->tables['badges'];
-        
-        return $this->wpdb->get_row($this->wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE id = %d",
-            $badge_id
-        ), ARRAY_A);
-    }
-    
-    /**
-     * Get badge by key
-     */
-    public function get_badge_by_key($badge_key) {
+    public function get_badge($badge_key) {
         $table_name = $this->tables['badges'];
         
         return $this->wpdb->get_row($this->wpdb->prepare(
@@ -738,6 +726,7 @@ class JPH_Database {
             $badge_key
         ), ARRAY_A);
     }
+    
     
     /**
      * Add new badge
@@ -788,9 +777,11 @@ class JPH_Database {
     /**
      * Update badge
      */
-    public function update_badge($badge_id, $badge_data) {
+    public function update_badge($badge_key, $badge_data) {
         $table_name = $this->tables['badges'];
         
+        // Remove badge_key from data if present
+        unset($badge_data['badge_key']);
         
         // Create format array based on the data
         $formats = array();
@@ -802,13 +793,12 @@ class JPH_Database {
             }
         }
         
-        
         $result = $this->wpdb->update(
             $table_name,
             $badge_data,
-            array('id' => $badge_id),
+            array('badge_key' => $badge_key),
             $formats,
-            array('%d')
+            array('%s')
         );
         
         return $result !== false;
@@ -817,15 +807,15 @@ class JPH_Database {
     /**
      * Delete badge (soft delete)
      */
-    public function delete_badge($badge_id) {
+    public function delete_badge($badge_key) {
         $table_name = $this->tables['badges'];
         
         $result = $this->wpdb->update(
             $table_name,
             array('is_active' => 0),
-            array('id' => $badge_id),
+            array('badge_key' => $badge_key),
             array('%d'),
-            array('%d')
+            array('%s')
         );
         
         return $result !== false;
@@ -836,6 +826,22 @@ class JPH_Database {
      */
     public function get_user_badges($user_id) {
         $table_name = $this->tables['user_badges'];
+        
+        // Debug: Check what's in the table
+        $debug_query = $this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d",
+            $user_id
+        );
+        $debug_results = $this->wpdb->get_results($debug_query, ARRAY_A);
+        
+        // Log debug info
+        error_log("JPH Debug: get_user_badges for user_id $user_id");
+        error_log("JPH Debug: Table name: $table_name");
+        error_log("JPH Debug: Query: $debug_query");
+        error_log("JPH Debug: Results count: " . count($debug_results));
+        if (!empty($debug_results)) {
+            error_log("JPH Debug: First result: " . print_r($debug_results[0], true));
+        }
         
         // Check if earned_at column exists (the actual column name in the table)
         $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'earned_at'");
@@ -862,12 +868,12 @@ class JPH_Database {
     /**
      * Award badge to user
      */
-    public function award_badge($user_id, $badge_key, $badge_name, $badge_description = '', $badge_icon = '') {
+    public function award_badge($user_id, $badge_key) {
         $table_name = $this->tables['user_badges'];
         
         // Check if user already has this badge
         $existing = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT id FROM {$table_name} WHERE user_id = %d AND badge_key = %s",
+            "SELECT user_id FROM {$table_name} WHERE user_id = %d AND badge_key = %s",
             $user_id, $badge_key
         ));
         
@@ -875,24 +881,19 @@ class JPH_Database {
             return false; // Already has this badge
         }
         
-        // Insert the badge with the correct table structure
+        // Insert the badge with the simplified table structure
         $result = $this->wpdb->insert(
             $table_name,
             array(
                 'user_id' => $user_id,
                 'badge_key' => $badge_key,
-                'badge_name' => $badge_name,
-                'badge_description' => $badge_description,
-                'badge_icon' => $badge_icon,
                 'earned_at' => current_time('mysql')
             ),
-            array('%d', '%s', '%s', '%s', '%s', '%s')
+            array('%d', '%s', '%s')
         );
         
         if ($result !== false) {
             error_log("JPH Badge Award: Successfully awarded badge {$badge_key} to user {$user_id}");
-            // Trigger webhook if badge has one
-            $this->trigger_badge_webhook($user_id, $badge_key, $badge_name, $badge_description, $badge_icon);
         } else {
             error_log("JPH Badge Award: Failed to award badge {$badge_key} to user {$user_id}");
         }

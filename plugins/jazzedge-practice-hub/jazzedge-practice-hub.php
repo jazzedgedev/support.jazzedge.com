@@ -77,6 +77,10 @@ class JazzEdge_Practice_Hub {
         add_action('wp_ajax_jph_repair_streak', array($this, 'ajax_repair_streak'));
         add_action('wp_ajax_jph_test_auto_shield', array($this, 'ajax_test_auto_shield'));
         
+        // Streak testing AJAX handlers
+        add_action('wp_ajax_jph_reset_streak_test', array($this, 'ajax_reset_streak_test'));
+        add_action('wp_ajax_jph_add_gems_test', array($this, 'ajax_add_gems_test'));
+        
         // Add nonce for AJAX security
         add_action('wp_enqueue_scripts', array($this, 'enqueue_ajax_nonce'));
         
@@ -1709,6 +1713,7 @@ class JazzEdge_Practice_Hub {
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
         
         .jph-modal-content {
@@ -1719,6 +1724,8 @@ class JazzEdge_Practice_Hub {
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
         
         .jph-modal-header {
@@ -1837,6 +1844,70 @@ class JazzEdge_Practice_Hub {
         
         .jph-modal-actions .button {
             margin: 0;
+        }
+        
+        /* Edit modal button styling */
+        .jph-modal button[type="submit"],
+        .jph-modal .button-primary {
+            background: linear-gradient(135deg, #F04E23, #e0451f);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(240, 78, 35, 0.3);
+            min-width: 120px;
+        }
+        
+        .jph-modal button[type="submit"]:hover,
+        .jph-modal .button-primary:hover {
+            background: linear-gradient(135deg, #e0451f, #d63e1c);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.4);
+        }
+        
+        .jph-modal .button-secondary {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            min-width: 120px;
+            margin-right: 10px;
+        }
+        
+        .jph-modal .button-secondary:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+            transform: translateY(-1px);
+        }
+        
+        /* Responsive modal adjustments */
+        @media (max-width: 768px) {
+            .jph-modal {
+                padding: 10px;
+            }
+            .jph-modal-content {
+                max-height: 90vh;
+            }
+        }
+        
+        /* WordPress admin bar adjustments */
+        .admin-bar .jph-modal {
+            padding: 20px;
+        }
+        
+        @media (max-width: 782px) {
+            .admin-bar .jph-modal {
+                padding: 10px;
+            }
         }
         </style>
         
@@ -2597,13 +2668,17 @@ class JazzEdge_Practice_Hub {
             const modalHtml = `
                 <div id="jph-reorder-modal" class="jph-modal" style="display: flex;">
                     <div class="jph-modal-content" style="max-width: 600px;">
-                        <span class="jph-close" onclick="closeReorderModal()">&times;</span>
-                        <h2>📋 Reorder Badges</h2>
-                        <p>Drag and drop badges to reorder them.</p>
-                        <div id="reorder-badges-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 20px 0;">
-                            Loading badges...
+                        <div class="jph-modal-header">
+                            <h2>📋 Reorder Badges</h2>
+                            <span class="jph-close" onclick="closeReorderModal()">&times;</span>
                         </div>
-                        <div style="text-align: right;">
+                        <div class="jph-modal-body" style="flex: 1; overflow-y: auto;">
+                            <p>Drag and drop badges to reorder them.</p>
+                            <div id="reorder-badges-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 20px 0;">
+                                Loading badges...
+                            </div>
+                        </div>
+                        <div class="jph-modal-actions" style="text-align: right; padding: 20px; border-top: 1px solid #ddd; flex-shrink: 0;">
                             <button type="button" class="button button-secondary" onclick="closeReorderModal()">Cancel</button>
                             <button type="button" class="button button-primary" onclick="saveBadgeOrder()">Save Order</button>
                         </div>
@@ -2645,7 +2720,7 @@ class JazzEdge_Practice_Hub {
             const container = document.getElementById('reorder-badges-list');
             
             container.innerHTML = badges.map((badge, index) => `
-                <div class="reorder-item" data-badge-id="${badge.id}" style="
+                <div class="reorder-item" data-badge-key="${badge.badge_key}" style="
                     display: flex; align-items: center; padding: 10px; margin: 5px 0; 
                     background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; cursor: move;
                 ">
@@ -2709,8 +2784,8 @@ class JazzEdge_Practice_Hub {
             const badgeOrders = {};
             
             items.forEach((item, index) => {
-                const badgeId = item.getAttribute('data-badge-id');
-                badgeOrders[badgeId] = index + 1;
+                const badgeKey = item.getAttribute('data-badge-key');
+                badgeOrders[badgeKey] = index + 1;
             });
             
             fetch(ajaxurl, {
@@ -3786,9 +3861,9 @@ class JazzEdge_Practice_Hub {
             height: 100vh;
             background-color: rgba(0,0,0,0.5);
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
-            padding: 20px;
+            padding: 80px 20px 150px 20px;
             box-sizing: border-box;
             overflow: auto;
         }
@@ -3816,9 +3891,8 @@ class JazzEdge_Practice_Hub {
         
         @media (max-width: 767px) {
             .jph-modal {
-                padding: 10px;
+                padding: 20px 10px 120px 10px;
                 align-items: flex-start;
-                padding-top: 20px;
             }
             
             .jph-modal-content {
@@ -3832,9 +3906,8 @@ class JazzEdge_Practice_Hub {
         /* Ensure modal is always visible */
         @media (max-width: 480px) {
             .jph-modal {
-                padding: 5px;
+                padding: 10px 5px 100px 5px;
                 align-items: flex-start;
-                padding-top: 10px;
             }
             
             .jph-modal-content {
@@ -3951,6 +4024,41 @@ class JazzEdge_Practice_Hub {
             right: auto !important;
             top: auto !important;
             bottom: auto !important;
+        }
+        
+        /* Force modal bottom spacing to avoid dock overlap */
+        .jph-modal {
+            padding-bottom: 150px !important;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-modal {
+                padding-bottom: 120px !important;
+            }
+        }
+        
+        /* Admin modal specific styles - ensure proper height and centering */
+        .jph-modal {
+            align-items: center !important;
+            padding: 20px !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+        }
+        
+        .jph-modal-content {
+            max-height: calc(100vh - 40px) !important;
+            overflow-y: auto !important;
+            margin: auto !important;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-modal {
+                padding: 10px !important;
+            }
+            
+            .jph-modal-content {
+                max-height: calc(100vh - 20px) !important;
+            }
         }
         </style>
         
@@ -4424,7 +4532,13 @@ class JazzEdge_Practice_Hub {
         
         
         // Debug endpoints
-        // Debug endpoints removed for production deployment
+        register_rest_route('jph/v1', '/debug-info', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_info'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        
         
         // Check and award badges endpoint
         register_rest_route('jph/v1', '/check-badges', array(
@@ -4676,6 +4790,344 @@ class JazzEdge_Practice_Hub {
                 'Build student dashboard'
             )
         ));
+    }
+    
+    /**
+     * Debug information endpoint
+     */
+    public function rest_debug_info($request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new WP_Error('not_logged_in', 'You must be logged in to view debug information', array('status' => 401));
+        }
+        
+        $database = new JPH_Database();
+        $gamification = new JPH_Gamification();
+        
+        // Get user stats
+        $user_stats = $gamification->get_user_stats($user_id);
+        
+        // Get user badges
+        $user_badges = $database->get_user_badges($user_id);
+        
+        // Debug: Log the user badges query results
+        error_log("JPH Debug: rest_debug_info - user_id: $user_id");
+        error_log("JPH Debug: rest_debug_info - user_badges count: " . count($user_badges));
+        if (!empty($user_badges)) {
+            error_log("JPH Debug: rest_debug_info - first user badge: " . print_r($user_badges[0], true));
+        }
+        
+        // Get all badges
+        $all_badges = $database->get_badges(true);
+        
+        // Get practice sessions
+        $practice_sessions = $database->get_practice_sessions($user_id, 5);
+        
+        // Check database tables
+        global $wpdb;
+        $tables = array(
+            'jph_badges' => $wpdb->prefix . 'jph_badges',
+            'jph_user_badges' => $wpdb->prefix . 'jph_user_badges',
+            'jph_user_stats' => $wpdb->prefix . 'jph_user_stats',
+            'jph_practice_sessions' => $wpdb->prefix . 'jph_practice_sessions'
+        );
+        
+        $table_info = array();
+        foreach ($tables as $name => $table) {
+            $exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") == $table;
+            $count = $exists ? $wpdb->get_var("SELECT COUNT(*) FROM $table") : 0;
+            $table_info[$name] = array(
+                'exists' => $exists,
+                'count' => $count,
+                'table_name' => $table
+            );
+        }
+        
+        // Build debug HTML
+        $debug_html = '<div style="font-family: monospace; font-size: 11px; line-height: 1.4;">';
+        
+        $debug_html .= '<h5 style="color: #0073aa; margin: 10px 0 5px 0;">👤 User Information</h5>';
+        $debug_html .= '<p><strong>User ID:</strong> ' . $user_id . '</p>';
+        $debug_html .= '<p><strong>Is Admin:</strong> ' . (current_user_can('manage_options') ? 'Yes' : 'No') . '</p>';
+        
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">📊 User Stats</h5>';
+        $debug_html .= '<pre style="background: #f1f1f1; padding: 10px; border-radius: 4px; overflow-x: auto;">';
+        $debug_html .= htmlspecialchars(print_r($user_stats, true));
+        $debug_html .= '</pre>';
+        
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🏆 User Badges (' . count($user_badges) . ')</h5>';
+        if (!empty($user_badges)) {
+            $debug_html .= '<pre style="background: #f1f1f1; padding: 10px; border-radius: 4px; overflow-x: auto;">';
+            $debug_html .= htmlspecialchars(print_r($user_badges, true));
+            $debug_html .= '</pre>';
+        } else {
+            $debug_html .= '<p style="color: #d63638;">No badges found for user</p>';
+            
+            // Debug: Show raw database query
+            global $wpdb;
+            $user_badges_table = $wpdb->prefix . 'jph_user_badges';
+            $raw_query = "SELECT * FROM {$user_badges_table} WHERE user_id = {$user_id}";
+            $raw_results = $wpdb->get_results($raw_query, ARRAY_A);
+            
+            // Debug: Show ALL rows in the table to see what user_ids exist
+            $all_rows_query = "SELECT * FROM {$user_badges_table}";
+            $all_rows_results = $wpdb->get_results($all_rows_query, ARRAY_A);
+            
+            $debug_html .= '<h6 style="color: #d63638; margin: 10px 0 5px 0;">🔍 Debug: Raw Database Query</h6>';
+            $debug_html .= '<p style="color: #666; font-size: 11px; margin: 0 0 5px 0;"><strong>Query:</strong> ' . htmlspecialchars($raw_query) . '</p>';
+            $debug_html .= '<p style="color: #666; font-size: 11px; margin: 0 0 5px 0;"><strong>Results Count:</strong> ' . count($raw_results) . '</p>';
+            if (!empty($raw_results)) {
+                $debug_html .= '<pre style="background: #fff3cd; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 10px;">';
+                $debug_html .= htmlspecialchars(print_r($raw_results, true));
+                $debug_html .= '</pre>';
+            }
+            
+            $debug_html .= '<h6 style="color: #d63638; margin: 10px 0 5px 0;">🔍 Debug: ALL Rows in wp_jph_user_badges</h6>';
+            $debug_html .= '<p style="color: #666; font-size: 11px; margin: 0 0 5px 0;"><strong>Query:</strong> ' . htmlspecialchars($all_rows_query) . '</p>';
+            $debug_html .= '<p style="color: #666; font-size: 11px; margin: 0 0 5px 0;"><strong>Total Rows:</strong> ' . count($all_rows_results) . '</p>';
+            if (!empty($all_rows_results)) {
+                $debug_html .= '<pre style="background: #fff3cd; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 10px;">';
+                $debug_html .= htmlspecialchars(print_r($all_rows_results, true));
+                $debug_html .= '</pre>';
+            }
+        }
+        
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🎖️ All Available Badges (' . count($all_badges) . ')</h5>';
+        if (!empty($all_badges)) {
+            $debug_html .= '<pre style="background: #f1f1f1; padding: 10px; border-radius: 4px; overflow-x: auto;">';
+            $debug_html .= htmlspecialchars(print_r($all_badges, true));
+            $debug_html .= '</pre>';
+        } else {
+            $debug_html .= '<p style="color: #d63638;">No badges found in database</p>';
+        }
+        
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">📝 Recent Practice Sessions (' . count($practice_sessions) . ')</h5>';
+        if (!empty($practice_sessions)) {
+            $debug_html .= '<pre style="background: #f1f1f1; padding: 10px; border-radius: 4px; overflow-x: auto;">';
+            $debug_html .= htmlspecialchars(print_r($practice_sessions, true));
+            $debug_html .= '</pre>';
+        } else {
+            $debug_html .= '<p style="color: #d63638;">No practice sessions found</p>';
+        }
+        
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🗄️ Database Tables</h5>';
+        foreach ($table_info as $name => $info) {
+            $status = $info['exists'] ? '✅' : '❌';
+            $debug_html .= '<p><strong>' . $name . ':</strong> ' . $status . ' ' . $info['table_name'] . ' (' . $info['count'] . ' rows)</p>';
+        }
+        
+        // Add table structure validation
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🔧 Table Structure Validation</h5>';
+        $table_validation = $this->validate_table_structures();
+        foreach ($table_validation as $table_name => $validation) {
+            $status_icon = $validation['valid'] ? '✅' : '❌';
+            $debug_html .= '<p><strong>' . $table_name . ':</strong> ' . $status_icon . ' ' . ($validation['valid'] ? 'Structure OK' : 'Structure Issues') . '</p>';
+            if (!$validation['valid']) {
+                $debug_html .= '<ul style="margin: 5px 0 10px 20px; color: #d63638;">';
+                foreach ($validation['issues'] as $issue) {
+                    $debug_html .= '<li>' . $issue . '</li>';
+                }
+                $debug_html .= '</ul>';
+            }
+        }
+        
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🔍 Badge System Analysis</h5>';
+        
+        // Check for badge_id vs badge_key issues
+        if (!empty($all_badges)) {
+            $badge_keys = array();
+            $badge_ids = array();
+            foreach ($all_badges as $badge) {
+                if (isset($badge['badge_key'])) $badge_keys[] = $badge['badge_key'];
+                if (isset($badge['id'])) $badge_ids[] = $badge['id'];
+            }
+            
+            $debug_html .= '<p><strong>Badge Keys:</strong> ' . implode(', ', $badge_keys) . '</p>';
+            $debug_html .= '<p><strong>Badge IDs:</strong> ' . implode(', ', $badge_ids) . '</p>';
+            
+            // Check user badges structure
+            if (!empty($user_badges)) {
+                $user_badge_keys = array();
+                $user_badge_ids = array();
+                foreach ($user_badges as $user_badge) {
+                    if (isset($user_badge['badge_key'])) $user_badge_keys[] = $user_badge['badge_key'];
+                    if (isset($user_badge['badge_id'])) $user_badge_ids[] = $user_badge['badge_id'];
+                }
+                $debug_html .= '<p><strong>User Badge Keys:</strong> ' . implode(', ', $user_badge_keys) . '</p>';
+                $debug_html .= '<p><strong>User Badge IDs:</strong> ' . implode(', ', $user_badge_ids) . '</p>';
+            }
+        }
+        
+        // Add recent badge awards section
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🏆 Recent Badge Awards</h5>';
+        $debug_html .= '<p><em>Recent badge award events will appear here when badges are earned. Check the browser console for "New badges awarded" messages or look for badge award notifications.</em></p>';
+        $debug_html .= '<div id="jph-badge-awards-debug" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 4px; margin: 10px 0;">';
+        $debug_html .= '<p style="margin: 0; color: #856404;">No recent badge awards detected. Try logging a practice session to trigger badge checks.</p>';
+        $debug_html .= '</div>';
+        
+        // Add streak testing section
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🔥 Streak Testing Tools</h5>';
+        $debug_html .= '<div style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; margin: 10px 0;">';
+        
+        // Current streak info
+        $current_streak = $user_stats['current_streak'] ?? 0;
+        $longest_streak = $user_stats['longest_streak'] ?? 0;
+        $shield_count = $user_stats['streak_shield_count'] ?? 0;
+        $gems_balance = $user_stats['gems_balance'] ?? 0;
+        
+        $debug_html .= '<h6 style="margin: 0 0 10px 0; color: #495057;">Current Streak Status</h6>';
+        $debug_html .= '<p style="margin: 5px 0;"><strong>Current Streak:</strong> ' . $current_streak . ' days</p>';
+        $debug_html .= '<p style="margin: 5px 0;"><strong>Longest Streak:</strong> ' . $longest_streak . ' days</p>';
+        $debug_html .= '<p style="margin: 5px 0;"><strong>Active Shields:</strong> ' . $shield_count . '/3</p>';
+        $debug_html .= '<p style="margin: 5px 0;"><strong>Gems Balance:</strong> ' . $gems_balance . ' 💎</p>';
+        
+        // Streak testing buttons
+        $debug_html .= '<h6 style="margin: 15px 0 10px 0; color: #495057;">Test Actions</h6>';
+        $debug_html .= '<div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0;">';
+        
+        // Purchase shield button
+        if ($shield_count < 3) {
+            $debug_html .= '<button type="button" class="button button-secondary" onclick="jphTestPurchaseShield()" style="margin: 2px;">Test Purchase Shield (50 💎)</button>';
+        } else {
+            $debug_html .= '<button type="button" class="button button-secondary" disabled style="margin: 2px;">Max Shields (3)</button>';
+        }
+        
+        // Test auto-shield button
+        $debug_html .= '<button type="button" class="button button-primary" onclick="jphTestAutoShield()" style="margin: 2px;">Test Auto-Shield</button>';
+        
+        // Streak recovery buttons (only show if streak is 0)
+        if ($current_streak === 0) {
+            $debug_html .= '<button type="button" class="button button-primary" onclick="jphTestRepairStreak(1)" style="margin: 2px;">Test Repair 1 Day (25 💎)</button>';
+            $debug_html .= '<button type="button" class="button button-primary" onclick="jphTestRepairStreak(3)" style="margin: 2px;">Test Repair 3 Days (75 💎)</button>';
+        }
+        
+        // Reset streak button (for testing)
+        $debug_html .= '<button type="button" class="button button-secondary" onclick="jphTestResetStreak()" style="margin: 2px; background: #dc3545; color: white;">Reset Streak (Test)</button>';
+        
+        // Add gems button (for testing)
+        $debug_html .= '<button type="button" class="button button-secondary" onclick="jphTestAddGems(100)" style="margin: 2px; background: #28a745; color: white;">Add 100 Gems (Test)</button>';
+        
+        $debug_html .= '</div>';
+        
+        // Test results area
+        $debug_html .= '<h6 style="margin: 15px 0 10px 0; color: #495057;">Test Results</h6>';
+        $debug_html .= '<div id="jph-streak-test-results" style="background: #e9ecef; border: 1px solid #ced4da; padding: 10px; border-radius: 4px; min-height: 50px; font-size: 12px;">';
+        $debug_html .= '<p style="margin: 0; color: #6c757d;">Test results will appear here...</p>';
+        $debug_html .= '</div>';
+        
+        $debug_html .= '</div>';
+        
+        
+        
+        $debug_html .= '</div>';
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'debug_html' => $debug_html,
+            'timestamp' => current_time('mysql')
+        ));
+    }
+    
+    /**
+     * Validate table structures against expected schema
+     */
+    private function validate_table_structures() {
+        global $wpdb;
+        
+        $validation_results = array();
+        
+        // Expected table structures
+        $expected_structures = array(
+            'jph_badges' => array(
+                'required_columns' => array('badge_key', 'name', 'description', 'icon', 'category', 'rarity', 'xp_reward', 'gem_reward', 'criteria_type', 'criteria_value', 'is_active', 'created_at'),
+                'primary_key' => 'badge_key',
+                'forbidden_columns' => array('id') // Should not have id column anymore
+            ),
+            'jph_user_badges' => array(
+                'required_columns' => array('user_id', 'badge_key', 'earned_at'),
+                'primary_key' => array('user_id', 'badge_key'),
+                'forbidden_columns' => array('id', 'badge_id', 'badge_name', 'badge_description', 'badge_icon', 'earned_date') // Old structure columns
+            ),
+            'jph_practice_items' => array(
+                'required_columns' => array('id', 'user_id', 'name', 'category', 'description', 'is_active', 'created_at', 'updated_at'),
+                'primary_key' => 'id'
+            ),
+            'jph_practice_sessions' => array(
+                'required_columns' => array('id', 'user_id', 'practice_item_id', 'duration_minutes', 'sentiment_score', 'improvement_detected', 'notes', 'ai_analysis', 'xp_earned', 'session_hash', 'created_at'),
+                'primary_key' => 'id'
+            ),
+            'jph_user_stats' => array(
+                'required_columns' => array('id', 'user_id', 'total_xp', 'current_level', 'total_sessions', 'current_streak', 'longest_streak', 'badges_earned', 'gems_balance', 'streak_shield_count', 'last_practice_date', 'created_at', 'updated_at'),
+                'primary_key' => 'id'
+            ),
+            'jph_gems_transactions' => array(
+                'required_columns' => array('id', 'user_id', 'transaction_type', 'amount', 'source', 'description', 'balance_after', 'created_at'),
+                'primary_key' => 'id'
+            ),
+            'jph_lesson_favorites' => array(
+                'required_columns' => array('id', 'user_id', 'title', 'url', 'category', 'description', 'created_at', 'updated_at'),
+                'primary_key' => 'id'
+            )
+        );
+        
+        foreach ($expected_structures as $table_name => $expected) {
+            $full_table_name = $wpdb->prefix . $table_name;
+            $validation_results[$table_name] = array(
+                'valid' => true,
+                'issues' => array()
+            );
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$full_table_name}'");
+            if (!$table_exists) {
+                $validation_results[$table_name]['valid'] = false;
+                $validation_results[$table_name]['issues'][] = "Table does not exist";
+                continue;
+            }
+            
+            // Get actual table structure
+            $columns = $wpdb->get_results("SHOW COLUMNS FROM {$full_table_name}", ARRAY_A);
+            $actual_columns = array_column($columns, 'Field');
+            
+            // Check for required columns
+            foreach ($expected['required_columns'] as $required_column) {
+                if (!in_array($required_column, $actual_columns)) {
+                    $validation_results[$table_name]['valid'] = false;
+                    $validation_results[$table_name]['issues'][] = "Missing required column: {$required_column}";
+                }
+            }
+            
+            // Check for forbidden columns (old structure)
+            foreach ($expected['forbidden_columns'] as $forbidden_column) {
+                if (in_array($forbidden_column, $actual_columns)) {
+                    $validation_results[$table_name]['valid'] = false;
+                    $validation_results[$table_name]['issues'][] = "Has forbidden column (old structure): {$forbidden_column}";
+                }
+            }
+            
+            // Check primary key
+            $key_info = $wpdb->get_results("SHOW KEYS FROM {$full_table_name} WHERE Key_name = 'PRIMARY'", ARRAY_A);
+            $primary_keys = array_column($key_info, 'Column_name');
+            
+            if (is_array($expected['primary_key'])) {
+                // Composite primary key
+                $expected_pk = $expected['primary_key'];
+                sort($expected_pk);
+                sort($primary_keys);
+                if ($expected_pk !== $primary_keys) {
+                    $validation_results[$table_name]['valid'] = false;
+                    $validation_results[$table_name]['issues'][] = "Primary key mismatch. Expected: " . implode(',', $expected['primary_key']) . ", Found: " . implode(',', $primary_keys);
+                }
+            } else {
+                // Single primary key
+                if (!in_array($expected['primary_key'], $primary_keys)) {
+                    $validation_results[$table_name]['valid'] = false;
+                    $validation_results[$table_name]['issues'][] = "Primary key mismatch. Expected: {$expected['primary_key']}, Found: " . implode(',', $primary_keys);
+                }
+            }
+        }
+        
+        return $validation_results;
     }
     
     /**
@@ -6605,13 +7057,13 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
-     * REST API: Get badge by ID
+     * REST API: Get badge by key
      */
     public function rest_get_badge($request) {
         try {
-            $badge_id = $request->get_param('id');
+            $badge_key = $request->get_param('badge_key');
             $database = new JPH_Database();
-            $badge = $database->get_badge($badge_id);
+            $badge = $database->get_badge($badge_key);
             
             if (!$badge) {
                 return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
@@ -6708,17 +7160,17 @@ class JazzEdge_Practice_Hub {
      */
     public function rest_update_badge($request) {
         try {
-            $badge_id = intval($request->get_param('id'));
+            $badge_key = $request->get_param('badge_key');
             $database = new JPH_Database();
             
             
-            // Validate badge ID
-            if (empty($badge_id)) {
-                return new WP_Error('missing_badge_id', 'Badge ID is required', array('status' => 400));
+            // Validate badge key
+            if (empty($badge_key)) {
+                return new WP_Error('missing_badge_key', 'Badge key is required', array('status' => 400));
             }
             
             // Check if badge exists
-            $existing_badge = $database->get_badge($badge_id);
+            $existing_badge = $database->get_badge($badge_key);
             if (!$existing_badge) {
                 return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
             }
@@ -6782,7 +7234,7 @@ class JazzEdge_Practice_Hub {
                 }
                 
                 $file_extension = pathinfo($_FILES['badge_image']['name'], PATHINFO_EXTENSION);
-                $filename = sanitize_file_name($badge_id . '.' . $file_extension);
+                $filename = sanitize_file_name($badge_key . '.' . $file_extension);
                 $file_path = $badge_dir . '/' . $filename;
                 
                 if (move_uploaded_file($_FILES['badge_image']['tmp_name'], $file_path)) {
@@ -6790,7 +7242,7 @@ class JazzEdge_Practice_Hub {
                 }
             }
             
-            $result = $database->update_badge($badge_id, $badge_data);
+            $result = $database->update_badge($badge_key, $badge_data);
             
             if (!$result) {
                 return new WP_Error('update_failed', 'Failed to update badge', array('status' => 500));
@@ -6811,28 +7263,28 @@ class JazzEdge_Practice_Hub {
      */
     public function rest_delete_badge($request) {
         try {
-            $badge_id = $request->get_param('id');
+            $badge_key = $request->get_param('badge_key');
             
-            if (empty($badge_id)) {
-                return new WP_Error('missing_badge_id', 'Badge ID is required', array('status' => 400));
+            if (empty($badge_key)) {
+                return new WP_Error('missing_badge_key', 'Badge key is required', array('status' => 400));
             }
             
             $database = new JPH_Database();
             
             // Check if badge exists first
-            $existing_badge = $database->get_badge($badge_id);
+            $existing_badge = $database->get_badge($badge_key);
             if (!$existing_badge) {
                 return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
             }
             
-            $result = $database->delete_badge($badge_id);
+            $result = $database->delete_badge($badge_key);
             
             if (!$result) {
                 return new WP_Error('delete_failed', 'Failed to delete badge', array('status' => 500));
             }
             
             // Update badge counts for all users who had this badge
-            $this->update_badge_counts_after_deletion($badge_id);
+            $this->update_badge_counts_after_deletion($badge_key);
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -6847,7 +7299,7 @@ class JazzEdge_Practice_Hub {
     /**
      * Update badge counts for all users after a badge is deleted
      */
-    private function update_badge_counts_after_deletion($deleted_badge_id) {
+    private function update_badge_counts_after_deletion($deleted_badge_key) {
         global $wpdb;
         
         $user_badges_table = $wpdb->prefix . 'jph_user_badges';
@@ -6856,7 +7308,7 @@ class JazzEdge_Practice_Hub {
         // Get all users who had this badge
         $users_with_badge = $wpdb->get_col($wpdb->prepare(
             "SELECT DISTINCT user_id FROM {$user_badges_table} WHERE badge_key = %s",
-            $deleted_badge_id
+            $deleted_badge_key
         ));
         
         // Update badge count for each affected user
@@ -6991,7 +7443,11 @@ class JazzEdge_Practice_Hub {
      */
     public function rest_get_user_badges($request) {
         try {
-            $user_id = get_current_user_id() ?: 1; // Default to user 1 for testing
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view badges', array('status' => 401));
+            }
             
             $database = new JPH_Database();
             
@@ -7141,10 +7597,7 @@ class JazzEdge_Practice_Hub {
                 // Award the badge
                 $database->award_badge(
                     $user_id,
-                    $badge['badge_key'], // Use badge_key as the key
-                    $badge['name'],
-                    $badge['description'],
-                    $badge['icon'] ?? ''
+                    $badge['badge_key']
                 );
                 
                 // Update user stats with XP reward, gems reward, and badge count
@@ -7178,73 +7631,6 @@ class JazzEdge_Practice_Hub {
         return $newly_awarded;
     }
     
-    /**
-     * Create default badges if none exist
-     */
-    public function create_default_badges() {
-        $database = new JPH_Database();
-        
-        // Check if any badges exist
-        $existing_badges = $database->get_badges(false);
-        if (!empty($existing_badges)) {
-            return; // Badges already exist
-        }
-        
-        $default_badges = array(
-            array(
-                'badge_key' => 'first_session',
-                'name' => 'First Steps',
-                'description' => 'Complete your first practice session',
-                'category' => 'practice',
-                'rarity' => 'common',
-                'xp_reward' => 50
-            ),
-            array(
-                'badge_key' => 'marathon',
-                'name' => 'Marathon',
-                'description' => 'Practice for 60+ minutes in one session',
-                'category' => 'achievement',
-                'rarity' => 'rare',
-                'xp_reward' => 75
-            ),
-            array(
-                'badge_key' => 'rising_star',
-                'name' => 'Rising Star',
-                'description' => 'Report improvement 10 times',
-                'category' => 'improvement',
-                'rarity' => 'rare',
-                'xp_reward' => 200
-            ),
-            array(
-                'badge_key' => 'hot_streak',
-                'name' => 'Hot Streak',
-                'description' => 'Practice for 7 days in a row',
-                'category' => 'streak',
-                'rarity' => 'epic',
-                'xp_reward' => 100
-            ),
-            array(
-                'badge_key' => 'lightning',
-                'name' => 'Lightning',
-                'description' => 'Practice for 30 days in a row',
-                'category' => 'streak',
-                'rarity' => 'epic',
-                'xp_reward' => 500
-            ),
-            array(
-                'badge_key' => 'legend',
-                'name' => 'Legend',
-                'description' => 'Practice for 100 days in a row',
-                'category' => 'streak',
-                'rarity' => 'legendary',
-                'xp_reward' => 1000
-            )
-        );
-        
-        foreach ($default_badges as $badge_data) {
-            $database->add_badge($badge_data);
-        }
-    }
     
     /**
      * REST API: Create default badges
@@ -7460,7 +7846,11 @@ class JazzEdge_Practice_Hub {
      */
     public function rest_check_and_award_badges($request) {
         try {
-            $user_id = get_current_user_id() ?: 1; // Default to user 1 for testing
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to check badges', array('status' => 401));
+            }
             
             $newly_awarded = $this->check_and_award_badges($user_id);
             
@@ -7549,16 +7939,16 @@ class JazzEdge_Practice_Hub {
     public function rest_award_badge_manually($request) {
         try {
             $user_id = get_current_user_id() ?: 1;
-            $badge_id = $request->get_param('badge_id');
+            $badge_key = $request->get_param('badge_key');
             
-            if (!$badge_id) {
-                return new WP_Error('missing_badge_id', 'Badge ID is required', array('status' => 400));
+            if (!$badge_key) {
+                return new WP_Error('missing_badge_key', 'Badge key is required', array('status' => 400));
             }
             
             $database = new JPH_Database();
             
             // Get the badge details
-            $badge = $database->get_badge($badge_id);
+            $badge = $database->get_badge($badge_key);
             if (!$badge) {
                 return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
             }
@@ -7574,10 +7964,7 @@ class JazzEdge_Practice_Hub {
             // Award the badge
             $result = $database->award_badge(
                 $user_id,
-                $badge['badge_key'],
-                $badge['name'],
-                $badge['description'],
-                $badge['icon'] ?? ''
+                $badge['badge_key']
             );
             
             if ($result) {
@@ -8071,8 +8458,8 @@ class JazzEdge_Practice_Hub {
             }
             
             $database = new JPH_Database();
-            foreach ($badge_orders as $badge_id => $display_order) {
-                $result = $database->update_badge_display_order($badge_id, $display_order);
+            foreach ($badge_orders as $badge_key => $display_order) {
+                $result = $database->update_badge_display_order($badge_key, $display_order);
                 if (is_wp_error($result)) {
                     wp_send_json_error($result->get_error_message());
                 }
@@ -8133,6 +8520,69 @@ class JazzEdge_Practice_Hub {
                 'last_practice_date' => $updated_stats['last_practice_date']
             ));
         }
+    }
+    
+    /**
+     * AJAX handler for resetting streak (testing only)
+     */
+    public function ajax_reset_streak_test() {
+        if (!current_user_can('read')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $user_id = get_current_user_id();
+        $database = new JPH_Database();
+        $gamification = new JPH_Gamification();
+        
+        // Reset streak to 0 for testing
+        $database->update_user_stats($user_id, array(
+            'current_streak' => 0,
+            'last_practice_date' => null
+        ));
+        
+        // Get updated stats
+        $updated_stats = $gamification->get_user_stats($user_id);
+        
+        wp_send_json_success(array(
+            'message' => 'Streak reset for testing',
+            'new_streak' => $updated_stats['current_streak']
+        ));
+    }
+    
+    /**
+     * AJAX handler for adding gems (testing only)
+     */
+    public function ajax_add_gems_test() {
+        if (!current_user_can('read')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $user_id = get_current_user_id();
+        $amount = intval($_POST['amount']);
+        
+        if ($amount <= 0) {
+            wp_send_json_error('Invalid amount');
+        }
+        
+        $database = new JPH_Database();
+        $gamification = new JPH_Gamification();
+        
+        // Get current stats
+        $user_stats = $gamification->get_user_stats($user_id);
+        $new_balance = $user_stats['gems_balance'] + $amount;
+        
+        // Update gems balance
+        $database->update_user_stats($user_id, array(
+            'gems_balance' => $new_balance
+        ));
+        
+        // Record transaction
+        $database->record_gems_transaction($user_id, 'earned', $amount, 'test_add', 'Added ' . $amount . ' gems for testing', $new_balance);
+        
+        wp_send_json_success(array(
+            'message' => 'Added ' . $amount . ' gems for testing',
+            'new_balance' => $new_balance
+        ));
     }
     
     /**
@@ -9706,10 +10156,16 @@ class JazzEdge_Practice_Hub {
                         <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
                     </div>
                     <div class="protection-actions">
+                        <?php if (($user_stats['streak_shield_count'] ?? 0) < 3): ?>
                         <button type="button" class="button button-secondary" id="purchase-shield-btn" 
                                 data-cost="50" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
                             Buy Shield (50 💎)
                         </button>
+                        <?php else: ?>
+                        <button type="button" class="button button-secondary" disabled>
+                            Max Shields (3)
+                        </button>
+                        <?php endif; ?>
                         <button type="button" class="button button-primary" id="test-auto-shield-btn" 
                                 data-nonce="<?php echo wp_create_nonce('jph_test_auto_shield'); ?>">
                             Test Auto-Shield
@@ -11464,8 +11920,11 @@ class JazzEdge_Practice_Hub {
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.5);
-            padding: 20px;
+            padding: 80px 20px 150px 20px;
             box-sizing: border-box;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
         }
         
         .jph-modal-content {
@@ -11475,7 +11934,7 @@ class JazzEdge_Practice_Hub {
             border-radius: 16px;
             width: 100%;
             max-width: 700px;
-            max-height: calc(100vh - 40px);
+            max-height: calc(100vh - 200px);
             overflow-y: auto;
             position: relative;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
@@ -11718,13 +12177,13 @@ class JazzEdge_Practice_Hub {
         /* Mobile Responsive */
         @media (max-width: 768px) {
             .jph-modal {
-                padding: 10px;
+                padding: 60px 10px 120px 10px;
             }
             
             .jph-modal-content {
                 max-width: 100%;
                 padding: 20px;
-                max-height: calc(100vh - 20px);
+                max-height: calc(100vh - 150px);
             }
             
             .jph-two-column-layout {
@@ -12143,12 +12602,12 @@ class JazzEdge_Practice_Hub {
                 loadPracticeHistory();
                 
                 // Load more sessions button events
-                $(document).on('click', '#load-more-sessions, #load-more-sessions-bottom', function() {
+                jQuery(document).on('click', '#load-more-sessions, #load-more-sessions-bottom', function() {
                     loadMoreSessions();
                 });
                 
                 // Export history button event
-                $(document).on('click', '#export-history-btn', function() {
+                jQuery(document).on('click', '#export-history-btn', function() {
                     exportPracticeHistory();
                 });
                 
@@ -12172,7 +12631,7 @@ class JazzEdge_Practice_Hub {
                 }
                 
                 // View all sessions button event
-                $(document).on('click', '#view-all-sessions-btn', function() {
+                jQuery(document).on('click', '#view-all-sessions-btn', function() {
                     viewAllSessions();
                 });
                 
@@ -12181,19 +12640,19 @@ class JazzEdge_Practice_Hub {
                 
                 
                 // Stats Explanation Modal
-                $('#jph-stats-explanation-btn').on('click', function() {
-                    $('#jph-stats-explanation-modal').show();
+                jQuery('#jph-stats-explanation-btn').on('click', function() {
+                    jQuery('#jph-stats-explanation-modal').show();
                 });
                 
                 // Close modal when clicking the X
-                $('#jph-stats-explanation-modal .jph-close').on('click', function() {
-                    $('#jph-stats-explanation-modal').hide();
+                jQuery('#jph-stats-explanation-modal .jph-close').on('click', function() {
+                    jQuery('#jph-stats-explanation-modal').hide();
                 });
                 
                 // Close modal when clicking outside
-                $(window).on('click', function(event) {
+                jQuery(window).on('click', function(event) {
                     if (event.target.id === 'jph-stats-explanation-modal') {
-                        $('#jph-stats-explanation-modal').hide();
+                        jQuery('#jph-stats-explanation-modal').hide();
                     }
                 });
                 
@@ -12284,7 +12743,7 @@ class JazzEdge_Practice_Hub {
                 
                 // Message system
                 function showMessage(message, type = 'success') {
-                    var $messages = $('#jph-messages');
+                    var $messages = jQuery('#jph-messages');
                     var $content = $messages.find('.jph-message-content');
                     var $text = $messages.find('.jph-message-text');
                     
@@ -12303,8 +12762,8 @@ class JazzEdge_Practice_Hub {
                 }
                 
                 // Close message
-                $(document).on('click', '.jph-message-close', function() {
-                    $('#jph-messages').hide();
+                jQuery(document).on('click', '.jph-message-close', function() {
+                    jQuery('#jph-messages').hide();
                 });
                 
                 // Global variables for pagination
@@ -12315,7 +12774,7 @@ class JazzEdge_Practice_Hub {
                 
                 // Load practice history
                 function loadPracticeHistory() {
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                         method: 'GET',
                         headers: {
@@ -12330,15 +12789,15 @@ class JazzEdge_Practice_Hub {
                                 
                                 // Show load more button if we have sessions and might have more
                                 if (sessionsLoaded >= sessionsPerLoad) {
-                                    $('#load-more-container').show();
+                                    jQuery('#load-more-container').show();
                                 }
                             } else {
-                                $('#practice-history-list').html('<div class="no-sessions-message"><span class="emoji">📝</span>No practice sessions found</div>');
+                                jQuery('#practice-history-list').html('<div class="no-sessions-message"><span class="emoji">📝</span>No practice sessions found</div>');
                             }
                         },
                         error: function(xhr, status, error) {
                             console.error('Error loading practice history:', error);
-                            $('#practice-history-list').html('<div class="no-sessions-message"><span class="emoji">❌</span>Error loading practice history</div>');
+                            jQuery('#practice-history-list').html('<div class="no-sessions-message"><span class="emoji">❌</span>Error loading practice history</div>');
                         }
                     });
                 }
@@ -12348,9 +12807,9 @@ class JazzEdge_Practice_Hub {
                     if (isLoadingMore) return;
                     
                     isLoadingMore = true;
-                    $('#load-more-sessions-bottom').html('<span class="btn-icon">⏳</span>Loading...');
+                    jQuery('#load-more-sessions-bottom').html('<span class="btn-icon">⏳</span>Loading...');
                     
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                         method: 'GET',
                         headers: {
@@ -12391,7 +12850,7 @@ class JazzEdge_Practice_Hub {
                 
                 // Export practice history as CSV
                 function exportPracticeHistory() {
-                    var $btn = $('#export-history-btn');
+                    var $btn = jQuery('#export-history-btn');
                     var originalText = $btn.html();
                     
                     // Show loading state
@@ -12429,14 +12888,14 @@ class JazzEdge_Practice_Hub {
                 
                 // View all sessions at once
                 function viewAllSessions() {
-                    var $btn = $('#view-all-sessions-btn');
-                    var $container = $('.practice-history-list');
+                    var $btn = jQuery('#view-all-sessions-btn');
+                    var $container = jQuery('.practice-history-list');
                     
                     if ($btn.text().includes('View All')) {
                         // Load all sessions
                         $btn.html('<span class="btn-icon">⏳</span>Loading All Sessions...');
                         
-                        $.ajax({
+                        jQuery.ajax({
                             url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                             method: 'GET',
                             headers: {
@@ -12450,7 +12909,7 @@ class JazzEdge_Practice_Hub {
                                     displayPracticeHistory(currentSessions);
                                     
                                     // Hide load more button and show collapse option
-                                    $('#load-more-container').hide();
+                                    jQuery('#load-more-container').hide();
                                     $btn.html('<span class="btn-icon">📋</span>Show Recent Only');
                                     
                                     // Remove height limit to show all sessions
@@ -12482,7 +12941,15 @@ class JazzEdge_Practice_Hub {
                         success: function(response) {
                             if (response.success) {
                                 if (response.count > 0) {
-                                    console.log('New badges awarded:', response.newly_awarded);
+                                    // Store badge award info for debug area instead of console
+                                    window.jphDebugBadgeAwards = {
+                                        timestamp: new Date().toISOString(),
+                                        count: response.count,
+                                        badges: response.newly_awarded,
+                                        message: response.message
+                                    };
+                                    // Update debug area with badge award info
+                                    jphUpdateBadgeAwardsDebug();
                                     // Show notification if new badges were awarded
                                     showMessage('🎉 ' + response.message, 'success');
                                 }
@@ -12502,7 +12969,7 @@ class JazzEdge_Practice_Hub {
                 
                 // Load lesson favorites
                 function loadLessonFavorites() {
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
                         method: 'GET',
                         headers: {
@@ -12513,19 +12980,19 @@ class JazzEdge_Practice_Hub {
                                 displayLessonFavorites(response.favorites);
                             } else {
                                 console.error('Error loading lesson favorites:', response.message);
-                                $('#lesson-favorites-container').html('<div class="jph-favorites-empty"><h4>No lesson favorites found</h4><p>Start adding lessons to your favorites!</p></div>');
+                                jQuery('#lesson-favorites-container').html('<div class="jph-favorites-empty"><h4>No lesson favorites found</h4><p>Start adding lessons to your favorites!</p></div>');
                             }
                         },
                         error: function(xhr, status, error) {
                             console.error('Error loading lesson favorites:', error);
-                            $('#lesson-favorites-container').html('<div class="jph-favorites-empty"><h4>Error loading favorites</h4><p>Please try refreshing the page.</p></div>');
+                            jQuery('#lesson-favorites-container').html('<div class="jph-favorites-empty"><h4>Error loading favorites</h4><p>Please try refreshing the page.</p></div>');
                         }
                     });
                 }
                 
                 // Display lesson favorites
                 function displayLessonFavorites(favorites) {
-                    const container = $('#lesson-favorites-container');
+                    const container = jQuery('#lesson-favorites-container');
                     
                     if (favorites.length === 0) {
                         container.html(`
@@ -12584,7 +13051,7 @@ class JazzEdge_Practice_Hub {
                         return;
                     }
                     
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
                         method: 'POST',
                         headers: {
@@ -12612,7 +13079,7 @@ class JazzEdge_Practice_Hub {
                         return;
                     }
                     
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/lesson-favorites/'); ?>' + favoriteId,
                         method: 'DELETE',
                         headers: {
@@ -12638,23 +13105,26 @@ class JazzEdge_Practice_Hub {
                     $.ajax({
                         url: '<?php echo rest_url('jph/v1/user-badges'); ?>',
                         method: 'GET',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
                         success: function(response) {
                             if (response.success) {
                                 displayBadges(response.badges);
                             } else {
-                                $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available</div>');
+                                jQuery('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available</div>');
                             }
                         },
                         error: function(xhr, status, error) {
                             console.error('Error loading badges:', error);
-                            $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">❌</span>Error loading badges</div>');
+                            jQuery('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges earned yet</div>');
                         }
                     });
                 }
                 
                 // Display badges
                 function displayBadges(badges) {
-                    var $container = $('#jph-badges-grid');
+                    var $container = jQuery('#jph-badges-grid');
                     
                     if (!badges || badges.length === 0) {
                         $container.html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available yet. Keep practicing to earn your first badge!</div>');
@@ -12690,7 +13160,7 @@ class JazzEdge_Practice_Hub {
                 
         // Update badge count display
         function updateBadgeCount(count) {
-            var $badgeCount = $('#badge-count-display');
+            var $badgeCount = jQuery('#badge-count-display');
             if ($badgeCount.length) {
                 $badgeCount.text('(' + count + ')');
             }
@@ -12699,21 +13169,21 @@ class JazzEdge_Practice_Hub {
         // Toast notification system
         function showToast(message, type = 'info', duration = 4000) {
             // Remove existing toasts
-            $('.jph-toast').remove();
+            jQuery('.jph-toast').remove();
             
             const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
             
-            const toast = $(`
+            const toast = jQuery(`
                 <div class="jph-toast ${type}">
                     <div class="toast-content">
                         <span class="toast-icon">${icon}</span>
                         <span class="toast-message">${message}</span>
-                        <button class="toast-close" onclick="$(this).parent().parent().remove()">×</button>
+                        <button class="toast-close" onclick="jQuery(this).parent().parent().remove()">×</button>
                     </div>
                 </div>
             `);
             
-            $('body').append(toast);
+            jQuery('body').append(toast);
             
             // Show toast
             setTimeout(() => toast.addClass('show'), 100);
@@ -12731,7 +13201,7 @@ class JazzEdge_Practice_Hub {
                 
                 // Display practice history
                 function displayPracticeHistory(sessions) {
-                    var $container = $('#practice-history-list');
+                    var $container = jQuery('#practice-history-list');
                     
                     if (!sessions || sessions.length === 0) {
                         $container.html('<div class="no-sessions-message"><span class="emoji">📝</span>No practice sessions yet. Start practicing to see your history!</div>');
@@ -12776,18 +13246,18 @@ class JazzEdge_Practice_Hub {
                 // Update stats display with response data
                 function updateStatsDisplay(response) {
                     // Update XP (add the earned XP to current display)
-                    var currentXP = parseInt($('.stat-value').eq(1).text()) || 0;
+                    var currentXP = parseInt(jQuery('.stat-value').eq(1).text()) || 0;
                     var newXP = currentXP + (response.xp_earned || 0);
-                    $('.stat-value').eq(1).text(newXP);
+                    jQuery('.stat-value').eq(1).text(newXP);
                     
                     // Update level if leveled up
                     if (response.level_up && response.level_up.leveled_up) {
-                        $('.stat-value').eq(0).text(response.level_up.new_level);
+                        jQuery('.stat-value').eq(0).text(response.level_up.new_level);
                     }
                     
                     // Update streak
                     if (response.streak_update) {
-                        $('.stat-value').eq(2).text(response.streak_update.current_streak);
+                        jQuery('.stat-value').eq(2).text(response.streak_update.current_streak);
                     }
                 }
                 
@@ -12865,25 +13335,25 @@ class JazzEdge_Practice_Hub {
                 }
                 
                 // Handle Add Practice Item button clicks
-                $(document).on('click', '.jph-add-item-btn', function() {
-                    $('#jph-add-item-modal').show();
+                jQuery(document).on('click', '.jph-add-item-btn', function() {
+                    jQuery('#jph-add-item-modal').show();
                     loadLessonFavorites();
                     
                     // Initialize card selection state
-                    $('.practice-type-card').removeClass('selected');
-                    $('.practice-type-card:has(input[type="radio"]:checked)').addClass('selected');
+                    jQuery('.practice-type-card').removeClass('selected');
+                    jQuery('.practice-type-card:has(input[type="radio"]:checked)').addClass('selected');
                 });
                 
                 // Handle practice type card clicks
-                $(document).on('click', '.practice-type-card', function() {
-                    var cardType = $(this).data('type');
-                    var radioInput = $(this).find('input[type="radio"]');
+                jQuery(document).on('click', '.practice-type-card', function() {
+                    var cardType = jQuery(this).data('type');
+                    var radioInput = jQuery(this).find('input[type="radio"]');
                     
                     // Remove selected class from all cards
-                    $('.practice-type-card').removeClass('selected');
+                    jQuery('.practice-type-card').removeClass('selected');
                     
                     // Add selected class to clicked card
-                    $(this).addClass('selected');
+                    jQuery(this).addClass('selected');
                     
                     // Check the radio button
                     radioInput.prop('checked', true);
@@ -12893,33 +13363,33 @@ class JazzEdge_Practice_Hub {
                 });
                 
                 // Handle practice type radio button changes
-                $(document).on('change', 'input[name="practice_type"]', function() {
-                    var practiceType = $(this).val();
+                jQuery(document).on('change', 'input[name="practice_type"]', function() {
+                    var practiceType = jQuery(this).val();
                     if (practiceType === 'custom') {
-                        $('#custom-title-group').show();
-                        $('#favorite-selection-group').hide();
-                        $('input[name="item_name"]').prop('required', true);
-                        $('select[name="lesson_favorite"]').prop('required', false);
+                        jQuery('#custom-title-group').show();
+                        jQuery('#favorite-selection-group').hide();
+                        jQuery('input[name="item_name"]').prop('required', true);
+                        jQuery('select[name="lesson_favorite"]').prop('required', false);
                     } else if (practiceType === 'favorite') {
-                        $('#custom-title-group').hide();
-                        $('#favorite-selection-group').show();
-                        $('input[name="item_name"]').prop('required', false);
-                        $('select[name="lesson_favorite"]').prop('required', true);
+                        jQuery('#custom-title-group').hide();
+                        jQuery('#favorite-selection-group').show();
+                        jQuery('input[name="item_name"]').prop('required', false);
+                        jQuery('select[name="lesson_favorite"]').prop('required', true);
                     }
                 });
                 
                 // Handle lesson favorite selection
-                $(document).on('change', '#lesson-favorite-select', function() {
-                    var selectedOption = $(this).find('option:selected');
+                jQuery(document).on('change', '#lesson-favorite-select', function() {
+                    var selectedOption = jQuery(this).find('option:selected');
                     if (selectedOption.val()) {
                         var title = selectedOption.data('title');
                         var category = selectedOption.data('category');
                         var description = selectedOption.data('description');
                         
                         // Auto-fill the form fields
-                        $('input[name="item_name"]').val(title);
-                        $('select[name="item_category"]').val(category);
-                        $('textarea[name="item_description"]').val(description);
+                        jQuery('input[name="item_name"]').val(title);
+                        jQuery('select[name="item_category"]').val(category);
+                        jQuery('textarea[name="item_description"]').val(description);
                     }
                 });
                 
@@ -12960,21 +13430,21 @@ class JazzEdge_Practice_Hub {
                 }
                 
                 // Close Add Practice Item modal
-                $(document).on('click', '#jph-add-item-modal .jph-close', function() {
-                    $('#jph-add-item-modal').hide();
+                jQuery(document).on('click', '#jph-add-item-modal .jph-close', function() {
+                    jQuery('#jph-add-item-modal').hide();
                 });
                 
                 // Close modal when clicking outside
-                $(document).on('click', '#jph-add-item-modal', function(e) {
+                jQuery(document).on('click', '#jph-add-item-modal', function(e) {
                     if (e.target === this) {
-                        $(this).hide();
+                        jQuery(this).hide();
                     }
                 });
                 
                 // Add practice item
-                $('#jph-add-item-form').on('submit', function(e) {
+                jQuery('#jph-add-item-form').on('submit', function(e) {
                     e.preventDefault();
-                    var $form = $(this);
+                    var $form = jQuery(this);
                     var $button = $form.find('button[type="submit"]');
                     
                     // Disable form during submission
@@ -13004,7 +13474,7 @@ class JazzEdge_Practice_Hub {
                     
                     console.log('Sending data:', formData);
                     
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-items'); ?>',
                         method: 'POST',
                         data: JSON.stringify(formData),
@@ -13016,7 +13486,7 @@ class JazzEdge_Practice_Hub {
                             if (response.success) {
                                 showMessage('Practice item added successfully!');
                                 $form[0].reset(); // Clear form
-                                $('#jph-add-item-modal').hide(); // Close modal
+                                jQuery('#jph-add-item-modal').hide(); // Close modal
                                 // Refresh the page to show the new item in the grid
                                 location.reload();
                             } else {
@@ -13065,48 +13535,48 @@ class JazzEdge_Practice_Hub {
                         '</div>' +
                         '</div>';
                     
-                    $('.jph-items-list').append(itemHtml);
+                    jQuery('.jph-items-list').append(itemHtml);
                 }
                 
                 // Open log practice modal
-                $(document).on('click', '.jph-log-practice-btn', function() {
-                    var itemId = $(this).data('item-id');
-                    var itemName = $(this).closest('.jph-item').find('.item-info h4').text();
+                jQuery(document).on('click', '.jph-log-practice-btn', function() {
+                    var itemId = jQuery(this).data('item-id');
+                    var itemName = jQuery(this).closest('.jph-item').find('.item-info h4').text();
                     
-                    $('#log-item-id').val(itemId);
-                    $('#log-practice-item-name').text(itemName);
-                    $('#jph-log-modal').show();
+                    jQuery('#log-item-id').val(itemId);
+                    jQuery('#log-practice-item-name').text(itemName);
+                    jQuery('#jph-log-modal').show();
                 });
                 
                 // Close modal
-                $(document).on('click', '.jph-close', function() {
-                    $('#jph-log-modal').hide();
-                    $('#jph-edit-modal').hide();
+                jQuery(document).on('click', '.jph-close', function() {
+                    jQuery('#jph-log-modal').hide();
+                    jQuery('#jph-edit-modal').hide();
                 });
                 
                 // Edit practice item
-                $(document).on('click', '.jph-edit-item-btn', function() {
-                    var itemId = $(this).data('item-id');
-                    var name = $(this).data('name');
-                    var category = $(this).data('category');
-                    var description = $(this).data('description');
+                jQuery(document).on('click', '.jph-edit-item-btn', function() {
+                    var itemId = jQuery(this).data('item-id');
+                    var name = jQuery(this).data('name');
+                    var category = jQuery(this).data('category');
+                    var description = jQuery(this).data('description');
                     
                     console.log('Edit button clicked - Data:', {itemId, name, category, description});
                     
-                    $('#edit-item-id').val(itemId);
-                    $('#jph-edit-form input[name="item_name"]').val(name);
-                    $('#jph-edit-form select[name="item_category"]').val(category);
-                    $('#jph-edit-form textarea[name="item_description"]').val(description);
-                    $('#jph-edit-modal').show();
+                    jQuery('#edit-item-id').val(itemId);
+                    jQuery('#jph-edit-form input[name="item_name"]').val(name);
+                    jQuery('#jph-edit-form select[name="item_category"]').val(category);
+                    jQuery('#jph-edit-form textarea[name="item_description"]').val(description);
+                    jQuery('#jph-edit-modal').show();
                 });
                 
                 // Delete practice item
-                $(document).on('click', '.jph-delete-item-btn', function() {
-                    var itemId = $(this).data('item-id');
-                    var name = $(this).data('name');
+                jQuery(document).on('click', '.jph-delete-item-btn', function() {
+                    var itemId = jQuery(this).data('item-id');
+                    var name = jQuery(this).data('name');
                     
                     if (confirm('Are you sure you want to delete "' + name + '"? This action cannot be undone.')) {
-                        $.ajax({
+                        jQuery.ajax({
                             url: '<?php echo rest_url('jph/v1/practice-items/'); ?>' + itemId,
                             method: 'DELETE',
                             success: function(response) {
@@ -13179,11 +13649,11 @@ class JazzEdge_Practice_Hub {
                 });
                 
                 // Update practice item
-                $('#jph-edit-form').on('submit', function(e) {
+                jQuery('#jph-edit-form').on('submit', function(e) {
                     e.preventDefault();
-                    var $form = $(this);
+                    var $form = jQuery(this);
                     var $button = $form.find('button[type="submit"]');
-                    var itemId = $('#edit-item-id').val();
+                    var itemId = jQuery('#edit-item-id').val();
                     
                     // Disable form during submission
                     $form.addClass('jph-loading');
@@ -13212,7 +13682,7 @@ class JazzEdge_Practice_Hub {
                         return;
                     }
                     
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-items/'); ?>' + itemId,
                         method: 'PUT',
                         data: JSON.stringify(formData),
@@ -13223,7 +13693,7 @@ class JazzEdge_Practice_Hub {
                         success: function(response) {
                             if (response.success) {
                                 showMessage('Practice item updated successfully!');
-                                $('#jph-edit-modal').hide();
+                                jQuery('#jph-edit-modal').hide();
                                 $form[0].reset();
                                 // Update the item in the list
                                 updateItemInList(itemId, formData.name, formData.category, formData.description);
@@ -13267,28 +13737,28 @@ class JazzEdge_Practice_Hub {
                 
                 // Helper function to update item count
                 function updateItemCount() {
-                    var count = $('.jph-item').length;
-                    $('.item-count').text('(' + count + '/3)');
+                    var count = jQuery('.jph-item').length;
+                    jQuery('.item-count').text('(' + count + '/3)');
                 }
                 
                 // Duration quick buttons
-                $(document).on('click', '.duration-btn', function() {
-                    $('.duration-btn').removeClass('active');
-                    $(this).addClass('active');
-                    $('input[name="duration_minutes"]').val($(this).data('minutes'));
+                jQuery(document).on('click', '.duration-btn', function() {
+                    jQuery('.duration-btn').removeClass('active');
+                    jQuery(this).addClass('active');
+                    jQuery('input[name="duration_minutes"]').val(jQuery(this).data('minutes'));
                 });
                 
                 // Sentiment selection
-                $(document).on('click', '.sentiment-option', function() {
-                    $('.sentiment-option').removeClass('active');
-                    $(this).addClass('active');
-                    $('input[name="sentiment_score"]').val($(this).data('score'));
+                jQuery(document).on('click', '.sentiment-option', function() {
+                    jQuery('.sentiment-option').removeClass('active');
+                    jQuery(this).addClass('active');
+                    jQuery('input[name="sentiment_score"]').val(jQuery(this).data('score'));
                 });
                 
                 // Log practice session
-                $('#jph-log-form').on('submit', function(e) {
+                jQuery('#jph-log-form').on('submit', function(e) {
                     e.preventDefault();
-                    var $form = $(this);
+                    var $form = jQuery(this);
                     var $button = $form.find('button[type="submit"]');
                     
                     // Disable form during submission
@@ -13296,16 +13766,16 @@ class JazzEdge_Practice_Hub {
                     $button.prop('disabled', true).text('Logging...');
                     
                     var formData = {
-                        practice_item_id: $('#log-item-id').val(),
-                        duration_minutes: $('input[name="duration_minutes"]').val(),
-                        sentiment_score: $('input[name="sentiment_score"]').val(),
-                        improvement_detected: $('input[name="improvement_detected"]').is(':checked'),
-                        notes: $('textarea[name="notes"]').val()
+                        practice_item_id: jQuery('#log-item-id').val(),
+                        duration_minutes: jQuery('input[name="duration_minutes"]').val(),
+                        sentiment_score: jQuery('input[name="sentiment_score"]').val(),
+                        improvement_detected: jQuery('input[name="improvement_detected"]').is(':checked'),
+                        notes: jQuery('textarea[name="notes"]').val()
                     };
                     
                     console.log('Log form data:', formData);
                     
-                    $.ajax({
+                    jQuery.ajax({
                         url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
                         method: 'POST',
                         headers: {
@@ -13337,11 +13807,11 @@ class JazzEdge_Practice_Hub {
                                 }
                                 
                                 showMessage(message);
-                                $('#jph-log-modal').hide();
+                                jQuery('#jph-log-modal').hide();
                                 $form[0].reset();
                                 // Reset UI elements
-                                $('.duration-btn').removeClass('active');
-                                $('.sentiment-option').removeClass('active');
+                                jQuery('.duration-btn').removeClass('active');
+                                jQuery('.sentiment-option').removeClass('active');
                                 // Refresh practice history
                                 loadPracticeHistory();
                                 // Update stats display with new values
@@ -13517,6 +13987,259 @@ class JazzEdge_Practice_Hub {
         
         jphInit();
         </script>
+        
+        <!-- Debug Information -->
+        <div id="jph-debug-info" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; font-family: monospace; font-size: 12px;">
+            <h4 style="margin: 0 0 15px 0; color: #495057;">🔍 Debug Information</h4>
+            <div id="jph-debug-content">
+                <p>Loading debug information...</p>
+            </div>
+            <div style="margin-top: 10px;">
+                <button type="button" onclick="jphLoadDebugInfo()" style="padding: 5px 10px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">Refresh Debug</button>
+                <button type="button" onclick="jphCopyDebugInfo()" style="padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">📋 Copy Debug Info</button>
+            </div>
+        </div>
+        
+        <script>
+        function jphLoadDebugInfo() {
+            jQuery('#jph-debug-content').html('<p>Loading...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/debug-info'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#jph-debug-content').html(response.debug_html);
+                    } else {
+                        jQuery('#jph-debug-content').html('<p style="color: red;">Error: ' + (response.message || 'Unknown error') + '</p>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    jQuery('#jph-debug-content').html('<p style="color: red;">AJAX Error: ' + error + '</p>');
+                }
+            });
+        }
+        
+        // Copy debug info to clipboard
+        function jphCopyDebugInfo() {
+            var debugContent = jQuery('#jph-debug-content').text();
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(debugContent).then(function() {
+                    // Copy successful - no alert needed
+                }).catch(function(err) {
+                    console.error('Failed to copy: ', err);
+                    jphFallbackCopy(debugContent);
+                });
+            } else {
+                jphFallbackCopy(debugContent);
+            }
+        }
+        
+        // Fallback copy method for older browsers
+        function jphFallbackCopy(text) {
+            var textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                // Copy successful - no alert needed
+            } catch (err) {
+                console.error('Fallback copy failed: ', err);
+                alert('Copy failed. Please select and copy the debug information manually.');
+            }
+            document.body.removeChild(textArea);
+        }
+        
+        // Update badge awards debug section
+        function jphUpdateBadgeAwardsDebug() {
+            if (window.jphDebugBadgeAwards) {
+                var debugDiv = jQuery('#jph-badge-awards-debug');
+                if (debugDiv.length) {
+                    var html = '<p style="margin: 0 0 10px 0; color: #155724; font-weight: bold;">✅ ' + window.jphDebugBadgeAwards.message + '</p>';
+                    html += '<p style="margin: 0 0 10px 0; color: #856404;"><strong>Timestamp:</strong> ' + new Date(window.jphDebugBadgeAwards.timestamp).toLocaleString() + '</p>';
+                    html += '<p style="margin: 0 0 10px 0; color: #856404;"><strong>Badges Awarded:</strong> ' + window.jphDebugBadgeAwards.count + '</p>';
+                    
+                    if (window.jphDebugBadgeAwards.badges && window.jphDebugBadgeAwards.badges.length > 0) {
+                        html += '<div style="margin: 10px 0;">';
+                        html += '<p style="margin: 0 0 5px 0; color: #856404; font-weight: bold;">Badge Details:</p>';
+                        window.jphDebugBadgeAwards.badges.forEach(function(badge, index) {
+                            html += '<div style="background: #fff; border: 1px solid #ffeaa7; padding: 8px; margin: 5px 0; border-radius: 4px;">';
+                            html += '<p style="margin: 0; color: #155724;"><strong>' + badge.icon + ' ' + badge.name + '</strong></p>';
+                            html += '<p style="margin: 2px 0 0 0; color: #856404; font-size: 11px;">' + badge.description + '</p>';
+                            html += '<p style="margin: 2px 0 0 0; color: #856404; font-size: 11px;">XP Reward: ' + badge.xp_reward + '</p>';
+                            html += '</div>';
+                        });
+                        html += '</div>';
+                    }
+                    
+                    debugDiv.html(html);
+                }
+            }
+        }
+        
+        // Streak testing functions
+        function jphTestPurchaseShield() {
+            jphUpdateTestResults('Testing shield purchase...');
+            
+            jQuery.ajax({
+                url: jph_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jph_purchase_streak_shield',
+                    nonce: jQuery('#purchase-shield-btn').data('nonce')
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jphUpdateTestResults('✅ Shield purchased successfully! New shield count: ' + response.data.new_shield_count + ', New gem balance: ' + response.data.new_gem_balance);
+                        jphRefreshDebugInfo();
+                    } else {
+                        jphUpdateTestResults('❌ Shield purchase failed: ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    jphUpdateTestResults('❌ Shield purchase error: ' + error);
+                }
+            });
+        }
+        
+        function jphTestAutoShield() {
+            jphUpdateTestResults('Testing auto-shield...');
+            
+            jQuery.ajax({
+                url: jph_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jph_test_auto_shield',
+                    nonce: jQuery('#test-auto-shield-btn').data('nonce')
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jphUpdateTestResults('✅ Auto-shield test successful: ' + response.data.message);
+                        jphRefreshDebugInfo();
+                    } else {
+                        jphUpdateTestResults('❌ Auto-shield test failed: ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    jphUpdateTestResults('❌ Auto-shield test error: ' + error);
+                }
+            });
+        }
+        
+        function jphTestRepairStreak(days) {
+            jphUpdateTestResults('Testing streak repair for ' + days + ' day(s)...');
+            
+            jQuery.ajax({
+                url: jph_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jph_repair_streak',
+                    days: days,
+                    nonce: jQuery('[id^="repair-"]').data('nonce') || 'test_nonce'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jphUpdateTestResults('✅ Streak repair successful! New streak: ' + response.data.new_streak + ', New gem balance: ' + response.data.new_gem_balance);
+                        jphRefreshDebugInfo();
+                    } else {
+                        jphUpdateTestResults('❌ Streak repair failed: ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    jphUpdateTestResults('❌ Streak repair error: ' + error);
+                }
+            });
+        }
+        
+        function jphTestResetStreak() {
+            if (!confirm('Are you sure you want to reset the streak? This is for testing only.')) {
+                return;
+            }
+            
+            jphUpdateTestResults('Resetting streak for testing...');
+            
+            jQuery.ajax({
+                url: jph_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jph_reset_streak_test',
+                    nonce: 'test_nonce'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jphUpdateTestResults('✅ Streak reset successful! New streak: ' + response.data.new_streak);
+                        jphRefreshDebugInfo();
+                    } else {
+                        jphUpdateTestResults('❌ Streak reset failed: ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    jphUpdateTestResults('❌ Streak reset error: ' + error);
+                }
+            });
+        }
+        
+        function jphTestAddGems(amount) {
+            jphUpdateTestResults('Adding ' + amount + ' gems for testing...');
+            
+            jQuery.ajax({
+                url: jph_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jph_add_gems_test',
+                    amount: amount,
+                    nonce: 'test_nonce'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jphUpdateTestResults('✅ Added ' + amount + ' gems! New balance: ' + response.data.new_balance);
+                        jphRefreshDebugInfo();
+                    } else {
+                        jphUpdateTestResults('❌ Add gems failed: ' + response.data);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    jphUpdateTestResults('❌ Add gems error: ' + error);
+                }
+            });
+        }
+        
+        function jphUpdateTestResults(message) {
+            var timestamp = new Date().toLocaleTimeString();
+            var resultsDiv = jQuery('#jph-streak-test-results');
+            var currentContent = resultsDiv.html();
+            var newContent = '<p style="margin: 0 0 5px 0; color: #495057;"><strong>[' + timestamp + ']</strong> ' + message + '</p>';
+            
+            if (currentContent.includes('Test results will appear here')) {
+                resultsDiv.html(newContent);
+            } else {
+                resultsDiv.html(currentContent + newContent);
+            }
+        }
+        
+        function jphRefreshDebugInfo() {
+            // Refresh the debug info after a short delay to show updated stats
+            setTimeout(function() {
+                jphLoadDebugInfo();
+            }, 1000);
+        }
+        
+        // Migrate user badges table structure
+        
+        
+        // Load debug info on page load
+        jQuery(document).ready(function() {
+            jphLoadDebugInfo();
+        });
+        </script>
         <?php
         return ob_get_clean();
     }
@@ -13647,6 +14370,23 @@ class JazzEdge_Practice_Hub {
     private function create_missing_tables_manually() {
         global $wpdb;
         
+        // Drop existing tables to ensure clean structure
+        $tables_to_drop = array(
+            'jph_badges',
+            'jph_user_badges',
+            'jph_practice_items',
+            'jph_practice_sessions',
+            'jph_user_stats',
+            'jph_gems_transactions',
+            'jph_lesson_favorites'
+        );
+        
+        foreach ($tables_to_drop as $table_name) {
+            $full_table_name = $wpdb->prefix . $table_name;
+            $wpdb->query("DROP TABLE IF EXISTS `{$full_table_name}`");
+            error_log("JPH: Dropped table {$full_table_name}");
+        }
+        
         $tables_to_create = array(
             'jph_practice_items' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_practice_items` (
                 `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -13700,8 +14440,7 @@ class JazzEdge_Practice_Hub {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
             
             'jph_badges' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_badges` (
-                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-                `badge_key` VARCHAR(100) NOT NULL,
+                `badge_key` VARCHAR(50) NOT NULL,
                 `name` VARCHAR(255) NOT NULL,
                 `description` TEXT NOT NULL,
                 `icon` VARCHAR(10) NOT NULL,
@@ -13713,22 +14452,20 @@ class JazzEdge_Practice_Hub {
                 `criteria_value` INT(11) NOT NULL,
                 `is_active` TINYINT(1) DEFAULT 1,
                 `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (`id`),
-                UNIQUE KEY `badge_key` (`badge_key`),
+                PRIMARY KEY (`badge_key`),
                 KEY `category` (`category`),
                 KEY `is_active` (`is_active`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
             
             'jph_user_badges' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_user_badges` (
-                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
                 `user_id` BIGINT(20) UNSIGNED NOT NULL,
-                `badge_key` VARCHAR(100) NOT NULL,
+                `badge_key` VARCHAR(50) NOT NULL,
                 `earned_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-                `earned_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (`id`),
+                PRIMARY KEY (`user_id`, `badge_key`),
                 KEY `user_id` (`user_id`),
                 KEY `badge_key` (`badge_key`),
-                UNIQUE KEY `unique_user_badge` (`user_id`, `badge_key`)
+                KEY `earned_at` (`earned_at`),
+                FOREIGN KEY (`badge_key`) REFERENCES `{$wpdb->prefix}jph_badges`(`badge_key`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
             
             'jph_gems_transactions' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_gems_transactions` (
@@ -13749,17 +14486,120 @@ class JazzEdge_Practice_Hub {
         
         foreach ($tables_to_create as $table_name => $sql) {
             $full_table_name = $wpdb->prefix . $table_name;
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$full_table_name}'");
+            error_log("JPH: Creating table: {$full_table_name}");
+            $result = $wpdb->query($sql);
             
-            if (!$table_exists) {
-                error_log("JPH: Creating missing table: {$full_table_name}");
-                $result = $wpdb->query($sql);
-                
-                if ($result === false) {
-                    error_log("JPH: Failed to create table {$full_table_name}: " . $wpdb->last_error);
-                } else {
-                    error_log("JPH: Successfully created table {$full_table_name}");
-                }
+            if ($result === false) {
+                error_log("JPH: Failed to create table {$full_table_name}: " . $wpdb->last_error);
+            } else {
+                error_log("JPH: Successfully created table {$full_table_name}");
+            }
+        }
+        
+        // Create default badges with correct structure
+        $this->create_default_badges();
+    }
+    
+    /**
+     * Create default badges with correct structure
+     */
+    private function create_default_badges() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        $default_badges = array(
+            array(
+                'badge_key' => 'first_steps',
+                'name' => 'First Steps',
+                'description' => 'Complete your first practice session',
+                'icon' => '🎯',
+                'category' => 'practice',
+                'rarity' => 'common',
+                'xp_reward' => 50,
+                'gem_reward' => 5,
+                'criteria_type' => 'first_session',
+                'criteria_value' => 1,
+                'is_active' => 1
+            ),
+            array(
+                'badge_key' => 'hot_streak',
+                'name' => 'Hot Streak',
+                'description' => 'Practice for 7 days in a row',
+                'icon' => '🔥',
+                'category' => 'streak',
+                'rarity' => 'uncommon',
+                'xp_reward' => 100,
+                'gem_reward' => 10,
+                'criteria_type' => 'streak_7',
+                'criteria_value' => 7,
+                'is_active' => 1
+            ),
+            array(
+                'badge_key' => 'lightning',
+                'name' => 'Lightning',
+                'description' => 'Practice for 30 days in a row',
+                'icon' => '⚡',
+                'category' => 'streak',
+                'rarity' => 'rare',
+                'xp_reward' => 500,
+                'gem_reward' => 50,
+                'criteria_type' => 'streak_30',
+                'criteria_value' => 30,
+                'is_active' => 1
+            ),
+            array(
+                'badge_key' => 'legend',
+                'name' => 'Legend',
+                'description' => 'Practice for 100 days in a row',
+                'icon' => '🏆',
+                'category' => 'streak',
+                'rarity' => 'legendary',
+                'xp_reward' => 1000,
+                'gem_reward' => 100,
+                'criteria_type' => 'streak_100',
+                'criteria_value' => 100,
+                'is_active' => 1
+            ),
+            array(
+                'badge_key' => 'marathon',
+                'name' => 'Marathon',
+                'description' => 'Practice for 60+ minutes in one session',
+                'icon' => '⏰',
+                'category' => 'achievement',
+                'rarity' => 'uncommon',
+                'xp_reward' => 75,
+                'gem_reward' => 15,
+                'criteria_type' => 'long_session',
+                'criteria_value' => 60,
+                'is_active' => 1
+            ),
+            array(
+                'badge_key' => 'rising_star',
+                'name' => 'Rising Star',
+                'description' => 'Report improvement 10 times',
+                'icon' => '📈',
+                'category' => 'improvement',
+                'rarity' => 'rare',
+                'xp_reward' => 200,
+                'gem_reward' => 25,
+                'criteria_type' => 'improvement_count',
+                'criteria_value' => 10,
+                'is_active' => 1
+            )
+        );
+        
+        foreach ($default_badges as $badge) {
+            $result = $wpdb->insert(
+                $table_name,
+                $badge,
+                array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%d')
+            );
+            
+            if ($result === false) {
+                error_log("JPH: Failed to create badge {$badge['badge_key']}: " . $wpdb->last_error);
+            } else {
+                error_log("JPH: Successfully created badge {$badge['badge_key']}");
             }
         }
     }
@@ -13908,9 +14748,9 @@ class JazzEdge_Practice_Hub {
             $result = $wpdb->update(
                 $table_name,
                 array('badge_key' => $badge_key),
-                array('id' => $badge_id),
+                array('badge_key' => ''), // Update badges that don't have a key yet
                 array('%s'),
-                array('%d')
+                array('%s')
             );
             
             if ($result !== false) {
