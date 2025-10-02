@@ -85,11 +85,19 @@ class JazzEdge_Practice_Hub {
         add_action('wp_enqueue_scripts', array($this, 'enqueue_ajax_nonce'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_ajax_nonce'));
         
-        // Event tracking AJAX handlers
+        // Event tracking AJAX handlers (legacy)
         add_action('wp_ajax_jph_test_event', array($this, 'ajax_test_event'));
         add_action('wp_ajax_jph_test_all_events', array($this, 'ajax_test_all_events'));
+        
+        // Badge event tracking AJAX handlers
+        add_action('wp_ajax_jph_test_badge_event', array($this, 'ajax_test_badge_event'));
+        add_action('wp_ajax_jph_test_all_badge_events', array($this, 'ajax_test_all_badge_events'));
         add_action('wp_ajax_jph_get_event_logs', array($this, 'ajax_get_event_logs'));
         add_action('wp_ajax_jph_clear_event_logs', array($this, 'ajax_clear_event_logs'));
+        
+        // Badge event log handlers
+        add_action('wp_ajax_jph_get_badge_event_logs', array($this, 'ajax_get_badge_event_logs'));
+        add_action('wp_ajax_jph_clear_badge_event_logs', array($this, 'ajax_clear_badge_event_logs'));
         
         // Danger Zone AJAX handlers
         add_action('wp_ajax_jph_wipe_all_data', array($this, 'ajax_wipe_all_data'));
@@ -219,7 +227,7 @@ class JazzEdge_Practice_Hub {
             __('Event Tracking', 'jazzedge-practice-hub'),
             __('Event Tracking', 'jazzedge-practice-hub'),
             'manage_options',
-            'jph-webhooks',
+            'jph-fluent-crm-events',
             array($this, 'webhooks_page')
         );
         
@@ -232,15 +240,6 @@ class JazzEdge_Practice_Hub {
             array($this, 'documentation_page')
         );
         
-        add_submenu_page(
-            'jazzedge-practice-hub',
-            __('Email Templates', 'jazzedge-practice-hub'),
-            __('Email Templates', 'jazzedge-practice-hub'),
-            'manage_options',
-            'jph-email-templates',
-            array($this, 'email_templates_page')
-        );
-            
             add_submenu_page(
                 'jazzedge-practice-hub',
                 __('Settings', 'jazzedge-practice-hub'),
@@ -1278,12 +1277,13 @@ class JazzEdge_Practice_Hub {
                                 <th>Category</th>
                                 <th>XP Reward</th>
                                 <th>Status</th>
+                                <th>FluentCRM</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="badges-table-body">
                             <tr>
-                                <td colspan="6" class="jph-loading">Loading badges...</td>
+                                <td colspan="7" class="jph-loading">Loading badges...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1328,23 +1328,66 @@ class JazzEdge_Practice_Hub {
                             </select>
                         </div>
                         
+                        
                         <div class="jph-form-group">
-                            <label for="badge-rarity">Rarity:</label>
-                            <select id="badge-rarity" name="rarity">
-                                <option value="common">Common</option>
-                                <option value="rare">Rare</option>
-                                <option value="epic">Epic</option>
-                                <option value="legendary">Legendary</option>
+                            <label for="badge-xp-reward">⭐ XP Reward</label>
+                            <input type="number" id="badge-xp-reward" name="xp_reward" min="0" value="0">
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-gem-reward">💎 Gem Reward</label>
+                            <input type="number" id="badge-gem-reward" name="gem_reward" min="0" value="0">
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-criteria-type">How to Earn</label>
+                            <select id="badge-criteria-type" name="criteria_type">
+                                <option value="manual">Manual Award</option>
+                                <option value="total_xp">Total XP ≥ value</option>
+                                <option value="practice_sessions">Practice Sessions ≥ value</option>
+                                <option value="streak_7">7-Day Streak</option>
+                                <option value="streak_30">30-Day Streak</option>
+                                <option value="streak_100">100-Day Streak</option>
+                                <option value="long_session">Long Session</option>
+                                <option value="improvement_count">Improvements ≥ value</option>
+                                <option value="first_session">First Session</option>
                             </select>
                         </div>
                         
                         <div class="jph-form-group">
-                            <label for="badge-xp-reward">XP Reward:</label>
-                            <input type="number" id="badge-xp-reward" name="xp_reward" min="0" value="0">
+                            <label for="badge-criteria-value">Criteria Value</label>
+                            <input type="number" id="badge-criteria-value" name="criteria_value" min="0" value="0" placeholder="0">
+                            <small>Depends on criteria type (XP, sessions, minutes, etc.)</small>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="badge-webhook-url">Webhook URL</label>
+                            <input type="url" id="badge-webhook-url" name="webhook_url" placeholder="https://example.com/webhook">
+                            <small>Optional webhook endpoint</small>
+                        </div>
+
+                        <div class="jph-form-group">
+                            <label for="badge-fluent-event-enabled" class="jph-checkbox-label">
+                                <input type="checkbox" id="badge-fluent-event-enabled" name="fluent_event_enabled" value="1" onclick="toggleFluentEventFields('badge-fluent-event-enabled')">
+                                Enable FluentCRM Event Tracking
+                            </label>
+                            <small>Track badge achievement in FluentCRM for automation triggers</small>
+                            
+                            <div class="jph-form-group fluent-event-fields" style="display:none;">
+                                <label for="badge-fluent-event-key">Event Key</label>
+                                <input type="text" id="badge-fluent-event-key" name="fluent_event_key" placeholder="jph_badge_key">
+                                <small>Optional custom event key</small>
+                            </div>
+                            
+                            <div class="jph-form-group fluent-event-fields" style="display:none;">
+                                <label for="badge-fluent-event-title">Event Title</label>
+                                <input type="text" id="badge-fluent-event-title" name="fluent_event_title" placeholder="Badge achievement">
+                                <small>Optional custom event title</small>
+                            </div>
                         </div>
                         
                         <div class="jph-form-actions">
-                            <button type="button" class="button button-primary" onclick="addBadge()">Create Badge</button>
+                            <button type="button" class="button button-primary" onclick="addBadge()">🏆 Create Badge</button>
                             <button type="button" class="button button-secondary" onclick="closeAddBadgeModal()">Cancel</button>
                         </div>
                     </form>
@@ -2680,7 +2723,7 @@ class JazzEdge_Practice_Hub {
             const tbody = document.getElementById('badges-table-body');
             
             if (!badges || !Array.isArray(badges) || badges.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="jph-loading">No badges found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="jph-loading">No badges found</td></tr>';
                 return;
             }
             
@@ -2713,6 +2756,14 @@ class JazzEdge_Practice_Hub {
                         <span class="jph-badge-status jph-badge-status-${badge.is_active ? 'active' : 'inactive'}">
                             ${badge.is_active ? '✅ Active' : '❌ Inactive'}
                         </span>
+                    </td>
+                    <td>
+                        <div class="jph-fluent-test">
+                            ${badge.fluent_event_enabled == 1 ? 
+                                `<button class="button button-small" onclick="testBadgeFluentEvent('${badge.badge_key}')" title="Test FluentCRM Event" style="background: #21759b; color: white;">🔗 Test Event</button>` :
+                                `<span class="inactive">Disabled</span>`
+                            }
+                        </div>
                     </td>
                     <td>
                         <div class="jph-badge-awarded-count">
@@ -2887,15 +2938,19 @@ class JazzEdge_Practice_Hub {
         // Database status modal
         function showDatabaseStatus() {
             const modalHtml = `
-                <div id="jph-database-status-modal" class="jph-modal" style="display: flex;">
-                    <div class="jph-modal-content" style="max-width: 800px;">
-                        <span class="jph-close" onclick="closeDatabaseStatusModal()">&times;</span>
-                        <h2>🔍 Database Status</h2>
-                        <div id="database-status-content" style="max-height: 500px; overflow-y: auto;">
-                            Loading database status...
+                <div id="jph-database-status-modal" class="jph-modal jph-database-modal" style="display: flex;">
+                    <div class="jph-modal-content">
+                        <div class="jph-modal-header">
+                            <h2>🔍 Database Status</h2>
+                            <span class="jph-modal-close" onclick="closeDatabaseStatusModal()">&times;</span>
                         </div>
-                        <div style="text-align: right; margin-top: 20px;">
-                            <button type="button" class="button button-secondary" onclick="closeDatabaseStatusModal()">Close</button>
+                        <div class="jph-modal-body">
+                            <div id="database-status-content" class="jph-database-content">
+                                <div class="jph-loading-spinner">Loading database status...</div>
+                            </div>
+                        </div>
+                        <div class="jph-modal-footer">
+                            <button type="button" class="button button-primary" onclick="closeDatabaseStatusModal()">✓ Close</button>
                         </div>
                     </div>
                 </div>
@@ -2939,52 +2994,86 @@ class JazzEdge_Practice_Hub {
             const container = document.getElementById('database-status-content');
             
             let html = `
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                    <h3>📊 Database Overview</h3>
-                    <p><strong>Plugin Version:</strong> ${status.plugin_version}</p>
-                    <p><strong>Total Tables:</strong> ${status.total_tables}</p>
-                    <p><strong>Missing Tables:</strong> ${status.missing_tables.length}</p>
+                <div class="jph-database-overview">
+                    <div class="jph-overview-title">
+                        <h3>📊 Database Overview</h3>
+                        <div class="jph-status-badge ${status.missing_tables.length === 0 ? 'success' : 'warning'}">
+                            ${status.missing_tables.length === 0 ? '✓ All Systems Operational' : '⚠ Issues Detected'}
+                        </div>
+                    </div>
+                    
+                    <div class="jph-overview-stats">
+                        <div class="jph-stat-item">
+                            <div class="jph-stat-icon">🔧</div>
+                            <div class="jph-stat-content">
+                                <div class="jph-stat-label">Plugin Version</div>
+                                <div class="jph-stat-value">v${status.plugin_version}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-stat-item">
+                            <div class="jph-stat-icon">📊</div>
+                            <div class="jph-stat-content">
+                                <div class="jph-stat-label">Total Tables</div>
+                                <div class="jph-stat-value">${status.total_tables}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-stat-item">
+                            <div class="jph-stat-icon">⚡</div>
+                            <div class="jph-stat-content">
+                                <div class="jph-stat-label">Missing Tables</div>
+                                <div class="jph-stat-value ${status.missing_tables.length > 0 ? 'error' : ''}">${status.missing_tables.length}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
-                <h3>📋 Table Details</h3>
-                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-                    <thead>
-                        <tr style="background: #f1f3f4;">
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Table</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Status</th>
-                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Rows</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <div class="jph-tables-section">
+                    <h3 class="jph-tables-title">📋 Database Tables</h3>
+                    <div class="jph-tables-grid">
             `;
             
             Object.entries(status.tables).forEach(([key, table]) => {
+                const statusClass = table.exists ? 'success' : 'error';
                 const statusIcon = table.exists ? '✅' : '❌';
-                const statusText = table.exists ? 'Exists' : 'Missing';
-                const statusColor = table.exists ? '#28a745' : '#dc3545';
+                const statusText = table.exists ? 'Active' : 'Missing';
                 
                 html += `
-                    <tr>
-                        <td style="padding: 10px; border: 1px solid #ddd;">${table.name}</td>
-                        <td style="padding: 10px; border: 1px solid #ddd; color: ${statusColor};">${statusIcon} ${statusText}</td>
-                        <td style="padding: 10px; border: 1px solid #ddd;">${table.row_count}</td>
-                    </tr>
+                    <div class="jph-table-card ${statusClass}">
+                        <div class="jph-table-header">
+                            <div class="jph-table-name">${table.name}</div>
+                            <div class="jph-table-status ${statusClass}">
+                                <span class="jph-status-icon">${statusIcon}</span>
+                                ${statusText}
+                            </div>
+                        </div>
+                        <div class="jph-table-info">
+                            <div class="jph-table-metric">
+                                <span class="jph-metric-label">Records:</span>
+                                <span class="jph-metric-value">${table.row_count}</span>
+                            </div>
+                        </div>
+                    </div>
                 `;
             });
             
             html += `
-                    </tbody>
-                </table>
+                    </div>
+                </div>
             `;
             
             if (status.missing_tables.length > 0) {
                 html += `
-                    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin-top: 20px;">
-                        <h4>⚠️ Missing Tables</h4>
-                        <ul>
-                            ${status.missing_tables.map(table => `<li>${table}</li>`).join('')}
-                        </ul>
-                        <p><strong>Action Required:</strong> Please deactivate and reactivate the plugin to create missing tables.</p>
+                    <div class="jph-alert jph-alert-warning">
+                        <div class="jph-alert-icon">⚠️</div>
+                        <div class="jph-alert-content">
+                            <h4>Missing Tables Detected</h4>
+                            <ul class="jph-missing-list">
+                                ${status.missing_tables.map(table => `<li>${table}</li>`).join('')}
+                            </ul>
+                            <p class="jph-alert-action"><strong>Action Required:</strong> Please deactivate and reactivate the plugin to create missing tables.</p>
+                        </div>
                     </div>
                 `;
             }
@@ -3103,6 +3192,20 @@ class JazzEdge_Practice_Hub {
             const webhookEl = document.getElementById('edit-badge-webhook-url');
             if (webhookEl) webhookEl.value = badge.webhook_url || '';
             
+            // FluentCRM event fields
+            const fluentEventEnabledEl = document.getElementById('edit-badge-fluent-event-enabled');
+            if (fluentEventEnabledEl) {
+                fluentEventEnabledEl.checked = badge.fluent_event_enabled == 1;
+                // Trigger the toggle function to show/hide fields
+                toggleFluentEventFields('edit-badge-fluent-event-enabled');
+            }
+            
+            const fluentEventKeyEl = document.getElementById('edit-badge-fluent-event-key');
+            if (fluentEventKeyEl) fluentEventKeyEl.value = badge.fluent_event_key || '';
+            
+            const fluentEventTitleEl = document.getElementById('edit-badge-fluent-event-title');
+            if (fluentEventTitleEl) fluentEventTitleEl.value = badge.fluent_event_title || '';
+            
             // Show current image if exists
             const currentImageDiv = document.getElementById('edit-current-image');
             if (badge.icon) {
@@ -3147,6 +3250,9 @@ class JazzEdge_Practice_Hub {
                 criteria_type: document.getElementById('edit-badge-criteria-type') ? document.getElementById('edit-badge-criteria-type').value : 'manual',
                 criteria_value: document.getElementById('edit-badge-criteria-value') ? parseInt(document.getElementById('edit-badge-criteria-value').value) : 0,
                 webhook_url: document.getElementById('edit-badge-webhook-url') ? document.getElementById('edit-badge-webhook-url').value : '',
+                fluent_event_enabled: document.getElementById('edit-badge-fluent-event-enabled') ? (document.getElementById('edit-badge-fluent-event-enabled').checked ? 1 : 0) : 0,
+                fluent_event_key: document.getElementById('edit-badge-fluent-event-key') ? document.getElementById('edit-badge-fluent-event-key').value : '',
+                fluent_event_title: document.getElementById('edit-badge-fluent-event-title') ? document.getElementById('edit-badge-fluent-event-title').value : '',
                 is_active: document.getElementById('edit-badge-is-active').checked ? 1 : 0
             };
             
@@ -3319,6 +3425,57 @@ class JazzEdge_Practice_Hub {
             const form2 = document.getElementById('jph-add-badge-form-2');
             if (form1) form1.reset();
             if (form2) form2.reset();
+            
+            // Reset FluentCRM event fields visibility
+            const fluentFields = document.querySelectorAll('.fluent-event-fields');
+            fluentFields.forEach(function(field) {
+                field.style.display = 'none';
+            });
+        }
+
+        // Toggle FluentCRM event fields visibility based on checkbox
+        function toggleFluentEventFields(id) {
+            const checkbox = document.getElementById(id);
+            if (!checkbox) return;
+            
+            // Find the closest modal and its fluent event fields
+            const modal = checkbox.closest('.jph-modal');
+            if (!modal) return;
+            
+            const fluentFields = modal.querySelectorAll('.fluent-event-fields');
+            fluentFields.forEach(function(field) {
+                field.style.display = checkbox.checked ? 'block' : 'none';
+            });
+        }
+        
+        // Test badge FluentCRM event
+        function testBadgeFluentEvent(badgeKey) {
+            if (!confirm('This will send a test FluentCRM event for this badge to the current user. This helps register the event in FluentCRM for automation setup. Continue?')) {
+                return;
+            }
+            
+            fetch('<?php echo rest_url('jph/v1/test-badge-event'); ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                body: JSON.stringify({
+                    badge_key: badgeKey
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Test event triggered successfully! Event: ${data.event_key}`, 'success');
+                } else {
+                    showToast('Test event failed: ' + (data.message || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Test badge event error:', error);
+                showToast('Test badge event error: ' + error.message, 'error');
+            });
         }
         
         // Create default badges
@@ -3399,7 +3556,6 @@ class JazzEdge_Practice_Hub {
                             <th>Badge</th>
                             <th>Name</th>
                             <th>Category</th>
-                            <th>Rarity</th>
                             <th>XP Reward</th>
                             <th>Status</th>
                             <th>Awarded To</th>
@@ -3408,7 +3564,7 @@ class JazzEdge_Practice_Hub {
                     </thead>
                     <tbody id="badges-table-body">
                         <tr>
-                            <td colspan="8" class="jph-loading">Loading badges...</td>
+                            <td colspan="7" class="jph-loading">Loading badges...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -3452,15 +3608,6 @@ class JazzEdge_Practice_Hub {
                             </select>
                         </div>
                         
-                        <div class="jph-form-group">
-                            <label for="badge-rarity">Rarity:</label>
-                            <select id="badge-rarity" name="rarity">
-                                <option value="common">Common</option>
-                                <option value="rare">Rare</option>
-                                <option value="epic">Epic</option>
-                                <option value="legendary">Legendary</option>
-                            </select>
-                        </div>
                         
                         <div class="jph-form-group">
                             <label for="badge-xp-reward">XP Reward:</label>
@@ -3498,6 +3645,30 @@ class JazzEdge_Practice_Hub {
                             <label for="badge-webhook-url">Webhook URL (optional):</label>
                             <input type="url" id="badge-webhook-url" name="webhook_url" placeholder="https://example.com/webhook">
                             <small>URL to call when this badge is earned. Will receive POST request with badge and user data.</small>
+                        </div>
+
+                        <div class="jph-form-section">
+                            <h3>🔗 FluentCRM Event Tracking</h3>
+                            
+                            <div class="jph-form-group">
+                                <label for="badge-fluent-event-enabled">
+                                    <input type="checkbox" id="badge-fluent-event-enabled" name="fluent_event_enabled" value="1" onclick="toggleFluentEventFields('badge-fluent-event-enabled')">
+                                    Enable FluentCRM Event Tracking
+                                </label>
+                                <small>Track this badge achievement as an event in FluentCRM for automation triggers.</small>
+                            </div>
+                            
+                            <div class="jph-form-group fluent-event-fields" style="display:none;">
+                                <label for="badge-fluent-event-key">Event Key:</label>
+                                <input type="text" id="badge-fluent-event-key" name="fluent_event_key" placeholder="jph_badge_key (auto-generated if empty)">
+                                <small>Unique identifier for FluentCRM event (e.g., 'jph_first_steps', 'jazzedge_marathon')</small>
+                            </div>
+                            
+                            <div class="jph-form-group fluent-event-fields" style="display:none;">
+                                <label for="badge-fluent-event-title">Event Title:</label>
+                                <input type="text" id="badge-fluent-event-title" name="fluent_event_title" placeholder="Badge name (auto-generated if empty)">
+                                <small>Human-readable title for the FluentCRM event (appears in contact timeline)</small>
+                            </div>
                         </div>
                         
                         <div class="jph-form-actions">
@@ -3555,16 +3726,6 @@ class JazzEdge_Practice_Hub {
                             </select>
                         </div>
                         
-                        <div class="jph-form-group">
-                            <label for="edit-badge-rarity">Rarity:</label>
-                            <select id="edit-badge-rarity" name="rarity">
-                                <option value="common">Common</option>
-                                <option value="uncommon">Uncommon</option>
-                                <option value="rare">Rare</option>
-                                <option value="epic">Epic</option>
-                                <option value="legendary">Legendary</option>
-                            </select>
-                        </div>
                         
                         <div class="jph-form-group">
                             <label for="edit-badge-xp-reward">XP Reward:</label>
@@ -3602,6 +3763,30 @@ class JazzEdge_Practice_Hub {
                             <label for="edit-badge-webhook-url">Webhook URL (optional):</label>
                             <input type="url" id="edit-badge-webhook-url" name="webhook_url" placeholder="https://example.com/webhook">
                             <small>URL to call when this badge is earned. Will receive POST request with badge and user data.</small>
+                        </div>
+
+                        <div class="jph-form-section">
+                            <h3>🔗 FluentCRM Event Tracking</h3>
+                            
+                            <div class="jph-form-group">
+                                <label for="edit-badge-fluent-event-enabled">
+                                    <input type="checkbox" id="edit-badge-fluent-event-enabled" name="fluent_event_enabled" value="1" onclick="toggleFluentEventFields('edit-badge-fluent-event-enabled')">
+                                    Enable FluentCRM Event Tracking
+                                </label>
+                                <small>Track this badge achievement as an event in FluentCRM for automation triggers.</small>
+                            </div>
+                            
+                            <div class="jph-form-group fluent-event-fields" style="display:none;">
+                                <label for="edit-badge-fluent-event-key">Event Key:</label>
+                                <input type="text" id="edit-badge-fluent-event-key" name="fluent_event_key" placeholder="jph_badge_key (auto-generated if empty)">
+                                <small>Unique identifier for FluentCRM event (e.g., 'jph_first_steps', 'jazzedge_marathon')</small>
+                            </div>
+                            
+                            <div class="jph-form-group fluent-event-fields" style="display:none;">
+                                <label for="edit-badge-fluent-event-title">Event Title:</label>
+                                <input type="text" id="edit-badge-fluent-event-title" name="fluent_event_title" placeholder="Badge name (auto-generated if empty)">
+                                <small>Human-readable title for the FluentCRM event (appears in contact timeline)</small>
+                            </div>
                         </div>
                         
                         <div class="jph-form-group">
@@ -3787,6 +3972,394 @@ class JazzEdge_Practice_Hub {
             display: flex;
             flex-direction: column;
             gap: 2px;
+        }
+
+        /* Badge Modal Layout */
+        .jph-badge-modal {
+            max-width: 900px !important;
+            width: 90% !important;
+        }
+
+        /* Database Status Modal */
+        .jph-database-modal .jph-modal-content {
+            max-width: 1000px !important;
+            width: 95% !important;
+            max-height: 90vh !important;
+        }
+
+        .jph-database-content {
+            max-height: 70vh !important;
+            overflow-y: auto !important;
+        }
+
+        .jph-loading-spinner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* Database Overview */
+        .jph-database-overview {
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 25px;
+            color: white;
+        }
+
+        .jph-overview-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .jph-overview-title h3 {
+            margin: 0;
+            color: white;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .jph-status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .jph-status-badge.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .jph-status-badge.warning {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+
+        .jph-overview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .jph-stat-item {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .jph-stat-icon {
+            font-size: 24px;
+            margin-right: 15px;
+        }
+
+        .jph-stat-content {
+            flex: 1;
+        }
+
+        .jph-stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .jph-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .jph-stat-value.error {
+            color: #ff5722;
+        }
+
+        /* Tables Section */
+        .jph-tables-section {
+            margin-top: 30px;
+        }
+
+        .jph-tables-title {
+            margin: 0 0 20px 0;
+            color: #23282d;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .jph-tables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .jph-table-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .jph-table-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .jph-table-card.success {
+            border-left-color: #28a745;
+        }
+
+        .jph-table-card.error {
+            border-left-color: #dc3545;
+        }
+
+        .jph-table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .jph-table-name {
+            font-weight: 600;
+            color: #23282d;
+            font-size: 14px;
+        }
+
+        .jph-table-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+
+        .jph-table-status.success {
+            background: rgba(40, 167, 69, 0.1);
+            color: #28a745;
+        }
+
+        .jph-table-status.error {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .jph-status-icon {
+            font-size: 12px;
+        }
+
+        .jph-table-info {
+            border-top: 1px solid #f1f3f4;
+            padding-top: 15px;
+        }
+
+        .jph-table-metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .jph-metric-label {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .jph-metric-value {
+            font-weight: 600;
+            color: #23282d;
+        }
+
+        /* Alert Styles */
+        .jph-alert {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .jph-alert-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .jph-alert-icon {
+            font-size: 20px;
+            margin-top: 2px;
+        }
+
+        .jph-alert-content h4 {
+            margin: 0 0 10px 0;
+            color: #856404;
+            font-size: 16px;
+        }
+
+        .jph-missing-list {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .jph-missing-list li {
+            margin-bottom: 5px;
+        }
+
+        .jph-alert-action {
+            margin: 10px 0 0 0;
+            font-size: 14px;
+        }
+
+        .jph-modal-body {
+            padding: 20px !important;
+        }
+
+        .jph-form-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .jph-form-section:last-of-type {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .jph-form-section h3 {
+            margin: 0 0 15px 0;
+            color: #23282d;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .jph-form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .jph-form-group-flex {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .jph-form-group-flex label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #23282d;
+        }
+
+        .jph-form-group-half {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .jph-form-group-half label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #23282d;
+        }
+
+        .jph-checkbox-label {
+            display: flex !important;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .jph-checkbox-label input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .jph-form-group {
+            margin-bottom: 15px;
+        }
+
+        .jph-form-group label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #23282d;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .jph-form-group input[type="number"] {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+
+        .jph-form-group input[type="text"] {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+
+        .jph-form-group input[type="url"] {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+    }
+
+    .jph-form-group select {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 14px;
+        height: auto;
+    }
+
+    .jph-form-group textarea {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 14px;
+        resize: vertical;
+    }
+
+    .jph-form-group small {
+        display: block;
+        margin-top: 4px;
+        font-size: 12px;
+        color: #6c757d;
+    }
+
+    .jph-form-actions {
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
         }
         
         .jph-xp-reward {
@@ -4517,40 +5090,40 @@ class JazzEdge_Practice_Hub {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
-        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+        register_rest_route('jph/v1', '/badges/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_badge'),
             'permission_callback' => array($this, 'check_admin_permission'),
             'args' => array(
-                'id' => array(
+                'badge_key' => array(
                     'validate_callback' => function($param, $request, $key) {
-                        return is_numeric($param);
+                        return is_string($param) && !empty($param);
                     }
                 )
             )
         ));
         
-        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+        register_rest_route('jph/v1', '/badges/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_badge'),
             'permission_callback' => array($this, 'check_admin_permission'),
             'args' => array(
-                'id' => array(
+                'badge_key' => array(
                     'validate_callback' => function($param, $request, $key) {
-                        return is_numeric($param);
+                        return is_string($param) && !empty($param);
                     }
                 )
             )
         ));
         
-        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+        register_rest_route('jph/v1', '/badges/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'rest_delete_badge'),
             'permission_callback' => array($this, 'check_admin_permission'),
             'args' => array(
-                'id' => array(
+                'badge_key' => array(
                     'validate_callback' => function($param, $request, $key) {
-                        return is_numeric($param);
+                        return is_string($param) && !empty($param);
                     }
                 )
             )
@@ -4627,6 +5200,13 @@ class JazzEdge_Practice_Hub {
         register_rest_route('jph/v1', '/award-badge', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_award_badge_manually'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Test badge FluentCRM event endpoint
+        register_rest_route('jph/v1', '/test-badge-event', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_test_badge_event'),
             'permission_callback' => '__return_true'
         ));
         
@@ -5940,8 +6520,8 @@ class JazzEdge_Practice_Hub {
         
         ?>
         <div class="wrap">
-            <h1>🔗 Engagement Event Tracking</h1>
-            <p>Configure FluentCRM event tracking to celebrate student milestones and increase engagement.</p>
+            <h1>🔗 FluentCRM Event Tracking</h1>
+            <p>Monitor FluentCRM event tracking from badge achievements and manage event logging.</p>
             
             <form method="post" action="">
                 <?php wp_nonce_field('jph_webhook_settings', 'webhook_nonce'); ?>
@@ -5988,109 +6568,28 @@ class JazzEdge_Practice_Hub {
                         </table>
                     </div>
                     
-                    <!-- Milestone Configuration -->
+                    <!-- Badge Event Information -->
                     <div class="jph-webhook-section">
-                        <h2>🎯 Milestone Configuration</h2>
-                        <p>Configure which milestones trigger FluentCRM events and their settings.</p>
+                        <h2>🏆 Badge Event Configuration</h2>
+                        <p>Badge events are now configured directly within each badge in the <a href="<?php echo admin_url('admin.php?page=jph-badges'); ?>">Badge Management</a> section.</p>
                         
-                        <div class="milestone-categories">
-                            
-                            <!-- Onboarding Milestones -->
-                            <div class="milestone-category">
-                                <h3>🚀 Onboarding Milestones</h3>
-                                <div class="milestone-grid">
-                                    <?php 
-                                    $onboarding_milestones = array(
-                                        'first_practice_item' => 'First Practice Item Added',
-                                        'first_practice_session' => 'First Practice Session Logged',
-                                        'first_badge_earned' => 'First Badge Earned',
-                                        'first_week_complete' => 'First Week Complete',
-                                        'first_month_complete' => 'First Month Complete'
-                                    );
-                                    
-                                    foreach ($onboarding_milestones as $key => $label): 
-                                        $enabled = $webhook_settings['milestones'][$key]['enabled'] ?? true;
-                                        $delay = $webhook_settings['milestones'][$key]['delay'] ?? 0;
-                                    ?>
-                                    <div class="milestone-item">
-                                        <label>
-                                            <input type="checkbox" name="milestones[<?php echo $key; ?>][enabled]" value="1" 
-                                                   <?php checked($enabled); ?>>
-                                            <?php echo esc_html($label); ?>
-                                        </label>
-                                        <div class="milestone-settings">
-                                            <label>Delay: <input type="number" name="milestones[<?php echo $key; ?>][delay]" 
-                                                               value="<?php echo esc_attr($delay); ?>" min="0" max="3600" class="small-text"> seconds</label>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
-                                </div>
+                        <div class="badge-info-grid">
+                            <div class="badge-info-item">
+                                <h3>✅ Enabled Badges</h3>
+                                <p>Badges with FluentCRM tracking enabled will automatically fire events when earned.</p>
                             </div>
-                            
-                            <!-- Progress Milestones -->
-                            <div class="milestone-category">
-                                <h3>📈 Progress Milestones</h3>
-                                <div class="milestone-grid">
-                                    <?php 
-                                    $progress_milestones = array(
-                                        'practice_sessions_5' => '5 Practice Sessions',
-                                        'practice_sessions_10' => '10 Practice Sessions',
-                                        'practice_sessions_25' => '25 Practice Sessions',
-                                        'practice_sessions_50' => '50 Practice Sessions',
-                                        'practice_sessions_100' => '100 Practice Sessions'
-                                    );
-                                    
-                                    foreach ($progress_milestones as $key => $label): 
-                                        $enabled = $webhook_settings['milestones'][$key]['enabled'] ?? true;
-                                        $delay = $webhook_settings['milestones'][$key]['delay'] ?? 0;
-                                    ?>
-                                    <div class="milestone-item">
-                                        <label>
-                                            <input type="checkbox" name="milestones[<?php echo $key; ?>][enabled]" value="1" 
-                                                   <?php checked($enabled); ?>>
-                                            <?php echo esc_html($label); ?>
-                                        </label>
-                                        <div class="milestone-settings">
-                                            <label>Delay: <input type="number" name="milestones[<?php echo $key; ?>][delay]" 
-                                                               value="<?php echo esc_attr($delay); ?>" min="0" max="3600" class="small-text"> seconds</label>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
-                                </div>
+                            <div class="badge-info-item">
+                                <h3>🔧 Individual Configuration</h3>
+                                <p>Each badge can have its own custom event key and title for FluentCRM.</p>
                             </div>
-                            
-                            <!-- Streak Milestones -->
-                            <div class="milestone-category">
-                                <h3>⏱️ Consistency Milestones</h3>
-                                <div class="milestone-grid">
-                                    <?php 
-                                    $streak_milestones = array(
-                                        'streak_3_days' => '3 Days in a Row',
-                                        'streak_7_days' => '7 Days in a Row',
-                                        'streak_14_days' => '14 Days in a Row',
-                                        'streak_30_days' => '30 Days in a Row',
-                                        'streak_100_days' => '100 Days in a Row'
-                                    );
-                                    
-                                    foreach ($streak_milestones as $key => $label): 
-                                        $enabled = $webhook_settings['milestones'][$key]['enabled'] ?? true;
-                                        $delay = $webhook_settings['milestones'][$key]['delay'] ?? 0;
-                                    ?>
-                                    <div class="milestone-item">
-                                        <label>
-                                            <input type="checkbox" name="milestones[<?php echo $key; ?>][enabled]" value="1" 
-                                                   <?php checked($enabled); ?>>
-                                            <?php echo esc_html($label); ?>
-                                        </label>
-                                        <div class="milestone-settings">
-                                            <label>Delay: <input type="number" name="milestones[<?php echo $key; ?>][delay]" 
-                                                               value="<?php echo esc_attr($delay); ?>" min="0" max="3600" class="small-text"> seconds</label>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
-                                </div>
+                            <div class="badge-info-item">
+                                <h3>⚡ Automatic Tracking</h3>
+                                <p>Events are fired automatically when badges are awarded to users.</p>
                             </div>
-                            
+                        </div>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-left: 4px solid #007cba; border-radius: 4px;">
+                            <strong>💡 Note:</strong> To configure event tracking for badges, go to <strong>Badge Management</strong> and enable "FluentCRM Event Tracking" for individual badges. This gives you granular control over which badge achievements trigger events.
                         </div>
                     </div>
                     
@@ -6100,17 +6599,17 @@ class JazzEdge_Practice_Hub {
                         <p>Test your FluentCRM event tracking to ensure it's working correctly.</p>
                         
                         <div class="webhook-test-buttons">
-                            <button type="button" class="button button-primary" onclick="testEvent('first_practice_item')">
-                                Test First Practice Item
+                            <button type="button" class="button button-primary" onclick="testBadgeEvent('first_steps')">
+                                🏆 Test First Steps Badge
                             </button>
-                            <button type="button" class="button button-secondary" onclick="testEvent('practice_sessions_5')">
-                                Test 5 Sessions Milestone
+                            <button type="button" class="button button-secondary" onclick="testBadgeEvent('marathon')">
+                                🏆 Test Marathon Badge
                             </button>
-                            <button type="button" class="button button-secondary" onclick="testEvent('streak_7_days')">
-                                Test 7-Day Streak
+                            <button type="button" class="button button-secondary" onclick="testBadgeEvent('streak_protector')">
+                                🏆 Test Streak Protector Badge
                             </button>
-                            <button type="button" class="button button-secondary" onclick="testAllEvents()">
-                                Test All Events
+                            <button type="button" class="button button-secondary" onclick="testAllBadgeEvents()">
+                                🏆 Test All Badge Events
                             </button>
                         </div>
                         
@@ -6119,16 +6618,16 @@ class JazzEdge_Practice_Hub {
                     
                     <!-- Event Tracking Logs -->
                     <div class="jph-webhook-section">
-                        <h2>📋 Event Tracking Logs</h2>
-                        <p>View recent event tracking activity and any errors.</p>
+                        <h2>📋 Badge Event Tracking Logs</h2>
+                        <p>View recent FluentCRM badge event activity and any tracking errors.</p>
                         
                         <div class="webhook-logs">
                             <div class="logs-controls">
-                                <button type="button" class="button" onclick="refreshEventLogs()">Refresh Logs</button>
-                                <button type="button" class="button button-secondary" onclick="clearEventLogs()">Clear Logs</button>
+                                <button type="button" class="button" onclick="refreshBadgeEventLogs()">🔄 Refresh Logs</button>
+                                <button type="button" class="button button-secondary" onclick="clearBadgeEventLogs()">🗑️ Clear Logs</button>
                             </div>
-                            <div id="webhook-logs-content" class="webhook-logs-content">
-                                <!-- Logs will be loaded via AJAX -->
+                            <div id="badge-event-logs-content" class="webhook-logs-content">
+                                <!-- Badge event logs will be loaded via AJAX -->
                             </div>
                         </div>
                     </div>
@@ -6256,22 +6755,51 @@ class JazzEdge_Practice_Hub {
         .log-entry.error .log-user-info {
             color: #dc3545;
         }
+        
+        .badge-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .badge-info-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .badge-info-item h3 {
+            margin: 0 0 10px 0;
+            color: #23282d;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .badge-info-item p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
         </style>
         
         <script>
-        function testEvent(milestone) {
+        function testBadgeEvent(badgeKey) {
             const resultsDiv = document.getElementById('webhook-test-results');
             resultsDiv.style.display = 'block';
-            resultsDiv.innerHTML = 'Testing event tracking for: ' + milestone + '...';
+            resultsDiv.innerHTML = 'Testing badge event for: ' + badgeKey + '...';
             
-            // AJAX call to test event tracking
+            // AJAX call to test badge event tracking
             jQuery.post(ajaxurl, {
-                action: 'jph_test_event',
-                milestone: milestone,
-                nonce: '<?php echo wp_create_nonce('jph_test_event'); ?>'
+                action: 'jph_test_badge_event',
+                badge_key: badgeKey,
+                nonce: '<?php echo wp_create_nonce('jph_test_badge_event'); ?>'
             })
             .done(function(response) {
-                console.log('Event test response:', response);
+                console.log('Badge event test response:', response);
                 if (response.success && response.data && response.data.message) {
                     resultsDiv.innerHTML = '<strong>Test Result:</strong><br>' + response.data.message;
                 } else if (response.data) {
@@ -6281,22 +6809,22 @@ class JazzEdge_Practice_Hub {
                 }
             })
             .fail(function(xhr, status, error) {
-                console.error('Event test error:', xhr, status, error);
+                console.error('Badge event test error:', xhr, status, error);
                 resultsDiv.innerHTML = '<strong>Test Result:</strong><br>Error: ' + error + ' (Status: ' + status + ')';
             });
         }
         
-        function testAllEvents() {
+        function testAllBadgeEvents() {
             const resultsDiv = document.getElementById('webhook-test-results');
             resultsDiv.style.display = 'block';
-            resultsDiv.innerHTML = 'Testing all event tracking...';
+            resultsDiv.innerHTML = 'Testing all badge event tracking...';
             
             jQuery.post(ajaxurl, {
-                action: 'jph_test_all_events',
-                nonce: '<?php echo wp_create_nonce('jph_test_all_events'); ?>'
+                action: 'jph_test_all_badge_events',
+                nonce: '<?php echo wp_create_nonce('jph_test_all_badge_events'); ?>'
             })
             .done(function(response) {
-                console.log('All events test response:', response);
+                console.log('All badge events test response:', response);
                 if (response.success && response.data && response.data.message) {
                     resultsDiv.innerHTML = '<strong>Test Results:</strong><br>' + response.data.message;
                 } else if (response.data) {
@@ -6306,37 +6834,44 @@ class JazzEdge_Practice_Hub {
                 }
             })
             .fail(function(xhr, status, error) {
-                console.error('All events test error:', xhr, status, error);
+                console.error('All badge events test error:', xhr, status, error);
                 resultsDiv.innerHTML = '<strong>Test Results:</strong><br>Error: ' + error + ' (Status: ' + status + ')';
             });
         }
         
-        function refreshEventLogs() {
-            const logsDiv = document.getElementById('webhook-logs-content');
-            logsDiv.innerHTML = 'Loading logs...';
+        function refreshBadgeEventLogs() {
+            const logsDiv = document.getElementById('badge-event-logs-content');
+            logsDiv.innerHTML = 'Loading badge event logs...';
             
             jQuery.post(ajaxurl, {
-                action: 'jph_get_event_logs',
-                nonce: '<?php echo wp_create_nonce('jph_get_event_logs'); ?>'
+                action: 'jph_get_badge_event_logs',
+                nonce: '<?php echo wp_create_nonce('jph_get_badge_event_logs'); ?>'
             }, function(response) {
-                logsDiv.innerHTML = response.data.logs;
+                if (response.success && response.data.logs) {
+                    logsDiv.innerHTML = response.data.logs;
+                } else {
+                    logsDiv.innerHTML = 'No badge event logs found or error loading logs.';
+                }
+            })
+            .fail(function() {
+                logsDiv.innerHTML = 'Error loading badge event logs.';
             });
         }
         
-        function clearEventLogs() {
-            if (confirm('Are you sure you want to clear all event tracking logs?')) {
+        function clearBadgeEventLogs() {
+            if (confirm('Are you sure you want to clear all badge event tracking logs?')) {
                 jQuery.post(ajaxurl, {
-                    action: 'jph_clear_event_logs',
-                    nonce: '<?php echo wp_create_nonce('jph_clear_event_logs'); ?>'
+                    action: 'jph_clear_badge_event_logs',
+                    nonce: '<?php echo wp_create_nonce('jph_clear_badge_event_logs'); ?>'
                 }, function(response) {
-                    refreshEventLogs();
+                    refreshBadgeEventLogs();
                 });
             }
         }
         
         // Load logs on page load
         jQuery(document).ready(function() {
-            refreshEventLogs();
+            refreshBadgeEventLogs();
         });
         </script>
         <?php
@@ -6475,7 +7010,12 @@ class JazzEdge_Practice_Hub {
             
             // Calculate and add XP
             $xp_earned = $gamification->calculate_xp($duration_minutes, $sentiment_score, $improvement_detected);
-            $gamification->add_xp($user_id, $xp_earned);
+            $xp_result = $gamification->add_xp($user_id, $xp_earned);
+            
+            if (!$xp_result) {
+                error_log('JPH: Failed to add XP for user ' . $user_id . ' - this will prevent badge checks');
+                // Continue anyway, but log the issue
+            }
             
             // Update the practice session with XP earned
             $database->update_practice_session_xp($result, $xp_earned);
@@ -7215,6 +7755,11 @@ class JazzEdge_Practice_Hub {
                 }
             }
             
+            // Get FluentCRM event settings
+            $fluent_event_enabled = intval($request->get_param('fluent_event_enabled'));
+            $fluent_event_key = sanitize_text_field($request->get_param('fluent_event_key'));
+            $fluent_event_title = sanitize_text_field($request->get_param('fluent_event_title'));
+
             $badge_data = array(
                 'name' => $name,
                 'description' => $description,
@@ -7226,6 +7771,9 @@ class JazzEdge_Practice_Hub {
                 'criteria_value' => $criteria_value ?: 1,
                 'webhook_url' => $webhook_url,
                 'is_active' => 1,
+                'fluent_event_enabled' => $fluent_event_enabled,
+                'fluent_event_key' => $fluent_event_key,
+                'fluent_event_title' => $fluent_event_title,
                 'created_at' => current_time('mysql')
             );
             
@@ -7291,6 +7839,15 @@ class JazzEdge_Practice_Hub {
             }
             if (isset($json_data['gem_reward']) && $json_data['gem_reward'] >= 0) {
                 $badge_data['gem_reward'] = intval($json_data['gem_reward']);
+            }
+            if (isset($json_data['fluent_event_enabled']) && $json_data['fluent_event_enabled'] >= 0) {
+                $badge_data['fluent_event_enabled'] = intval($json_data['fluent_event_enabled']);
+            }
+            if (isset($json_data['fluent_event_key'])) {
+                $badge_data['fluent_event_key'] = sanitize_text_field($json_data['fluent_event_key']);
+            }
+            if (isset($json_data['fluent_event_title'])) {
+                $badge_data['fluent_event_title'] = sanitize_text_field($json_data['fluent_event_title']);
             }
             if (isset($json_data['is_active'])) {
                 $badge_data['is_active'] = intval($json_data['is_active']);
@@ -7632,14 +8189,19 @@ class JazzEdge_Practice_Hub {
                     }
                     break;
                     
-                case 'first_session':
+                case 'level_reached':
+                    if ($user_stats['current_level'] >= $criteria_value) {
+                        $should_award = true;
+                    }
+                    break;
+                    
                 case 'practice_sessions':
                     if ($user_stats['total_sessions'] >= $criteria_value) {
                         $should_award = true;
                     }
                     break;
                     
-                case 'long_session':
+                case 'total_time':
                     // Check if user has any session >= criteria_value minutes
                     foreach ($sessions as $session) {
                         if ($session['duration_minutes'] >= $criteria_value) {
@@ -7650,7 +8212,7 @@ class JazzEdge_Practice_Hub {
                     break;
                     
                 case 'improvement_count':
-                    // Count sessions with improvement detected
+                    // Check sessions with improvement detected
                     $improvement_count = 0;
                     foreach ($sessions as $session) {
                         if ($session['improvement_detected']) {
@@ -7662,20 +8224,29 @@ class JazzEdge_Practice_Hub {
                     }
                     break;
                     
-                case 'streak_7':
+                case 'streak':
                     if ($user_stats['current_streak'] >= $criteria_value) {
                         $should_award = true;
                     }
                     break;
                     
-                case 'streak_30':
-                    if ($user_stats['current_streak'] >= $criteria_value) {
+                case 'weekly_goal':
+                    $days_this_week = $this->count_practice_days_in_period($user_id, 7);
+                    if ($days_this_week >= $criteria_value) {
                         $should_award = true;
                     }
                     break;
                     
-                case 'streak_100':
-                    if ($user_stats['current_streak'] >= $criteria_value) {
+                case 'monthly_goal':
+                    $days_this_month = $this->count_practice_days_in_period($user_id, 30);
+                    if ($days_this_month >= $criteria_value) {
+                        $should_award = true;
+                    }
+                    break;
+                    
+                case 'weekend_warrior':
+                    $weekend_sessions = $this->count_weekend_practice_sessions($user_id);
+                    if ($weekend_sessions >= $criteria_value) {
                         $should_award = true;
                     }
                     break;
@@ -7707,6 +8278,11 @@ class JazzEdge_Practice_Hub {
                 $update_data['badges_earned'] = $user_stats['badges_earned'] + 1;
                 $database->update_user_stats($user_id, $update_data);
                 
+                // Trigger FluentCRM event if badge has event tracking enabled
+                if ($badge['fluent_event_enabled'] == 1) {
+                    $this->trigger_badge_fluentcrm_event($badge, $user_id, $user_stats);
+                }
+                
                 $newly_awarded[] = $badge;
             }
         }
@@ -7717,6 +8293,161 @@ class JazzEdge_Practice_Hub {
         }
         
         return $newly_awarded;
+    }
+    
+    /**
+     * Trigger FluentCRM event for badge achievement
+     */
+    private function trigger_badge_fluentcrm_event($badge, $user_id, $user_stats) {
+        // Check if FluentCRM tracking is globally enabled
+        if (!function_exists('do_action') || !function_exists('get_user_by')) {
+            error_log("JPH Badge Event: FluentCRM not available");
+            return array('success' => false, 'message' => 'FluentCRM not available');
+        }
+        
+        // Get user data
+        $user = get_user_by('id', $user_id);
+        if (!$user) {
+            error_log("JPH Badge Event: User not found for ID $user_id");
+            return array('success' => false, 'message' => 'User not found');
+        }
+        
+        // Prepare event key and title
+        $event_key = !empty($badge['fluent_event_key']) ? $badge['fluent_event_key'] : 'jph_badge_' . $badge['badge_key'];
+        $event_title = !empty($badge['fluent_event_title']) ? $badge['fluent_event_title'] : $badge['name'];
+        
+        // Get global FluentCRM settings
+        $webhook_settings = get_option('jph_webhook_settings', array());
+        $provider = $webhook_settings['provider'] ?? 'jazzedge-practice-hub';
+        
+        // Prepare event data
+        $event_data = array(
+            'event_key' => $event_key,
+            'title' => $event_title,
+            'value' => $badge['xp_reward'] . ' XP, ' . $badge['gem_reward'] . ' gems',
+            'email' => $user->user_email,
+            'provider' => $provider,
+            'custom_data' => array(
+                'badge_key' => $badge['badge_key'],
+                'badge_name' => $badge['name'],
+                'badge_category' => $badge['category'],
+                'criteria_type' => $badge['criteria_type'],
+                'criteria_value' => $badge['criteria_value'],
+                'xp_reward' => $badge['xp_reward'],
+                'gem_reward' => $badge['gem_reward'],
+                'user_total_xp' => $user_stats['total_xp'],
+                'user_level' => $user_stats['current_level'],
+                'user_sessions' => $user_stats['total_sessions']
+            )
+        );
+        
+        try {
+            error_log("JPH Badge Event: Triggering FluentCRM event '{$event_key}' for user {$user_id}");
+            
+            // Track the event using FluentCRM action hook
+            do_action('fluent_crm/track_event_activity', $event_data, true);
+            
+            error_log("JPH Badge Event: FluentCRM event '{$event_key}' triggered successfully");
+            
+            // Log the event
+            $this->log_badge_event($badge['badge_key'], $user_id, $event_data, true);
+            
+            return array('success' => true, 'message' => 'Badge FluentCRM event triggered successfully');
+        } catch (Exception $e) {
+            error_log("JPH Badge Event: Exception occurred: " . $e->getMessage());
+            $this->log_badge_event($badge['badge_key'], $user_id, $event_data, false, $e->getMessage());
+            return array('success' => false, 'message' => 'Badge FluentCRM event failed: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Log badge FluentCRM event activity
+     */
+    private function log_badge_event($badge_key, $user_id, $data, $success, $error_message = '') {
+        $logs = get_option('jph_badge_events_log', array());
+        
+        // Get user information
+        $user = get_user_by('id', $user_id);
+        $user_email = $user ? $user->user_email : 'Unknown';
+        $user_name = $user ? $user->display_name : 'Unknown';
+        
+        // Try to get FluentCRM contact ID
+        $contact_id = $this->get_fluentcrm_contact_id($user_email);
+        
+        $log_entry = array(
+            'timestamp' => time(),
+            'badge_key' => $badge_key,
+            'user_id' => $user_id,
+            'user_email' => $user_email,
+            'user_name' => $user_name,
+            'contact_id' => $contact_id,
+            'success' => $success,
+            'message' => $success ? 'Badge event tracked successfully' : $error_message,
+            'data' => $data
+        );
+        
+        $logs[] = $log_entry;
+        
+        // Keep only last 1000 logs
+        if (count($logs) > 1000) {
+            $logs = array_slice($logs, -1000);
+        }
+        
+        update_option('jph_badge_events_log', $logs);
+    }
+    
+    /**
+     * REST API: Test badge FluentCRM event
+     */
+    public function rest_test_badge_event($request) {
+        try {
+            $user_id = get_current_user_id();
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to test badge events', array('status' => 401));
+            }
+            
+            $badge_key = $request->get_param('badge_key');
+            if (empty($badge_key)) {
+                return new WP_Error('missing_badge_key', 'Badge key is required', array('status' => 400));
+            }
+            
+            // Get badge data
+            $database = new JPH_Database();
+            $badge = $database->get_badge($badge_key);
+            
+            if (!$badge) {
+                return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
+            }
+            
+            if ($badge['fluent_event_enabled'] != 1) {
+                return new WP_Error('event_disabled', 'FluentCRM event tracking is disabled for this badge', array('status' => 400));
+            }
+            
+            // Get current user stats for testing
+            $gamification = new JPH_Gamification();
+            $user_stats = $gamification->get_user_stats($user_id);
+            
+            // Trigger the test event
+            $result = $this->trigger_badge_fluentcrm_event($badge, $user_id, $user_stats);
+            
+            if ($result['success']) {
+                $event_key = !empty($badge['fluent_event_key']) ? $badge['fluent_event_key'] : 'jph_badge_' . $badge['badge_key'];
+                
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'Test badge FluentCRM event triggered successfully',
+                    'badge_key' => $badge_key,
+                    'badge_name' => $badge['name'],
+                    'event_key' => $event_key,
+                    'timestamp' => current_time('mysql')
+                ));
+            } else {
+                return new WP_Error('event_failed', 'Failed to trigger badge event: ' . $result['message'], array('status' => 500));
+            }
+            
+        } catch (Exception $e) {
+            return new WP_Error('test_badge_event_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     
@@ -8246,10 +8977,10 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
-     * AJAX: Test event tracking
+     * AJAX: Test badge event tracking
      */
-    public function ajax_test_event() {
-        if (!wp_verify_nonce($_POST['nonce'], 'jph_test_event')) {
+    public function ajax_test_badge_event() {
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_test_badge_event')) {
             wp_die('Security check failed');
         }
         
@@ -8258,7 +8989,7 @@ class JazzEdge_Practice_Hub {
         }
         
         try {
-            $milestone = sanitize_text_field($_POST['milestone']);
+            $badge_key = sanitize_text_field($_POST['badge_key']);
             $user_id = get_current_user_id();
             
             // Check if user exists
@@ -8267,23 +8998,83 @@ class JazzEdge_Practice_Hub {
                 wp_send_json_error('Current user not found');
             }
             
-            // Check if event tracking is enabled
-            $settings = get_option('jph_webhook_settings', array());
-            if (empty($settings['enabled'])) {
+            // Get badge data
+            $database = new JPH_Database();
+            $badge = $database->get_badge($badge_key);
+        
+            if (!$badge) {
+                wp_send_json_error('Badge not found: ' . $badge_key);
+            }
+            
+            // Check if badge has FluentCRM tracking enabled
+            if (empty($badge['fluent_event_enabled'])) {
                 wp_send_json_success(array(
-                    'message' => "Event tracking is disabled. User: {$user->user_email}, Milestone: {$milestone}. Enable event tracking in settings to test actual tracking."
+                    'message' => "Badge '{$badge['name']}' has FluentCRM tracking disabled. Enable 'FluentCRM Event Tracking' in Badge Management to test event firing."
                 ));
             }
             
-            $result = $this->track_milestone_event($milestone, $user_id, array('test' => true));
+            // Trigger the badge event manually
+            $result = $this->trigger_badge_fluentcrm_event($badge, $user_id, $database->get_user_stats($user_id));
             
             if ($result['success']) {
                 wp_send_json_success(array(
-                    'message' => "Event tracking test successful for milestone: {$milestone} (User: {$user->user_email})"
+                    'message' => "Badge event test successful for '{$badge['name']}' (User: {$user->user_email}) - Event Key: {$badge['fluent_event_key']}"
                 ));
             } else {
                 wp_send_json_error($result['message']);
             }
+        } catch (Exception $e) {
+            wp_send_json_error('Error: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * AJAX: Test all badge events
+     */
+    public function ajax_test_all_badge_events() {
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_test_all_badge_events')) {
+            wp_die('Security check failed');
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            $user_id = get_current_user_id();
+            $user = get_user_by('id', $user_id);
+            if (!$user) {
+                wp_send_json_error('Current user not found');
+            }
+            
+            $database = new JPH_Database();
+            $badges = $database->get_badges(false); // Get all badges
+            
+            $results = array();
+            $success_count = 0;
+            $total_count = count($badges);
+            
+            foreach ($badges as $badge) {
+                if (!empty($badge['fluent_event_enabled'])) {
+                    $result = $this->trigger_badge_fluentcrm_event($badge, $user_id, $database->get_user_stats($user_id));
+                    $status = $result['success'] ? 'SUCCESS' : 'FAILED - ' . $result['message'];
+                    $results[] = "{$badge['name']}: {$status}";
+                    
+                    if ($result['success']) {
+                        $success_count++;
+                    }
+                } else {
+                    $results[] = "{$badge['name']}: SKIPPED - FluentCRM tracking disabled";
+                    $total_count--; // Don't count disabled badges
+                }
+           }
+            
+            $summary = "<strong>Badge Event Test Summary: {$success_count}/{$total_count} badges successful</strong><br><br>";
+            $detailed_results = implode('<br>', $results);
+            
+            wp_send_json_success(array(
+                'message' => $summary . $detailed_results
+            ));
         } catch (Exception $e) {
             wp_send_json_error('Error: ' . $e->getMessage());
         }
@@ -8367,10 +9158,10 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
-     * AJAX: Get event logs
+     * AJAX: Get badge event logs
      */
-    public function ajax_get_event_logs() {
-        if (!wp_verify_nonce($_POST['nonce'], 'jph_get_event_logs')) {
+    public function ajax_get_badge_event_logs() {
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_get_badge_event_logs')) {
             wp_die('Security check failed');
         }
         
@@ -8379,32 +9170,40 @@ class JazzEdge_Practice_Hub {
         }
         
         try {
-            $logs = get_option('jph_event_logs', array());
+            $logs = get_option('jph_badge_events_log', array());
             $logs = array_slice(array_reverse($logs), 0, 50); // Last 50 entries
             
             $log_html = '';
             if (empty($logs)) {
-                $log_html = 'No event tracking logs found.';
+                $log_html = 'No badge event tracking logs found. Events will appear here when badges are awarded.';
             } else {
                 foreach ($logs as $log) {
                     $status_class = $log['success'] ? 'success' : 'error';
                     $log_html .= "<div class='log-entry {$status_class}'>";
                     $log_html .= "<strong>" . date('Y-m-d H:i:s', $log['timestamp']) . "</strong> ";
-                    $log_html .= "[{$log['milestone']}] ";
+                    $log_html .= "[🏆 {$log['badge_key']}] ";
                     
                     // Add user information
                     $user_email = $log['user_email'] ?? 'Unknown';
-                    $user_display_name = $log['user_display_name'] ?? 'Unknown';
+                    $user_name = $log['user_name'] ?? 'Unknown';
                     $contact_id = $log['contact_id'] ?? 'N/A';
                     
                     $log_html .= "<br><span class='log-user-info'>";
-                    $log_html .= "👤 {$user_display_name} ({$user_email})";
+                    $log_html .= "👤 {$user_name} ({$user_email})";
                     if ($contact_id !== 'N/A' && $contact_id !== 'Not Found' && $contact_id !== 'Error') {
                         $log_html .= " | 🆔 Contact ID: {$contact_id}";
                     } else {
                         $log_html .= " | 🆔 Contact: {$contact_id}";
                     }
                     $log_html .= "</span><br>";
+                    
+                    // Add event details
+                    if (isset($log['data']['event_key'])) {
+                        $log_html .= "<strong>Event Key:</strong> {$log['data']['event_key']}<br>";
+                    }
+                    if (isset($log['data']['title'])) {
+                        $log_html .= "<strong>Event Title:</strong> {$log['data']['title']}<br>";
+                    }
                     
                     $log_html .= $log['message'];
                     $log_html .= "</div>";
@@ -8418,10 +9217,10 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
-     * AJAX: Clear event logs
+     * AJAX: Clear badge event logs
      */
-    public function ajax_clear_event_logs() {
-        if (!wp_verify_nonce($_POST['nonce'], 'jph_clear_event_logs')) {
+    public function ajax_clear_badge_event_logs() {
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_clear_badge_event_logs')) {
             wp_die('Security check failed');
         }
         
@@ -8430,8 +9229,8 @@ class JazzEdge_Practice_Hub {
         }
         
         try {
-            delete_option('jph_event_logs');
-            wp_send_json_success(array('message' => 'Event tracking logs cleared successfully'));
+            delete_option('jph_badge_events_log');
+            wp_send_json_success(array('message' => 'Badge event tracking logs cleared successfully'));
         } catch (Exception $e) {
             wp_send_json_error('Error: ' . $e->getMessage());
         }
@@ -14459,6 +15258,12 @@ class JazzEdge_Practice_Hub {
         // Add hearts_count column to user_stats if missing
         $this->add_hearts_count_column();
         
+        // Update badge criteria to simplified system
+        $this->update_badge_criteria_system();
+                
+                // Add FluentCRM event columns to badges table if missing
+                $this->add_badge_fluentcrm_columns();
+        
         // Fix missing badge keys
         $this->fix_missing_badge_keys();
         
@@ -14615,10 +15420,14 @@ class JazzEdge_Practice_Hub {
                 `criteria_type` VARCHAR(50) NOT NULL,
                 `criteria_value` INT(11) NOT NULL,
                 `is_active` TINYINT(1) DEFAULT 1,
+                `fluent_event_enabled` TINYINT(1) DEFAULT 0,
+                `fluent_event_key` VARCHAR(100) NULL,
+                `fluent_event_title` VARCHAR(200) NULL,
                 `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (`badge_key`),
                 KEY `category` (`category`),
-                KEY `is_active` (`is_active`)
+                KEY `is_active` (`is_active`),
+                KEY `fluent_event_enabled` (`fluent_event_enabled`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
             
             'jph_user_badges' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_user_badges` (
@@ -14786,7 +15595,52 @@ class JazzEdge_Practice_Hub {
     }
     
     /**
-     * Add hearts_count column to user_stats table if missing
+     * Add FluentCRM event columns to badges table if missing
+     */
+    private function add_badge_fluentcrm_columns() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        // Check if table exists first
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+        if (!$table_exists) {
+            error_log('JPH: badges table does not exist, will be created with FluentCRM columns');
+            return;
+        }
+        
+        // Check and add each column if missing
+        $columns_to_add = array(
+            'fluent_event_enabled' => "ADD COLUMN fluent_event_enabled TINYINT(1) DEFAULT 0 AFTER is_active",
+            'fluent_event_key' => "ADD COLUMN fluent_event_key VARCHAR(100) NULL AFTER fluent_event_enabled",
+            'fluent_event_title' => "ADD COLUMN fluent_event_title VARCHAR(200) NULL AFTER fluent_event_key"
+        );
+        
+        foreach ($columns_to_add as $column_name => $sql_part) {
+            $column_exists = $wpdb->get_results($wpdb->prepare(
+                "SHOW COLUMNS FROM {$table_name} LIKE %s",
+                $column_name
+            ));
+            
+            if (empty($column_exists)) {
+                $result = $wpdb->query("ALTER TABLE {$table_name} {$sql_part}");
+                if ($result !== false) {
+                    error_log("JPH: Added {$column_name} column to badges table");
+                } else {
+                    error_log("JPH: Failed to add {$column_name} column to badges table");
+                }
+            }
+        }
+        
+        // Add index for fluent_event_enabled
+        $index_exist = $wpdb->get_var("SHOW INDEX FROM {$table_name} WHERE Key_name = 'fluent_event_enabled'");
+        if (empty($index_exist)) {
+            $wpdb->query("ALTER TABLE {$table_name} ADD INDEX fluent_event_enabled (fluent_event_enabled)");
+        }
+    }
+    
+    /**
+     * Add hearts-count column to user_stats table if missing
      */
     private function add_hearts_count_column() {
         global $wpdb;
@@ -14808,6 +15662,120 @@ class JazzEdge_Practice_Hub {
                 $wpdb->query("UPDATE {$table_name} SET hearts_count = 5 WHERE hearts_count IS NULL");
             }
         }
+    }
+    
+    /**
+     * Update badge criteria to simplified system
+     */
+    private function update_badge_criteria_system() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_badges';
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+        
+        if (!$table_exists) {
+            error_log('JPH: badges table does not exist for criteria update');
+            return;
+        }
+        
+        // Update existing badges to use new simplified criteria system
+        $badge_updates = array(
+            'first_steps' => array(
+                'criteria_type' => 'practice_sessions',
+                'criteria_value' => 1,
+                'name' => 'First Steps',
+                'description' => 'Complete your first practice session'
+            ),
+            'marathon' => array(
+                'criteria_type' => 'total_time',
+                'criteria_value' => 60,
+                'name' => 'Marathon',
+                'description' => 'Practice for 60+ minutes in one session'
+            ),
+            'rising_star' => array(
+                'criteria_type' => 'improvement_count',
+                'criteria_value' => 10,
+                'name' => 'Rising Star',
+                'description' => 'Report improvement 10 times'
+            ),
+            'hot_streak' => array(
+                'criteria_type' => 'streak',
+                'criteria_value' => 7,
+                'name' => 'Hot Streak',
+                'description' => 'Practice for 7 days in a row'
+            ),
+            'legend' => array(
+                'criteria_type' => 'streak',
+                'criteria_value' => 100,
+                'name' => 'Legend',
+                'description' => 'Practice for 100 days in a row'
+            ),
+            'lightning' => array(
+                'criteria_type' => 'streak',
+                'criteria_value' => 30,
+                'name' => 'Lightning', 
+                'description' => 'Practice for 30 days in a row'
+            )
+        );
+        
+        foreach ($badge_updates as $badge_key => $update_data) {
+            $result = $wpdb->update(
+                $table_name,
+                array(
+                    'criteria_type' => $update_data['criteria_type'],
+                    'criteria_value' => $update_data['criteria_value'],
+                    'name' => $update_data['name'],
+                    'description' => $update_data['description'],
+                    'updated_at' => current_time('mysql')
+                ),
+                array('badge_key' => $badge_key),
+                array('%s', '%d', '%s', '%s', '%s'),
+                array('%s')
+            );
+            
+            if ($result !== false) {
+                error_log("JPH: Updated badge criteria for {$badge_key} to {$update_data['criteria_type']} >= {$update_data['criteria_value']}");
+            } else {
+                error_log("JPH: Failed to update badge criteria for {$badge_key}. Error: {$wpdb->last_error}");
+            }
+        }
+    }
+    
+    /**
+     * Count practice days in a given period (rolling window)
+     */
+    private function count_practice_days_in_period($user_id, $days) {
+        global $wpdb;
+        
+        $start_date = date('Y-m-d H:i:s', strtotime("-$days days"));
+        
+        $sessions = $wpdb->get_results($wpdb->prepare(
+            "SELECT DISTINCT DATE(created_at) as practice_date 
+             FROM {$wpdb->prefix}jph_practice_sessions 
+             WHERE user_id = %d AND created_at >= %s 
+             ORDER BY practice_date",
+            $user_id,
+            $start_date
+        ));
+        
+        return count($sessions);
+    }
+    
+    /**
+     * Count weekend practice sessions (Saturday/Sunday)
+     */
+    private function count_weekend_practice_sessions($user_id) {
+        global $wpdb;
+        
+        $sessions = $wpdb->get_results($wpdb->prepare(
+            "SELECT COUNT(*) as weekend_count 
+             FROM {$wpdb->prefix}jph_practice_sessions 
+             WHERE user_id = %d 
+             AND DAYOFWEEK(created_at) IN (1, 7)",
+            $user_id
+        ));
+        
+        return intval($sessions[0]->weekend_count ?? 0);
     }
     
     /**

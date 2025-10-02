@@ -73,6 +73,11 @@ class JPH_Gamification {
                 ),
                 array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s')
             );
+            
+            if ($result === false) {
+                error_log('JPH Gamification: Failed to create user stats record for user ' . $user_id . '. Error: ' . $wpdb->last_error);
+                return false;
+            }
         } else {
             // Update existing stats
             $result = $wpdb->update(
@@ -85,6 +90,11 @@ class JPH_Gamification {
                 array('%d', '%d'),
                 array('%d')
             );
+            
+            if ($result === false) {
+                error_log('JPH Gamification: Failed to update user stats for user ' . $user_id . '. Error: ' . $wpdb->last_error);
+                return false;
+            }
         }
         
         return true;

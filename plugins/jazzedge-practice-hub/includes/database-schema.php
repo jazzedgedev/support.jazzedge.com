@@ -393,6 +393,24 @@ class JPH_Database_Schema {
                     'default' => 1,
                     'description' => 'Whether badge is active (0/1)'
                 ),
+                'fluent_event_enabled' => array(
+                    'type' => 'TINYINT',
+                    'length' => 1,
+                    'default' => 0,
+                    'description' => 'Whether to track this badge as FluentCRM event (0/1)'
+                ),
+                'fluent_event_key' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'null' => true,
+                    'description' => 'Custom FluentCRM event key (defaults to jph_badge_key if empty)'
+                ),
+                'fluent_event_title' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 200,
+                    'null' => true,
+                    'description' => 'FluentCRM event title (defaults to badge name if empty)'
+                ),
                 'display_order' => array(
                     'type' => 'INT',
                     'length' => 11,
