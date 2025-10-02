@@ -1344,13 +1344,14 @@ class JazzEdge_Practice_Hub {
                             <select id="badge-criteria-type" name="criteria_type">
                                 <option value="manual">Manual Award</option>
                                 <option value="total_xp">Total XP ≥ value</option>
+                                <option value="level_reached">Level Reached ≥ value</option>
                                 <option value="practice_sessions">Practice Sessions ≥ value</option>
-                                <option value="streak_7">7-Day Streak</option>
-                                <option value="streak_30">30-Day Streak</option>
-                                <option value="streak_100">100-Day Streak</option>
-                                <option value="long_session">Long Session</option>
-                                <option value="improvement_count">Improvements ≥ value</option>
-                                <option value="first_session">First Session</option>
+                                <option value="streak">Streak Days ≥ value</option>
+                                <option value="total_time">Single Session Minutes ≥ value</option>
+                                <option value="improvement_count">Improvements Reported ≥ value</option>
+                                <option value="weekly_goal">Practice Days This Week ≥ value</option>
+                                <option value="monthly_goal">Practice Days This Month ≥ value</option>
+                                <option value="weekend_warrior">Weekend Sessions ≥ value</option>
                             </select>
                         </div>
                         
@@ -2773,12 +2774,11 @@ class JazzEdge_Practice_Hub {
                     </td>
                     <td>
                         <div class="jph-badge-actions">
-                            <button class="button button-small button-primary" onclick="editBadge('${badge.badge_key}')" title="Edit Badge">
-                                ✏️ Edit
-                            </button>
-                            <button class="button button-small button-link-delete" onclick="deleteBadge('${badge.badge_key}')" title="Delete Badge">
-                                🗑️ Delete
-                            </button>
+                            ${badge.badge_key && badge.badge_key.trim() !== '' ? 
+                                `<button class="button button-small button-primary" onclick="editBadge('${badge.badge_key}')" title="Edit Badge">✏️ Edit</button>
+                                 <button class="button button-small button-link-delete" onclick="deleteBadge('${badge.badge_key}')" title="Delete Badge">🗑️ Delete</button>` :
+                                `<span class="error-text">❌ No Badge Key</span>`
+                            }
                         </div>
                     </td>
                 </tr>
@@ -3150,6 +3150,14 @@ class JazzEdge_Practice_Hub {
         
         // Edit badge
         function editBadge(badgeKey) {
+            // Validate badge key before making API call
+            if (!badgeKey || badgeKey.trim() === '') {
+                showToast('Invalid badge key: badge key cannot be empty', 'error');
+                return;
+            }
+            
+            console.log('EditBadge called with badgeKey:', badgeKey);
+            
             // First, get the badge data
             fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeKey, {
                 method: 'GET',
@@ -3159,15 +3167,19 @@ class JazzEdge_Practice_Hub {
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
+                console.log('EditBadge API response:', data);
+                
+                if (data.success && data.badge && data.badge.badge_key) {
                     openEditBadgeModal(data.badge);
                 } else {
-                    showToast('Error loading badge: ' + (data.message || 'Unknown error'), 'error');
+                    const errorMsg = data.message || data.data?.message || 'Badge data is invalid or missing badge_key';
+                    console.error('Badge data error:', data);
+                    showToast('Error loading badge: ' + errorMsg, 'error');
                 }
             })
             .catch(error => {
                 console.error('Error loading badge:', error);
-                showToast('Error loading badge: ' + error, 'error');
+                showToast('Error loading badge: ' + error.message, 'error');
             });
         }
         
@@ -3743,13 +3755,14 @@ class JazzEdge_Practice_Hub {
                             <select id="edit-badge-criteria-type" name="criteria_type">
                                 <option value="manual">Manual (no auto-award)</option>
                                 <option value="total_xp">Total XP ≥ value</option>
-                                <option value="practice_sessions">Practice sessions ≥ value</option>
-                                <option value="streak_7">7-day streak</option>
-                                <option value="streak_30">30-day streak</option>
-                                <option value="streak_100">100-day streak</option>
-                                <option value="long_session">Long session (≥ minutes)</option>
-                                <option value="improvement_count">Improvements reported ≥ value</option>
-                                <option value="first_session">First practice session</option>
+                                <option value="level_reached">Level Reached ≥ value</option>
+                                <option value="practice_sessions">Practice Sessions ≥ value</option>
+                                <option value="streak">Streak Days ≥ value</option>
+                                <option value="total_time">Single Session Minutes ≥ value</option>
+                                <option value="improvement_count">Improvements Reported ≥ value</option>
+                                <option value="weekly_goal">Practice Days This Week ≥ value</option>
+                                <option value="monthly_goal">Practice Days This Month ≥ value</option>
+                                <option value="weekend_warrior">Weekend Sessions ≥ value</option>
                             </select>
                         </div>
                         
@@ -4814,6 +4827,7 @@ class JazzEdge_Practice_Hub {
         
         .jph-danger-section h2 {
             color: #dc3545 !important;
+            font-weight: bold;
         }
         
         .jph-danger-section p {
@@ -8989,7 +9003,11 @@ class JazzEdge_Practice_Hub {
         }
         
         try {
-            $badge_key = sanitize_text_field($_POST['badge_key']);
+            $badge_key = sanitize_text_field($_POST['badge_key'] ?? '');
+            if (empty($badge_key)) {
+                wp_send_json_error('Badge key is required');
+            }
+            
             $user_id = get_current_user_id();
             
             // Check if user exists
@@ -15258,8 +15276,14 @@ class JazzEdge_Practice_Hub {
         // Add hearts_count column to user_stats if missing
         $this->add_hearts_count_column();
         
+        // Add total_minutes column to user_stats if missing
+        $this->add_total_minutes_column();
+        
         // Update badge criteria to simplified system
         $this->update_badge_criteria_system();
+        
+        // Fix badges with empty badge_key
+        $this->fix_empty_badge_keys();
                 
                 // Add FluentCRM event columns to badges table if missing
                 $this->add_badge_fluentcrm_columns();
@@ -15661,6 +15685,65 @@ class JazzEdge_Practice_Hub {
                 // Update existing records to have hearts_count = 5
                 $wpdb->query("UPDATE {$table_name} SET hearts_count = 5 WHERE hearts_count IS NULL");
             }
+        }
+    }
+    
+    /**
+     * Add total_minutes column to user_stats table if missing
+     */
+    private function add_total_minutes_column() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Check if total_minutes column exists
+        $column_exists = $wpdb->get_results($wpdb->prepare(
+            "SHOW COLUMNS FROM {$table_name} LIKE %s",
+            'total_minutes'
+        ));
+        
+        if (empty($column_exists)) {
+            // Add total_minutes column
+            $result = $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN total_minutes INT(11) DEFAULT 0 AFTER total_sessions");
+            
+            if ($result !== false) {
+                // Update existing records to have total_minutes = 0
+                $wpdb->query("UPDATE {$table_name} SET total_minutes = 0 WHERE total_minutes IS NULL");
+                error_log('JPH: Added total_minutes column to user_stats table');
+            } else {
+                error_log('JPH: Failed to add total_minutes column to user_stats table. Error: ' . $wpdb->last_error);
+            }
+        }
+    }
+    
+    /**
+     * Fix badges with empty badge_key by generating keys from names
+     */
+    private function fix_empty_badge_keys() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_badges';
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+        
+        if (!$table_exists) {
+            error_log('JPH: badges table does not exist for badge key fix');
+            return;
+        }
+        
+        // For current schema with badge_key as primary key, delete badges with empty keys
+        $empty_badges = $wpdb->get_results(
+            "SELECT name FROM {$table_name} WHERE badge_key = '' OR badge_key IS NULL",
+            ARRAY_A
+        );
+        
+        if (!empty($empty_badges)) {
+            $wpdb->query("DELETE FROM {$table_name} WHERE badge_key = '' OR badge_key IS NULL");
+            foreach ($empty_badges as $badge) {
+                error_log("JPH: Deleted badge with empty/short key: '{$badge['name']}'");
+            }
+            error_log('JPH: Cleaned up ' . count($empty_badges) . ' badges with empty keys');
+        } else {
+            error_log('JPH: No badges with empty keys found');
         }
     }
     
