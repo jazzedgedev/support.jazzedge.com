@@ -3,7 +3,7 @@
  * Plugin Name: Fluent Support AI Integration
  * Plugin URI: https://katahdin.ai/
  * Description: Integrate OpenAI AI capabilities into Fluent Support ticket system for automated reply generation. Powered by Katahdin AI.
- * Version: 1.0.1
+ * Version: 1.0.7
  * Author: Katahdin AI
  * Author URI: https://katahdin.ai/
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('FLUENT_SUPPORT_AI_VERSION', '1.0.1');
+define('FLUENT_SUPPORT_AI_VERSION', '1.0.7');
 define('FLUENT_SUPPORT_AI_PLUGIN_FILE', __FILE__);
 define('FLUENT_SUPPORT_AI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('FLUENT_SUPPORT_AI_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -277,7 +277,7 @@ class FluentSupportAI {
         // Add Customer Tools widget (membership info, autologin, etc.)
         $widgets['customer_tools'] = [
             'header' => '🔍 Customer Tools',
-            'body_html' => $this->build_customer_tools_widget($ticket_data)
+            'body_html' => $this->build_customer_tools_widget($ticket_data, $customer)
         ];
         
         return $widgets;
@@ -487,23 +487,42 @@ class FluentSupportAI {
     /**
      * Build Customer Tools widget HTML
      */
-    private function build_customer_tools_widget($ticket_data = null) {
+    private function build_customer_tools_widget($ticket_data = null, $customer = null) {
         $html = '<div id="fluent-support-customer-tools-widget">';
 
         // Customer Tools
         if ($ticket_data && isset($ticket_data['customer_email']) && !empty($ticket_data['customer_email'])) {
+            
+            // Determine primary email and check for alternate email in customer title
+            $primary_email = $ticket_data['customer_email'];
+            $alternate_email = '';
+            
+            // Check if customer has a title that looks like an email (length > 6 and contains @)
+            if ($customer && isset($customer->title) && strlen($customer->title) > 6 && strpos($customer->title, '@') !== false) {
+                if (filter_var($customer->title, FILTER_VALIDATE_EMAIL)) {
+                    $alternate_email = $customer->title;
+                }
+            }
+            
+            // Decide which email to search Keap with
+            $keap_search_email = $primary_email; // Default to primary email
+            $found_email_source = 'primary';
+            
             // Find in Keap link
-            $keap_search_url = 'https://app.infusionsoft.com/core/app/searchResults/searchResults?searchTerm=' . urlencode($ticket_data['customer_email']);
+            $keap_search_url = 'https://app.infusionsoft.com/core/app/searchResults/searchResults?searchTerm=' . urlencode($keap_search_email);
             $html .= '<div style="background: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #0073aa;">';
             $html .= '<a href="' . esc_url($keap_search_url) . '" target="_blank" style="text-decoration: none; color: #0073aa; font-weight: bold; transition: color 0.2s;" onmouseover="this.style.color=\'#0056b3\'" onmouseout="this.style.color=\'#0073aa\'">';
             $html .= '🔍 Find in Keap';
             $html .= '</a>';
             $html .= '</div>';
 
-            // Keap Tags (debug, show up to 5)
+            // Keap Tags - try primary email first, then alternate if no results
             $keap_tags = [];
             $keap_api_key = 'KeapAK-d3a9fe4ce598f45741ff08611a8a3cdfb20c5d9cc1ab824fbe';
-            $keap_email = $ticket_data['customer_email'];
+            $contact_id = '';
+            
+            // Try primary email first
+            $keap_email = $primary_email;
             $keap_api_url = 'https://api.infusionsoft.com/crm/rest/v1/contacts?email=' . urlencode($keap_email);
             
             $debug_info = [];
@@ -511,6 +530,9 @@ class FluentSupportAI {
             $debug_info[] = "Email: " . $keap_email;
             $debug_info[] = "API Key: " . substr($keap_api_key, 0, 10) . "...";
 
+            // Try primary email first
+            $debug_info[] = "Trying primary email: " . $primary_email;
+            
             // Use WordPress HTTP API for a simple GET
             $response = wp_remote_get($keap_api_url, array(
                 'headers' => array(
@@ -536,9 +558,42 @@ class FluentSupportAI {
                     if (is_array($data)) {
                         $debug_info[] = "Contacts Count: " . (isset($data['contacts']) ? count($data['contacts']) : "No contacts key");
                         
+                        // If no contacts found with primary email, try alternate email
+                        if (empty($data['contacts']) && $alternate_email) {
+                            $debug_info[] = "Primary email not found, trying alternate email: " . $alternate_email;
+                            $keap_email = $alternate_email;
+                            $keap_api_url = 'https://api.infusionsoft.com/crm/rest/v1/contacts?email=' . urlencode($alternate_email);
+                            
+                            $response = wp_remote_get($keap_api_url, array(
+                                'headers' => array(
+                                    'Accept' => 'application/json',
+                                    'Authorization' => 'Bearer ' . $keap_api_key
+                                ),
+                                'timeout' => 10
+                            ));
+                            
+                            if (is_wp_error($response)) {
+                                $debug_info[] = "Alternate email error: " . $response->get_error_message();
+                            } else {
+                                $response_code = wp_remote_retrieve_response_code($response);
+                                $debug_info[] = "Alternate email response code: " . $response_code;
+                                
+                                $body = wp_remote_retrieve_body($response);
+                                if ($response_code == 200) {
+                                    $data = json_decode($body, true);
+                                    if (is_array($data) && !empty($data['contacts'])) {
+                                        $debug_info[] = "Found contact with alternate email!";
+                                        $keap_search_email = $alternate_email;
+                                        $found_email_source = 'alternate';
+									}
+                                }
+                            }
+                        }
+                        
                         if (!empty($data['contacts'][0]['id'])) {
                             $contact_id = $data['contacts'][0]['id'];
                             $debug_info[] = "Contact ID: " . $contact_id;
+                            
                             
                             // Now get tags for this contact
                             $tags_url = 'https://api.infusionsoft.com/crm/rest/v1/contacts/' . intval($contact_id) . '/tags';
@@ -666,40 +721,57 @@ class FluentSupportAI {
                 }
             }
 
-            // Autologin Link button (copy only)
-            $contact_id = '';
-            $contact_email = $ticket_data['customer_email'];
+            // Autologin Link button (copy only) - Contact ID already extracted above
             
-            // Extract contact ID from debug info
-            foreach ($debug_info as $info) {
-                if (strpos($info, 'Contact ID:') !== false) {
-                    $contact_id = trim(str_replace('Contact ID:', '', $info));
-                    break;
-                }
-            }
             
-            if ($contact_id && $contact_email) {
+            if ($contact_id && $keap_search_email) {
                 // Dashboard autologin link
-                $dashboard_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($contact_email) . '&redir=/dashboard/';
+                $dashboard_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($keap_search_email) . '&redir=/dashboard/';
+                $email_label = $found_email_source === 'alternate' ? 'Alt Email' : 'Email';
                 $html .= '<div style="background: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #28a745;">';
                 $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
                 $html .= '<span style="color: #28a745; font-weight: bold; flex: 1;">🔗 Dashboard Autologin Link</span>';
                 $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($dashboard_autologin_url) . '" style="background: #007cba; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#0056b3\'" onmouseout="this.style.background=\'#007cba\'">📋 Copy</button>';
                 $html .= '</div>';
-                $html .= '<small style="color: #666;">Contact ID: ' . esc_html($contact_id) . ' | Email: ' . esc_html($contact_email) . '</small>';
+                $html .= '<small style="color: #666;">Contact ID: ' . esc_html($contact_id) . ' | ' . $email_label . ': ' . esc_html($keap_search_email) . '</small>';
                 $html .= '<div class="copy-success-message" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;">✅ Copied to clipboard!</div>';
                 $html .= '</div>';
                 
                 // Card Update autologin link
-                $card_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($contact_email) . '&redir=/card/';
+                $card_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($primary_email) . '&redir=/card/';
                 $html .= '<div style="background: #fff3cd; padding: 8px; margin-bottom: 5px; border-left: 3px solid #ffc107;">';
                 $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
                 $html .= '<span style="color: #856404; font-weight: bold; flex: 1;">💳 Card Update Autologin Link</span>';
                 $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($card_autologin_url) . '" style="background: #ffc107; color: #212529; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#e0a800\'" onmouseout="this.style.background=\'#ffc107\'">📋 Copy</button>';
                 $html .= '</div>';
-                $html .= '<small style="color: #856404;">Contact ID: ' . esc_html($contact_id) . ' | Email: ' . esc_html($contact_email) . '</small>';
+                $html .= '<small style="color: #856404;">Contact ID: ' . esc_html($contact_id) . ' | Email: ' . esc_html($primary_email) . '</small>';
                 $html .= '<div class="copy-success-message" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;">✅ Copied to clipboard!</div>';
                 $html .= '</div>';
+                
+                // Add autologin links for alternate email if available
+                if ($alternate_email) {
+                    // Dashboard autologin link for alternate email
+                    $dashboard_alt_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($alternate_email) . '&redir=/dashboard/';
+                    $html .= '<div style="background: #e7f3ff; padding: 8px; margin-bottom: 5px; border-left: 3px solid #0073aa;">';
+                    $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
+                    $html .= '<span style="color: #0073aa; font-weight: bold; flex: 1;">🔗 Dashboard Autologin Link (Alt Email)</span>';
+                    $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($dashboard_alt_autologin_url) . '" style="background: #0073aa; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#0056b3\'" onmouseout="this.style.background=\'#0073aa\'">📋 Copy</button>';
+                    $html .= '</div>';
+                    $html .= '<small style="color: #0073aa;">Contact ID: ' . esc_html($contact_id) . ' | Alt Email: ' . esc_html($alternate_email) . '</small>';
+                    $html .= '<div class="copy-success-message" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;">✅ Copied to clipboard!</div>';
+                    $html .= '</div>';
+                    
+                    // Card Update autologin link for alternate email
+                    $card_alt_autologin_url = 'https://jazzedge.academy/?memb_autologin=yes&auth_key=K9DqpZpAhvqe&Id=' . urlencode($contact_id) . '&Email=' . urlencode($alternate_email) . '&redir=/card/';
+                    $html .= '<div style="background: #fff8dc; padding: 8px; margin-bottom: 5px; border-left: 3px solid #ff8c00;">';
+                    $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
+                    $html .= '<span style="color: #ff8c00; font-weight: bold; flex: 1;">💳 Card Update Autologin Link (Alt Email)</span>';
+                    $html .= '<button class="copy-autologin-btn" data-url="' . esc_attr($card_alt_autologin_url) . '" style="background: #ff8c00; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; transition: background 0.2s;" onmouseover="this.style.background=\'#e07a00\'" onmouseout="this.style.background=\'#ff8c00\'">📋 Copy</button>';
+                    $html .= '</div>';
+                    $html .= '<small style="color: #ff8c00;">Contact ID: ' . esc_html($contact_id) . ' | Alt Email: ' . esc_html($alternate_email) . '</small>';
+                    $html .= '<div class="copy-success-message" style="display: none; color: #28a745; font-size: 11px; margin-top: 4px;">✅ Copied to clipboard!</div>';
+                    $html .= '</div>';
+                }
             }
             
             // Keap Membership Status

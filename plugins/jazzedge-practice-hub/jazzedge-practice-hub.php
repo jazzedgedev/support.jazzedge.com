@@ -83,6 +83,7 @@ class JazzEdge_Practice_Hub {
         
         // Add nonce for AJAX security
         add_action('wp_enqueue_scripts', array($this, 'enqueue_ajax_nonce'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_ajax_nonce'));
         
         // Event tracking AJAX handlers
         add_action('wp_ajax_jph_test_event', array($this, 'ajax_test_event'));
@@ -97,6 +98,7 @@ class JazzEdge_Practice_Hub {
         add_action('wp_ajax_jph_clear_all_favorites', array($this, 'ajax_clear_all_favorites'));
         add_action('wp_ajax_jph_update_badge_order', array($this, 'ajax_update_badge_order'));
         add_action('wp_ajax_jph_get_database_status', array($this, 'ajax_get_database_status'));
+        add_action('wp_ajax_jph_delete_all_badges', array($this, 'ajax_delete_all_badges'));
         
         // REST API handles database operations (no AJAX needed)
         
@@ -136,6 +138,20 @@ class JazzEdge_Practice_Hub {
                 'nonce' => wp_create_nonce('jph_ajax_nonce')
             ));
         }
+    }
+    
+    /**
+     * Enqueue admin AJAX nonce
+     */
+    public function enqueue_admin_ajax_nonce() {
+        // Ensure jQuery is enqueued first
+        wp_enqueue_script('jquery');
+        
+        wp_localize_script('jquery', 'ajaxurl', admin_url('admin-ajax.php'));
+        wp_localize_script('jquery', 'jph_ajax', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('jph_ajax_nonce')
+        ));
     }
     
     /**
@@ -2480,31 +2496,6 @@ class JazzEdge_Practice_Hub {
                 });
             }
             
-            // Run migrations button
-            const runMigrationsBtn = document.getElementById('run-migrations-btn');
-            if (runMigrationsBtn) {
-                runMigrationsBtn.addEventListener('click', function() {
-                    runMigrations();
-                });
-            }
-            
-            // Test badge awarding button
-            const testBadgeAwardingBtn = document.getElementById('test-badge-awarding-btn');
-            if (testBadgeAwardingBtn) {
-                testBadgeAwardingBtn.addEventListener('click', function() {
-                    testBadgeAwarding();
-                });
-            }
-            
-            
-            // Sync badge count button
-            const syncBadgeCountBtn = document.getElementById('sync-badge-count-btn');
-            if (syncBadgeCountBtn) {
-                syncBadgeCountBtn.addEventListener('click', function() {
-                    syncBadgeCount();
-                });
-            }
-            
             // Sync all badge counts button
             const syncAllBadgeCountsBtn = document.getElementById('sync-all-badge-counts-btn');
             if (syncAllBadgeCountsBtn) {
@@ -2548,8 +2539,88 @@ class JazzEdge_Practice_Hub {
                 });
             }
             
+            // Delete all badges button
+            const deleteAllBadgesBtn = document.getElementById('delete-all-badges-btn');
+            if (deleteAllBadgesBtn) {
+                deleteAllBadgesBtn.addEventListener('click', function() {
+                    openDeleteAllModal();
+                });
+            }
+            
+            
             // Form submission handlers removed - using onclick handlers instead
         });
+        
+        // Delete All Badges Functions
+        function openDeleteAllModal() {
+            const modalHtml = `
+                <div id="jph-delete-all-modal" class="jph-modal" style="display: flex;">
+                    <div class="jph-modal-content">
+                        <div class="jph-modal-header">
+                            <h2>🗑️ Delete All Badges</h2>
+                            <span class="jph-close" onclick="closeDeleteAllModal()">&times;</span>
+                        </div>
+                        <div class="jph-modal-body">
+                            <p><strong>⚠️ WARNING:</strong> This will permanently delete ALL badges from the system!</p>
+                            <p>This includes:</p>
+                            <ul>
+                                <li>All badge definitions</li>
+                                <li>All user badge rewards</li>
+                                <li>All badge statistics</li>
+                            </ul>
+                            <p><strong>This action cannot be undone!</strong></p>
+                            <label>
+                                <input type="checkbox" id="confirm-delete-checkbox"> 
+                                I understand this will delete all badges permanently
+                            </label>
+                        </div>
+                        <div class="jph-modal-actions">
+                            <button type="button" class="button button-secondary" onclick="closeDeleteAllModal()">Cancel</button>
+                            <button type="button" class="button button-primary" id="confirm-delete-btn" onclick="deleteAllBadges()" disabled style="background: #dc3545; border-color: #dc3545;">Delete All Badges</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('confirm-delete-checkbox').addEventListener('change', function() {
+                document.getElementById('confirm-delete-btn').disabled = !this.checked;
+            });
+        }
+        
+        function closeDeleteAllModal() {
+            const modal = document.getElementById('jph-delete-all-modal');
+            if (modal) modal.remove();
+        }
+        
+        function deleteAllBadges() {
+            if (!confirm('Are you absolutely sure you want to delete ALL badges? This cannot be undone!')) {
+                return;
+            }
+            
+            fetch(ajaxurl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action: 'jph_delete_all_badges',
+                    nonce: '<?php echo wp_create_nonce('jph_delete_all_badges'); ?>'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('All badges deleted successfully', 'success');
+                    loadBadgesData();
+                    closeDeleteAllModal();
+                } else {
+                    showToast('Error deleting badges: ' + (data.data || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting badges:', error);
+                showToast('Error deleting badges', 'error');
+            });
+        }
         
         // Load badges statistics
         function loadBadgesStats() {
@@ -2614,7 +2685,7 @@ class JazzEdge_Practice_Hub {
             }
             
             tbody.innerHTML = badges.map(badge => `
-                <tr class="jph-badge-row ${!badge.is_active ? 'inactive' : ''}" data-badge-id="${badge.id}">
+                <tr class="jph-badge-row ${!badge.is_active ? 'inactive' : ''}" data-badge-key="${badge.badge_key}">
                     <td>
                         <div class="jph-badge-image-container">
                             ${badge.icon && badge.icon.startsWith('http') ? 
@@ -2651,10 +2722,10 @@ class JazzEdge_Practice_Hub {
                     </td>
                     <td>
                         <div class="jph-badge-actions">
-                            <button class="button button-small button-primary" onclick="editBadge(${badge.id})" title="Edit Badge">
+                            <button class="button button-small button-primary" onclick="editBadge('${badge.badge_key}')" title="Edit Badge">
                                 ✏️ Edit
                             </button>
-                            <button class="button button-small button-link-delete" onclick="deleteBadge(${badge.id})" title="Delete Badge">
+                            <button class="button button-small button-link-delete" onclick="deleteBadge('${badge.badge_key}')" title="Delete Badge">
                                 🗑️ Delete
                             </button>
                         </div>
@@ -2989,9 +3060,9 @@ class JazzEdge_Practice_Hub {
         }
         
         // Edit badge
-        function editBadge(badgeId) {
+        function editBadge(badgeKey) {
             // First, get the badge data
-            fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeId, {
+            fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeKey, {
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -3014,11 +3085,10 @@ class JazzEdge_Practice_Hub {
         // Open edit badge modal
         function openEditBadgeModal(badge) {
             // Populate the edit form with badge data
-            document.getElementById('edit-badge-id').value = badge.id;
+            document.getElementById('edit-badge-key').value = badge.badge_key;
             document.getElementById('edit-badge-name').value = badge.name || '';
             document.getElementById('edit-badge-description').value = badge.description || '';
             document.getElementById('edit-badge-category').value = badge.category || 'achievement';
-            document.getElementById('edit-badge-rarity').value = badge.rarity_level || 'common';
             document.getElementById('edit-badge-xp-reward').value = badge.xp_reward || 0;
             document.getElementById('edit-badge-gem-reward').value = badge.gem_reward || 0;
             document.getElementById('edit-badge-is-active').checked = badge.is_active == 1;
@@ -3064,15 +3134,14 @@ class JazzEdge_Practice_Hub {
             }
             
             
-            const badgeId = document.getElementById('edit-badge-id').value;
+            const badgeKey = document.getElementById('edit-badge-key').value;
             
             // Create JSON data instead of FormData
             const badgeData = {
-                id: badgeId,
+                badge_key: badgeKey,
                 name: document.getElementById('edit-badge-name').value,
                 description: document.getElementById('edit-badge-description').value,
                 category: document.getElementById('edit-badge-category').value,
-                rarity: document.getElementById('edit-badge-rarity').value,
                 xp_reward: parseInt(document.getElementById('edit-badge-xp-reward').value),
                 gem_reward: parseInt(document.getElementById('edit-badge-gem-reward').value),
                 criteria_type: document.getElementById('edit-badge-criteria-type') ? document.getElementById('edit-badge-criteria-type').value : 'manual',
@@ -3082,7 +3151,7 @@ class JazzEdge_Practice_Hub {
             };
             
             
-            fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeId, {
+            fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeKey, {
                 method: 'PUT',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
@@ -3123,11 +3192,11 @@ class JazzEdge_Practice_Hub {
         }
         
         // Delete badge
-        function deleteBadge(badgeId) {
+        function deleteBadge(badgeKey) {
             if (confirm('Are you sure you want to delete this badge?')) {
-                console.log('Deleting badge ID:', badgeId);
+                console.log('Deleting badge key:', badgeKey);
                 
-                fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeId, {
+                fetch('<?php echo rest_url('jph/v1/badges/'); ?>' + badgeKey, {
                     method: 'DELETE',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -3214,8 +3283,6 @@ class JazzEdge_Practice_Hub {
             });
         }
         
-        // Test webhook
-        
         // Sync badge count
         function syncBadgeCount() {
             if (!confirm('This will sync the badge count in user stats with the actual number of badges earned. Continue?')) {
@@ -3246,41 +3313,41 @@ class JazzEdge_Practice_Hub {
         }
         
         // Close add badge modal
-            function closeAddBadgeModal() {
-                document.getElementById('jph-add-badge-modal').style.display = 'none';
-                const form1 = document.getElementById('jph-add-badge-form');
-                const form2 = document.getElementById('jph-add-badge-form-2');
-                if (form1) form1.reset();
-                if (form2) form2.reset();
+        function closeAddBadgeModal() {
+            document.getElementById('jph-add-badge-modal').style.display = 'none';
+            const form1 = document.getElementById('jph-add-badge-form');
+            const form2 = document.getElementById('jph-add-badge-form-2');
+            if (form1) form1.reset();
+            if (form2) form2.reset();
+        }
+        
+        // Create default badges
+        function createDefaultBadges() {
+            if (!confirm('This will create 6 default badges. Continue?')) {
+                return;
             }
             
-            // Create default badges
-            function createDefaultBadges() {
-                if (!confirm('This will create 6 default badges. Continue?')) {
-                    return;
+            fetch('<?php echo rest_url('jph/v1/create-default-badges'); ?>', {
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                 }
-                
-                fetch('<?php echo rest_url('jph/v1/create-default-badges'); ?>', {
-                    method: 'POST',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Default badges created successfully!', 'success');
-                        loadBadgesData();
-                        loadBadgesStats();
-                    } else {
-                        showToast('Error creating default badges: ' + (data.message || 'Unknown error'), 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error creating default badges:', error);
-                    showToast('Error creating default badges', 'error');
-                });
-            }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Default badges created successfully!', 'success');
+                    loadBadgesData();
+                    loadBadgesStats();
+                } else {
+                    showToast('Error creating default badges: ' + (data.message || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error creating default badges:', error);
+                showToast('Error creating default badges', 'error');
+            });
+        }
         </script>
         <?php
     }
@@ -3317,12 +3384,10 @@ class JazzEdge_Practice_Hub {
             <div class="jph-badges-actions">
                 <button type="button" class="button button-primary" id="add-badge-btn-2">➕ Add New Badge</button>
                 <button type="button" class="button button-secondary" id="refresh-badges-btn-2">🔄 Refresh</button>
-                <button type="button" class="button button-secondary" id="run-migrations-btn" style="background: #ff6b6b; color: white;">🔧 Run Migrations</button>
-                <button type="button" class="button button-secondary" id="test-badge-awarding-btn" style="background: #28a745; color: white;">🎯 Test Badge Awarding</button>
-                <button type="button" class="button button-secondary" id="sync-badge-count-btn" style="background: #6f42c1; color: white;">🔄 Sync Badge Count</button>
                 <button type="button" class="button button-secondary" id="sync-all-badge-counts-btn" style="background: #fd7e14; color: white;">🔄 Sync All Badge Counts</button>
                 <button type="button" class="button button-secondary" id="reorder-badges-btn" style="background: #007cba; color: white;">📋 Reorder Badges</button>
                 <button type="button" class="button button-secondary" id="database-status-btn" style="background: #17a2b8; color: white;">🔍 Database Status</button>
+                <button type="button" class="button" id="delete-all-badges-btn" style="background: #dc3545; border-color: #dc3545; color: white;">🗑️ Delete All Badges</button>
             </div>
             
             
@@ -3413,6 +3478,7 @@ class JazzEdge_Practice_Hub {
                             <select id="badge-criteria-type" name="criteria_type">
                                 <option value="manual">Manual (no auto-award)</option>
                                 <option value="total_xp">Total XP ≥ value</option>
+                                <option value="practice_sessions">Practice sessions ≥ value</option>
                                 <option value="streak_7">7-day streak</option>
                                 <option value="streak_30">30-day streak</option>
                                 <option value="streak_100">100-day streak</option>
@@ -3425,7 +3491,7 @@ class JazzEdge_Practice_Hub {
                         <div class="jph-form-group">
                             <label for="badge-criteria-value">Criteria Value:</label>
                             <input type="number" id="badge-criteria-value" name="criteria_value" min="0" value="0">
-                            <small>Meaning depends on criteria type (e.g., XP amount, minutes, count).</small>
+                            <small>Meaning depends on criteria type (e.g., XP amount, session count, minutes, streak days).</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -3452,7 +3518,7 @@ class JazzEdge_Practice_Hub {
                 </div>
                 <div class="jph-modal-body">
                     <form id="jph-edit-badge-form" enctype="multipart/form-data">
-                        <input type="hidden" id="edit-badge-id" name="id">
+                        <input type="hidden" id="edit-badge-key" name="badge_key">
                         
                         
                         <div class="jph-form-group">
@@ -3516,6 +3582,7 @@ class JazzEdge_Practice_Hub {
                             <select id="edit-badge-criteria-type" name="criteria_type">
                                 <option value="manual">Manual (no auto-award)</option>
                                 <option value="total_xp">Total XP ≥ value</option>
+                                <option value="practice_sessions">Practice sessions ≥ value</option>
                                 <option value="streak_7">7-day streak</option>
                                 <option value="streak_30">30-day streak</option>
                                 <option value="streak_100">100-day streak</option>
@@ -3528,7 +3595,7 @@ class JazzEdge_Practice_Hub {
                         <div class="jph-form-group">
                             <label for="edit-badge-criteria-value">Criteria Value:</label>
                             <input type="number" id="edit-badge-criteria-value" name="criteria_value" min="0" value="0">
-                            <small>Meaning depends on criteria type (e.g., XP amount, minutes, count).</small>
+                            <small>Meaning depends on criteria type (e.g., XP amount, session count, minutes, streak days).</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -4537,6 +4604,7 @@ class JazzEdge_Practice_Hub {
             'callback' => array($this, 'rest_debug_info'),
             'permission_callback' => '__return_true'
         ));
+        
         
         
         
@@ -6201,8 +6269,20 @@ class JazzEdge_Practice_Hub {
                 action: 'jph_test_event',
                 milestone: milestone,
                 nonce: '<?php echo wp_create_nonce('jph_test_event'); ?>'
-            }, function(response) {
-                resultsDiv.innerHTML = '<strong>Test Result:</strong><br>' + response.data.message;
+            })
+            .done(function(response) {
+                console.log('Event test response:', response);
+                if (response.success && response.data && response.data.message) {
+                    resultsDiv.innerHTML = '<strong>Test Result:</strong><br>' + response.data.message;
+                } else if (response.data) {
+                    resultsDiv.innerHTML = '<strong>Test Result:</strong><br>' + response.data;
+                } else {
+                    resultsDiv.innerHTML = '<strong>Test Result:</strong><br>Response: ' + JSON.stringify(response);
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Event test error:', xhr, status, error);
+                resultsDiv.innerHTML = '<strong>Test Result:</strong><br>Error: ' + error + ' (Status: ' + status + ')';
             });
         }
         
@@ -6214,8 +6294,20 @@ class JazzEdge_Practice_Hub {
             jQuery.post(ajaxurl, {
                 action: 'jph_test_all_events',
                 nonce: '<?php echo wp_create_nonce('jph_test_all_events'); ?>'
-            }, function(response) {
-                resultsDiv.innerHTML = '<strong>Test Results:</strong><br>' + response.data.message;
+            })
+            .done(function(response) {
+                console.log('All events test response:', response);
+                if (response.success && response.data && response.data.message) {
+                    resultsDiv.innerHTML = '<strong>Test Results:</strong><br>' + response.data.message;
+                } else if (response.data) {
+                    resultsDiv.innerHTML = '<strong>Test Results:</strong><br>' + response.data;
+                } else {
+                    resultsDiv.innerHTML = '<strong>Test Results:</strong><br>Response: ' + JSON.stringify(response);
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.error('All events test error:', xhr, status, error);
+                resultsDiv.innerHTML = '<strong>Test Results:</strong><br>Error: ' + error + ' (Status: ' + status + ')';
             });
         }
         
@@ -7128,7 +7220,6 @@ class JazzEdge_Practice_Hub {
                 'description' => $description,
                 'icon' => $image_url ?: '🏆',
                 'category' => $category ?: 'achievement',
-                'rarity_level' => $rarity ?: 'common',
                 'xp_reward' => $xp_reward ?: 0,
                 'gem_reward' => $gem_reward ?: 0,
                 'criteria_type' => $criteria_type ?: 'manual',
@@ -7194,9 +7285,6 @@ class JazzEdge_Practice_Hub {
             }
             if (isset($json_data['category']) && !empty($json_data['category'])) {
                 $badge_data['category'] = sanitize_text_field($json_data['category']);
-            }
-            if (isset($json_data['rarity']) && !empty($json_data['rarity'])) {
-                $badge_data['rarity_level'] = sanitize_text_field($json_data['rarity']);
             }
             if (isset($json_data['xp_reward']) && $json_data['xp_reward'] >= 0) {
                 $badge_data['xp_reward'] = intval($json_data['xp_reward']);
@@ -8171,11 +8259,27 @@ class JazzEdge_Practice_Hub {
         
         try {
             $milestone = sanitize_text_field($_POST['milestone']);
-            $result = $this->track_milestone_event($milestone, 1, array('test' => true));
+            $user_id = get_current_user_id();
+            
+            // Check if user exists
+            $user = get_user_by('id', $user_id);
+            if (!$user) {
+                wp_send_json_error('Current user not found');
+            }
+            
+            // Check if event tracking is enabled
+            $settings = get_option('jph_webhook_settings', array());
+            if (empty($settings['enabled'])) {
+                wp_send_json_success(array(
+                    'message' => "Event tracking is disabled. User: {$user->user_email}, Milestone: {$milestone}. Enable event tracking in settings to test actual tracking."
+                ));
+            }
+            
+            $result = $this->track_milestone_event($milestone, $user_id, array('test' => true));
             
             if ($result['success']) {
                 wp_send_json_success(array(
-                    'message' => "Event tracking test successful for milestone: {$milestone}"
+                    'message' => "Event tracking test successful for milestone: {$milestone} (User: {$user->user_email})"
                 ));
             } else {
                 wp_send_json_error($result['message']);
@@ -8225,9 +8329,24 @@ class JazzEdge_Practice_Hub {
             $results = array();
             $success_count = 0;
             $total_count = count($milestones);
+            $user_id = get_current_user_id();
+            
+            // Check if user exists
+            $user = get_user_by('id', $user_id);
+            if (!$user) {
+                wp_send_json_error('Current user not found');
+            }
+            
+            // Check if event tracking is enabled
+            $settings = get_option('jph_webhook_settings', array());
+            if (empty($settings['enabled'])) {
+                wp_send_json_success(array(
+                    'message' => "Event tracking is disabled. User: {$user->user_email}. Enable event tracking in settings to test actual tracking.<br><br>All milestones would be tested: " . implode(', ', $milestones)
+                ));
+            }
             
             foreach ($milestones as $milestone) {
-                $result = $this->track_milestone_event($milestone, 1, array('test' => true));
+                $result = $this->track_milestone_event($milestone, $user_id, array('test' => true));
                 $status = $result['success'] ? 'SUCCESS' : 'FAILED - ' . $result['message'];
                 $results[] = "{$milestone}: {$status}";
                 
@@ -8640,6 +8759,42 @@ class JazzEdge_Practice_Hub {
             wp_send_json_success($result);
         } else {
             wp_send_json_error($result['message']);
+        }
+    }
+    
+    /**
+     * AJAX handler for deleting all badges
+     */
+    public function ajax_delete_all_badges() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'jph_delete_all_badges')) {
+            wp_send_json_error('Invalid nonce');
+        }
+        
+        // Check admin permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        try {
+            global $wpdb;
+            
+            // Delete all badge awards first (foreign key constraint)
+            $badges_table = $wpdb->prefix . 'jph_user_badges';
+            $wpdb->query("TRUNCATE TABLE {$badges_table}");
+            
+            // Delete all badges
+            $table_name = $wpdb->prefix . 'jph_badges';
+            $result = $wpdb->query("TRUNCATE TABLE {$table_name}");
+            
+            if ($result !== false) {
+                wp_send_json_success('All badges deleted successfully');
+            } else {
+                wp_send_json_error('Failed to delete badges: ' . $wpdb->last_error);
+            }
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error deleting badges: ' . $e->getMessage());
         }
     }
     
@@ -14058,6 +14213,7 @@ class JazzEdge_Practice_Hub {
             document.body.removeChild(textArea);
         }
         
+        
         // Update badge awards debug section
         function jphUpdateBadgeAwardsDebug() {
             if (window.jphDebugBadgeAwards) {
@@ -14287,7 +14443,11 @@ class JazzEdge_Practice_Hub {
             $manual_creation = $this->create_lesson_favorites_table_manually();
             if (!$manual_creation) {
                 error_log('JPH: Failed to create lesson_favorites table manually');
+            } else {
+                error_log('JPH: Successfully created lesson_favorites table manually');
             }
+        } else {
+            error_log('JPH: lesson_favorites table already exists');
         }
         
         // Create other critical tables manually if needed
@@ -14295,6 +14455,9 @@ class JazzEdge_Practice_Hub {
         
         // Add missing columns to existing tables
         $this->add_missing_columns_to_tables();
+        
+        // Add hearts_count column to user_stats if missing
+        $this->add_hearts_count_column();
         
         // Fix missing badge keys
         $this->fix_missing_badge_keys();
@@ -14431,6 +14594,7 @@ class JazzEdge_Practice_Hub {
                 `longest_streak` INT(11) DEFAULT 0,
                 `badges_earned` INT(11) DEFAULT 0,
                 `gems_balance` INT(11) DEFAULT 0,
+                `hearts_count` INT(11) DEFAULT 5,
                 `streak_shield_count` INT(11) DEFAULT 0,
                 `last_practice_date` DATE NULL,
                 `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -14481,6 +14645,23 @@ class JazzEdge_Practice_Hub {
                 KEY `user_id` (`user_id`),
                 KEY `transaction_type` (`transaction_type`),
                 KEY `source` (`source`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+            
+            'jph_lesson_favorites' => "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_lesson_favorites` (
+                `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `title` VARCHAR(255) NOT NULL,
+                `url` VARCHAR(500) NOT NULL,
+                `category` VARCHAR(50) DEFAULT 'lesson',
+                `description` TEXT NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `user_id` (`user_id`),
+                KEY `category` (`category`),
+                KEY `user_category` (`user_id`, `category`),
+                KEY `created_at` (`created_at`),
+                UNIQUE KEY `unique_user_title` (`user_id`, `title`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
         );
         
@@ -14600,6 +14781,31 @@ class JazzEdge_Practice_Hub {
                 error_log("JPH: Failed to create badge {$badge['badge_key']}: " . $wpdb->last_error);
             } else {
                 error_log("JPH: Successfully created badge {$badge['badge_key']}");
+            }
+        }
+    }
+    
+    /**
+     * Add hearts_count column to user_stats table if missing
+     */
+    private function add_hearts_count_column() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Check if hearts_count column exists
+        $column_exists = $wpdb->get_results($wpdb->prepare(
+            "SHOW COLUMNS FROM {$table_name} LIKE %s",
+            'hearts_count'
+        ));
+        
+        if (empty($column_exists)) {
+            // Add hearts_count column
+            $result = $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN hearts_count INT(11) DEFAULT 5 AFTER gems_balance");
+            
+            if ($result !== false) {
+                // Update existing records to have hearts_count = 5
+                $wpdb->query("UPDATE {$table_name} SET hearts_count = 5 WHERE hearts_count IS NULL");
             }
         }
     }
