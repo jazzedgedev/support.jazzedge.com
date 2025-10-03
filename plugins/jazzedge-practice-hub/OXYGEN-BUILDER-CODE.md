@@ -1,22 +1,30 @@
 # 🔧 Oxygen Builder Integration Code
 
 ## Overview
-This code block allows you to add "Save as Favorite" buttons to your lesson pages built with Oxygen Builder. Students can click these buttons to save lessons to their favorites list.
+This code block allows you to add "Save as Favorite" buttons to your lesson pages built with Oxygen Builder. Students can click these buttons to save lessons to their favorites list using dynamic PHP variables instead of static Oxygen variables.
 
-## 📝 Required Variables
+## 📝 Required Setup
 
-You need to set up these variables in Oxygen Builder:
-
-- **`lesson_title`** - The lesson title (e.g., "Major Scale Practice")
-- **`lesson_url`** - Current page URL (use `{{current_url}}` or similar)
-- **`lesson_category`** - Category (lesson, technique, theory, ear-training, repertoire, improvisation, other)
-- **`lesson_description`** - Optional description of what students will learn
+**PHP Variables** (automatically available):
+- `$post_id` - Current post/page ID
+- `$title` - Page title from WordPress
+- `$url` - Current page URL (permalink)
 
 ## 💻 Complete Code Block
 
-Add this code block to your Oxygen Builder lesson pages:
+**Copy the code below into your Oxygen Builder lesson pages:**
 
-```html
+<div style="position: relative; background: #f8f8f9; border: 2px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+    <button onclick="copyOxygenCode()" style="position: absolute; top: 15px; right: 15px; background: #007cba; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">📋 Copy Code</button>
+    <pre style="background: #f8f8f9; padding-top: 35px; margin: 0; overflow-x: auto; border-radius: 4px;"><code id="oxygen-code-block"><?php 
+$post_id = get_the_ID();
+$title   = get_the_title( $post_id );
+$url     = get_permalink( $post_id );
+
+echo 'Title: ' . esc_html( $title ) . '<br>';
+echo 'URL: ' . esc_url( $url );
+?>
+
 <button id="save-lesson-favorite" class="save-favorite-btn">
     ⭐ Save as Favorite
 </button>
@@ -24,26 +32,24 @@ Add this code block to your Oxygen Builder lesson pages:
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const saveBtn = document.getElementById('save-lesson-favorite');
-    
+
     saveBtn.addEventListener('click', function() {
-        // Get lesson data from Oxygen variables
+        // Get lesson data from PHP variables
         const lessonData = {
-            title: '{{lesson_title}}', // Replace with actual Oxygen variable
-            url: '{{lesson_url}}',     // Replace with actual Oxygen variable  
-            category: '{{lesson_category}}', // Replace with actual Oxygen variable
-            description: '{{lesson_description}}' // Replace with actual Oxygen variable
+            title: '<?php echo $title; ?>',
+            url: '<?php echo $url; ?>',    
         };
-        
+
         // Validate required fields
         if (!lessonData.title || !lessonData.url) {
             alert('Missing lesson title or URL');
             return;
         }
-        
+
         // Show loading state
         saveBtn.innerHTML = '⏳ Saving...';
         saveBtn.disabled = true;
-        
+
         // Send to REST API
         fetch('/wp-json/jph/v1/save-lesson-favorite', {
             method: 'POST',
@@ -106,152 +112,157 @@ document.addEventListener('DOMContentLoaded', function() {
     cursor: not-allowed;
     transform: none;
 }
-</style>
-```
-
-## 🔧 Alternative: Form Post Method
-
-If you prefer using a form post instead of AJAX, here's the alternative approach:
-
-```html
-<form id="save-favorite-form" method="POST" action="/wp-json/jph/v1/save-lesson-favorite">
-    <input type="hidden" name="title" value="{{lesson_title}}">
-    <input type="hidden" name="url" value="{{lesson_url}}">
-    <input type="hidden" name="category" value="{{lesson_category}}">
-    <input type="hidden" name="description" value="{{lesson_description}}">
-    <input type="hidden" name="_wpnonce" value="<?php echo wp_create_nonce('wp_rest'); ?>">
-    
-    <button type="submit" class="save-favorite-btn">
-        ⭐ Save as Favorite
-    </button>
-</form>
+</style></code></pre>
+</div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('save-favorite-form');
-    const submitBtn = form.querySelector('button[type="submit"]');
-    
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
+function copyOxygenCode() {
+    const codeBlock = document.getElementById('oxygen-code-block');
+    const textToCopy = codeBlock.innerText;
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        // Feedback animation
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '✅ Copied!';
+        button.style.background = '#28a745';
         
-        // Show loading state
-        submitBtn.innerHTML = '⏳ Saving...';
-        submitBtn.disabled = true;
-        
-        // Submit form
-        fetch(form.action, {
-            method: 'POST',
-            body: new FormData(form)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                submitBtn.innerHTML = '✅ Saved!';
-                submitBtn.style.background = '#28a745';
-                setTimeout(() => {
-                    submitBtn.innerHTML = '⭐ Save as Favorite';
-                    submitBtn.style.background = '';
-                    submitBtn.disabled = false;
-                }, 2000);
-            } else {
-                throw new Error(data.message || 'Failed to save favorite');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            submitBtn.innerHTML = '❌ Error';
-            submitBtn.style.background = '#dc3545';
-            setTimeout(() => {
-                submitBtn.innerHTML = '⭐ Save as Favorite';
-                submitBtn.style.background = '';
-                submitBtn.disabled = false;
-            }, 2000);
-        });
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.style.background = '#007cba';
+        }, 1500);
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy code. Please select and copy manually.');
     });
-});
+}
 </script>
+
+## 🔧 How It Works
+
+### **1. PHP Variable Setup**
+```php
+<?php 
+$post_id = get_the_ID();        // Gets current post ID
+$title   = get_the_title( $post_id );  // Gets current post title
+$url     = get_permalink( $post_id );  // Gets current post URL
+?>
 ```
+
+### **2. JavaScript Integration**
+- Grabs values from PHP variables using `<?php echo $variable; ?>`
+- Automatically handles current page title and URL
+- No need to manually set Oxygen variables
+
+### **3. Button States**
+- **⭐ Save as Favorite** - Default clickable state
+- **⏳ Saving...** - Loading state while saving
+- **✅ Saved!** - Success confirmation (2 seconds)
+- **❌ Error** - Error state with retry option
 
 ## 📋 Setup Instructions
 
-### 1. Create Oxygen Variables
-In Oxygen Builder, create these variables:
-- `lesson_title` - Text field for lesson title
-- `lesson_url` - Use `{{current_url}}` or similar
-- `lesson_category` - Select field with options: lesson, technique, theory, ear-training, repertoire, improvisation, other
-- `lesson_description` - Textarea for description
+### **1. Add to Oxygen Builder**
+1. Add a **Code Block** element to your lesson page
+2. Click the **📋 Copy Code** button above to copy the complete code
+3. Paste the code into the Code Block
+4. Save and test the page
 
-### 2. Add Code Block
-- Add a Code Block element to your lesson pages
-- Paste the code above
-- Replace the variable placeholders with actual Oxygen variables
-
-### 3. Test the Integration
-- Visit a lesson page
-- Click "Save as Favorite"
-- Check the practice hub to see if the favorite appears
+### **2. Test Integration**
+1. Visit a lesson page (must be logged in)
+2. Click **"⭐ Save as Favorite"** button
+3. Button should show **"⏳ Saving..."** then **"✅ Saved!"**
+4. Check practice hub to verify favorite was saved
 
 ## 🎯 Usage Flow
 
 1. **Student visits lesson page** → Sees "Save as Favorite" button
-2. **Student clicks button** → Lesson is saved to their favorites
-3. **Student goes to practice hub** → Can choose from saved favorites when creating practice items
-4. **Student creates practice item** → Selects from dropdown of saved favorites
+2. **Student clicks button** → Lesson automatically saved with current page data
+3. **Student goes to practice hub** → Can select from saved favorites when creating practice items
+
+## 🎨 Visual States
+
+The button has **smooth transitions** and clear visual feedback:
+
+- **🔵 Default Blue** - `#0073aa` - Click to save
+- **⚫ Gray** - Disabled/loading state
+- **🟢 Green** - Success state `#28a745`
+- **🔴 Red** - Error state `#dc3545`
 
 ## 🔍 Troubleshooting
 
-### Common Issues:
+### **Common Issues:**
 
 **❌ "Missing lesson title or URL"**
-- **Cause:** Oxygen variables not set up correctly
-- **Solution:** Verify variable names match exactly
+- **Cause:** PHP variables not accessible
+- **Solution:** Ensure you're in an Oxygen Code Block with PHP execution enabled
 
 **❌ "Failed to save favorite"**
-- **Cause:** REST API endpoint not accessible
-- **Solution:** Check that the plugin is active and REST API is working
+- **Cause:** REST API endpoint not accessible or user not logged in
+- **Solution:** Check plugin is active, user is logged in
+
+**❌ Button doesn't appear**
+- **Cause:** JavaScript error or element conflict
+- **Solution:** Check browser console (F12) for errors
 
 **❌ "Not logged in" error**
-- **Cause:** User not authenticated
-- **Solution:** Ensure user is logged in before accessing lesson pages
+- **Cause:** User session expired
+- **Solution:** Refresh page or log in again
 
-**❌ Button doesn't respond**
-- **Cause:** JavaScript error or missing elements
-- **Solution:** Check browser console for errors
-
-### Testing Steps:
-1. Open browser developer tools (F12)
-2. Go to Console tab
-3. Click "Save as Favorite" button
-4. Check for any error messages
-5. Go to Network tab to see if API call is made
+### **Testing Steps:**
+1. **Open browser developer tools** (F12)
+2. **Go to Console tab**
+3. **Visit lesson page** and watch for errors
+4. **Click button** and check Network tab
+5. **Verify API call** to `/wp-json/jph/v1/save-lesson-favorite`
 
 ## 📱 Responsive Design
 
-The button is fully responsive and works on:
-- Desktop computers
-- Tablets
-- Mobile phones
+The button works perfectly on:
+- ✅ **Desktop computers**
+- ✅ **Tablets**
+- ✅ **Mobile phones**
 
 ## 🎨 Customization
 
-You can customize the button appearance by modifying the CSS:
-
+**Change button color:**
 ```css
 .save-favorite-btn {
-    background: #your-color; /* Change button color */
-    padding: 15px 25px;      /* Change button size */
-    font-size: 16px;         /* Change text size */
-    border-radius: 8px;      /* Change corner radius */
+    background: #your-color !important;
 }
 ```
 
-## 🔒 Security Notes
+**Change button size:**
+```css
+.save-favorite-btn {
+    padding: 15px 25px;  /* Larger button */
+    font-size: 16px;     /* Larger text */
+}
+```
 
-- All data is sanitized before saving
-- URLs are validated to ensure they're proper web addresses
-- User authentication is required
-- CSRF protection via WordPress nonce
+**Change hover effect:**
+```css
+.save-favorite-btn:hover {
+    background: #your-hover-color;
+    transform: translateY(-2px); /* More pronounced lift */
+}
+```
+
+## 🔒 Security Features
+
+- ✅ **User authentication required** - Only logged-in users can save favorites
+- ✅ **CSRF protection** - WordPress nonce prevents cross-site attacks
+- ✅ **Input sanitization** - All data cleaned before database storage
+- ✅ **URL validation** - Ensures only valid URLs are saved
+
+## 🚀 API Endpoints
+
+**Required REST API endpoints:**
+- `POST /wp-json/jph/v1/save-lesson-favorite` - Save a favorite
+- `POST /wp-json/jph/v1/is-favorite` - Check if already saved (optional)
 
 ---
+
+**Ready to use!** 🎉 This code automatically grabs the current page's title and URL, so no manual configuration needed in Oxygen Builder.
 
 *This code integrates with the JazzEdge Practice Hub plugin. For technical support, contact the development team.*

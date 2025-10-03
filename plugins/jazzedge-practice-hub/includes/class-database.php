@@ -272,14 +272,14 @@ class JPH_Database {
             return new WP_Error('duplicate_name', 'You already have a practice item with this name');
         }
         
-        // Check total item limit (max 3 active items total - neuroscience-based focus)
+        // Check total item limit (max 6 active items total)
         $total_count = $this->wpdb->get_var($this->wpdb->prepare(
             "SELECT COUNT(*) FROM {$table_name} WHERE user_id = %d AND is_active = 1",
             $user_id
         ));
         
-        if ($total_count >= 3) {
-            return new WP_Error('limit_exceeded', 'You can only have 3 active practice items at once. This neuroscience-based limit helps you focus and improve faster. Delete an item to add a new one.');
+        if ($total_count >= 6) {
+            return new WP_Error('limit_exceeded', 'You can only have 6 active practice items at once. Delete an item to add a new one.');
         }
         
         $result = $this->wpdb->insert(
@@ -727,6 +727,62 @@ class JPH_Database {
         ), ARRAY_A);
     }
     
+    /**
+     * Get badge by ID (primary identifier)
+     */
+    public function get_badge_by_id($badge_id) {
+        $table_name = $this->tables['badges'];
+        
+        return $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $badge_id
+        ), ARRAY_A);
+    }
+    
+    /**
+     * Update badge by ID
+     */
+    public function update_badge_by_id($badge_id, $badge_data) {
+        $table_name = $this->tables['badges'];
+        
+        // Create format array based on the data
+        $formats = array();
+        foreach ($badge_data as $key => $value) {
+            if (in_array($key, array('xp_reward', 'gem_reward', 'criteria_value', 'is_active'))) {
+                $formats[] = '%d'; // Integer
+            } else {
+                $formats[] = '%s'; // String
+            }
+        }
+        
+        $result = $this->wpdb->update(
+            $table_name,
+            $badge_data,
+            array('id' => $badge_id),
+            $formats,
+            array('%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Delete badge by ID (soft delete)
+     */
+    public function delete_badge_by_id($badge_id) {
+        $table_name = $this->tables['badges'];
+        
+        $result = $this->wpdb->update(
+            $table_name,
+            array('is_active' => 0),
+            array('id' => $badge_id),
+            array('%d'),
+            array('%d')
+        );
+        
+        return $result !== false;
+    }
+    
     
     /**
      * Add new badge
@@ -1037,6 +1093,20 @@ class JPH_Database {
     }
     
     /**
+     * Check if lesson favorite exists for user
+     */
+    public function lesson_favorite_exists($user_id, $title, $url) {
+        $table_name = $this->tables['lesson_favorites'];
+        
+        $count = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table_name} WHERE user_id = %d AND title = %s AND url = %s",
+            $user_id, $title, $url
+        ));
+        
+        return $count > 0;
+    }
+    
+    /**
      * Get user's lesson favorites
      */
     public function get_lesson_favorites($user_id = null) {
@@ -1184,6 +1254,19 @@ class JPH_Database {
         return true;
     }
     
+    /**
+     * Get last practice session for a specific practice item
+     */
+    public function get_last_practice_session($user_id, $practice_item_id) {
+        $table_name = $this->tables['practice_sessions'];
+        
+        $session = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d AND practice_item_id = %d ORDER BY created_at DESC LIMIT 1",
+            $user_id, $practice_item_id
+        ), ARRAY_A);
+        
+        return $session;
+    }
     
     
 }
