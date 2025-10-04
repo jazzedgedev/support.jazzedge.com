@@ -1390,11 +1390,6 @@ class JazzEdge_Practice_Hub {
                             <small>Depends on criteria type (XP, sessions, minutes, etc.)</small>
                         </div>
                         
-                        <div class="jph-form-group">
-                            <label for="badge-webhook-url">Webhook URL</label>
-                            <input type="url" id="badge-webhook-url" name="webhook_url" placeholder="https://example.com/webhook">
-                            <small>Optional webhook endpoint</small>
-                        </div>
 
                         <div class="jph-form-group">
                             <label for="badge-fluent-event-enabled" class="jph-checkbox-label">
@@ -3463,7 +3458,6 @@ class JazzEdge_Practice_Hub {
                 gem_reward: parseInt(document.getElementById('edit-badge-gem-reward').value),
                 criteria_type: document.getElementById('edit-badge-criteria-type') ? document.getElementById('edit-badge-criteria-type').value : 'manual',
                 criteria_value: document.getElementById('edit-badge-criteria-value') ? parseInt(document.getElementById('edit-badge-criteria-value').value) : 0,
-                webhook_url: document.getElementById('edit-badge-webhook-url') ? document.getElementById('edit-badge-webhook-url').value : '',
                 fluent_event_enabled: document.getElementById('edit-badge-fluent-event-enabled') ? (document.getElementById('edit-badge-fluent-event-enabled').checked ? 1 : 0) : 0,
                 fluent_event_key: document.getElementById('edit-badge-fluent-event-key') ? document.getElementById('edit-badge-fluent-event-key').value : '',
                 fluent_event_title: document.getElementById('edit-badge-fluent-event-title') ? document.getElementById('edit-badge-fluent-event-title').value : '',
@@ -3859,11 +3853,6 @@ class JazzEdge_Practice_Hub {
                             <small>Meaning depends on criteria type (e.g., XP amount, session count, minutes, streak days).</small>
                         </div>
                         
-                        <div class="jph-form-group">
-                            <label for="badge-webhook-url">Webhook URL (optional):</label>
-                            <input type="url" id="badge-webhook-url" name="webhook_url" placeholder="https://example.com/webhook">
-                            <small>URL to call when this badge is earned. Will receive POST request with badge and user data.</small>
-                        </div>
 
                         <div class="jph-form-section">
                             <h3>🔗 FluentCRM Event Tracking</h3>
