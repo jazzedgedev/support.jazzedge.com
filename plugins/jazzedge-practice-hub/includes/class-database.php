@@ -100,9 +100,6 @@ class JPH_Database {
         // Migration 1: Add earned_at column to user_badges table if it doesn't exist
         $this->migrate_add_earned_at_column();
         
-        // Migration 2: Add webhook_url column to badges table if it doesn't exist
-        $this->migrate_add_webhook_url_column();
-        
         // Migration 3: Add source column to gems_transactions table if it doesn't exist
         $this->migrate_add_source_column_to_gems_transactions();
     }
@@ -123,27 +120,6 @@ class JPH_Database {
             
             if ($result === false) {
                 error_log("JPH Migration Error: Failed to add earned_date column: " . $this->wpdb->last_error);
-            }
-        }
-    }
-    
-    /**
-     * Migration: Add webhook_url column to badges table (if needed)
-     */
-    private function migrate_add_webhook_url_column() {
-        $table_name = $this->tables['badges'];
-        
-        // Check if webhook_url column exists
-        $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'webhook_url'");
-        
-        if (empty($column_exists)) {
-            // Add the webhook_url column
-            $sql = "ALTER TABLE {$table_name} ADD COLUMN webhook_url VARCHAR(500) DEFAULT NULL";
-            
-            $result = $this->wpdb->query($sql);
-            
-            if ($result === false) {
-                error_log("JPH Migration Error: Failed to add webhook_url column: " . $this->wpdb->last_error);
             }
         }
     }
@@ -245,10 +221,18 @@ class JPH_Database {
     public function get_user_practice_items($user_id) {
         $table_name = $this->tables['practice_items'];
         
-        $results = $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE user_id = %d AND is_active = 1 ORDER BY created_at ASC",
-            $user_id
-        ), ARRAY_A);
+        // Check if sort_order column exists
+        $columns = $this->wpdb->get_col("DESCRIBE {$table_name}");
+        $has_sort_order = in_array('sort_order', $columns);
+        
+        // Build query based on available columns
+        if ($has_sort_order) {
+            $query = "SELECT * FROM {$table_name} WHERE user_id = %d AND is_active = 1 ORDER BY sort_order ASC, created_at ASC";
+        } else {
+            $query = "SELECT * FROM {$table_name} WHERE user_id = %d AND is_active = 1 ORDER BY created_at ASC";
+        }
+        
+        $results = $this->wpdb->get_results($this->wpdb->prepare($query, $user_id), ARRAY_A);
         
         return $results ?: array();
     }
@@ -282,17 +266,26 @@ class JPH_Database {
             return new WP_Error('limit_exceeded', 'You can only have 6 active practice items at once. Delete an item to add a new one.');
         }
         
-        $result = $this->wpdb->insert(
-            $table_name,
-            array(
-                'user_id' => $user_id,
-                'name' => $name,
-                'category' => $category,
-                'description' => $description,
-                'is_active' => 1
-            ),
-            array('%d', '%s', '%s', '%s', '%d')
+        // Check if sort_order column exists
+        $columns = $this->wpdb->get_col("DESCRIBE {$table_name}");
+        $has_sort_order = in_array('sort_order', $columns);
+        
+        // Prepare insert data based on available columns
+        $insert_data = array(
+            'user_id' => $user_id,
+            'name' => $name,
+            'category' => $category,
+            'description' => $description,
+            'is_active' => 1
         );
+        $insert_format = array('%d', '%s', '%s', '%s', '%d');
+        
+        if ($has_sort_order) {
+            $insert_data['sort_order'] = $total_count;
+            $insert_format[] = '%d';
+        }
+        
+        $result = $this->wpdb->insert($table_name, $insert_data, $insert_format);
         
         if ($result === false) {
             return new WP_Error('insert_failed', 'Failed to add practice item: ' . $this->wpdb->last_error);
@@ -955,141 +948,6 @@ class JPH_Database {
         }
         
         return $result !== false;
-    }
-    
-    /**
-     * Trigger webhook when badge is awarded
-     */
-    private function trigger_badge_webhook($user_id, $badge_id, $badge_name, $badge_description, $badge_icon) {
-        $this->log_webhook("Attempting to trigger webhook for badge {$badge_id} to user {$user_id}");
-        
-        // Get badge details including webhook URL
-        $badge = $this->get_badge($badge_id);
-        
-        if (!$badge) {
-            $this->log_webhook("Badge {$badge_id} not found", 'error');
-            return;
-        }
-        
-        if (empty($badge['webhook_url'])) {
-            $this->log_webhook("No webhook URL configured for badge {$badge_id}", 'info');
-            return; // No webhook URL configured
-        }
-        
-        $this->log_webhook("Found webhook URL for badge {$badge_id}: {$badge['webhook_url']}");
-        
-        // Get user details
-        $user = get_userdata($user_id);
-        if (!$user) {
-            $this->log_webhook("User {$user_id} not found", 'error');
-            return;
-        }
-        
-        $this->log_webhook("User found: {$user->user_email}");
-        
-        // Prepare webhook payload
-        $payload = array(
-            'event' => 'badge_earned',
-            'timestamp' => current_time('mysql'),
-            'user' => array(
-                'id' => $user_id,
-                'email' => $user->user_email,
-                'display_name' => $user->display_name,
-                'username' => $user->user_login
-            ),
-            'badge' => array(
-                'id' => $badge_id,
-                'name' => $badge_name,
-                'description' => $badge_description,
-                'icon' => $badge_icon,
-                'category' => $badge['category'],
-                'rarity_level' => $badge['rarity_level'],
-                'xp_reward' => $badge['xp_reward'],
-                'gem_reward' => $badge['gem_reward']
-            )
-        );
-        
-        $this->log_webhook("Created payload for badge {$badge_id}: " . json_encode($payload));
-        
-        // Send webhook request
-        $result = $this->send_webhook_request($badge['webhook_url'], $payload);
-        
-        if ($result) {
-            $this->log_webhook("Successfully sent webhook for badge {$badge_id}", 'success');
-        } else {
-            $this->log_webhook("Failed to send webhook for badge {$badge_id}", 'error');
-        }
-    }
-    
-    /**
-     * Log webhook activity to dedicated log file
-     */
-    private function log_webhook($message, $type = 'info') {
-        $log_file = WP_CONTENT_DIR . '/jph-webhook.log';
-        $timestamp = current_time('Y-m-d H:i:s');
-        $log_entry = "[{$timestamp}] JPH Webhook: {$message}\n";
-        
-        file_put_contents($log_file, $log_entry, FILE_APPEND | LOCK_EX);
-    }
-    
-    /**
-     * Send webhook request
-     */
-    public function send_webhook_request($url, $payload) {
-        // First, try a simple connectivity test
-        $this->log_webhook("Testing connectivity to {$url}");
-        $test_response = wp_remote_get($url, array('timeout' => 10));
-        if (is_wp_error($test_response)) {
-            $this->log_webhook("Cannot reach {$url} - " . $test_response->get_error_message(), 'error');
-            return false;
-        } else {
-            $test_code = wp_remote_retrieve_response_code($test_response);
-            $this->log_webhook("Connectivity test to {$url} returned code: " . ($test_code ?: 'empty'));
-        }
-        
-        $args = array(
-            'method' => 'POST',
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'User-Agent' => 'JazzEdge-Practice-Hub/1.0'
-            ),
-            'body' => json_encode($payload),
-            'timeout' => 30,
-            'blocking' => true // Try blocking first to get better error info
-        );
-        
-        $this->log_webhook("Attempting to send webhook to {$url}");
-        $this->log_webhook("Payload: " . json_encode($payload));
-        
-        $response = wp_remote_request($url, $args);
-        
-        // Log the webhook attempt
-        if (is_wp_error($response)) {
-            $this->log_webhook("Failed to send webhook to {$url} - " . $response->get_error_message(), 'error');
-            return false;
-        } else {
-            $response_code = wp_remote_retrieve_response_code($response);
-            $response_body = wp_remote_retrieve_body($response);
-            $response_headers = wp_remote_retrieve_headers($response);
-            
-            $this->log_webhook("Response code: " . ($response_code ?: 'empty'));
-            $this->log_webhook("Response body: " . substr($response_body, 0, 500));
-            $this->log_webhook("Response headers: " . print_r($response_headers, true));
-            
-            if ($response_code >= 200 && $response_code < 300) {
-                $this->log_webhook("Sent webhook to {$url} - Response: {$response_code}", 'success');
-                return true;
-            } else {
-                $this->log_webhook("Webhook to {$url} returned status {$response_code}", 'error');
-                // For webhook.site and other testing services, we'll consider it successful
-                // if we got any response code (even if not 2xx)
-                if ($response_code && strpos($url, 'webhook.site') !== false) {
-                    $this->log_webhook("Considering webhook successful for webhook.site despite non-2xx code", 'success');
-                    return true;
-                }
-                return false;
-            }
-        }
     }
     
     /**
