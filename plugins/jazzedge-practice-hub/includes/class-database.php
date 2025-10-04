@@ -249,9 +249,6 @@ class JPH_Database {
             $user_id, $name
         ));
         
-        // Debug: Log the query and result
-        error_log("JPH Debug: Checking for duplicate name '{$name}' for user {$user_id}. Found: " . ($existing ? $existing : 'none'));
-        
         if ($existing) {
             return new WP_Error('duplicate_name', 'You already have a practice item with this name');
         }
@@ -835,13 +832,14 @@ class JPH_Database {
         // Create format array based on the data
         $formats = array();
         foreach ($badge_data as $key => $value) {
-            if (in_array($key, array('xp_reward', 'gem_reward', 'criteria_value', 'is_active'))) {
+            if (in_array($key, array('xp_reward', 'gem_reward', 'criteria_value', 'is_active', 'fluent_event_enabled', 'display_order'))) {
                 $formats[] = '%d'; // Integer
             } else {
                 $formats[] = '%s'; // String
             }
         }
         
+        // Update the badge
         $result = $this->wpdb->update(
             $table_name,
             $badge_data,
@@ -875,22 +873,6 @@ class JPH_Database {
      */
     public function get_user_badges($user_id) {
         $table_name = $this->tables['user_badges'];
-        
-        // Debug: Check what's in the table
-        $debug_query = $this->wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE user_id = %d",
-            $user_id
-        );
-        $debug_results = $this->wpdb->get_results($debug_query, ARRAY_A);
-        
-        // Log debug info
-        error_log("JPH Debug: get_user_badges for user_id $user_id");
-        error_log("JPH Debug: Table name: $table_name");
-        error_log("JPH Debug: Query: $debug_query");
-        error_log("JPH Debug: Results count: " . count($debug_results));
-        if (!empty($debug_results)) {
-            error_log("JPH Debug: First result: " . print_r($debug_results[0], true));
-        }
         
         // Check if earned_at column exists (the actual column name in the table)
         $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'earned_at'");

@@ -3,7 +3,7 @@
  * Plugin Name: JazzEdge Practice Hub
  * Plugin URI: https://academy.jazzedge.com
  * Description: A neuroscience-backed practice system for JazzEdge Academy, incorporating spaced repetition, gamification, and AI analysis.
- * Version: 2.1.0
+ * Version: 2.1.1
  * Author: JazzEdge
  * Author URI: https://academy.jazzedge.com
  * License: GPL v2 or later
@@ -1328,7 +1328,7 @@ class JazzEdge_Practice_Hub {
                     </button>
                 </div>
                 <div class="jph-modal-body">
-                    <form id="jph-add-badge-form" action="#" method="post" enctype="multipart/form-data">
+                    <form id="jph-add-badge-form" action="#" method="post">
                         
                         <div class="jph-form-group">
                             <label for="badge-name">Badge Name:</label>
@@ -1341,9 +1341,9 @@ class JazzEdge_Practice_Hub {
                         </div>
                         
                         <div class="jph-form-group">
-                            <label for="badge-image">Badge Image:</label>
-                            <input type="file" id="badge-image" name="badge_image" accept="image/*">
-                            <small>Recommended: 64x64px PNG with transparent background</small>
+                            <label for="badge-image-url">Badge Image URL:</label>
+                            <input type="url" id="badge-image-url" name="image_url" placeholder="https://example.com/badge-image.png">
+                            <small>Upload image to WordPress Media Library and paste the URL here</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -2167,13 +2167,13 @@ class JazzEdge_Practice_Hub {
             const searchBtn = document.getElementById('search-students-btn');
             if (searchBtn) {
                 searchBtn.addEventListener('click', function() {
-                const filters = {
-                    search: document.getElementById('student-search').value.trim(),
-                    level: document.getElementById('level-filter').value,
-                    activity: document.getElementById('activity-filter').value
-                };
-                loadStudentsData(filters);
-            });
+                    const filters = {
+                        search: document.getElementById('student-search').value.trim(),
+                        level: document.getElementById('level-filter').value,
+                        activity: document.getElementById('activity-filter').value
+                    };
+                    loadStudentsData(filters);
+                });
             }
             
             // Clear filters button
@@ -2920,8 +2920,8 @@ class JazzEdge_Practice_Hub {
                 <tr class="jph-badge-row ${!badge.is_active ? 'inactive' : ''}" data-badge-key="${badge.badge_key}">
                     <td>
                         <div class="jph-badge-image-container">
-                            ${badge.icon && badge.icon.startsWith('http') ? 
-                                `<img src="${badge.icon}" alt="${badge.name}" class="jph-badge-image">` : 
+                            ${(badge.image_url || badge.icon) && (badge.image_url || badge.icon).startsWith('http') ? 
+                                `<img src="${badge.image_url || badge.icon}" alt="${badge.name}" class="jph-badge-image">` : 
                                 `<div class="jph-badge-image jph-badge-placeholder">${badge.icon || '🏆'}</div>`
                             }
                         </div>
@@ -3316,16 +3316,28 @@ class JazzEdge_Practice_Hub {
                 return;
             }
             
-            const formData = new FormData(form);
+            const data = {
+                name: document.getElementById('badge-name').value,
+                description: document.getElementById('badge-description').value,
+                icon: document.getElementById('badge-icon').value,
+                image_url: document.getElementById('badge-image-url').value,
+                category: document.getElementById('badge-category').value,
+                fluent_event_enabled: document.getElementById('badge-fluent-event-enabled').checked ? 1 : 0,
+                fluent_event_key: document.getElementById('badge-fluent-event-key').value,
+                fluent_event_title: document.getElementById('badge-fluent-event-title').value,
+                is_active: document.getElementById('badge-is-active').checked ? 1 : 0
+            };
+            
             const url = '<?php echo rest_url('jph/v1/badges'); ?>';
             const nonce = '<?php echo wp_create_nonce('wp_rest'); ?>';
             
             fetch(url, {
                 method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     'X-WP-Nonce': nonce
                 },
-                body: formData
+                body: JSON.stringify(data)
             })
             .then(response => response.json())
             .then(data => {
@@ -3418,10 +3430,21 @@ class JazzEdge_Practice_Hub {
             
             // Show current image if exists
             const currentImageDiv = document.getElementById('edit-current-image');
-            if (badge.icon) {
-                currentImageDiv.innerHTML = `<img src="${badge.icon}" alt="${badge.name}" style="max-width: 64px; max-height: 64px;">`;
+            if (badge.image_url || badge.icon) {
+                const imageUrl = badge.image_url || badge.icon;
+                if (imageUrl.startsWith('http')) {
+                    currentImageDiv.innerHTML = `<img src="${imageUrl}" alt="${badge.name}" style="max-width: 64px; max-height: 64px;">`;
+                } else {
+                    currentImageDiv.innerHTML = '<div style="background: #f0f0f0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 20px;">' + imageUrl + '</div>';
+                }
             } else {
                 currentImageDiv.innerHTML = '<div style="background: #f0f0f0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🏆</div>';
+            }
+            
+            // Populate image URL field
+            const imageUrlEl = document.getElementById('edit-badge-image-url');
+            if (imageUrlEl) {
+                imageUrlEl.value = badge.image_url || '';
             }
             
             // Show the modal
@@ -3446,11 +3469,10 @@ class JazzEdge_Practice_Hub {
                 return;
             }
             
-            
             const badgeId = document.getElementById('edit-badge-key').value;
             
-            // Create JSON data instead of FormData
-            const badgeData = {
+            // Create data object
+            const data = {
                 name: document.getElementById('edit-badge-name').value,
                 description: document.getElementById('edit-badge-description').value,
                 category: document.getElementById('edit-badge-category').value,
@@ -3464,17 +3486,32 @@ class JazzEdge_Practice_Hub {
                 is_active: document.getElementById('edit-badge-is-active').checked ? 1 : 0
             };
             
+            // Add image URL if provided
+            const imageUrl = document.getElementById('edit-badge-image-url').value;
+            if (imageUrl) {
+                data.image_url = imageUrl;
+            }
             
             fetch('<?php echo rest_url('jph/v1/badges/key/'); ?>' + badgeId, {
                 method: 'PUT',
                 headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                 },
-                body: JSON.stringify(badgeData)
+                body: JSON.stringify(data)
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        console.error('Error response:', text);
+                        throw new Error(`HTTP ${response.status}: ${text}`);
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
                 if (data.success) {
                     showToast('Badge updated successfully!', 'success');
                     closeEditBadgeModal();
@@ -3486,7 +3523,7 @@ class JazzEdge_Practice_Hub {
             })
             .catch(error => {
                 console.error('Error updating badge:', error);
-                showToast('Error updating badge: ' + error, 'error');
+                showToast('Error updating badge: ' + error.message, 'error');
             });
         }
         
@@ -3791,7 +3828,7 @@ class JazzEdge_Practice_Hub {
                     </button>
                 </div>
                 <div class="jph-modal-body">
-                    <form id="jph-add-badge-form" action="#" method="post" enctype="multipart/form-data">
+                    <form id="jph-add-badge-form" action="#" method="post">
                         
                         <div class="jph-form-group">
                             <label for="badge-name">Badge Name:</label>
@@ -3804,9 +3841,9 @@ class JazzEdge_Practice_Hub {
                         </div>
                         
                         <div class="jph-form-group">
-                            <label for="badge-image">Badge Image:</label>
-                            <input type="file" id="badge-image" name="badge_image" accept="image/*">
-                            <small>Recommended: 64x64px PNG with transparent background</small>
+                            <label for="badge-image-url">Badge Image URL:</label>
+                            <input type="url" id="badge-image-url" name="image_url" placeholder="https://example.com/badge-image.png">
+                            <small>Upload image to WordPress Media Library and paste the URL here</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -3892,9 +3929,9 @@ class JazzEdge_Practice_Hub {
             <div class="jph-modal-content">
                 <div class="jph-modal-header">
                     <h2>✏️ Edit Badge</h2>
-                    <button class="jph-modal-close" onclick="closeEditBadgeModal()">
+                    <span class="jph-modal-close" onclick="closeEditBadgeModal()">
                         <i class="fa-solid fa-circle-xmark"></i>
-                    </button>
+                    </span>
                 </div>
                 <div class="jph-modal-body">
                     <form id="jph-edit-badge-form" enctype="multipart/form-data">
@@ -3917,9 +3954,9 @@ class JazzEdge_Practice_Hub {
                         </div>
                         
                         <div class="jph-form-group">
-                            <label for="edit-badge-image">New Badge Image (optional):</label>
-                            <input type="file" id="edit-badge-image" name="badge_image" accept="image/*">
-                            <small>Leave empty to keep current image. Recommended: 64x64px PNG with transparent background</small>
+                            <label for="edit-badge-image-url">Badge Image URL:</label>
+                            <input type="url" id="edit-badge-image-url" name="image_url" placeholder="https://example.com/badge-image.png">
+                            <small>Upload image to WordPress Media Library and paste the URL here. Leave empty to keep current image.</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -5548,6 +5585,13 @@ class JazzEdge_Practice_Hub {
         
         register_rest_route('jph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
             'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_badge_by_key'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        // Add POST route for FormData support
+        register_rest_route('jph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
+            'methods' => 'POST',
             'callback' => array($this, 'rest_update_badge_by_key'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
@@ -8581,25 +8625,8 @@ class JazzEdge_Practice_Hub {
                 return new WP_Error('missing_fields', 'Badge name is required', array('status' => 400));
             }
             
-            // Handle file upload
-            $image_url = '';
-            if (isset($_FILES['badge_image']) && $_FILES['badge_image']['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = wp_upload_dir();
-                $badge_dir = $upload_dir['basedir'] . '/jph-badges';
-                
-                // Create directory if it doesn't exist
-                if (!file_exists($badge_dir)) {
-                    wp_mkdir_p($badge_dir);
-                }
-                
-                $file_extension = pathinfo($_FILES['badge_image']['name'], PATHINFO_EXTENSION);
-                $filename = sanitize_file_name($badge_key . '.' . $file_extension);
-                $file_path = $badge_dir . '/' . $filename;
-                
-                if (move_uploaded_file($_FILES['badge_image']['tmp_name'], $file_path)) {
-                    $image_url = $upload_dir['baseurl'] . '/jph-badges/' . $filename;
-                }
-            }
+            // Get badge image URL
+            $image_url = sanitize_url($request->get_param('image_url'));
             
             // Get FluentCRM event settings
             $fluent_event_enabled = intval($request->get_param('fluent_event_enabled'));
@@ -8714,23 +8741,9 @@ class JazzEdge_Practice_Hub {
                 return new WP_Error('no_data', 'No data provided to update', array('status' => 400));
             }
             
-            // Handle file upload
-            if (isset($_FILES['badge_image']) && $_FILES['badge_image']['error'] === UPLOAD_ERR_OK) {
-                $upload_dir = wp_upload_dir();
-                $badge_dir = $upload_dir['basedir'] . '/jph-badges';
-                
-                // Create directory if it doesn't exist
-                if (!file_exists($badge_dir)) {
-                    wp_mkdir_p($badge_dir);
-                }
-                
-                $file_extension = pathinfo($_FILES['badge_image']['name'], PATHINFO_EXTENSION);
-                $filename = sanitize_file_name($badge_key . '.' . $file_extension);
-                $file_path = $badge_dir . '/' . $filename;
-                
-                if (move_uploaded_file($_FILES['badge_image']['tmp_name'], $file_path)) {
-                    $badge_data['icon'] = $upload_dir['baseurl'] . '/jph-badges/' . $filename;
-                }
+            // Get badge image URL if provided
+            if ($request->get_param('image_url')) {
+                $badge_data['image_url'] = sanitize_url($request->get_param('image_url'));
             }
             
             $result = $database->update_badge_by_id($badge_id, $badge_data);
@@ -8836,54 +8849,28 @@ class JazzEdge_Practice_Hub {
                 return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
             }
             
-            // Get JSON data
-            $json_data = json_decode($request->get_body(), true);
-            if ($json_data === null) {
-                return new WP_Error('invalid_json', 'Invalid JSON data', array('status' => 400));
-            }
-            
-            // Prepare update data
+            // Get badge data from JSON request
             $badge_data = array();
-            if (isset($json_data['name']) && !empty($json_data['name'])) {
-                $badge_data['name'] = sanitize_text_field($json_data['name']);
-            }
-            if (isset($json_data['description'])) {
-                $badge_data['description'] = sanitize_textarea_field($json_data['description']);
-            }
-            if (isset($json_data['category']) && !empty($json_data['category'])) {
-                $badge_data['category'] = sanitize_text_field($json_data['category']);
-            }
-            if (isset($json_data['xp_reward']) && $json_data['xp_reward'] >= 0) {
-                $badge_data['xp_reward'] = intval($json_data['xp_reward']);
-            }
-            if (isset($json_data['gem_reward']) && $json_data['gem_reward'] >= 0) {
-                $badge_data['gem_reward'] = intval($json_data['gem_reward']);
-            }
-            if (isset($json_data['fluent_event_enabled']) && $json_data['fluent_event_enabled'] >= 0) {
-                $badge_data['fluent_event_enabled'] = intval($json_data['fluent_event_enabled']);
-            }
-            if (isset($json_data['fluent_event_key'])) {
-                $badge_data['fluent_event_key'] = sanitize_text_field($json_data['fluent_event_key']);
-            }
-            if (isset($json_data['fluent_event_title'])) {
-                $badge_data['fluent_event_title'] = sanitize_text_field($json_data['fluent_event_title']);
-            }
-            if (isset($json_data['is_active'])) {
-                $badge_data['is_active'] = intval($json_data['is_active']);
-            }
-            if (isset($json_data['criteria_type'])) {
-                $badge_data['criteria_type'] = sanitize_text_field($json_data['criteria_type']);
-            }
-            if (isset($json_data['criteria_value'])) {
-                $badge_data['criteria_value'] = intval($json_data['criteria_value']);
-            }
-            if (isset($json_data['webhook_url'])) {
-                $badge_data['webhook_url'] = sanitize_url($json_data['webhook_url']);
+            $badge_data['name'] = sanitize_text_field($request->get_param('name'));
+            $badge_data['description'] = sanitize_textarea_field($request->get_param('description'));
+            $badge_data['category'] = sanitize_text_field($request->get_param('category'));
+            $badge_data['xp_reward'] = intval($request->get_param('xp_reward'));
+            $badge_data['gem_reward'] = intval($request->get_param('gem_reward'));
+            $badge_data['criteria_type'] = sanitize_text_field($request->get_param('criteria_type'));
+            $badge_data['criteria_value'] = intval($request->get_param('criteria_value'));
+            $badge_data['fluent_event_enabled'] = intval($request->get_param('fluent_event_enabled'));
+            $badge_data['fluent_event_key'] = sanitize_text_field($request->get_param('fluent_event_key'));
+            $badge_data['fluent_event_title'] = sanitize_text_field($request->get_param('fluent_event_title'));
+            $badge_data['is_active'] = intval($request->get_param('is_active'));
+            
+            // Get badge image URL if provided
+            if ($request->get_param('image_url')) {
+                $badge_data['image_url'] = sanitize_url($request->get_param('image_url'));
             }
             
-            // Validate that we have data to update
-            if (empty($badge_data)) {
-                return new WP_Error('no_data', 'No data provided to update', array('status' => 400));
+            // Validate required fields
+            if (empty($badge_data['name'])) {
+                return new WP_Error('missing_fields', 'Badge name is required', array('status' => 400));
             }
             
             // Update badge using badge_key
@@ -13289,7 +13276,7 @@ class JazzEdge_Practice_Hub {
                     </div>
                 </div>
                 <div class="practice-history-header">
-                    <div class="practice-history-header-item">Practice Item</div>
+                    <div class="practice-history-header-item">Item</div>
                     <div class="practice-history-header-item">Duration</div>
                     <div class="practice-history-header-item">How it felt</div>
                     <div class="practice-history-header-item">Improvement</div>
@@ -13706,6 +13693,19 @@ class JazzEdge_Practice_Hub {
             grid-template-columns: 1fr 1fr;
             gap: 25px;
             margin: 20px 0;
+        }
+        
+        .jph-items-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 1024px) {
+            .jph-items-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
         
         @media (max-width: 768px) {
@@ -14612,13 +14612,6 @@ class JazzEdge_Practice_Hub {
             margin: 0 0 20px 0;
         }
         
-        .jph-items-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        
         .jph-empty-item {
             background: #f8f9fa;
             border: 2px dashed #dee2e6;
@@ -14766,9 +14759,27 @@ class JazzEdge_Practice_Hub {
         
         .jph-badges-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            grid-template-columns: repeat(6, 1fr);
             gap: 20px;
             margin-top: 20px;
+        }
+        
+        @media (max-width: 1200px) {
+            .jph-badges-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .jph-badges-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .jph-badges-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
         
         .jph-badge-card {
@@ -14802,26 +14813,22 @@ class JazzEdge_Practice_Hub {
             width: 64px;
             height: 64px;
             margin: 0 auto 15px;
-            border-radius: 50%;
-            background: #f0f0f0;
+            background: transparent;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 32px;
-            border: 3px solid #e8f5f4;
             transition: all 0.3s ease;
         }
         
         .jph-badge-card.earned .jph-badge-image {
-            border-color: #ffd700;
-            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            background: transparent;
         }
         
         .jph-badge-card img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: 50%;
         }
         
         .jph-badge-name {
@@ -14914,8 +14921,16 @@ class JazzEdge_Practice_Hub {
             border-radius: 16px;
             border: 2px solid #e8f5f4;
             box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
-            padding: 30px;
-            margin: 30px 0;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-practice-history-full {
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 12px;
+            }
         }
         
         .practice-history-header-section {
@@ -14923,6 +14938,15 @@ class JazzEdge_Practice_Hub {
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .practice-history-header-section {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+                text-align: center;
+            }
         }
         
         .practice-history-header-section h3 {
@@ -14935,6 +14959,13 @@ class JazzEdge_Practice_Hub {
             display: flex;
             gap: 10px;
             align-items: center;
+        }
+        
+        @media (max-width: 768px) {
+            .practice-history-controls {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
         }
         
         .practice-history-controls .jph-btn {
@@ -14954,8 +14985,8 @@ class JazzEdge_Practice_Hub {
         
         .practice-history-header {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
-            gap: 20px;
+            grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 25px;
             align-items: center;
             padding: 15px;
             background: #f8f9fa;
@@ -15001,6 +15032,16 @@ class JazzEdge_Practice_Hub {
             text-align: center;
         }
         
+        @media (max-width: 768px) {
+            /* Hide columns 3, 4, 6 on mobile (How it felt, Improvement, Actions) */
+            /* Show columns 1, 2, 5 (Practice Item, Duration, Date) */
+            .practice-history-header-item:nth-child(3),
+            .practice-history-header-item:nth-child(4),
+            .practice-history-header-item:nth-child(6) {
+                display: none;
+            }
+        }
+        
         .practice-history-list {
             max-height: 400px;
             overflow-y: auto;
@@ -15008,8 +15049,8 @@ class JazzEdge_Practice_Hub {
         
         .practice-history-item {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
-            gap: 20px;
+            grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 25px;
             align-items: center;
             padding: 15px;
             border-bottom: 1px solid #e8f5f4;
@@ -15039,6 +15080,16 @@ class JazzEdge_Practice_Hub {
         
         .practice-history-item > *:nth-child(6) {
             justify-self: center; /* Actions - center aligned */
+        }
+        
+        @media (max-width: 768px) {
+            /* Hide columns 3, 4, 6 on mobile (How it felt, Improvement, Actions) */
+            /* Show columns 1, 2, 5 (Practice Item, Duration, Date) */
+            .practice-history-item > *:nth-child(3),
+            .practice-history-item > *:nth-child(4),
+            .practice-history-item > *:nth-child(6) {
+                display: none;
+            }
         }
         
         .practice-history-item:hover {
@@ -16874,8 +16925,8 @@ class JazzEdge_Practice_Hub {
                         var earnedClass = badge.is_earned ? 'earned' : 'locked';
                         if (badge.is_earned) earnedCount++;
                         
-                        var badgeImage = badge.image_url ? 
-                            '<img src="' + badge.image_url + '" alt="' + badge.name + '">' : 
+                        var badgeImage = (badge.image_url || badge.icon) ? 
+                            '<img src="' + (badge.image_url || badge.icon) + '" alt="' + badge.name + '">' : 
                             '<span class="badge-emoji">🏆</span>';
                         
                         var earnedDate = badge.is_earned && badge.earned_at ? 
@@ -16962,7 +17013,6 @@ class JazzEdge_Practice_Hub {
                         html += '<span class="session-sentiment">' + sentimentEmoji + '</span>';
                         html += '</div>';
                         html += '<div class="practice-improvement ' + improvementClass + '">';
-                        html += '<span class="session-detail-icon">📈</span>';
                         html += improvementText;
                         html += '</div>';
                         html += '<div class="practice-date">' + formattedDate + '</div>';
