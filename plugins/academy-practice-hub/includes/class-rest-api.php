@@ -101,8 +101,13 @@ class JPH_REST_API {
         );
         $sentiment_score = isset($sentiment_scores[$params['sentiment']]) ? $sentiment_scores[$params['sentiment']] : 3;
         
-        // Convert improvement to boolean
-        $improvement_detected = in_array($params['improvement'], array('significant', 'moderate', 'slight')) ? 1 : 0;
+        // Convert improvement to boolean - check both 'improvement' and 'improvement_detected' parameters
+        $improvement_detected = 0;
+        if (isset($params['improvement_detected']) && $params['improvement_detected']) {
+            $improvement_detected = 1;
+        } elseif (isset($params['improvement']) && in_array($params['improvement'], array('significant', 'moderate', 'slight'))) {
+            $improvement_detected = 1;
+        }
         
         $session_id = $this->database->log_practice_session(
             $user_id,
