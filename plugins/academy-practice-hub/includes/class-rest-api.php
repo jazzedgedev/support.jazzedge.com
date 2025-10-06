@@ -140,8 +140,8 @@ class JPH_REST_API {
         // Update streak
         $gamification->update_streak($user_id);
         
-        // Check for badges
-        $gamification->check_badges($user_id);
+        // Check for badges using our gamification class
+        $newly_awarded = $gamification->check_and_award_badges($user_id);
         
         return rest_ensure_response(array(
             'success' => true,

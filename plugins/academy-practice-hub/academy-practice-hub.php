@@ -17,6 +17,7 @@ if (!defined('APH_WIRE_THROUGH')) {
 
 // Load required classes (we'll instantiate conditionally)
 require_once __DIR__ . '/includes/class-database.php';
+require_once __DIR__ . '/includes/class-gamification.php';
 require_once __DIR__ . '/includes/class-rest-api.php';
 
 // Initialize REST API
