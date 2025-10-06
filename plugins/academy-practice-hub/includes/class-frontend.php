@@ -45,7 +45,7 @@ class JPH_Frontend {
         }
         
         // Get user stats using gamification system
-        $gamification = new JPH_Gamification();
+        $gamification = new APH_Gamification();
         $user_stats = $gamification->get_user_stats($user_id);
         
         // Enqueue scripts and styles
@@ -384,6 +384,338 @@ class JPH_Frontend {
                 </div>
             </div>
         </div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            
+            // Initialize clean neuroscience tips
+            initNeuroscienceTips();
+            
+            // Load practice history
+            loadPracticeHistory();
+            
+            // Load badges
+            loadBadges();
+            
+            // Load lesson favorites
+            loadLessonFavorites();
+            
+            // Initialize other functionality
+            initModalHandlers();
+            initPracticeSessionHandlers();
+            initShieldHandlers();
+            initStatsHandlers();
+            
+            // Clean Neuroscience Tips (Adult-oriented)
+            function initNeuroscienceTips() {
+                const practiceTips = [
+                    "Memory consolidation occurs during sleep — practice 4 hours before bedtime for optimal retention.",
+                    "Break practice into 20-25 minute sessions with 5-minute breaks to maximize focus and learning.",
+                    "Sleep deprivation reduces motor learning efficiency by 40% — prioritize rest for better progress.",
+                    "Practice at 85% difficulty level — challenging but achievable for maximum skill development.",
+                    "Slow, perfect repetitions build neural pathways faster than rushed practice — quality over speed.",
+                    "Morning practice shows 23% better retention — optimize for your brain's peak learning hours.",
+                    "Mental practice activates identical brain areas as physical practice — visualization accelerates learning.",
+                    "10 minutes of meditation before practice can improve focus by up to 67% during sessions.",
+                    "Scale practice primes neural pathways for complex pieces — warm up cognitively, not just physically.",
+                    "Playing simple pieces while multitasking engages implicit learning systems — passive absorption works.",
+                    "More than 4 hours of daily practice can decrease accuracy by 25% — avoid diminishing returns.",
+                    "Mental rehearsal triggers the same neural patterns as physical practice — utilize downtime effectively."
+                ];
+                
+                // Show random tip on page load only
+                const randomIndex = Math.floor(Math.random() * practiceTips.length);
+                const tipElement = document.getElementById('neuro-tip-text');
+                
+                if (tipElement) {
+                    tipElement.textContent = practiceTips[randomIndex];
+                    
+                    // Add subtle fade-in effect
+                    tipElement.style.opacity = '0';
+                    setTimeout(() => {
+                        tipElement.style.transition = 'opacity 0.6s ease-in-out';
+                        tipElement.style.opacity = '1';
+                    }, 200);
+                }
+            }
+            
+            // Load practice history
+            function loadPracticeHistory() {
+                $.ajax({
+                    url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: { limit: 10 },
+                    success: function(response) {
+                        if (response.success && response.sessions) {
+                            displayPracticeHistory(response.sessions);
+                        } else {
+                            $('#practice-history-list').html('<div class="no-sessions">No practice sessions found.</div>');
+                        }
+                    },
+                    error: function() {
+                        $('#practice-history-list').html('<div class="error-message">Error loading practice history.</div>');
+                    }
+                });
+            }
+            
+            // Display practice history
+            function displayPracticeHistory(sessions) {
+                let html = '';
+                if (sessions.length === 0) {
+                    html = '<div class="no-sessions">No practice sessions found.</div>';
+                } else {
+                    sessions.forEach(session => {
+                        const date = new Date(session.created_at).toLocaleDateString();
+                        const sentiment = session.sentiment || 'Not specified';
+                        const improvement = session.improvement_detected ? 'Yes' : 'No';
+                        
+                        html += `
+                            <div class="practice-history-item">
+                                <div class="practice-history-item-content">${session.item_name}</div>
+                                <div class="practice-history-item-content">${session.duration_minutes} min</div>
+                                <div class="practice-history-item-content">${sentiment}</div>
+                                <div class="practice-history-item-content">${improvement}</div>
+                                <div class="practice-history-item-content">${date}</div>
+                                <div class="practice-history-item-content">
+                                    <button class="delete-session-btn" data-session-id="${session.id}">Delete</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                $('#practice-history-list').html(html);
+            }
+            
+            // Load badges
+            function loadBadges() {
+                console.log('Loading badges...');
+                $.ajax({
+                    url: '<?php echo rest_url('jph/v1/badges'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        console.log('Badges API response:', response);
+                        if (response.success) {
+                            console.log('Success! Displaying badges:', response.badges);
+                            displayBadges(response.badges);
+                        } else {
+                            console.log('API returned success: false');
+                            $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available</div>');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading badges:', error);
+                        console.error('XHR response:', xhr.responseText);
+                        $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges earned yet</div>');
+                    }
+                });
+            }
+            
+            // Display badges
+            function displayBadges(badges) {
+                var $container = $('#jph-badges-grid');
+                
+                if (!badges || badges.length === 0) {
+                    $container.html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available yet. Keep practicing to earn your first badge!</div>');
+                    return;
+                }
+                
+                var html = '';
+                var earnedCount = 0;
+                badges.forEach(function(badge, index) {
+                    var earnedClass = badge.is_earned ? 'earned' : 'locked';
+                    if (badge.is_earned) earnedCount++;
+                    
+                    var badgeImage = badge.image_url && badge.image_url.startsWith('http') ? 
+                        '<img src="' + badge.image_url + '" alt="' + badge.name + '">' : 
+                        '<span class="badge-emoji">' + (badge.icon || 'BADGE') + '</span>';
+                    
+                    var earnedDate = badge.is_earned && badge.earned_at ? 
+                        '<div class="jph-badge-earned-date">Earned: ' + formatDate(badge.earned_at) + '</div>' : '';
+                    
+                    html += '<div class="jph-badge-item ' + earnedClass + '">' +
+                        '<div class="jph-badge-image">' + badgeImage + '</div>' +
+                        '<div class="jph-badge-info">' +
+                            '<div class="jph-badge-name">' + badge.name + '</div>' +
+                            '<div class="jph-badge-description">' + badge.description + '</div>' +
+                            '<div class="jph-badge-category jph-badge-category-' + badge.category + '">' + badge.category + '</div>' +
+                            earnedDate +
+                        '</div>' +
+                    '</div>';
+                });
+                
+                $container.html(html);
+                
+                // Update badge count if element exists
+                if ($('#badge-count').length) {
+                    $('#badge-count').text(earnedCount);
+                }
+            }
+            
+            // Load lesson favorites
+            function loadLessonFavorites() {
+                console.log('Loading lesson favorites...');
+                $.ajax({
+                    url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var select = $('#lesson-favorite-select');
+                            select.empty();
+                            
+                            if (response.favorites.length === 0) {
+                                select.append('<option value="">No lesson favorites found</option>');
+                            } else {
+                                select.append('<option value="">Select a lesson favorite...</option>');
+                                $.each(response.favorites, function(index, favorite) {
+                                    select.append('<option value="' + favorite.id + '" data-title="' + escapeHtml(favorite.title) + '" data-category="' + escapeHtml(favorite.category) + '" data-description="' + escapeHtml(favorite.description || '') + '">' + escapeHtml(favorite.title) + '</option>');
+                                });
+                            }
+                        } else {
+                            $('#lesson-favorite-select').html('<option value="">Error loading favorites</option>');
+                        }
+                    },
+                    error: function() {
+                        $('#lesson-favorite-select').html('<option value="">Error loading favorites</option>');
+                    }
+                });
+            }
+            
+            // Helper function to format dates
+            function formatDate(dateString) {
+                if (!dateString) return '';
+                var date = new Date(dateString);
+                return date.toLocaleDateString();
+            }
+            
+            // Helper function to escape HTML
+            function escapeHtml(text) {
+                var map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+            }
+            
+            // Initialize modal handlers
+            function initModalHandlers() {
+                // Close modal handlers
+                $('.jph-modal-close').on('click', function() {
+                    $(this).closest('.jph-modal').hide();
+                });
+                
+                // Click outside to close
+                $('.jph-modal').on('click', function(e) {
+                    if (e.target === this) {
+                        $(this).hide();
+                    }
+                });
+            }
+            
+            // Initialize practice session handlers
+            function initPracticeSessionHandlers() {
+                // Log practice session button handlers
+                $('.log-practice-btn').on('click', function() {
+                    const itemName = $(this).data('item-name');
+                    $('#practice-item-name').val(itemName);
+                    $('#practice-session-modal').show();
+                });
+                
+                // Practice session form submission
+                $('#practice-session-form').on('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(this);
+                    const data = {
+                        item_name: formData.get('item_name'),
+                        duration_minutes: parseInt(formData.get('duration_minutes')),
+                        sentiment: formData.get('sentiment'),
+                        improvement_detected: formData.get('improvement') === 'significant' || formData.get('improvement') === 'moderate',
+                        notes: formData.get('notes')
+                    };
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
+                        method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        data: data,
+                        success: function(response) {
+                            if (response.success) {
+                                $('#practice-session-modal').hide();
+                                location.reload(); // Refresh to show updated stats
+                            } else {
+                                alert('Error logging practice session: ' + (response.message || 'Unknown error'));
+                            }
+                        },
+                        error: function() {
+                            alert('Error logging practice session');
+                        }
+                    });
+                });
+            }
+            
+            // Initialize shield handlers
+            function initShieldHandlers() {
+                // Shield accordion toggle
+                $('.shield-accordion-header').on('click', function() {
+                    const content = $('#shield-accordion-content');
+                    const icon = $(this).find('.shield-toggle-icon i');
+                    
+                    if (content.is(':visible')) {
+                        content.slideUp();
+                        icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                    } else {
+                        content.slideDown();
+                        icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                    }
+                });
+                
+                // Purchase shield button
+                $('#purchase-shield-btn').on('click', function() {
+                    $.ajax({
+                        url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                        method: 'POST',
+                        data: {
+                            action: 'jph_purchase_streak_shield',
+                            nonce: '<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                $('#shield-modal').hide();
+                                location.reload();
+                            } else {
+                                alert('Error purchasing shield: ' + (response.data || 'Unknown error'));
+                            }
+                        },
+                        error: function() {
+                            alert('Error purchasing shield');
+                        }
+                    });
+                });
+            }
+            
+            // Initialize stats handlers
+            function initStatsHandlers() {
+                // Stats explanation button
+                $('#jph-stats-explanation-btn').on('click', function() {
+                    $('#stats-modal').show();
+                });
+            }
+        });
+        </script>
         <?php
         
         return ob_get_clean();

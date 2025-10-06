@@ -55,6 +55,56 @@ class JPH_REST_API {
             'callback' => array($this, 'rest_export_practice_history'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
+        
+        // Badge management endpoints
+        register_rest_route('jph/v1', '/admin/badges', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_badges_admin'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/admin/badges', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_add_badge'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_badge'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'rest_delete_badge'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'rest_delete_badge_by_key'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_badge_by_key'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // User-facing endpoints
+        register_rest_route('jph/v1', '/badges', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_user_badges'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/lesson-favorites', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_lesson_favorites'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
     }
     
     /**
@@ -266,6 +316,169 @@ class JPH_REST_API {
     }
     
     /**
+     * Get badges for admin
+     */
+    public function rest_get_badges_admin($request) {
+        $badges = $this->database->get_badges();
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'badges' => $badges
+        ));
+    }
+    
+    /**
+     * Add new badge
+     */
+    public function rest_add_badge($request) {
+        $params = $request->get_json_params();
+        
+        // Validate required fields
+        $required_fields = array('name', 'description', 'category', 'criteria_type', 'criteria_value');
+        foreach ($required_fields as $field) {
+            if (!isset($params[$field]) || empty($params[$field])) {
+                return new WP_Error('missing_field', "Missing required field: {$field}", array('status' => 400));
+            }
+        }
+        
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        // Generate badge key from name
+        $badge_key = sanitize_title($params['name']);
+        
+        // Check if badge key already exists
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE badge_key = %s",
+            $badge_key
+        ));
+        
+        if ($existing) {
+            return new WP_Error('badge_exists', 'Badge with this name already exists', array('status' => 400));
+        }
+        
+        $result = $wpdb->insert(
+            $table_name,
+            array(
+                'badge_key' => $badge_key,
+                'name' => sanitize_text_field($params['name']),
+                'description' => sanitize_textarea_field($params['description']),
+                'icon' => sanitize_text_field($params['icon'] ?? '🏆'),
+                'category' => sanitize_text_field($params['category']),
+                'rarity' => sanitize_text_field($params['rarity'] ?? 'common'),
+                'xp_reward' => intval($params['xp_reward'] ?? 0),
+                'gem_reward' => intval($params['gem_reward'] ?? 0),
+                'criteria_type' => sanitize_text_field($params['criteria_type']),
+                'criteria_value' => intval($params['criteria_value']),
+                'is_active' => 1,
+                'display_order' => intval($params['display_order'] ?? 999),
+                'image_url' => esc_url_raw($params['image_url'] ?? ''),
+                'created_at' => current_time('mysql')
+            )
+        );
+        
+        if ($result === false) {
+            return new WP_Error('insert_failed', 'Failed to create badge', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Badge created successfully',
+            'badge_id' => $wpdb->insert_id
+        ));
+    }
+    
+    /**
+     * Update badge
+     */
+    public function rest_update_badge($request) {
+        $badge_id = $request->get_param('id');
+        $params = $request->get_json_params();
+        
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        // Check if badge exists
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $badge_id
+        ));
+        
+        if (!$existing) {
+            return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
+        }
+        
+        // Prepare update data
+        $update_data = array();
+        if (isset($params['name'])) $update_data['name'] = sanitize_text_field($params['name']);
+        if (isset($params['description'])) $update_data['description'] = sanitize_textarea_field($params['description']);
+        if (isset($params['icon'])) $update_data['icon'] = sanitize_text_field($params['icon']);
+        if (isset($params['category'])) $update_data['category'] = sanitize_text_field($params['category']);
+        if (isset($params['rarity'])) $update_data['rarity'] = sanitize_text_field($params['rarity']);
+        if (isset($params['xp_reward'])) $update_data['xp_reward'] = intval($params['xp_reward']);
+        if (isset($params['gem_reward'])) $update_data['gem_reward'] = intval($params['gem_reward']);
+        if (isset($params['criteria_type'])) $update_data['criteria_type'] = sanitize_text_field($params['criteria_type']);
+        if (isset($params['criteria_value'])) $update_data['criteria_value'] = intval($params['criteria_value']);
+        if (isset($params['is_active'])) $update_data['is_active'] = intval($params['is_active']);
+        if (isset($params['display_order'])) $update_data['display_order'] = intval($params['display_order']);
+        if (isset($params['image_url'])) $update_data['image_url'] = esc_url_raw($params['image_url']);
+        
+        $update_data['updated_at'] = current_time('mysql');
+        
+        $result = $wpdb->update(
+            $table_name,
+            $update_data,
+            array('id' => $badge_id),
+            null,
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update badge', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Badge updated successfully'
+        ));
+    }
+    
+    /**
+     * Delete badge
+     */
+    public function rest_delete_badge($request) {
+        $badge_id = $request->get_param('id');
+        
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        // Check if badge exists
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $badge_id
+        ));
+        
+        if (!$existing) {
+            return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
+        }
+        
+        $result = $wpdb->delete(
+            $table_name,
+            array('id' => $badge_id),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('delete_failed', 'Failed to delete badge', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Badge deleted successfully'
+        ));
+    }
+    
+    /**
      * Debug info endpoint
      */
     public function rest_debug_info($request) {
@@ -408,5 +621,174 @@ class JPH_REST_API {
             'html' => $debug_html,
             'timestamp' => current_time('mysql')
         ));
+    }
+    
+    /**
+     * Delete badge by badge key
+     */
+    public function rest_delete_badge_by_key($request) {
+        try {
+            $badge_key = $request->get_param('badge_key');
+            
+            if (empty($badge_key)) {
+                return new WP_Error('missing_badge_key', 'Badge key is required', array('status' => 400));
+            }
+            
+            $database = new JPH_Database();
+            
+            // Check if badge exists
+            $badge = $database->get_badge_by_key($badge_key);
+            if (!$badge) {
+                return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
+            }
+            
+            // Delete the badge
+            $result = $database->delete_badge($badge_key);
+            
+            if ($result) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'Badge deleted successfully',
+                    'badge_key' => $badge_key
+                ));
+            } else {
+                return new WP_Error('delete_failed', 'Failed to delete badge', array('status' => 500));
+            }
+            
+        } catch (Exception $e) {
+            return new WP_Error('delete_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update badge by badge key
+     */
+    public function rest_update_badge_by_key($request) {
+        try {
+            $badge_key = $request->get_param('badge_key');
+            
+            if (empty($badge_key)) {
+                return new WP_Error('missing_badge_key', 'Badge key is required', array('status' => 400));
+            }
+            
+            $database = new JPH_Database();
+            
+            // Check if badge exists
+            $badge = $database->get_badge_by_key($badge_key);
+            if (!$badge) {
+                return new WP_Error('badge_not_found', 'Badge not found', array('status' => 404));
+            }
+            
+            // Get the request body
+            $body = $request->get_json_params();
+            if (empty($body)) {
+                $body = $request->get_body_params();
+            }
+            
+            // Validate required fields
+            $required_fields = array('name', 'description', 'category', 'criteria_type', 'criteria_value', 'xp_reward', 'gem_reward');
+            foreach ($required_fields as $field) {
+                if (!isset($body[$field])) {
+                    return new WP_Error('missing_field', "Field '{$field}' is required", array('status' => 400));
+                }
+            }
+            
+            // Prepare badge data
+            $badge_data = array(
+                'name' => sanitize_text_field($body['name']),
+                'description' => sanitize_textarea_field($body['description']),
+                'category' => sanitize_text_field($body['category']),
+                'criteria_type' => sanitize_text_field($body['criteria_type']),
+                'criteria_value' => intval($body['criteria_value']),
+                'xp_reward' => intval($body['xp_reward']),
+                'gem_reward' => intval($body['gem_reward']),
+                'is_active' => isset($body['is_active']) ? intval($body['is_active']) : 1
+            );
+            
+            // Add optional fields
+            if (isset($body['icon'])) {
+                $badge_data['icon'] = sanitize_text_field($body['icon']);
+            }
+            
+            // Update the badge
+            $result = $database->update_badge($badge_key, $badge_data);
+            
+            if ($result) {
+                // Get updated badge data
+                $updated_badge = $database->get_badge_by_key($badge_key);
+                
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'Badge updated successfully',
+                    'badge' => $updated_badge
+                ));
+            } else {
+                return new WP_Error('update_failed', 'Failed to update badge', array('status' => 500));
+            }
+            
+        } catch (Exception $e) {
+            return new WP_Error('update_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get user badges for frontend display
+     */
+    public function rest_get_user_badges($request) {
+        try {
+            $user_id = get_current_user_id();
+            $database = new JPH_Database();
+            
+            // Get all badges
+            $all_badges = $database->get_badges(true); // Only active badges
+            
+            // Get user's earned badges
+            $user_badges = $database->get_user_badges($user_id);
+            
+            // Create a lookup array for earned badges
+            $earned_badges = array();
+            foreach ($user_badges as $user_badge) {
+                $earned_badges[$user_badge['badge_key']] = $user_badge;
+            }
+            
+            // Combine badges with earned status
+            $badges_with_status = array();
+            foreach ($all_badges as $badge) {
+                $badge_data = $badge;
+                $badge_data['is_earned'] = isset($earned_badges[$badge['badge_key']]);
+                if ($badge_data['is_earned']) {
+                    $badge_data['earned_at'] = $earned_badges[$badge['badge_key']]['earned_at'];
+                }
+                $badges_with_status[] = $badge_data;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'badges' => $badges_with_status
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('get_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get lesson favorites for frontend display
+     */
+    public function rest_get_lesson_favorites($request) {
+        try {
+            $user_id = get_current_user_id();
+            $database = new JPH_Database();
+            
+            $favorites = $database->get_lesson_favorites($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'favorites' => $favorites
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('get_lesson_favorites_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
 }
