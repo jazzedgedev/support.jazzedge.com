@@ -8356,9 +8356,13 @@ class JazzEdge_Practice_Hub {
             $data = $request->get_json_params();
             
             // Validate required fields
-            $required_fields = array('total_xp', 'current_level', 'current_streak', 'longest_streak', 'total_sessions', 'total_minutes', 'hearts_count', 'gems_balance', 'badges_earned');
+            $required_fields = array('total_xp', 'current_level', 'current_streak', 'longest_streak', 'total_sessions', 'total_minutes', 'hearts_count', 'gems_balance', 'badges_earned', 'last_practice_date');
             foreach ($required_fields as $field) {
-                if (!isset($data[$field]) || !is_numeric($data[$field])) {
+                if (!isset($data[$field])) {
+                    return new WP_Error('invalid_data', "Invalid or missing field: {$field}", array('status' => 400));
+                }
+                // Validate numeric fields (except date)
+                if ($field !== 'last_practice_date' && !is_numeric($data[$field])) {
                     return new WP_Error('invalid_data', "Invalid or missing field: {$field}", array('status' => 400));
                 }
             }
@@ -8384,7 +8388,7 @@ class JazzEdge_Practice_Hub {
                         'hearts_count' => $data['hearts_count'],
                         'gems_balance' => $data['gems_balance'],
                         'badges_earned' => $data['badges_earned'],
-                        'last_practice_date' => current_time('Y-m-d')
+                        'last_practice_date' => $data['last_practice_date']
                     ),
                     array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s')
                 );
@@ -8401,10 +8405,11 @@ class JazzEdge_Practice_Hub {
                         'total_minutes' => $data['total_minutes'],
                         'hearts_count' => $data['hearts_count'],
                         'gems_balance' => $data['gems_balance'],
-                        'badges_earned' => $data['badges_earned']
+                        'badges_earned' => $data['badges_earned'],
+                        'last_practice_date' => $data['last_practice_date']
                     ),
                     array('user_id' => $user_id),
-                    array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d'),
+                    array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s'),
                     array('%d')
                 );
             }
