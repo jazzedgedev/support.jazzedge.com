@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class JPH_Gamification {
+class APH_Gamification {
     
     private $database;
     

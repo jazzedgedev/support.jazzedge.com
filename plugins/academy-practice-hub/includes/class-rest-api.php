@@ -122,8 +122,8 @@ class JPH_REST_API {
             return $session_id;
         }
         
-        // Gamification integration
-        $gamification = new JPH_Gamification();
+        // Gamification integration - use our Academy gamification class
+        $gamification = new APH_Gamification();
         
         // Calculate and add XP
         $xp_earned = $gamification->calculate_xp($duration, $sentiment_score, $improvement_detected);
