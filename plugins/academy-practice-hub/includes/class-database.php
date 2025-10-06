@@ -414,4 +414,40 @@ class JPH_Database {
         
         return $result !== false;
     }
+    
+    /**
+     * Get last practice session for an item
+     */
+    public function get_last_practice_session($user_id, $item_id) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_practice_sessions';
+        
+        $session = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE user_id = %d AND practice_item_id = %d ORDER BY created_at DESC LIMIT 1",
+            $user_id,
+            $item_id
+        ), ARRAY_A);
+        
+        return $session;
+    }
+    
+    /**
+     * Get monthly shield purchases for a user
+     */
+    public function get_monthly_shield_purchases($user_id) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_gem_transactions';
+        
+        $purchases = $wpdb->get_results($wpdb->prepare(
+            "SELECT COUNT(*) as count FROM $table_name 
+             WHERE user_id = %d 
+             AND source = 'streak_shield_purchase' 
+             AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)",
+            $user_id
+        ), ARRAY_A);
+        
+        return $purchases[0]['count'] ?? 0;
+    }
 }

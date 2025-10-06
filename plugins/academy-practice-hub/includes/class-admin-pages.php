@@ -842,40 +842,576 @@ class JPH_Admin_Pages {
      * Lesson favorites page
      */
     public function lesson_favorites_page() {
-        // For now, redirect to the original plugin's lesson favorites page
-        if (class_exists('JazzEdge_Practice_Hub')) {
-            $main_plugin = JazzEdge_Practice_Hub::get_instance();
-            if (method_exists($main_plugin, 'lesson_favorites_page')) {
-                $main_plugin->lesson_favorites_page();
-                return;
-            }
+        ?>
+        <div class="wrap">
+            <h1>📚 Lesson Favorites Management</h1>
+            
+            <div class="jph-admin-stats">
+                <div class="jph-stat-card">
+                    <h3>Total Favorites</h3>
+                    <div class="jph-stat-number" id="total-favorites">Loading...</div>
+                </div>
+                <div class="jph-stat-card">
+                    <h3>Active Users</h3>
+                    <div class="jph-stat-number" id="active-users">Loading...</div>
+                </div>
+                <div class="jph-stat-card">
+                    <h3>Most Popular Category</h3>
+                    <div class="jph-stat-number" id="popular-category">Loading...</div>
+                </div>
+            </div>
+            
+            <div class="jph-admin-actions">
+                <button type="button" class="button button-primary" id="refresh-favorites-btn">🔄 Refresh</button>
+                <button type="button" class="button button-secondary" id="export-favorites-btn">📊 Export CSV</button>
+            </div>
+            
+            <div class="jph-favorites-container">
+                <div class="jph-favorites-filters">
+                    <select id="user-filter">
+                        <option value="">All Users</option>
+                    </select>
+                    <select id="category-filter">
+                        <option value="">All Categories</option>
+                        <option value="lesson">Lesson</option>
+                        <option value="technique">Technique</option>
+                        <option value="theory">Theory</option>
+                        <option value="ear-training">Ear Training</option>
+                        <option value="repertoire">Repertoire</option>
+                        <option value="improvisation">Improvisation</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <input type="text" id="search-filter" placeholder="Search favorites...">
+                </div>
+                
+                <div class="jph-favorites-table-container">
+                    <table class="wp-list-table widefat fixed striped" id="favorites-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>URL</th>
+                                <th>Description</th>
+                                <th>Date Added</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="favorites-tbody">
+                            <tr>
+                                <td colspan="7" class="loading">Loading lesson favorites...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        .jph-admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
         }
         
-        // Fallback if original plugin not available
-        echo '<div class="wrap">';
-        echo '<h1>Lesson Favorites</h1>';
-        echo '<p>Lesson favorites functionality will be implemented here.</p>';
-        echo '</div>';
+        .jph-stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .jph-stat-card h3 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .jph-stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0073aa;
+        }
+        
+        .jph-admin-actions {
+            margin: 20px 0;
+        }
+        
+        .jph-favorites-filters {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            align-items: center;
+        }
+        
+        .jph-favorites-filters select,
+        .jph-favorites-filters input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .jph-favorites-table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .category-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            background: #e9ecef;
+            color: #495057;
+        }
+        </style>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Load lesson favorites data
+            loadLessonFavoritesData();
+            loadLessonFavoritesStats();
+            
+            // Refresh button
+            $('#refresh-favorites-btn').on('click', function() {
+                loadLessonFavoritesData();
+                loadLessonFavoritesStats();
+            });
+            
+            // Export button
+            $('#export-favorites-btn').on('click', function() {
+                window.location.href = '<?php echo rest_url('jph/v1/export-lesson-favorites'); ?>';
+            });
+            
+            function loadLessonFavoritesData() {
+                $.ajax({
+                    url: '<?php echo rest_url('jph/v1/admin/lesson-favorites'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            displayLessonFavorites(response.favorites);
+                        } else {
+                            $('#favorites-tbody').html('<tr><td colspan="7" class="error">Error loading lesson favorites</td></tr>');
+                        }
+                    },
+                    error: function() {
+                        $('#favorites-tbody').html('<tr><td colspan="7" class="error">Error loading lesson favorites</td></tr>');
+                    }
+                });
+            }
+            
+            function displayLessonFavorites(favorites) {
+                let html = '';
+                if (favorites.length === 0) {
+                    html = '<tr><td colspan="7" class="no-data">No lesson favorites found</td></tr>';
+                } else {
+                    favorites.forEach(favorite => {
+                        const date = new Date(favorite.created_at).toLocaleDateString();
+                        html += `
+                            <tr>
+                                <td>${favorite.user_name || 'Unknown'}</td>
+                                <td>${favorite.title}</td>
+                                <td><span class="category-badge">${favorite.category}</span></td>
+                                <td><a href="${favorite.url}" target="_blank">View</a></td>
+                                <td>${favorite.description || ''}</td>
+                                <td>${date}</td>
+                                <td>
+                                    <button class="button button-small" onclick="editFavorite(${favorite.id})">Edit</button>
+                                    <button class="button button-small button-link-delete" onclick="deleteFavorite(${favorite.id})">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+                $('#favorites-tbody').html(html);
+            }
+            
+            function loadLessonFavoritesStats() {
+                $.ajax({
+                    url: '<?php echo rest_url('jph/v1/admin/lesson-favorites-stats'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#total-favorites').text(response.stats.total_favorites);
+                            $('#active-users').text(response.stats.active_users);
+                            $('#popular-category').text(response.stats.popular_category);
+                        }
+                    },
+                    error: function() {
+                        $('#total-favorites').text('Error');
+                        $('#active-users').text('Error');
+                        $('#popular-category').text('Error');
+                    }
+                });
+            }
+        });
+        </script>
+        <?php
     }
     
     /**
      * Events page
      */
     public function events_page() {
-        // For now, redirect to the original plugin's events page
-        if (class_exists('JazzEdge_Practice_Hub')) {
-            $main_plugin = JazzEdge_Practice_Hub::get_instance();
-            if (method_exists($main_plugin, 'events_page')) {
-                $main_plugin->events_page();
-                return;
-            }
+        ?>
+        <div class="wrap">
+            <h1>🔗 FluentCRM Event Tracking</h1>
+            <p>Monitor FluentCRM event tracking from badge achievements and manage event logging.</p>
+            
+            <div class="jph-event-sections">
+                    
+                    <!-- Badge Event Information -->
+                    <div class="jph-event-section">
+                        <h2>🏆 Badge Event Configuration</h2>
+                        <p>Badge events are now configured directly within each badge in the <a href="<?php echo admin_url('admin.php?page=aph-badges'); ?>">Badge Management</a> section.</p>
+                        
+                        <div class="badge-info-grid">
+                            <div class="badge-info-item">
+                                <h3>✅ Enabled Badges</h3>
+                                <p>Badges with FluentCRM tracking enabled will automatically fire events when earned.</p>
+                            </div>
+                            <div class="badge-info-item">
+                                <h3>🔧 Individual Configuration</h3>
+                                <p>Each badge can have its own custom event key and title for FluentCRM.</p>
+                            </div>
+                            <div class="badge-info-item">
+                                <h3>⚡ Automatic Tracking</h3>
+                                <p>Events are fired automatically when badges are awarded to users.</p>
+                            </div>
+                        </div>
+                            
+                        <div style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-left: 4px solid #007cba; border-radius: 4px;">
+                            <strong>💡 Note:</strong> To configure event tracking for badges, go to <strong>Badge Management</strong> and enable "FluentCRM Event Tracking" for individual badges. This gives you granular control over which badge achievements trigger events.
+                        </div>
+                    </div>
+                    
+                    <!-- Event Tracking Testing -->
+                    <div class="jph-event-section">
+                        <h2>🧪 Event Tracking Testing</h2>
+                        <p>Test your FluentCRM event tracking to ensure it's working correctly.</p>
+                        
+                        <div class="event-test-buttons">
+                            <button type="button" class="button button-primary" onclick="testBadgeEvent('first_steps')">
+                                🏆 Test First Steps Badge
+                            </button>
+                            <button type="button" class="button button-secondary" onclick="testBadgeEvent('marathon')">
+                                🏆 Test Marathon Badge
+                            </button>
+                            <button type="button" class="button button-secondary" onclick="testBadgeEvent('streak_protector')">
+                                🏆 Test Streak Protector Badge
+                            </button>
+                            <button type="button" class="button button-secondary" onclick="testAllBadgeEvents()">
+                                🏆 Test All Badge Events
+                            </button>
+                        </div>
+                        
+                        <div id="webhook-test-results" class="webhook-test-results"></div>
+                    </div>
+                    
+                    <div class="jph-debug-section">
+                        <h2>🔍 Badge Assignment Debugging</h2>
+                        <p>Comprehensive tools to debug and test badge assignment logic.</p>
+                        
+                        <div class="badge-debug-controls">
+                            <h3>User Badge Status Check</h3>
+                            <div class="debug-form-group">
+                                <label for="debug-user-id">User ID:</label>
+                                <input type="number" id="debug-user-id" value="<?php echo get_current_user_id(); ?>" min="1">
+                                <button type="button" onclick="checkUserBadgeStatus()" class="button button-primary">
+                                    🔍 Check Badge Status
+                                </button>
+                            </div>
+                            
+                            <h3>Badge Assignment Testing</h3>
+                            <div class="debug-form-group">
+                                <button type="button" onclick="runBadgeAssignmentTest()" class="button button-primary">
+                                    ⚡ Run Badge Assignment Test
+                                </button>
+                                <button type="button" onclick="debugMarathonBadge()" class="button button-secondary">
+                                    🏃 Debug Marathon Badge
+                                </button>
+                                <button type="button" onclick="simulateBadgeCheck()" class="button button-secondary">
+                                    🎯 Simulate Badge Check
+                                </button>
+                            </div>
+                            
+                            <h3>Database Inspection</h3>
+                            <div class="debug-form-group">
+                                <button type="button" onclick="inspectBadgeDatabase()" class="button button-primary">
+                                    📊 Inspect Badge Database
+                                </button>
+                                <button type="button" onclick="checkPracticeSessions()" class="button button-secondary">
+                                    ⏱️ Check Practice Sessions
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="badge-debug-results" class="badge-debug-results"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        .jph-event-sections {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+            margin: 25px 0;
         }
         
-        // Fallback if original plugin not available
-        echo '<div class="wrap">';
-        echo '<h1>Event Tracking</h1>';
-        echo '<p>Event tracking functionality will be implemented here.</p>';
-        echo '</div>';
+        .jph-event-section {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .jph-event-section h2 {
+            margin: 0 0 15px 0;
+            color: #1e1e1e;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .badge-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .badge-info-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #007cba;
+        }
+        
+        .badge-info-item h3 {
+            margin: 0 0 10px 0;
+            color: #007cba;
+            font-size: 16px;
+        }
+        
+        .event-test-buttons {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .webhook-test-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 50px;
+        }
+        
+        .jph-debug-section {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .badge-debug-controls {
+            margin: 20px 0;
+        }
+        
+        .debug-form-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 15px 0;
+        }
+        
+        .debug-form-group label {
+            font-weight: 600;
+            min-width: 80px;
+        }
+        
+        .debug-form-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .badge-debug-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 50px;
+        }
+        </style>
+        
+        <script>
+        function testBadgeEvent(badgeKey) {
+            jQuery('#webhook-test-results').html('<p>Testing badge event: ' + badgeKey + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/test-badge-event'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    badge_key: badgeKey
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#webhook-test-results').html('<p style="color: green;">✅ ' + response.message + '</p>');
+                    } else {
+                        jQuery('#webhook-test-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#webhook-test-results').html('<p style="color: red;">❌ Error testing badge event</p>');
+                }
+            });
+        }
+        
+        function testAllBadgeEvents() {
+            jQuery('#webhook-test-results').html('<p>Testing all badge events...</p>');
+            
+            const badges = ['first_steps', 'marathon', 'streak_protector'];
+            let results = [];
+            
+            badges.forEach((badge, index) => {
+                setTimeout(() => {
+                    testBadgeEvent(badge);
+                }, index * 1000);
+            });
+        }
+        
+        function checkUserBadgeStatus() {
+            const userId = jQuery('#debug-user-id').val();
+            jQuery('#badge-debug-results').html('<p>Checking badge status for user: ' + userId + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/debug-user-badges'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    user_id: userId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#badge-debug-results').html('<pre>' + JSON.stringify(response.data, null, 2) + '</pre>');
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error checking badge status</p>');
+                }
+            });
+        }
+        
+        function runBadgeAssignmentTest() {
+            jQuery('#badge-debug-results').html('<p>Running badge assignment test...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/test-badge-assignment'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#badge-debug-results').html('<pre>' + JSON.stringify(response.data, null, 2) + '</pre>');
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error running badge assignment test</p>');
+                }
+            });
+        }
+        
+        function debugMarathonBadge() {
+            jQuery('#badge-debug-results').html('<p>Debugging marathon badge...</p>');
+            // Placeholder for marathon badge debugging
+            jQuery('#badge-debug-results').html('<p>Marathon badge debugging functionality will be implemented.</p>');
+        }
+        
+        function simulateBadgeCheck() {
+            jQuery('#badge-debug-results').html('<p>Simulating badge check...</p>');
+            // Placeholder for badge check simulation
+            jQuery('#badge-debug-results').html('<p>Badge check simulation functionality will be implemented.</p>');
+        }
+        
+        function inspectBadgeDatabase() {
+            jQuery('#badge-debug-results').html('<p>Inspecting badge database...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/debug-badge-database'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#badge-debug-results').html('<pre>' + JSON.stringify(response.data, null, 2) + '</pre>');
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error inspecting badge database</p>');
+                }
+            });
+        }
+        
+        function checkPracticeSessions() {
+            jQuery('#badge-debug-results').html('<p>Checking practice sessions...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/debug-practice-sessions'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#badge-debug-results').html('<pre>' + JSON.stringify(response.data, null, 2) + '</pre>');
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error checking practice sessions</p>');
+                }
+            });
+        }
+        </script>
+        <?php
     }
     
     /**
@@ -902,19 +1438,160 @@ class JPH_Admin_Pages {
      * Settings page
      */
     public function settings_page() {
-        // For now, redirect to the original plugin's settings page
-        if (class_exists('JazzEdge_Practice_Hub')) {
-            $main_plugin = JazzEdge_Practice_Hub::get_instance();
-            if (method_exists($main_plugin, 'settings_page')) {
-                $main_plugin->settings_page();
-                return;
+        ?>
+        <div class="wrap">
+            <h1>⚙️ Practice Hub Settings</h1>
+            
+            <div class="jph-settings-sections">
+                <div class="jph-settings-section jph-danger-section">
+                    <h2>🧪 DATA MANAGEMENT FOR TESTING</h2>
+                    <p><strong>DEVELOPMENT/TESTING TOOL:</strong> This will permanently delete ALL user data and cannot be undone!</p>
+                    
+                    <div class="clear-all-section">
+                        <p>This action will clear:</p>
+                        <ul>
+                            <li>📝 All practice sessions and items</li>
+                            <li>👥 All user statistics (XP, levels, streaks)</li>
+                            <li>🎖️ All earned badges (user badges)</li>
+                            <li>💎 All gem transactions and balances</li>
+                            <li>❤️ All lesson favorites</li>
+                        </ul>
+                        <p><strong>Note:</strong> This will NOT delete badge definitions or plugin settings.</p>
+                        
+                        <button type="button" class="button button-danger jph-clear-all-btn" onclick="confirmClearAllUserData()">
+                            💥 CLEAR ALL USER DATA
+                        </button>
+                    </div>
+                    
+                    <div id="danger-results" class="danger-results"></div>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        .jph-settings-sections {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+            margin: 25px 0;
+            max-width: 900px;
+        }
+        
+        .jph-settings-section {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        
+        .jph-settings-section:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+        }
+        
+        .jph-settings-section h2 {
+            margin: 0 0 15px 0;
+            color: #1e1e1e;
+            font-size: 20px;
+            font-weight: 600;
+            border-bottom: 2px solid #f5f5f5;
+            padding-bottom: 10px;
+        }
+        
+        .jph-settings-section p {
+            margin: 8px 0;
+            color: #555;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        
+        /* Danger Zone Styles */
+        .jph-danger-section {
+            border: 2px solid #dc3545 !important;
+            background: #fff5f5 !important;
+        }
+        
+        .jph-danger-section h2 {
+            color: #dc3545 !important;
+            font-weight: bold;
+        }
+        
+        .jph-danger-section p {
+            color: #721c24 !important;
+            font-weight: 500;
+        }
+        
+        .clear-all-section {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .clear-all-section ul {
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+        
+        .clear-all-section li {
+            margin: 5px 0;
+            color: #721c24;
+        }
+        
+        .button-danger {
+            background: #dc3545 !important;
+            border-color: #dc3545 !important;
+            color: white !important;
+            font-weight: bold;
+            padding: 12px 24px;
+            font-size: 16px;
+        }
+        
+        .button-danger:hover {
+            background: #c82333 !important;
+            border-color: #bd2130 !important;
+        }
+        
+        .danger-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 50px;
+        }
+        </style>
+        
+        <script>
+        function confirmClearAllUserData() {
+            if (confirm('⚠️ DANGER: This will permanently delete ALL user data including:\n\n• All practice sessions and items\n• All user statistics (XP, levels, streaks)\n• All earned badges\n• All gem transactions and balances\n• All lesson favorites\n\nThis action CANNOT be undone!\n\nAre you absolutely sure you want to continue?')) {
+                clearAllUserData();
             }
         }
         
-        // Fallback if original plugin not available
-        echo '<div class="wrap">';
-        echo '<h1>Settings</h1>';
-        echo '<p>Settings functionality will be implemented here.</p>';
-        echo '</div>';
+        function clearAllUserData() {
+            jQuery('#danger-results').html('<p>Clearing all user data...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/admin/clear-all-user-data'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#danger-results').html('<p style="color: green;">✅ ' + response.message + '</p>');
+                    } else {
+                        jQuery('#danger-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#danger-results').html('<p style="color: red;">❌ Error clearing user data</p>');
+                }
+            });
+        }
+        </script>
+        <?php
     }
 }

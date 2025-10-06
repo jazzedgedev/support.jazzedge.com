@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Academy Practice Hub
  * Description: Refactor scaffold for JazzEdge Practice Hub (no behavior yet).
- * Version: 0.0.1
+ * Version: 3.0
  * Author: JazzEdge
  * Text Domain: academy-practice-hub
  */

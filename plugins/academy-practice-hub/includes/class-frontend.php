@@ -121,65 +121,199 @@ class JPH_Frontend {
                         <div class="protection-actions">
                             <?php 
                             $shield_count = $user_stats['streak_shield_count'] ?? 0;
-                            $gems_balance = $user_stats['gems_balance'] ?? 0;
-                            $shield_cost = 100;
+                            $gem_balance = $user_stats['gems_balance'] ?? 0;
+                            $shield_cost = 50;
+                            $has_enough_gems = $gem_balance >= $shield_cost;
                             ?>
-                            <button id="jph-buy-shield-btn" class="jph-btn jph-btn-primary" 
-                                    <?php echo ($shield_count >= 3 || $gems_balance < $shield_cost) ? 'disabled' : ''; ?>>
-                                <span class="btn-icon">🛡️</span>
-                                Buy Shield (<?php echo $shield_cost; ?> 💎)
+                            
+                            <?php if ($shield_count < 3): ?>
+                                <?php if ($has_enough_gems): ?>
+                                <button type="button" class="button button-secondary" id="purchase-shield-btn" 
+                                        data-cost="50" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
+                                    Buy Shield (50 💎)
+                                </button>
+                                <?php else: ?>
+                                <button type="button" class="button button-secondary" id="purchase-shield-btn-insufficient" 
+                                        data-cost="50" data-gem-balance="<?php echo $gem_balance; ?>" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
+                                    Buy Shield (50 💎)
+                                </button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                            <button type="button" class="button button-secondary" disabled>
+                                Max Shields (3)
                             </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                     
-                    <div class="shield-info">
-                        <p><strong>What are Streak Shields?</strong></p>
-                        <p>Shields protect your practice streak from being broken if you miss a day. You can have up to 3 shields at once.</p>
-                        <p><strong>How it works:</strong></p>
-                        <ul>
-                            <li>If you miss a practice day, a shield is automatically used</li>
-                            <li>Your streak continues without interruption</li>
-                            <li>Shields cost 100 gems each</li>
-                            <li>Maximum 3 shields allowed</li>
-                        </ul>
+                    <!-- Shield Explanation -->
+                    <div class="shield-explanation-section">
+                        <h4>🛡️ How Shield Protection Works</h4>
+                        <p>Shields automatically protect your practice streak when you miss practice days. Think of them as insurance for your streak!</p>
+                        
+                        <div class="shield-info-grid">
+                            <div class="shield-info-item">
+                                <h5>⚡ How It Works</h5>
+                                <p>Shield protection follows a simple 3-step process:</p>
+                                <ul>
+                                    <li><strong>Step 1:</strong> You miss a practice day</li>
+                                    <li><strong>Step 2:</strong> System checks for available shields</li>
+                                    <li><strong>Step 3:</strong> Shield activates automatically</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="shield-info-item">
+                                <h5>💰 Cost & Limits</h5>
+                                <p>Shields have clear pricing and usage limits:</p>
+                                <ul>
+                                    <li><strong>Cost:</strong> 50 💎 gems per shield</li>
+                                    <li><strong>Limit:</strong> Maximum 3 shields at once</li>
+                                    <li><strong>Activation:</strong> Completely automatic</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="shield-info-item">
+                                <h5>💡 Pro Tips</h5>
+                                <p>Get the most out of your shield protection:</p>
+                                <ul>
+                                    <li>Keep 1-2 shields active for peace of mind</li>
+                                    <li>Practice regularly to minimize shield usage</li>
+                                    <li>Balance shield purchases with other gem priorities</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                
+                <?php if (($user_stats['current_streak'] ?? 0) === 0 && ($user_stats['longest_streak'] ?? 0) > 0 && ($user_stats['total_sessions'] ?? 0) > 0): ?>
+                <div class="jph-streak-recovery">
+                    <h4>🔧 Streak Recovery Available</h4>
+                    <p>Your streak is broken. You can repair it using gems!</p>
+                    <div class="recovery-options">
+                        <button type="button" class="button button-primary" id="repair-1-day" data-days="1" data-cost="25">
+                            Repair 1 Day (25 💎)
+                        </button>
+                        <button type="button" class="button button-primary" id="repair-3-days" data-days="3" data-cost="75">
+                            Repair 3 Days (75 💎)
+                        </button>
+                        <button type="button" class="button button-primary" id="repair-7-days" data-days="7" data-cost="175">
+                            Repair 7 Days (175 💎)
+                        </button>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
             
             <!-- Practice Items Section -->
             <div class="jph-practice-items">
-                <h2>🎵 Practice Items</h2>
-                <div class="jph-items-grid">
-                    <?php foreach ($practice_items as $item): ?>
-                    <div class="jph-item-card" data-item-id="<?php echo $item['id']; ?>">
-                        <div class="jph-item-header">
-                            <h3><?php echo esc_html($item['name']); ?></h3>
-                            <span class="jph-item-category"><?php echo esc_html($item['category']); ?></span>
-                        </div>
-                        <div class="jph-item-content">
-                            <?php if (!empty($item['description'])): ?>
-                                <p><?php echo esc_html($item['description']); ?></p>
-                            <?php endif; ?>
+                <h3>Your Practice Items 
+                    <span class="item-count">(<?php echo count($practice_items); ?>/6)</span>
+                </h3>
+                <div class="jph-items-grid" id="sortable-practice-items">
+                    <?php 
+                    // Always show 6 cards
+                    for ($i = 0; $i < 6; $i++): 
+                        if (isset($practice_items[$i])):
+                            $item = $practice_items[$i];
                             
-                            <!-- Lesson URL if available -->
-                            <?php if (isset($lesson_urls[$item['name']])): ?>
-                                <div class="jph-lesson-link">
-                                    <a href="<?php echo esc_url($lesson_urls[$item['name']]); ?>" target="_blank" class="jph-btn jph-btn-secondary">
-                                        <span class="btn-icon">📚</span>
-                                        View Lesson
-                                    </a>
+                            // Get last practice date for this item
+                            $last_practice = $this->database->get_last_practice_session($user_id, $item['id']);
+                            $last_practice_date = $last_practice ? $last_practice['created_at'] : null;
+                            
+                            // Format the date for display
+                            $practice_date_display = '';
+                            if ($last_practice_date) {
+                                $db_timestamp = strtotime($last_practice_date . ' UTC');
+                                $current_utc_timestamp = current_time('timestamp', true);
+                                $time_ago = human_time_diff($db_timestamp, $current_utc_timestamp);
+                                
+                                // Shorten time units for better space usage
+                                $time_ago = str_replace('hours', 'hrs', $time_ago);
+                                $time_ago = str_replace('minutes', 'min', $time_ago);
+                                $time_ago = str_replace('seconds', 'sec', $time_ago);
+                                $practice_date_display = $time_ago . " ago";
+                            } else {
+                                $practice_date_display = "Never practiced";
+                            }
+                    ?>
+                        <div class="jph-item sortable-practice-item" data-item-id="<?php echo esc_attr($item['id']); ?>" draggable="true">
+                            <!-- Drag Handle -->
+                            <div class="drag-handle" title="Drag to reorder">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <circle cx="4" cy="4" r="1" fill="#666"/>
+                                    <circle cx="8" cy="4" r="1" fill="#666"/>
+                                    <circle cx="12" cy="4" r="1" fill="#666"/>
+                                    <circle cx="4" cy="8" r="1" fill="#666"/>
+                                    <circle cx="8" cy="8" r="1" fill="#666"/>
+                                    <circle cx="12" cy="8" r="1" fill="#666"/>
+                                    <circle cx="4" cy="12" r="1" fill="#666"/>
+                                    <circle cx="8" cy="12" r="1" fill="#666"/>
+                                    <circle cx="12" cy="12" r="1" fill="#666"/>
+                                </svg>
+                            </div>
+                            <!-- Card Header -->
+                            <div class="item-card-header">
+                                <h4><?php echo esc_html($item['name']); ?></h4>
+                            </div>
+                            
+                            <!-- Last Practiced Date -->
+                            <div class="item-last-practiced">
+                                Last practiced: <?php echo esc_html($practice_date_display); ?>
+                            </div>
+                            
+                            <!-- Description -->
+                            <div class="item-description">
+                                <p><?php echo esc_html($item['description']); ?></p>
+                            </div>
+                            
+                            <!-- Action Buttons -->
+                            <div class="item-actions">
+                                <button class="jph-log-practice-btn" data-item-id="<?php echo esc_attr($item['id']); ?>">
+                                    Log Practice
+                                </button>
+                                <div class="item-controls">
+                                    <button class="jph-edit-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" data-category="<?php echo esc_attr($item['category']); ?>" data-description="<?php echo esc_attr($item['description']); ?>" title="Edit">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
+                                            <path d="M100.4 417.2C104.5 402.6 112.2 389.3 123 378.5L304.2 197.3L338.1 163.4C354.7 180 389.4 214.7 442.1 267.4L476 301.3L442.1 335.2L260.9 516.4C250.2 527.1 236.8 534.9 222.2 539L94.4 574.6C86.1 576.9 77.1 574.6 71 568.4C64.9 562.2 62.6 553.3 64.9 545L100.4 417.2zM156 413.5C151.6 418.2 148.4 423.9 146.7 430.1L122.6 517L209.5 492.9C215.9 491.1 221.7 487.8 226.5 483.2L155.9 413.5zM510 267.4C493.4 250.8 458.7 216.1 406 163.4L372 129.5C398.5 103 413.4 88.1 416.9 84.6C430.4 71 448.8 63.4 468 63.4C487.2 63.4 505.6 71 519.1 84.6L554.8 120.3C568.4 133.9 576 152.3 576 171.4C576 190.5 568.4 209 554.8 222.5C551.3 226 536.4 240.9 509.9 267.4z"/>
+                                        </svg>
+                                    </button>
+                                    <button class="jph-delete-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" title="Delete">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
+                                            <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                                        </svg>
+                                    </button>
                                 </div>
-                            <?php endif; ?>
+                            </div>
                         </div>
-                        <div class="jph-item-actions">
-                            <button class="jph-btn jph-btn-primary log-practice-btn" 
-                                    data-item-id="<?php echo $item['id']; ?>" 
-                                    data-item-name="<?php echo esc_attr($item['name']); ?>">
-                                Log Practice
-                            </button>
+                    <?php else: ?>
+                        <div class="jph-item jph-empty-item sortable-empty-slot">
+                            <div class="drag-handle disabled" title="Empty slot - not draggable">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <circle cx="4" cy="4" r="1" fill="#ccc"/>
+                                    <circle cx="8" cy="4" r="1" fill="#ccc"/>
+                                    <circle cx="12" cy="4" r="1" fill="#ccc"/>
+                                    <circle cx="4" cy="8" r="1" fill="#ccc"/>
+                                    <circle cx="8" cy="8" r="1" fill="#ccc"/>
+                                    <circle cx="12" cy="8" r="1" fill="#ccc"/>
+                                    <circle cx="4" cy="12" r="1" fill="#ccc"/>
+                                    <circle cx="8" cy="12" r="1" fill="#ccc"/>
+                                    <circle cx="12" cy="12" r="1" fill="#ccc"/>
+                                </svg>
+                            </div>
+                            <div class="item-info">
+                                <h4>Empty Slot</h4>
+                                <p>Add a new practice item to get started!</p>
+                            </div>
+                            <div class="item-actions">
+                                <button class="jph-btn jph-btn-primary jph-add-item-btn" type="button">
+                                    Add Practice Item
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <?php endforeach; ?>
+                    <?php 
+                        endif;
+                    endfor; 
+                    ?>
                 </div>
             </div>
             
@@ -338,12 +472,12 @@ class JPH_Frontend {
                 </div>
                 <div class="jph-modal-body">
                     <p>A Streak Shield protects your current streak from being broken if you miss a day of practice.</p>
-                    <p><strong>Cost:</strong> 100 💎</p>
+                    <p><strong>Cost:</strong> 50 💎</p>
                     <p><strong>Current Shields:</strong> <span id="shield-count"><?php echo $user_stats['streak_shield_count'] ?? 0; ?></span></p>
                     <p><strong>Maximum:</strong> 3 shields</p>
                     
                     <div class="jph-modal-footer">
-                        <button id="purchase-shield-btn" class="jph-btn jph-btn-primary">Purchase Shield (100 💎)</button>
+                        <button id="purchase-shield-btn" class="jph-btn jph-btn-primary">Purchase Shield (50 💎)</button>
                         <button type="button" class="jph-btn jph-btn-secondary jph-modal-close">Cancel</button>
                     </div>
                 </div>
@@ -384,6 +518,982 @@ class JPH_Frontend {
                 </div>
             </div>
         </div>
+        
+        <style>
+        .jph-student-dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f8fffe 0%, #f0f8f7 100%);
+            min-height: 100vh;
+        }
+        
+        .jph-header {
+            margin-bottom: 40px;
+            padding: 40px 30px;
+            background: linear-gradient(135deg, #004555 0%, #002A34 100%);
+            color: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0, 69, 85, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .header-top h2 {
+            margin: 0;
+            flex: 1;
+            font-size: 1.8em;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .jph-stats-help-btn {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            backdrop-filter: blur(10px);
+            padding: 10px 16px !important;
+            font-size: 14px !important;
+            white-space: nowrap;
+        }
+        
+        .jph-stats-help-btn:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+            transform: translateY(-1px);
+        }
+        
+        /* Modern Pro Tip Styling */
+        .pro-tip-box {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border-left: 4px solid #f39c12;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin: 30px 0 20px 0;
+            box-shadow: 0 4px 20px rgba(243, 156, 18, 0.15);
+            border: 1px solid rgba(243, 156, 18, 0.2);
+        }
+        
+        .pro-tip-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #8b4513;
+        }
+        
+        .tip-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .tip-label {
+            font-weight: 700;
+            font-size: 14px;
+            color: #d35400;
+        }
+        
+        .tip-text {
+            font-size: 15px;
+            font-weight: 500;
+            line-height: 1.5;
+            letter-spacing: 0.25px;
+        }
+        
+        .jph-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .stat {
+            background: white;
+            padding: 30px 25px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #239B90, #459E90);
+        }
+        
+        .stat:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(0, 69, 85, 0.2);
+            border-color: #239B90;
+        }
+        
+        .stat-value {
+            display: block;
+            font-size: 2.5em;
+            font-weight: 800;
+            color: #004555;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .jph-btn-secondary {
+            background: linear-gradient(135deg, #f8fffe 0%, #e8f5f4 100%);
+            color: #004555;
+            border: 1px solid #00A8A8;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jph-btn-secondary:hover {
+            background: linear-gradient(135deg, #e8f5f4 0%, #d1e7e4 100%);
+            color: #004555;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,168,168,0.2);
+        }
+        
+        .btn-icon {
+            font-size: 18px;
+        }
+        
+        .jph-badges-section {
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .jph-badges-section h3 {
+            margin-bottom: 20px;
+            color: #004555;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .badge-count {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #004555;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+        }
+        
+        .jph-badges-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 1200px) {
+            .jph-badges-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .jph-badges-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .jph-badges-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        .jph-badge-card {
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            border: 2px solid #e8f5f4;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .jph-badge-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 69, 85, 0.15);
+            border-color: #004555;
+        }
+        
+        .jph-badge-card.earned {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border-color: #ffd700;
+            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.2);
+        }
+        
+        .jph-badge-card.earned:hover {
+            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.3);
+        }
+        
+        .jph-badge-image {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 15px;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-badge-card.earned .jph-badge-image {
+            background: transparent;
+        }
+        
+        .jph-badge-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .jph-badge-name {
+            font-weight: 600;
+            color: #004555;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            line-height: 1.2;
+        }
+        
+        .jph-badge-description {
+            font-size: 0.8em;
+            color: #666;
+            line-height: 1.3;
+            margin-bottom: 10px;
+        }
+        
+        .jph-badge-category {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .jph-badge-category-achievement { background: #e3f2fd; color: #1976d2; }
+        .jph-badge-category-milestone { background: #f3e5f5; color: #7b1fa2; }
+        .jph-badge-category-special { background: #fff3e0; color: #f57c00; }
+        .jph-badge-category-streak { background: #ffebee; color: #d32f2f; }
+        .jph-badge-category-level { background: #e8f5e8; color: #388e3c; }
+        .jph-badge-category-practice { background: #e0f2f1; color: #00796b; }
+        .jph-badge-category-improvement { background: #fce4ec; color: #c2185b; }
+        
+        .jph-badge-rewards {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+        
+        .jph-badge-earned-date {
+            font-size: 0.7em;
+            color: #28a745;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        
+        .no-badges-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .no-badges-message .emoji {
+            font-size: 2em;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .jph-shield-protection {
+            background: white;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .shield-accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            cursor: pointer;
+            border-bottom: 1px solid #dee2e6;
+            transition: background 0.2s ease;
+        }
+        
+        .shield-accordion-header:hover {
+            background: linear-gradient(135deg, #e9ecef, #dee2e6);
+        }
+        
+        .shield-accordion-header h3 {
+            color: #333;
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .shield-toggle-icon {
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+        
+        .shield-toggle-icon i {
+            font-size: inherit;
+        }
+        
+        .shield-accordion-content {
+            padding: 20px;
+            background: white;
+        }
+        
+        .shield-explanation-section {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f8fffe;
+            border-radius: 12px;
+            border-left: 4px solid #00A8A8;
+        }
+        
+        .shield-explanation-section h4 {
+            margin: 0 0 10px 0;
+            color: #004555;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .shield-explanation-section p {
+            margin: 0 0 20px 0;
+            color: #555;
+            line-height: 1.5;
+        }
+        
+        .shield-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .shield-info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .shield-info-item h5 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .shield-info-item p {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .shield-info-item ul {
+            margin: 0;
+            padding-left: 15px;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .shield-info-item li {
+            margin-bottom: 3px;
+            line-height: 1.3;
+        }
+        
+        @media (max-width: 768px) {
+            .shield-info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .jph-protection-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding: 25px;
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border-radius: 16px;
+            border: 2px solid #e3f2fd;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+        }
+        
+        .protection-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 2px solid #e1f5fe;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .protection-icon {
+            font-size: 24px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+        }
+        
+        .protection-label {
+            font-weight: 600;
+            color: #2A3940;
+            font-size: 16px;
+        }
+        
+        .protection-value {
+            background: linear-gradient(45deg, #239B90, #004555);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 16px;
+            box-shadow: 0 3px 8px rgba(35, 155, 144, 0.4);
+        }
+        
+        .protection-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .protection-value {
+            background: #007cba;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .protection-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .protection-actions .button {
+            padding: 12px 20px !important;
+            border-radius: 8px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            border: none !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15) !important;
+            opacity: 1 !important;
+        }
+        
+        .protection-actions .button-secondary {
+            background: linear-gradient(135deg, #FF6B35, #f04e23) !important;
+            color: white !important;
+            border: none !important;
+        }
+        
+        .protection-actions .button-secondary:hover {
+            background: linear-gradient(135deg, #e05a2b, #d63e1c) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 5px 15px rgba(255, 107, 53, 0.4) !important;
+        }
+        
+        .protection-actions .button-secondary:disabled {
+            background: #ccc !important;
+            color: #666 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        
+        /* Practice Items Styles */
+        .jph-practice-items {
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .jph-practice-items h3 {
+            margin-bottom: 20px;
+            color: #004555;
+            font-size: 1.4em;
+        }
+        
+        .jph-items-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 1024px) {
+            .jph-items-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .jph-items-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .jph-item-card {
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            border: 2px solid #e8f5f4;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-item-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 69, 85, 0.15);
+            border-color: #004555;
+        }
+        
+        .jph-item-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #004555;
+            margin-bottom: 15px;
+        }
+        
+        .log-practice-btn {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .log-practice-btn:hover {
+            background: linear-gradient(135deg, #006666, #008888);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 69, 85, 0.3);
+        }
+        
+        /* Practice History Styles */
+        .jph-practice-history-full {
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .practice-history-header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .practice-history-header-section h3 {
+            margin: 0;
+            color: #004555;
+            font-size: 1.4em;
+        }
+        
+        .practice-history-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .practice-history-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 2px solid #e8f5f4;
+            font-weight: 600;
+            color: #004555;
+        }
+        
+        .practice-history-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid #f0f0f0;
+            align-items: center;
+        }
+        
+        .practice-history-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .practice-history-item-content {
+            font-size: 0.9em;
+            color: #333;
+        }
+        
+        .delete-session-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .delete-session-btn:hover {
+            background: #c82333;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .no-sessions {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .error-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #dc3545;
+            font-size: 1.1em;
+        }
+        
+        /* Modal Styles */
+        .jph-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+        
+        .jph-modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .jph-modal-header {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .jph-modal-header h2 {
+            margin: 0;
+            font-size: 1.4em;
+        }
+        
+        .jph-modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .jph-modal-body {
+            padding: 30px;
+        }
+        
+        .jph-form-group {
+            margin-bottom: 20px;
+        }
+        
+        .jph-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #004555;
+        }
+        
+        .jph-form-group input,
+        .jph-form-group select,
+        .jph-form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-form-group input:focus,
+        .jph-form-group select:focus,
+        .jph-form-group textarea:focus {
+            outline: none;
+            border-color: #004555;
+            box-shadow: 0 0 0 3px rgba(0, 69, 85, 0.1);
+        }
+        
+        .jph-modal-footer {
+            padding: 20px 30px;
+            border-top: 1px solid #e8f5f4;
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+        }
+        
+        .jph-btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        
+        .jph-btn-primary {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+        }
+        
+        .jph-btn-primary:hover {
+            background: linear-gradient(135deg, #006666, #008888);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 69, 85, 0.3);
+        }
+        
+        .jph-btn-secondary {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            color: #004555;
+            border: 2px solid #e8f5f4;
+        }
+        
+        .jph-btn-secondary:hover {
+            background: linear-gradient(135deg, #e9ecef, #dee2e6);
+            transform: translateY(-2px);
+        }
+        
+        /* Practice Items Drag and Drop Styles */
+        .jph-item {
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            border: 2px solid #e8f5f4;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: move;
+        }
+        
+        .jph-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 69, 85, 0.15);
+            border-color: #004555;
+        }
+        
+        .jph-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+            z-index: 1000;
+        }
+        
+        .jph-item.drag-over {
+            border-color: #004555;
+            background: #f0f8ff;
+        }
+        
+        .drag-handle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: grab;
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+        
+        .drag-handle:hover {
+            opacity: 1;
+        }
+        
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+        
+        .drag-handle.disabled {
+            cursor: default;
+            opacity: 0.3;
+        }
+        
+        .item-card-header h4 {
+            margin: 0 0 10px 0;
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #004555;
+        }
+        
+        .item-last-practiced {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .item-description p {
+            margin: 0 0 15px 0;
+            font-size: 0.9em;
+            color: #555;
+            line-height: 1.4;
+        }
+        
+        .item-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .item-controls {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .icon-btn {
+            background: none;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+        
+        .icon-btn:hover {
+            background: #f0f0f0;
+            color: #004555;
+        }
+        
+        .jph-empty-item {
+            background: linear-gradient(135deg, #f8f9fa, #f0f0f0);
+            border: 2px dashed #ccc;
+            opacity: 0.7;
+        }
+        
+        .jph-empty-item:hover {
+            opacity: 1;
+            border-color: #004555;
+        }
+        
+        .item-count {
+            font-size: 0.8em;
+            color: #666;
+            font-weight: normal;
+        }
+        
+        /* Delete Session Button */
+        .jph-delete-session-btn {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            color: #dc3545;
+        }
+        
+        .jph-delete-session-btn:hover {
+            background: #ffebee;
+            transform: scale(1.1);
+            color: #c82333;
+        }
+        
+        .jph-delete-session-btn i {
+            font-size: 16px;
+        }
+        </style>
         
         <script>
         jQuery(document).ready(function($) {
@@ -480,7 +1590,7 @@ class JPH_Frontend {
                                 <div class="practice-history-item-content">${improvement}</div>
                                 <div class="practice-history-item-content">${date}</div>
                                 <div class="practice-history-item-content">
-                                    <button class="delete-session-btn" data-session-id="${session.id}">Delete</button>
+                                    <button class="jph-delete-session-btn" data-session-id="${session.id}" data-item-name="${session.item_name || 'Unknown Item'}" title="Delete this practice session"><i class="fa-solid fa-circle-xmark"></i></button>
                                 </div>
                             </div>
                         `;
@@ -538,15 +1648,13 @@ class JPH_Frontend {
                     var earnedDate = badge.is_earned && badge.earned_at ? 
                         '<div class="jph-badge-earned-date">Earned: ' + formatDate(badge.earned_at) + '</div>' : '';
                     
-                    html += '<div class="jph-badge-item ' + earnedClass + '">' +
-                        '<div class="jph-badge-image">' + badgeImage + '</div>' +
-                        '<div class="jph-badge-info">' +
-                            '<div class="jph-badge-name">' + badge.name + '</div>' +
-                            '<div class="jph-badge-description">' + badge.description + '</div>' +
-                            '<div class="jph-badge-category jph-badge-category-' + badge.category + '">' + badge.category + '</div>' +
-                            earnedDate +
-                        '</div>' +
-                    '</div>';
+                    html += '<div class="jph-badge-card ' + earnedClass + '">';
+                    html += '    <div class="jph-badge-image">' + badgeImage + '</div>';
+                    html += '    <div class="jph-badge-name">' + escapeHtml(badge.name) + '</div>';
+                    html += '    <div class="jph-badge-description">' + escapeHtml(badge.description || '') + '</div>';
+                    html += '    <div class="jph-badge-rewards">+' + (badge.xp_reward || 0) + ' XP +' + (badge.gem_reward || 0) + ' 💎</div>';
+                    html += earnedDate;
+                    html += '</div>';
                 });
                 
                 $container.html(html);
@@ -670,40 +1778,119 @@ class JPH_Frontend {
             // Initialize shield handlers
             function initShieldHandlers() {
                 // Shield accordion toggle
-                $('.shield-accordion-header').on('click', function() {
-                    const content = $('#shield-accordion-content');
-                    const icon = $(this).find('.shield-toggle-icon i');
+                jQuery(document).on('click', '.shield-accordion-header', function(e) {
+                    e.preventDefault();
+                    console.log('Shield accordion clicked');
+                    
+                    const content = jQuery('#shield-accordion-content');
+                    const header = jQuery(this);
+                    const icon = header.find('.shield-toggle-icon');
+                    
+                    console.log('Content found:', content.length);
+                    console.log('Header found:', header.length);
+                    console.log('Icon found:', icon.length);
                     
                     if (content.is(':visible')) {
-                        content.slideUp();
-                        icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                        content.slideUp(300);
+                        header.removeClass('active');
+                        icon.find('i').removeClass('fa-chevron-up').addClass('fa-chevron-down');
                     } else {
-                        content.slideDown();
-                        icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                        content.slideDown(300);
+                        header.addClass('active');
+                        icon.find('i').removeClass('fa-chevron-down').addClass('fa-chevron-up');
                     }
                 });
                 
                 // Purchase shield button
-                $('#purchase-shield-btn').on('click', function() {
-                    $.ajax({
-                        url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                jQuery(document).on('click', '#purchase-shield-btn', function() {
+                    const cost = jQuery(this).data('cost');
+                    const nonce = jQuery(this).data('nonce');
+                    
+                    // Check current shield count from the display
+                    const shieldCountText = jQuery('#shield-count').text();
+                    const currentShieldCount = parseInt(shieldCountText) || 0;
+                    
+                    console.log('Current shield count from display:', currentShieldCount);
+                    console.log('Button data:', { cost, nonce });
+                    
+                    // Prevent purchase if already at max shields
+                    if (currentShieldCount >= 3) {
+                        alert('You already have the maximum number of shields (3). You cannot purchase more shields.');
+                        return;
+                    }
+                    
+                    if (!confirm(`Purchase Streak Shield for ${cost} gems?`)) {
+                        return;
+                    }
+                    
+                    jQuery.ajax({
+                        url: '<?php echo rest_url('jph/v1/purchase-shield'); ?>',
                         method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
                         data: {
-                            action: 'jph_purchase_streak_shield',
-                            nonce: '<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>'
+                            cost: cost,
+                            nonce: nonce
                         },
                         success: function(response) {
                             if (response.success) {
-                                $('#shield-modal').hide();
-                                location.reload();
+                                // Update shield count display
+                                jQuery('#shield-count').text(response.data.new_shield_count);
+                                
+                                // Update gem balance in stats
+                                jQuery('.stat-value').each(function() {
+                                    if (jQuery(this).text().includes('💎')) {
+                                        jQuery(this).text(response.data.new_gem_balance + ' 💎');
+                                    }
+                                });
+                                
+                                // Update button state if at max shields
+                                if (response.data.new_shield_count >= 3) {
+                                    jQuery('#purchase-shield-btn').prop('disabled', true).text('Max Shields (3)');
+                                }
+                                
+                                alert('Shield purchased successfully!');
                             } else {
-                                alert('Error purchasing shield: ' + (response.data || 'Unknown error'));
+                                alert('Error purchasing shield: ' + (response.message || 'Unknown error'));
                             }
                         },
-                        error: function() {
-                            alert('Error purchasing shield');
+                        error: function(xhr, status, error) {
+                            console.error('JPH: Purchase Shield error:', error);
+                            console.error('JPH: XHR response:', xhr.responseText);
+                            console.error('JPH: Status:', status);
+                            
+                            // Try to parse the error response
+                            let errorMessage = 'Network error. Please try again.';
+                            
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMessage = xhr.responseJSON.message;
+                            } else if (xhr.responseText) {
+                                try {
+                                    const errorData = JSON.parse(xhr.responseText);
+                                    if (errorData.message) {
+                                        errorMessage = errorData.message;
+                                    }
+                                } catch (e) {
+                                    // If it's not JSON, it might be an HTML error page
+                                    if (xhr.responseText.includes('critical error')) {
+                                        errorMessage = 'Server error occurred. Please try again later.';
+                                    }
+                                }
+                            }
+                            
+                            alert(errorMessage);
                         }
                     });
+                });
+                
+                // Insufficient gems button
+                jQuery(document).on('click', '#purchase-shield-btn-insufficient', function() {
+                    const cost = jQuery(this).data('cost');
+                    const gemBalance = jQuery(this).data('gem-balance');
+                    const needed = cost - gemBalance;
+                    
+                    alert(`Insufficient gems! You have ${gemBalance} 💎 but need ${cost} 💎. You need ${needed} more gems to purchase a shield.`);
                 });
             }
             
@@ -714,6 +1901,139 @@ class JPH_Frontend {
                     $('#stats-modal').show();
                 });
             }
+            
+            // Initialize drag and drop for practice items
+            function initDragAndDrop() {
+                let draggedElement = null;
+                
+                // Remove any existing drag classes first
+                $('.sortable-practice-item').removeClass('dragging drag-over');
+                
+                // Make practice items draggable
+                $('.sortable-practice-item').on('dragstart', function(e) {
+                    draggedElement = this;
+                    $(this).addClass('dragging');
+                    e.originalEvent.dataTransfer.effectAllowed = 'move';
+                });
+                
+                $('.sortable-practice-item').on('dragend', function() {
+                    // Remove dragging class from all elements
+                    $('.sortable-practice-item').removeClass('dragging drag-over');
+                    draggedElement = null;
+                });
+                
+                // Handle drop zones
+                $('.sortable-practice-item, .sortable-empty-slot').on('dragover', function(e) {
+                    e.preventDefault();
+                    e.originalEvent.dataTransfer.dropEffect = 'move';
+                    
+                    // Add visual feedback for drop target
+                    if (this !== draggedElement) {
+                        $(this).addClass('drag-over');
+                    }
+                });
+                
+                $('.sortable-practice-item, .sortable-empty-slot').on('dragleave', function(e) {
+                    // Remove drag-over class when leaving
+                    $(this).removeClass('drag-over');
+                });
+                
+                $('.sortable-practice-item, .sortable-empty-slot').on('drop', function(e) {
+                    e.preventDefault();
+                    
+                    // Remove all drag classes
+                    $('.sortable-practice-item').removeClass('dragging drag-over');
+                    
+                    if (draggedElement && draggedElement !== this) {
+                        // Swap the elements
+                        const draggedHTML = draggedElement.outerHTML;
+                        const targetHTML = this.outerHTML;
+                        
+                        $(draggedElement).replaceWith(targetHTML);
+                        $(this).replaceWith(draggedHTML);
+                        
+                        // Re-initialize drag and drop for new elements
+                        setTimeout(function() {
+                            initDragAndDrop();
+                        }, 100);
+                        
+                        // Update order in database
+                        updatePracticeItemOrder();
+                    }
+                    
+                    draggedElement = null;
+                });
+            }
+            
+            // Update practice item order
+            function updatePracticeItemOrder() {
+                const itemIds = [];
+                $('.sortable-practice-item').each(function() {
+                    const itemId = $(this).data('item-id');
+                    if (itemId) {
+                        itemIds.push(itemId);
+                    }
+                });
+                
+                // Send to server to update order
+                $.ajax({
+                    url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                    method: 'POST',
+                    data: {
+                        action: 'jph_update_practice_item_order',
+                        item_ids: itemIds,
+                        nonce: '<?php echo wp_create_nonce('jph_update_practice_item_order'); ?>'
+                    },
+                    success: function(response) {
+                        if (!response.success) {
+                            console.error('Failed to update practice item order');
+                        }
+                    },
+                    error: function() {
+                        console.error('Error updating practice item order');
+                    }
+                });
+            }
+            
+            // Initialize delete session handlers
+            function initDeleteSessionHandlers() {
+                $(document).on('click', '.jph-delete-session-btn', function() {
+                    const sessionId = $(this).data('session-id');
+                    const itemName = $(this).data('item-name');
+                    
+                    if (confirm('Are you sure you want to delete this practice session for "' + itemName + '"? This action cannot be undone.')) {
+                        $.ajax({
+                            url: '<?php echo rest_url('jph/v1/practice-sessions/'); ?>' + sessionId,
+                            method: 'DELETE',
+                            headers: {
+                                'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    // Remove the session row from the table
+                                    $(this).closest('.practice-history-item').fadeOut(300, function() {
+                                        $(this).remove();
+                                    });
+                                    
+                                    // Reload the page to update stats
+                                    setTimeout(function() {
+                                        location.reload();
+                                    }, 500);
+                                } else {
+                                    alert('Failed to delete practice session: ' + (response.message || 'Unknown error'));
+                                }
+                            }.bind(this),
+                            error: function() {
+                                alert('Error deleting practice session');
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Initialize all functionality
+            initDragAndDrop();
+            initDeleteSessionHandlers();
         });
         </script>
         <?php
