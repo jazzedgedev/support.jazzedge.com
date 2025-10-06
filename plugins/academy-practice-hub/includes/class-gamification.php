@@ -108,6 +108,7 @@ class APH_Gamification {
         $last_practice_date = $stats->last_practice_date;
         $current_streak = $stats->current_streak;
         $longest_streak = $stats->longest_streak;
+        $current_shields = $stats->streak_shield_count ?? 0;
         
         // Check if they practiced today
         if ($last_practice_date === $today) {
@@ -118,11 +119,25 @@ class APH_Gamification {
         // Check if yesterday was their last practice
         $yesterday = date('Y-m-d', strtotime('-1 day'));
         if ($last_practice_date === $yesterday) {
-            // Continue streak
+            // Continue streak normally
             $new_streak = $current_streak + 1;
+            $shield_used = false;
+        } else if ($last_practice_date < $yesterday) {
+            // Streak broken (more than 1 day gap) - check if we can use a shield
+            if ($current_shields > 0) {
+                // Use shield to maintain streak
+                $new_streak = $current_streak + 1;
+                $current_shields = $current_shields - 1;
+                $shield_used = true;
+            } else {
+                // No shield available, reset streak
+                $new_streak = 1;
+                $shield_used = false;
+            }
         } else {
-            // Streak broken, start over
-            $new_streak = 1;
+            // Last practice was today or in the future (shouldn't happen)
+            $new_streak = $current_streak;
+            $shield_used = false;
         }
         
         // Update longest streak if needed
@@ -134,10 +149,11 @@ class APH_Gamification {
             array(
                 'current_streak' => $new_streak,
                 'longest_streak' => $new_longest_streak,
-                'last_practice_date' => $today
+                'last_practice_date' => $today,
+                'streak_shield_count' => $current_shields
             ),
             array('user_id' => $user_id),
-            array('%d', '%d', '%s'),
+            array('%d', '%d', '%s', '%d'),
             array('%d')
         );
         
@@ -145,7 +161,9 @@ class APH_Gamification {
             'streak_updated' => true,
             'current_streak' => $new_streak,
             'longest_streak' => $new_longest_streak,
-            'streak_continued' => ($last_practice_date === $yesterday)
+            'streak_continued' => ($last_practice_date === $yesterday),
+            'shield_used' => $shield_used,
+            'shields_remaining' => $current_shields
         );
     }
     

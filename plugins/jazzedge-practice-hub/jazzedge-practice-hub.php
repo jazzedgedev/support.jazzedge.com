@@ -2542,6 +2542,10 @@ class JazzEdge_Practice_Hub {
                             <label>Badges Earned</label>
                             <input type="number" name="badges_earned" value="${student.stats.badges_earned}" min="0" required>
                         </div>
+                        <div class="jph-edit-form-group">
+                            <label>Last Practice Date</label>
+                            <input type="date" name="last_practice_date" value="${student.stats.last_practice_date || ''}" required>
+                        </div>
                     </div>
                     
                     <div class="jph-modal-actions">
@@ -2560,9 +2564,11 @@ class JazzEdge_Practice_Hub {
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
             
-            // Convert string values to numbers
+            // Convert string values to numbers (except date fields)
             Object.keys(data).forEach(key => {
-                data[key] = parseInt(data[key]);
+                if (key !== 'last_practice_date') {
+                    data[key] = parseInt(data[key]);
+                }
             });
             
             fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {

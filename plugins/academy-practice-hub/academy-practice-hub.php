@@ -19,9 +19,13 @@ if (!defined('APH_WIRE_THROUGH')) {
 require_once __DIR__ . '/includes/class-database.php';
 require_once __DIR__ . '/includes/class-gamification.php';
 require_once __DIR__ . '/includes/class-rest-api.php';
+require_once __DIR__ . '/includes/class-admin-pages.php';
 
 // Initialize REST API
 new JPH_REST_API();
+
+// Initialize Admin Pages
+new JPH_Admin_Pages();
 
 // Add asset enqueuing hooks to match original plugin
 add_action('wp_enqueue_scripts', 'aph_enqueue_frontend_assets');
