@@ -107,7 +107,7 @@ class JPH_Admin {
                     </div>
                     
                     <div class="jph-stat-card">
-                        <div class="stat-icon">🔥</div>
+                        <div class="stat-icon">STREAK</div>
                         <div class="stat-content">
                             <div class="stat-value"><?php echo number_format($stats['avg_streak'], 1); ?></div>
                             <div class="stat-label">Avg Streak</div>
@@ -141,7 +141,7 @@ class JPH_Admin {
                         </div>
                         
                         <div class="jph-info-card">
-                            <h3>🔥 Streak System</h3>
+                            <h3>STREAK System</h3>
                             <ul>
                                 <li><strong>Daily Practice:</strong> Maintains/extends streak</li>
                                 <li><strong>Missed Day:</strong> Resets streak to 0</li>

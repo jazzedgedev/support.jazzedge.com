@@ -366,7 +366,7 @@ class JazzEdge_Practice_Hub {
                                 </ul>
                             </div>
                             <div class="jph-gamification-item">
-                                <h4>📈 Level System</h4>
+                                <h4>LEVEL System</h4>
                                 <ul>
                                     <li><strong>Formula:</strong> Level = floor(sqrt(XP / 100)) + 1</li>
                                     <li><strong>Level 1:</strong> 0-99 XP</li>
@@ -376,7 +376,7 @@ class JazzEdge_Practice_Hub {
                                 </ul>
                             </div>
                             <div class="jph-gamification-item">
-                                <h4>🔥 Streak System</h4>
+                                <h4>STREAK System</h4>
                                 <ul>
                                     <li><strong>Daily Practice:</strong> Maintains current streak</li>
                                     <li><strong>Consecutive Days:</strong> Increases streak counter</li>
@@ -385,7 +385,7 @@ class JazzEdge_Practice_Hub {
                                 </ul>
                             </div>
                             <div class="jph-gamification-item">
-                                <h4>🏆 Badges & Rewards</h4>
+                                <h4>BADGES & Rewards</h4>
                                 <ul>
                                     <li><strong>Hearts:</strong> 5 starting hearts (coming soon)</li>
                                     <li><strong>Gems:</strong> Currency system (coming soon)</li>
@@ -2280,7 +2280,7 @@ class JazzEdge_Practice_Hub {
                     <td><span class="jph-xp-display">${student.stats.total_xp} XP</span></td>
                     <td>
                         <div class="jph-streak-display">
-                            <span class="jph-streak-fire">🔥</span>
+                            <span class="jph-streak-fire">STREAK</span>
                             <span>${student.stats.current_streak} days</span>
                         </div>
                     </td>
@@ -2920,9 +2920,9 @@ class JazzEdge_Practice_Hub {
                 <tr class="jph-badge-row ${!badge.is_active ? 'inactive' : ''}" data-badge-key="${badge.badge_key}">
                     <td>
                         <div class="jph-badge-image-container">
-                            ${(badge.image_url || badge.icon) && (badge.image_url || badge.icon).startsWith('http') ? 
-                                `<img src="${badge.image_url || badge.icon}" alt="${badge.name}" class="jph-badge-image">` : 
-                                `<div class="jph-badge-image jph-badge-placeholder">${badge.icon || '🏆'}</div>`
+                            ${badge.image_url && badge.image_url.startsWith('http') ? 
+                                `<img src="${badge.image_url}" alt="${badge.name}" class="jph-badge-image">` : 
+                                `<div class="jph-badge-image jph-badge-placeholder">${badge.icon || 'BADGE'}</div>`
                             }
                         </div>
                     </td>
@@ -3431,14 +3431,13 @@ class JazzEdge_Practice_Hub {
             // Show current image if exists
             const currentImageDiv = document.getElementById('edit-current-image');
             if (badge.image_url || badge.icon) {
-                const imageUrl = badge.image_url || badge.icon;
-                if (imageUrl.startsWith('http')) {
-                    currentImageDiv.innerHTML = `<img src="${imageUrl}" alt="${badge.name}" style="max-width: 64px; max-height: 64px;">`;
+                if (badge.image_url && badge.image_url.startsWith('http')) {
+                    currentImageDiv.innerHTML = `<img src="${badge.image_url}" alt="${badge.name}" style="max-width: 64px; max-height: 64px;">`;
                 } else {
-                    currentImageDiv.innerHTML = '<div style="background: #f0f0f0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 20px;">' + imageUrl + '</div>';
+                    currentImageDiv.innerHTML = '<div style="background: #f0f0f0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 20px;">' + (badge.icon || 'BADGE') + '</div>';
                 }
             } else {
-                currentImageDiv.innerHTML = '<div style="background: #f0f0f0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🏆</div>';
+                currentImageDiv.innerHTML = '<div style="background: #f0f0f0; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 20px;">BADGE</div>';
             }
             
             // Populate image URL field
@@ -6042,22 +6041,22 @@ class JazzEdge_Practice_Hub {
             .debug-section-title { color: #0073aa; margin: 20px 0 10px 0; font-size: 14px; font-weight: bold; }
         </style>';
         
-        $debug_html .= '<h5 style="color: #0073aa; margin: 10px 0 5px 0;">👤 User Information</h5>';
+        $debug_html .= '<h5 style="color: #0073aa; margin: 10px 0 5px 0;">USER Information</h5>';
         $debug_html .= '<p><strong>User ID:</strong> ' . $user_id . '</p>';
         $debug_html .= '<p><strong>Is Admin:</strong> ' . (current_user_can('manage_options') ? 'Yes' : 'No') . '</p>';
         
         // Accordion sections for all table data
         $accordion_sections = array(
-            'user_stats' => array('icon' => '📊', 'title' => 'User Stats', 'data' => $all_tables_data['jph_user_stats']),
-            'user_badges' => array('icon' => '🏆', 'title' => 'User Badges', 'data' => $all_tables_data['jph_user_badges']),
-            'available_badges' => array('icon' => '🎖️', 'title' => 'All Available Badges', 'data' => $all_tables_data['jph_badges']),
-            'practice_sessions' => array('icon' => '📝', 'title' => 'Recent Practice Sessions', 'data' => $all_tables_data['jph_practice_sessions']),
-            'practice_items' => array('icon' => '🎯', 'title' => 'Practice Items', 'data' => $all_tables_data['jph_practice_items']),
-            'gems_transactions' => array('icon' => '💎', 'title' => 'Gems Transactions', 'data' => $all_tables_data['jph_gems_transactions']),
-            'lesson_favorites' => array('icon' => '⭐', 'title' => 'Lesson Favorites', 'data' => $all_tables_data['jph_lesson_favorites'])
+            'user_stats' => array('icon' => 'STATS', 'title' => 'User Stats', 'data' => $all_tables_data['jph_user_stats']),
+            'user_badges' => array('icon' => 'BADGES', 'title' => 'User Badges', 'data' => $all_tables_data['jph_user_badges']),
+            'available_badges' => array('icon' => 'ALLBADGES', 'title' => 'All Available Badges', 'data' => $all_tables_data['jph_badges']),
+            'practice_sessions' => array('icon' => 'SESSIONS', 'title' => 'Recent Practice Sessions', 'data' => $all_tables_data['jph_practice_sessions']),
+            'practice_items' => array('icon' => 'ITEMS', 'title' => 'Practice Items', 'data' => $all_tables_data['jph_practice_items']),
+            'gems_transactions' => array('icon' => 'GEMS', 'title' => 'Gems Transactions', 'data' => $all_tables_data['jph_gems_transactions']),
+            'lesson_favorites' => array('icon' => 'FAVORITES', 'title' => 'Lesson Favorites', 'data' => $all_tables_data['jph_lesson_favorites'])
         );
         
-        $debug_html .= '<div class="debug-section-title">📋 All Table Data</div>';
+        $debug_html .= '<div class="debug-section-title">ALL Table Data</div>';
         foreach ($accordion_sections as $key => $section) {
             $count = count($section['data']);
             $debug_html .= '<div class="debug-accordion">';
@@ -6078,7 +6077,7 @@ class JazzEdge_Practice_Hub {
             $debug_html .= '</div>';
         }
         
-        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🗄️ Database Tables</h5>';
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">DATABASE Tables</h5>';
         foreach ($table_info as $name => $info) {
             $status = $info['exists'] ? '✅' : '❌';
             $debug_html .= '<p><strong>' . $name . ':</strong> ' . $status . ' ' . $info['table_name'] . ' (' . $info['count'] . ' rows)</p>';
@@ -6127,14 +6126,14 @@ class JazzEdge_Practice_Hub {
         }
         
         // Add recent badge awards section
-        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🏆 Recent Badge Awards</h5>';
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">BADGE Awards</h5>';
         $debug_html .= '<p><em>Recent badge award events will appear here when badges are earned. Check the browser console for "New badges awarded" messages or look for badge award notifications.</em></p>';
         $debug_html .= '<div id="jph-badge-awards-debug" style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 4px; margin: 10px 0;">';
         $debug_html .= '<p style="margin: 0; color: #856404;">No recent badge awards detected. Try logging a practice session to trigger badge checks.</p>';
         $debug_html .= '</div>';
         
         // Add streak testing section
-        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">🔥 Streak Testing Tools</h5>';
+        $debug_html .= '<h5 style="color: #0073aa; margin: 15px 0 5px 0;">STREAK Testing Tools</h5>';
         $debug_html .= '<div style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; margin: 10px 0;">';
         
         // Current streak info
@@ -6147,7 +6146,7 @@ class JazzEdge_Practice_Hub {
         $debug_html .= '<p style="margin: 5px 0;"><strong>Current Streak:</strong> ' . $current_streak . ' days</p>';
         $debug_html .= '<p style="margin: 5px 0;"><strong>Longest Streak:</strong> ' . $longest_streak . ' days</p>';
         $debug_html .= '<p style="margin: 5px 0;"><strong>Active Shields:</strong> ' . $shield_count . '/3</p>';
-        $debug_html .= '<p style="margin: 5px 0;"><strong>Gems Balance:</strong> ' . $gems_balance . ' 💎</p>';
+        $debug_html .= '<p style="margin: 5px 0;"><strong>Gems Balance:</strong> ' . $gems_balance . ' GEMS</p>';
         
         // Streak testing buttons
         $debug_html .= '<h6 style="margin: 15px 0 10px 0; color: #495057;">Test Actions</h6>';
@@ -6155,7 +6154,7 @@ class JazzEdge_Practice_Hub {
         
         // Purchase shield button
         if ($shield_count < 3) {
-            $debug_html .= '<button type="button" class="button button-secondary" onclick="jphTestPurchaseShield()" style="margin: 2px;">Test Purchase Shield (50 💎)</button>';
+            $debug_html .= '<button type="button" class="button button-secondary" onclick="jphTestPurchaseShield()" style="margin: 2px;">Test Purchase Shield (50 GEMS)</button>';
         } else {
             $debug_html .= '<button type="button" class="button button-secondary" disabled style="margin: 2px;">Max Shields (3)</button>';
         }
@@ -6165,8 +6164,8 @@ class JazzEdge_Practice_Hub {
         
         // Streak recovery buttons (only show if streak is 0)
         if ($current_streak === 0) {
-            $debug_html .= '<button type="button" class="button button-primary" onclick="jphTestRepairStreak(1)" style="margin: 2px;">Test Repair 1 Day (25 💎)</button>';
-            $debug_html .= '<button type="button" class="button button-primary" onclick="jphTestRepairStreak(3)" style="margin: 2px;">Test Repair 3 Days (75 💎)</button>';
+            $debug_html .= '<button type="button" class="button button-primary" onclick="jphTestRepairStreak(1)" style="margin: 2px;">Test Repair 1 Day (25 GEMS)</button>';
+            $debug_html .= '<button type="button" class="button button-primary" onclick="jphTestRepairStreak(3)" style="margin: 2px;">Test Repair 3 Days (75 GEMS)</button>';
         }
         
         // Reset streak button (for testing)
@@ -12993,19 +12992,19 @@ class JazzEdge_Practice_Hub {
                 </div>
                 <div class="jph-stats">
                     <div class="stat">
-                        <span class="stat-value">⭐<?php echo esc_html($user_stats['current_level']); ?></span>
+                        <span class="stat-value">LEVEL <?php echo esc_html($user_stats['current_level']); ?></span>
                         <span class="stat-label">Level</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">⚡<?php echo esc_html($user_stats['total_xp']); ?></span>
+                        <span class="stat-value">XP <?php echo esc_html($user_stats['total_xp']); ?></span>
                         <span class="stat-label">XP</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">🔥<?php echo esc_html($user_stats['current_streak']); ?></span>
+                        <span class="stat-value">STREAK <?php echo esc_html($user_stats['current_streak']); ?></span>
                         <span class="stat-label">Streak</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">💎 <?php echo esc_html($user_stats['gems_balance']); ?></span>
+                        <span class="stat-value">GEMS <?php echo esc_html($user_stats['gems_balance']); ?></span>
                         <span class="stat-label">GEMS</span>
                     </div>
                 </div>
@@ -13270,7 +13269,7 @@ class JazzEdge_Practice_Hub {
                             View All
                         </button>
                         <button id="load-more-sessions" class="jph-btn jph-btn-secondary" style="display: none;">
-                            <span class="btn-icon">📈</span>
+                            <span class="btn-icon">LOAD</span>
                             Load More Sessions
                         </button>
                     </div>
@@ -13353,7 +13352,7 @@ class JazzEdge_Practice_Hub {
                         
                         <!-- Improvement Section -->
                         <div class="form-group">
-                            <label>📈 Did you notice improvement?</label>
+                            <label>IMPROVE Did you notice improvement?</label>
                             <div class="improvement-toggle">
                                 <input type="checkbox" name="improvement_detected" value="1" id="improvement-toggle">
                                 <label for="improvement-toggle" class="toggle-slider">
@@ -13457,7 +13456,7 @@ class JazzEdge_Practice_Hub {
                 <h3>📊 How Your Stats Work</h3>
                 <div class="explanation-grid">
                     <div class="explanation-item">
-                        <h4>🎯 Level</h4>
+                        <h4>TARGET Level</h4>
                         <p>Your overall progress level. Practice regularly to level up!</p>
                         <ul>
                             <li>Higher levels = more experience</li>
@@ -13474,7 +13473,7 @@ class JazzEdge_Practice_Hub {
                         </ul>
                     </div>
                     <div class="explanation-item">
-                        <h4>🔥 Streak</h4>
+                        <h4>STREAK Streak</h4>
                         <p>Consecutive days of practice. Keep it going!</p>
                         <ul>
                             <li>Practice at least once per day to maintain</li>
@@ -16623,7 +16622,7 @@ class JazzEdge_Practice_Hub {
                         },
                         complete: function() {
                             isLoadingMore = false;
-                            $('#load-more-sessions-bottom').html('<span class="btn-icon">📈</span>Load More Sessions');
+                            $('#load-more-sessions-bottom').html('<span class="btn-icon">LOAD</span>Load More Sessions');
                         }
                     });
                 }
@@ -16925,9 +16924,9 @@ class JazzEdge_Practice_Hub {
                         var earnedClass = badge.is_earned ? 'earned' : 'locked';
                         if (badge.is_earned) earnedCount++;
                         
-                        var badgeImage = (badge.image_url || badge.icon) ? 
-                            '<img src="' + (badge.image_url || badge.icon) + '" alt="' + badge.name + '">' : 
-                            '<span class="badge-emoji">🏆</span>';
+                        var badgeImage = badge.image_url && badge.image_url.startsWith('http') ? 
+                            '<img src="' + badge.image_url + '" alt="' + badge.name + '">' : 
+                            '<span class="badge-emoji">' + (badge.icon || 'BADGE') + '</span>';
                         
                         var earnedDate = badge.is_earned && badge.earned_at ? 
                             '<div class="jph-badge-earned-date">Earned: ' + formatDate(badge.earned_at) + '</div>' : '';
@@ -17751,9 +17750,9 @@ class JazzEdge_Practice_Hub {
                                 // Show streak update
                                 if (response.streak_update && response.streak_update.streak_updated) {
                                     if (response.streak_update.streak_continued) {
-                                        message += ' 🔥 ' + response.streak_update.current_streak + '-day streak!';
+                                        message += ' STREAK ' + response.streak_update.current_streak + '-day streak!';
                                     } else {
-                                        message += ' 🔥 New streak started!';
+                                        message += ' STREAK New streak started!';
                                     }
                                 }
                                 
@@ -17831,7 +17830,7 @@ class JazzEdge_Practice_Hub {
                         if (response.success) {
                             // Update UI
                             jQuery('#shield-count').text(response.data.new_shield_count);
-                            jQuery('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
+                            jQuery('.stat-value:contains("GEMS")').text('GEMS ' + response.data.new_gem_balance);
                             
                             // Show success message
                             showMessage('success', response.data.message);
@@ -17930,8 +17929,8 @@ class JazzEdge_Practice_Hub {
                         
                         if (response.success) {
                             // Update UI
-                            jQuery('.stat-value:contains("🔥")').text('🔥' + response.data.new_streak);
-                            jQuery('.stat-value:contains("💎")').text('💎 ' + response.data.new_gem_balance);
+                            jQuery('.stat-value:contains("STREAK")').text('STREAK ' + response.data.new_streak);
+                            jQuery('.stat-value:contains("GEMS")').text('GEMS ' + response.data.new_gem_balance);
                             
                             // Hide recovery section
                             jQuery('.jph-streak-recovery').hide();
@@ -18562,7 +18561,7 @@ class JazzEdge_Practice_Hub {
                 'badge_key' => 'first_steps',
                 'name' => 'First Steps',
                 'description' => 'Complete your first practice session',
-                'icon' => '🎯',
+                'icon' => 'TARGET',
                 'category' => 'practice',
                 'rarity' => 'common',
                 'xp_reward' => 50,
@@ -18575,7 +18574,7 @@ class JazzEdge_Practice_Hub {
                 'badge_key' => 'hot_streak',
                 'name' => 'Hot Streak',
                 'description' => 'Practice for 7 days in a row',
-                'icon' => '🔥',
+                'icon' => 'STREAK',
                 'category' => 'streak',
                 'rarity' => 'uncommon',
                 'xp_reward' => 100,
@@ -18588,7 +18587,7 @@ class JazzEdge_Practice_Hub {
                 'badge_key' => 'lightning',
                 'name' => 'Lightning',
                 'description' => 'Practice for 30 days in a row',
-                'icon' => '⚡',
+                'icon' => 'LIGHTNING',
                 'category' => 'streak',
                 'rarity' => 'rare',
                 'xp_reward' => 500,
@@ -18614,7 +18613,7 @@ class JazzEdge_Practice_Hub {
                 'badge_key' => 'marathon',
                 'name' => 'Marathon',
                 'description' => 'Practice for 60+ minutes in one session',
-                'icon' => '⏰',
+                'icon' => 'TIME',
                 'category' => 'achievement',
                 'rarity' => 'uncommon',
                 'xp_reward' => 75,
@@ -18627,7 +18626,7 @@ class JazzEdge_Practice_Hub {
                 'badge_key' => 'rising_star',
                 'name' => 'Rising Star',
                 'description' => 'Report improvement 10 times',
-                'icon' => '📈',
+                'icon' => 'IMPROVE',
                 'category' => 'improvement',
                 'rarity' => 'rare',
                 'xp_reward' => 200,
@@ -19526,7 +19525,7 @@ class JazzEdge_Practice_Hub {
                 array(
                     'name' => 'Streak Master',
                     'description' => 'Maintain a 7-day practice streak',
-                    'icon' => '🔥',
+                    'icon' => 'STREAK',
                     'category' => 'consistency',
                     'rarity' => 'rare',
                     'xp_reward' => 100,
