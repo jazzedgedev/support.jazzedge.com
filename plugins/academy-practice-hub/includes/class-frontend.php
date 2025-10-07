@@ -103,6 +103,202 @@ class JPH_Frontend {
                 </div>
             </div>
             
+            <!-- Analytics Section -->
+            <div class="jph-analytics-section">
+                <div class="analytics-header">
+                    <h3>📈 Your Practice Analytics</h3>
+                    <p>Track your progress and discover insights about your practice habits</p>
+                </div>
+                
+                <div class="analytics-grid">
+                    <!-- Practice Time Overview -->
+                    <div class="analytics-card practice-time-card">
+                        <div class="card-header">
+                            <h4>⏱️ Practice Time</h4>
+                            <span class="card-subtitle">Minutes practiced</span>
+                        </div>
+                        <div class="time-periods">
+                            <div class="time-period">
+                                <span class="period-label">Last 7 days</span>
+                                <span class="period-value" id="analytics-7-days-minutes">-</span>
+                            </div>
+                            <div class="time-period">
+                                <span class="period-label">Last 30 days</span>
+                                <span class="period-value" id="analytics-30-days-minutes">-</span>
+                            </div>
+                            <div class="time-period">
+                                <span class="period-label">Last 90 days</span>
+                                <span class="period-value" id="analytics-90-days-minutes">-</span>
+                            </div>
+                            <div class="time-period">
+                                <span class="period-label">Last year</span>
+                                <span class="period-value" id="analytics-365-days-minutes">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Practice Sessions -->
+                    <div class="analytics-card practice-sessions-card">
+                        <div class="card-header">
+                            <h4>🎯 Practice Sessions</h4>
+                            <span class="card-subtitle">Number of sessions</span>
+                        </div>
+                        <div class="sessions-grid">
+                            <div class="session-stat">
+                                <span class="session-value" id="analytics-7-days-sessions">-</span>
+                                <span class="session-label">7 days</span>
+                            </div>
+                            <div class="session-stat">
+                                <span class="session-value" id="analytics-30-days-sessions">-</span>
+                                <span class="session-label">30 days</span>
+                            </div>
+                            <div class="session-stat">
+                                <span class="session-value" id="analytics-90-days-sessions">-</span>
+                                <span class="session-label">90 days</span>
+                            </div>
+                            <div class="session-stat">
+                                <span class="session-value" id="analytics-365-days-sessions">-</span>
+                                <span class="session-label">1 year</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Insights Card -->
+                    <div class="analytics-card insights-card">
+                        <div class="card-header">
+                            <h4>🧠 Practice Insights</h4>
+                            <span class="card-subtitle">Your practice patterns</span>
+                        </div>
+                        <div class="insights-list">
+                            <div class="insight-item">
+                                <span class="insight-icon">🎯</span>
+                                <div class="insight-content">
+                                    <span class="insight-label">Consistency Score</span>
+                                    <span class="insight-value" id="analytics-consistency">-</span>
+                                </div>
+                            </div>
+                            <div class="insight-item">
+                                <span class="insight-icon">📈</span>
+                                <div class="insight-content">
+                                    <span class="insight-label">Improvement Rate</span>
+                                    <span class="insight-value" id="analytics-improvement-rate">-</span>
+                                </div>
+                            </div>
+                            <div class="insight-item">
+                                <span class="insight-icon">😊</span>
+                                <div class="insight-content">
+                                    <span class="insight-label">Mood Rating</span>
+                                    <span class="insight-value" id="analytics-sentiment">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Comprehensive Debug Card -->
+                    <div class="analytics-card debug-card">
+                        <div class="card-header">
+                            <h4>🔧 System Debug & Testing</h4>
+                            <span class="card-subtitle">Comprehensive debugging and endpoint testing</span>
+                        </div>
+                        <div class="debug-content">
+                            <!-- Quick Status -->
+                            <div class="debug-status-section">
+                                <div class="status-grid">
+                                    <div class="status-item">
+                                        <span class="status-label">Current User ID:</span>
+                                        <span class="status-value" id="debug-current-user-id"><?php echo get_current_user_id(); ?></span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">WordPress Time:</span>
+                                        <span class="status-value" id="debug-wp-time"><?php echo current_time('mysql'); ?></span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">Server Time:</span>
+                                        <span class="status-value" id="debug-server-time"><?php echo date('Y-m-d H:i:s'); ?></span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">REST Base URL:</span>
+                                        <span class="status-value"><?php echo rest_url(); ?></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Endpoint Testing Section -->
+                            <div class="endpoint-testing-section">
+                                <h5>🧪 Endpoint Testing</h5>
+                                <div class="endpoint-buttons">
+                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/test" data-method="GET">Test APH Test Endpoint</button>
+                                    <button type="button" class="endpoint-test-btn" data-endpoint="jph/v1/test" data-method="GET">Test JPH Test Endpoint</button>
+                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/analytics" data-method="GET">Test APH Analytics</button>
+                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/ai-analysis" data-method="GET">Test APH AI Analysis</button>
+                                    <button type="button" class="endpoint-test-btn" data-endpoint="jph/v1/badges" data-method="GET">Test JPH Badges</button>
+                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/debug/routes" data-method="GET">Test APH Routes Debug</button>
+                                </div>
+                                <div class="endpoint-results" id="endpoint-results">
+                                    <div class="results-header">
+                                        <h6>Test Results:</h6>
+                                        <div class="results-buttons">
+                                            <button type="button" class="copy-results-btn" id="copy-endpoint-results-btn">Copy Results</button>
+                                            <button type="button" class="clear-results-btn" id="clear-results-btn">Clear Results</button>
+                                        </div>
+                                    </div>
+                                    <div class="results-content" id="results-content">
+                                        <p class="no-results">No tests run yet. Click a button above to test an endpoint.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Database Information Section -->
+                            <div class="database-info-section">
+                                <h5>🗄️ Database Information</h5>
+                                <div class="db-buttons">
+                                    <button type="button" class="db-test-btn" id="db-structure-btn">Get Table Structure</button>
+                                    <button type="button" class="db-test-btn" id="db-data-btn">Get User Data</button>
+                                    <button type="button" class="db-test-btn" id="db-sessions-btn">Get Practice Sessions</button>
+                                    <button type="button" class="db-test-btn" id="db-copy-all-btn">Copy All Debug Data</button>
+                                </div>
+                                <div class="db-results" id="db-results">
+                                    <div class="results-header">
+                                        <h6>Database Results:</h6>
+                                        <div class="results-buttons">
+                                            <button type="button" class="copy-results-btn" id="copy-db-results-btn">Copy Results</button>
+                                            <button type="button" class="clear-results-btn" id="clear-db-results-btn">Clear Results</button>
+                                        </div>
+                                    </div>
+                                    <div class="db-content" id="db-content">
+                                        <p class="no-results">Click a button above to get database information.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- AI Analysis Section -->
+                            <div class="ai-analysis-section">
+                                <h5>🤖 AI Analysis Testing</h5>
+                                <div class="ai-buttons">
+                                    <button type="button" class="ai-test-btn" id="ai-test-btn">Test AI Analysis</button>
+                                    <button type="button" class="ai-test-btn" id="ai-refresh-btn">Refresh AI Analysis</button>
+                                    <button type="button" class="ai-test-btn" id="ai-katahdin-test-btn">Test Katahdin AI Hub</button>
+                                    <button type="button" class="ai-test-btn" id="ai-register-test-btn">Test Plugin Registration</button>
+                                    <button type="button" class="ai-test-btn" id="ai-routes-test-btn">Check All Routes</button>
+                                </div>
+                                <div class="ai-results" id="ai-results">
+                                    <div class="results-header">
+                                        <h6>AI Test Results:</h6>
+                                        <div class="results-buttons">
+                                            <button type="button" class="copy-results-btn" id="copy-ai-results-btn">Copy Results</button>
+                                            <button type="button" class="clear-results-btn" id="clear-ai-results-btn">Clear Results</button>
+                                        </div>
+                                    </div>
+                                    <div class="ai-content" id="ai-content">
+                                        <p class="no-results">Click a button above to test AI functionality.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Shield Protection Section - Moved outside hero section -->
             <div class="jph-shield-protection">
                 <div class="shield-accordion-header">
@@ -272,8 +468,8 @@ class JPH_Frontend {
                                     Log Practice
                                 </button>
                                 <div class="item-controls">
-                                    <?php if (!empty($item['url'])): ?>
-                                    <a href="<?php echo esc_url($item['url']); ?>" target="_blank" class="lesson-link-icon" title="View Lesson">
+                                    <?php if (isset($lesson_urls[$item['name']])): ?>
+                                    <a href="<?php echo esc_url($lesson_urls[$item['name']]); ?>" target="_blank" class="lesson-link-icon" title="View Lesson">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
                                             <path d="M384 64C366.3 64 352 78.3 352 96C352 113.7 366.3 128 384 128L466.7 128L265.3 329.4C252.8 341.9 252.8 362.2 265.3 374.7C277.8 387.2 298.1 387.2 310.6 374.7L512 173.3L512 256C512 273.7 526.3 288 544 288C561.7 288 576 273.7 576 256L576 96C576 78.3 561.7 64 544 64L384 64zM144 160C99.8 160 64 195.8 64 240L64 496C64 540.2 99.8 576 144 576L400 576C444.2 576 480 540.2 480 496L480 416C480 398.3 465.7 384 448 384C430.3 384 416 398.3 416 416L416 496C416 504.8 408.8 512 400 512L144 512C135.2 512 128 504.8 128 496L128 240C128 231.2 135.2 224 144 224L224 224C241.7 224 256 209.7 256 192C256 174.3 241.7 160 224 160L144 160z"/>
                                         </svg>
@@ -2136,18 +2332,17 @@ class JPH_Frontend {
             justify-content: center;
             width: 32px;
             height: 32px;
-            background: linear-gradient(135deg, #239B90, #004555);
-            color: white;
-            border-radius: 6px;
+            background: none;
+            color: #666;
+            border-radius: 4px;
             text-decoration: none;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(35, 155, 144, 0.2);
+            padding: 5px;
         }
         
         .lesson-link-icon:hover {
-            background: linear-gradient(135deg, #004555, #239B90);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(35, 155, 144, 0.3);
+            background: rgba(0, 0, 0, 0.05);
+            color: #333;
         }
         
         .lesson-link-icon svg {
@@ -2214,6 +2409,874 @@ class JPH_Frontend {
         .jph-pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
         .jph-pill-progress { background:#e6f5f3; color:#1e8279; border:1px solid #bfe7e2; }
         .jph-pill-logged { background:#f3f4f6; color:#4b5563; border:1px solid #e5e7eb; }
+        
+        /* Analytics Section Styles */
+        .jph-analytics-section {
+            margin: 40px 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 69, 85, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .analytics-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .analytics-header h3 {
+            color: #0f172a;
+            font-size: 2.2em;
+            margin-bottom: 12px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .analytics-header p {
+            color: #64748b;
+            font-size: 1.2em;
+            margin: 0;
+            font-weight: 500;
+        }
+        
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .analytics-card {
+            background: white;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(0, 69, 85, 0.06);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .analytics-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981, #f59e0b);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .analytics-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 50px rgba(0, 69, 85, 0.12);
+        }
+        
+        .analytics-card:hover::before {
+            opacity: 1;
+        }
+        
+        .card-header {
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        .card-header h4 {
+            color: #0f172a;
+            font-size: 1.4em;
+            margin: 0 0 8px 0;
+            font-weight: 700;
+        }
+        
+        .card-subtitle {
+            color: #64748b;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+        
+        /* Practice Time Card */
+        .time-periods {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .time-period {
+            text-align: center;
+            padding: 20px 16px;
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-radius: 16px;
+            border: 1px solid #93c5fd;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .time-period::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 197, 253, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .time-period:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.15);
+        }
+        
+        .time-period:hover::before {
+            opacity: 1;
+        }
+        
+        .period-label {
+            display: block;
+            color: #1e40af;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .period-value {
+            display: block;
+            color: #1e3a8a;
+            font-size: 1.6em;
+            font-weight: 800;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Practice Sessions Card */
+        .sessions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .session-stat {
+            text-align: center;
+            padding: 24px 16px;
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            border-radius: 16px;
+            border: 1px solid #c4b5fd;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .session-stat::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(196, 181, 253, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .session-stat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.15);
+        }
+        
+        .session-stat:hover::before {
+            opacity: 1;
+        }
+        
+        .session-value {
+            display: block;
+            color: #6b21a8;
+            font-size: 2.2em;
+            font-weight: 800;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .session-label {
+            display: block;
+            color: #581c87;
+            font-size: 0.95em;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Insights Card */
+        .insights-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .insight-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border-radius: 16px;
+            border: 1px solid #a7f3d0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .insight-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(167, 243, 208, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .insight-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15);
+        }
+        
+        .insight-item:hover::before {
+            opacity: 1;
+        }
+        
+        .insight-icon {
+            font-size: 1.6em;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .insight-content {
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .insight-label {
+            color: #065f46;
+            font-weight: 600;
+            font-size: 1em;
+        }
+        
+        .insight-value {
+            color: #047857;
+            font-weight: 800;
+            font-size: 1.2em;
+        }
+        
+        /* Debug Card */
+        .debug-card {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 2px solid #f59e0b;
+        }
+        
+        .debug-content {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .debug-status-section {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 12px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .status-label {
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .status-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #059669;
+            background: #ecfdf5;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .endpoint-testing-section,
+        .database-info-section,
+        .ai-analysis-section {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .endpoint-testing-section h5,
+        .database-info-section h5,
+        .ai-analysis-section h5 {
+            margin: 0 0 16px 0;
+            color: #1f2937;
+            font-size: 1.1em;
+            font-weight: 700;
+        }
+        
+        .endpoint-buttons,
+        .db-buttons,
+        .ai-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .endpoint-test-btn,
+        .db-test-btn,
+        .ai-test-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        }
+        
+        .endpoint-test-btn:hover,
+        .db-test-btn:hover,
+        .ai-test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+        }
+        
+        .endpoint-test-btn:disabled,
+        .db-test-btn:disabled,
+        .ai-test-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .endpoint-results,
+        .db-results,
+        .ai-results {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #e2e8f0;
+            border-bottom: 1px solid #cbd5e1;
+        }
+        
+        .results-header h6 {
+            margin: 0;
+            color: #1e293b;
+            font-size: 1em;
+            font-weight: 600;
+        }
+        
+        .results-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .copy-results-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .copy-results-btn:hover {
+            background: #059669;
+        }
+        
+        .clear-results-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .clear-results-btn:hover {
+            background: #dc2626;
+        }
+        
+        .results-content,
+        .db-content,
+        .ai-content {
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .no-results {
+            color: #6b7280;
+            font-style: italic;
+            margin: 0;
+        }
+        
+        .test-result {
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+            background: white;
+        }
+        
+        .test-result.success {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        
+        .test-result.error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .test-result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .test-endpoint {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .test-status {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .test-status.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .test-status.error {
+            background: #fecaca;
+            color: #991b1b;
+        }
+        
+        .test-response {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            background: #f8fafc;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .ai-analysis-text {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #bae6fd;
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .ai-analysis-text p {
+            color: #0c4a6e;
+            font-size: 1.1em;
+            line-height: 1.6;
+            margin: 0;
+            font-weight: 500;
+        }
+        
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            color: #0c4a6e;
+        }
+        
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #bae6fd;
+            border-top: 3px solid #0ea5e9;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .ai-analysis-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .data-period {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .period-icon {
+            font-size: 1.2em;
+        }
+        
+        .ai-refresh-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .ai-refresh-btn:hover {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+        }
+        
+        .ai-refresh-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .ai-refresh-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        /* Status Display */
+        .ai-status-display {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 0.9em;
+        }
+        
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .status-item strong {
+            color: #0c4a6e;
+        }
+        
+        .status-item span {
+            color: #0369a1;
+        }
+        
+        /* Debug Section */
+        .ai-debug-section {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        
+        .debug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .debug-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .debug-header h5 {
+            margin: 0;
+            color: #374151;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        
+        .debug-toggle-btn {
+            background: #6b7280;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .debug-toggle-btn:hover {
+            background: #4b5563;
+        }
+        
+        .debug-test-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .debug-test-btn:hover {
+            background: #2563eb;
+        }
+        
+        .debug-routes-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .debug-routes-btn:hover {
+            background: #b91c1c;
+        }
+        
+        .debug-content {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .debug-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.85em;
+        }
+        
+        .debug-item:last-child {
+            border-bottom: none;
+        }
+        
+        .debug-item strong {
+            color: #374151;
+            min-width: 140px;
+            flex-shrink: 0;
+        }
+        
+        .debug-item span {
+            color: #6b7280;
+            text-align: right;
+            flex: 1;
+        }
+        
+        .debug-prompt,
+        .debug-response,
+        .debug-sql,
+        .debug-tables,
+        .debug-sessions {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 0.75em;
+            line-height: 1.4;
+            color: #374151;
+            max-height: 100px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        /* Database Debug Section */
+        .database-debug-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+        }
+        
+        .debug-copy-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .debug-copy-btn:hover {
+            background: #059669;
+        }
+        
+        .database-debug-content {
+            margin-top: 12px;
+        }
+        
+        .debug-loading {
+            text-align: center;
+            color: #6b7280;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .debug-table-section {
+            margin-bottom: 20px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .debug-table-header {
+            background: #f9fafb;
+            padding: 12px;
+            border-bottom: 1px solid #d1d5db;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .debug-table-content {
+            background: white;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.75em;
+            line-height: 1.4;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .debug-table-row {
+            padding: 4px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .debug-table-row:last-child {
+            border-bottom: none;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .analytics-grid {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+            
+            .jph-analytics-section {
+                padding: 32px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .analytics-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .time-periods,
+            .sessions-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .jph-analytics-section {
+                padding: 24px;
+                margin: 30px 0;
+            }
+            
+            .analytics-header h3 {
+                font-size: 1.8em;
+            }
+            
+            .analytics-header p {
+                font-size: 1.1em;
+            }
+            
+            .analytics-card {
+                padding: 24px;
+            }
+        }
         </style>
         
         <script>
@@ -2233,6 +3296,12 @@ class JPH_Frontend {
             
             // Load lesson favorites
             loadLessonFavorites();
+            
+            // Load analytics
+            loadAnalytics();
+            
+            // Load AI analysis
+            loadAIAnalysis();
             
             // Initialize other functionality
             initModalHandlers();
@@ -2276,7 +3345,7 @@ class JPH_Frontend {
             // Load practice history
             function loadPracticeHistory() {
                 $.ajax({
-                    url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
+                    url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',
                     method: 'GET',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -2342,7 +3411,7 @@ class JPH_Frontend {
             function loadBadges() {
                 console.log('Loading badges...');
                 $.ajax({
-                    url: '<?php echo rest_url('jph/v1/badges'); ?>',
+                    url: '<?php echo rest_url('aph/v1/badges'); ?>',
                     method: 'GET',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -2408,7 +3477,7 @@ class JPH_Frontend {
             function loadLessonFavorites() {
                 console.log('Loading lesson favorites...');
                 $.ajax({
-                    url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
+                    url: '<?php echo rest_url('aph/v1/lesson-favorites'); ?>',
                     method: 'GET',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -2432,6 +3501,548 @@ class JPH_Frontend {
                     },
                     error: function() {
                         $('#lesson-favorite-select').html('<option value="">Error loading favorites</option>');
+                    }
+                });
+            }
+            
+            // Load analytics data
+            function loadAnalytics() {
+                console.log('Loading analytics...');
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/analytics'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.data) {
+                            displayAnalytics(response.data);
+                        } else {
+                            console.error('Analytics API error:', response);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Analytics loading error:', error);
+                    }
+                });
+            }
+            
+            // Display analytics data
+            function displayAnalytics(data) {
+                // Practice time data
+                $('#analytics-7-days-minutes').text(data.periods['7_days'].total_minutes || '0');
+                $('#analytics-30-days-minutes').text(data.periods['30_days'].total_minutes || '0');
+                $('#analytics-90-days-minutes').text(data.periods['90_days'].total_minutes || '0');
+                $('#analytics-365-days-minutes').text(data.periods['365_days'].total_minutes || '0');
+                
+                // Practice sessions data
+                $('#analytics-7-days-sessions').text(data.periods['7_days'].sessions || '0');
+                $('#analytics-30-days-sessions').text(data.periods['30_days'].sessions || '0');
+                $('#analytics-90-days-sessions').text(data.periods['90_days'].sessions || '0');
+                $('#analytics-365-days-sessions').text(data.periods['365_days'].sessions || '0');
+                
+                // Insights data
+                $('#analytics-consistency').text(data.insights.consistency_score + '%');
+                $('#analytics-improvement-rate').text(data.insights.improvement_rate + '%');
+                $('#analytics-sentiment').text(data.insights.sentiment_rating);
+                
+                // Fun facts
+                if (data.insights.best_day) {
+                    const bestDay = new Date(data.insights.best_day.date).toLocaleDateString();
+                    $('#analytics-best-day .fact-text').text('Best practice day: ' + bestDay + ' (' + data.insights.best_day.minutes + ' minutes)');
+                } else {
+                    $('#analytics-best-day .fact-text').text('Keep practicing to find your best day!');
+                }
+                
+                if (data.insights.favorite_hour) {
+                    const hour = data.insights.favorite_hour.hour;
+                    const timeStr = hour === 0 ? '12 AM' : hour < 12 ? hour + ' AM' : hour === 12 ? '12 PM' : (hour - 12) + ' PM';
+                    $('#analytics-favorite-time .fact-text').text('Favorite practice time: ' + timeStr + ' (' + data.insights.favorite_hour.sessions + ' sessions)');
+                } else {
+                    $('#analytics-favorite-time .fact-text').text('Practice more to discover your favorite time!');
+                }
+                
+                if (data.insights.most_practiced) {
+                    $('#analytics-most-practiced .fact-text').text('Most practiced: ' + data.insights.most_practiced.item_name + ' (' + data.insights.most_practiced.sessions + ' sessions)');
+                } else {
+                    $('#analytics-most-practiced .fact-text').text('Add practice items to see your favorites!');
+                }
+            }
+            
+            // Load AI analysis
+            function loadAIAnalysis() {
+                console.log('Loading AI analysis...');
+                
+                // Show status display
+                $('#ai-status-display').show();
+                updateStatus('Testing API connection...', 'Checking if REST endpoints are accessible');
+                
+                // First test if the endpoint is accessible
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/test'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(testResponse) {
+                        console.log('Test endpoint works:', testResponse);
+                        updateStatus('API connection successful', 'Loading AI analysis...');
+                        // Now try the AI analysis
+                        loadAIAnalysisActual();
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Test endpoint failed:', error);
+                        console.error('XHR response:', xhr.responseText);
+                        updateStatus('API connection failed', 'Error: ' + error + ' (Status: ' + xhr.status + ')');
+                        
+                        // Try to get more info about the error
+                        if (xhr.status === 403) {
+                            displayAIAnalysisError('Permission denied (403). Are you logged in? User ID: <?php echo get_current_user_id(); ?>');
+                        } else if (xhr.status === 404) {
+                            displayAIAnalysisError('Endpoint not found (404). REST API routes may not be registered.');
+                        } else {
+                            displayAIAnalysisError('REST API error: ' + error + ' (Status: ' + xhr.status + ')');
+                        }
+                    }
+                });
+            }
+            
+            // Update status display
+            function updateStatus(status, step) {
+                $('#ai-status-text').text(status);
+                $('#ai-step-text').text(step);
+            }
+            
+            // Actual AI analysis loading
+            function loadAIAnalysisActual() {
+                updateStatus('Loading AI analysis...', 'Fetching practice data and generating insights');
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/ai-analysis'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        console.log('AI Analysis response:', response);
+                        if (response.success && response.data) {
+                            updateStatus('Analysis complete', 'Displaying results...');
+                            displayAIAnalysis(response.data, response.cached);
+                        } else {
+                            console.error('AI Analysis API error:', response);
+                            updateStatus('Analysis failed', 'API Error: ' + (response.message || 'Unknown error'));
+                            displayAIAnalysisError('API Error: ' + (response.message || 'Unknown error'));
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('AI Analysis loading error:', error);
+                        console.error('XHR response:', xhr.responseText);
+                        updateStatus('Analysis failed', 'Connection Error: ' + error + ' (Status: ' + xhr.status + ')');
+                        displayAIAnalysisError('Connection Error: ' + error + ' (Status: ' + xhr.status + ')');
+                    }
+                });
+            }
+            
+            // Display AI analysis
+            function displayAIAnalysis(data, isCached) {
+                const $analysisText = $('#ai-analysis-text');
+                const $dataPeriod = $('#ai-data-period .period-text');
+                
+                // Display the analysis
+                $analysisText.html('<p>' + data.analysis + '</p>');
+                
+                // Update data period
+                $dataPeriod.text(data.data_period);
+                
+                // Show cache indicator if cached
+                if (isCached) {
+                    $dataPeriod.text(data.data_period + ' (cached)');
+                }
+                
+                // Populate debug information
+                populateDebugInfo(data);
+                
+                // Initialize refresh button
+                initAIRefreshButton();
+            }
+            
+            // Display AI analysis error
+            function displayAIAnalysisError(message) {
+                const $analysisText = $('#ai-analysis-text');
+                $analysisText.html('<p style="color: #dc2626; text-align: center;">' + message + '</p>');
+                
+                // Initialize refresh button
+                initAIRefreshButton();
+            }
+            
+            // Initialize AI refresh button
+            function initAIRefreshButton() {
+                $('#ai-refresh-btn').off('click').on('click', function() {
+                    const $btn = $(this);
+                    const $analysisText = $('#ai-analysis-text');
+                    
+                    // Disable button and show loading
+                    $btn.prop('disabled', true);
+                    $btn.html('<div class="spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Refreshing...');
+                    
+                    // Show loading in analysis text
+                    $analysisText.html('<div class="loading-spinner"><div class="spinner"></div><span>Generating fresh analysis...</span></div>');
+                    
+                    // Make refresh request
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/ai-analysis/refresh'); ?>',
+                        method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success && response.data) {
+                                displayAIAnalysis(response.data, false);
+                            } else {
+                                displayAIAnalysisError('Failed to refresh AI analysis');
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error('AI Analysis refresh error:', error);
+                            displayAIAnalysisError('Failed to refresh AI analysis');
+                        },
+                        complete: function() {
+                            // Re-enable button
+                            $btn.prop('disabled', false);
+                            $btn.html('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Refresh');
+                        }
+                    });
+                });
+            }
+            
+            // Populate debug information
+            function populateDebugInfo(data) {
+                // Show debug section
+                $('#ai-debug-section').show();
+                
+                // Populate debug data
+                if (data.data_summary) {
+                    $('#debug-sessions-count').text(data.data_summary.total_sessions || '0');
+                    $('#debug-total-minutes').text(data.data_summary.total_minutes || '0');
+                    $('#debug-avg-sentiment').text(data.data_summary.avg_sentiment || '0');
+                    $('#debug-improvement-rate').text(data.data_summary.improvement_rate + '%' || '0%');
+                    $('#debug-most-day').text(data.data_summary.most_frequent_day || 'None');
+                    $('#debug-most-item').text(data.data_summary.most_practiced_item || 'None');
+                } else {
+                    $('#debug-sessions-count').text('0');
+                    $('#debug-total-minutes').text('0');
+                    $('#debug-avg-sentiment').text('0');
+                    $('#debug-improvement-rate').text('0%');
+                    $('#debug-most-day').text('None');
+                    $('#debug-most-item').text('None');
+                }
+                
+                // Set date range
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                const now = new Date();
+                $('#debug-date-range').text(thirtyDaysAgo.toLocaleDateString() + ' to ' + now.toLocaleDateString());
+                
+                // Set AI prompt and response
+                $('#debug-prompt').text(data.debug_prompt || 'No prompt data available');
+                $('#debug-response').text(data.analysis || 'No response data available');
+                
+                // Set additional debug info
+                if (data.debug_info) {
+                    $('#debug-user-id').text(data.debug_info.user_id || 'Unknown');
+                    $('#debug-total-sessions').text(data.debug_info.total_sessions_user || '0');
+                    $('#debug-sessions-30-days').text(data.debug_info.sessions_30_days || '0');
+                    
+                    // Set date range
+                    $('#debug-date-start').text(data.debug_info.date_range_start || 'Unknown');
+                    $('#debug-date-end').text(data.debug_info.date_range_end || 'Unknown');
+                    
+                    // Set table names
+                    if (data.debug_info.table_names) {
+                        const tableNames = Object.entries(data.debug_info.table_names)
+                            .map(([key, value]) => `${key}: ${value}`)
+                            .join('\n');
+                        $('#debug-tables').text(tableNames);
+                    }
+                    
+                    // Set SQL query
+                    $('#debug-sql').text(data.debug_info.sql_query || 'No SQL query available');
+                    
+                    // Set sample sessions from database debug
+                    loadSampleSessions(data.debug_info.user_id);
+                } else {
+                    $('#debug-user-id').text('Unknown');
+                    $('#debug-total-sessions').text('0');
+                    $('#debug-sessions-30-days').text('0');
+                    $('#debug-date-start').text('Unknown');
+                    $('#debug-date-end').text('Unknown');
+                    $('#debug-tables').text('No table info available');
+                    $('#debug-sql').text('No SQL query available');
+                    $('#debug-sessions').text('No session data available');
+                }
+                
+                // Set current times
+                $('#debug-wp-time').text(new Date().toLocaleString());
+                $('#debug-server-time').text(new Date().toISOString());
+                
+                // Initialize debug toggle
+                initDebugToggle();
+                
+                // Load database debug info
+                loadDatabaseDebug();
+            }
+            
+            // Initialize debug toggle
+            function initDebugToggle() {
+                $('#debug-toggle-btn').off('click').on('click', function() {
+                    const $content = $('#debug-content');
+                    const $btn = $(this);
+                    
+                    if ($content.is(':visible')) {
+                        $content.hide();
+                        $btn.text('Show Debug');
+                    } else {
+                        $content.show();
+                        $btn.text('Hide Debug');
+                    }
+                });
+                
+                // Initialize date test button
+                $('#debug-test-btn').off('click').on('click', function() {
+                    const $btn = $(this);
+                    $btn.prop('disabled', true);
+                    $btn.text('Testing...');
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/debug/date-test'); ?>',
+                        method: 'GET',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                displayDateTestResults(response);
+                            } else {
+                                alert('Date test failed: ' + (response.message || 'Unknown error'));
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            alert('Date test error: ' + error);
+                        },
+                        complete: function() {
+                            $btn.prop('disabled', false);
+                            $btn.text('Test Date Queries');
+                        }
+                    });
+                });
+                
+                // Initialize routes test button
+                $('#debug-routes-btn').off('click').on('click', function() {
+                    const $btn = $(this);
+                    $btn.prop('disabled', true);
+                    $btn.text('Testing...');
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/debug/routes'); ?>',
+                        method: 'GET',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                displayRoutesTestResults(response);
+                            } else {
+                                alert('Routes test failed: ' + (response.message || 'Unknown error'));
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            alert('Routes test error: ' + error + ' (Status: ' + xhr.status + ')');
+                        },
+                        complete: function() {
+                            $btn.prop('disabled', false);
+                            $btn.text('Test Routes');
+                        }
+                    });
+                });
+            }
+            
+            // Display routes test results
+            function displayRoutesTestResults(data) {
+                let html = '<div class="routes-test-results">';
+                html += '<h6>REST API Routes Test:</h6>';
+                html += '<div class="debug-table-row"><strong>Total JPH Routes:</strong> ' + data.total_jph_routes + '</div>';
+                html += '<div class="debug-table-row"><strong>WP REST Server:</strong> ' + (data.wp_rest_server_exists ? 'Available' : 'Not Available') + '</div>';
+                
+                if (data.registered_routes && data.registered_routes.length > 0) {
+                    html += '<div style="margin-top: 10px;"><strong>Registered Routes:</strong></div>';
+                    data.registered_routes.forEach(route => {
+                        html += '<div class="debug-table-row">' + route + '</div>';
+                    });
+                } else {
+                    html += '<div class="debug-table-row" style="color: #dc2626;">No JPH routes found!</div>';
+                }
+                
+                html += '</div>';
+                
+                // Add to debug content
+                $('#debug-content').append(html);
+            }
+            
+            // Display date test results
+            function displayDateTestResults(data) {
+                let html = '<div class="date-test-results">';
+                html += '<h6>Date Test Results:</h6>';
+                
+                // Show sample sessions
+                if (data.all_sessions_sample && data.all_sessions_sample.length > 0) {
+                    html += '<div><strong>Your Recent Sessions:</strong></div>';
+                    data.all_sessions_sample.forEach((session, index) => {
+                        html += '<div class="debug-table-row">' + (index + 1) + '. ' + session.created_at + '</div>';
+                    });
+                }
+                
+                // Show date test results
+                html += '<div style="margin-top: 15px;"><strong>Date Query Tests:</strong></div>';
+                Object.keys(data.date_tests).forEach(testName => {
+                    const test = data.date_tests[testName];
+                    html += '<div class="debug-table-row">';
+                    html += '<strong>' + testName + ':</strong> ' + test.date + ' → ' + test.sessions_found + ' sessions';
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+                
+                // Add to debug content
+                $('#debug-content').append(html);
+            }
+            
+            // Load database debug information
+            function loadDatabaseDebug() {
+                $.ajax({
+                        url: '<?php echo rest_url('aph/v1/debug/database'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.tables) {
+                            displayDatabaseDebug(response);
+                        } else {
+                            $('#database-debug-content').html('<div class="debug-error">Failed to load database information</div>');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Database debug loading error:', error);
+                        $('#database-debug-content').html('<div class="debug-error">Error loading database information: ' + error + '</div>');
+                    }
+                });
+            }
+            
+            // Display database debug information
+            function displayDatabaseDebug(data) {
+                const $content = $('#database-debug-content');
+                let html = '';
+                
+                // Add user info
+                html += '<div class="debug-table-section">';
+                html += '<div class="debug-table-header">User Information</div>';
+                html += '<div class="debug-table-content">';
+                html += '<div class="debug-table-row"><strong>User ID:</strong> ' + data.user_id + '</div>';
+                html += '<div class="debug-table-row"><strong>Generated At:</strong> ' + data.generated_at + '</div>';
+                html += '</div></div>';
+                
+                // Add each table
+                Object.keys(data.tables).forEach(tableName => {
+                    const table = data.tables[tableName];
+                    
+                    html += '<div class="debug-table-section">';
+                    html += '<div class="debug-table-header">' + tableName + ' (' + (table.exists ? 'EXISTS' : 'MISSING') + ' - ' + table.row_count + ' rows)</div>';
+                    html += '<div class="debug-table-content">';
+                    
+                    if (table.exists) {
+                        // Table structure
+                        html += '<div style="margin-bottom: 15px;"><strong>Structure:</strong></div>';
+                        table.structure.forEach(column => {
+                            html += '<div class="debug-table-row">' + column.Field + ' (' + column.Type + ') - ' + column.Null + ' - ' + column.Key + '</div>';
+                        });
+                        
+                        // User data
+                        if (table.user_data && table.user_data.length > 0) {
+                            html += '<div style="margin: 15px 0;"><strong>Your Data (Last 10):</strong></div>';
+                            table.user_data.forEach((row, index) => {
+                                html += '<div class="debug-table-row"><strong>Row ' + (index + 1) + ':</strong> ' + JSON.stringify(row, null, 2) + '</div>';
+                            });
+                        }
+                        
+                        // Recent data for non-user tables
+                        if (table.recent_data && table.recent_data.length > 0) {
+                            html += '<div style="margin: 15px 0;"><strong>Recent Data (Last 10):</strong></div>';
+                            table.recent_data.forEach((row, index) => {
+                                html += '<div class="debug-table-row"><strong>Row ' + (index + 1) + ':</strong> ' + JSON.stringify(row, null, 2) + '</div>';
+                            });
+                        }
+                    } else {
+                        html += '<div class="debug-table-row" style="color: #dc2626;">Table does not exist</div>';
+                    }
+                    
+                    html += '</div></div>';
+                });
+                
+                $content.html(html);
+                
+                // Initialize copy button
+                initCopyButton(data);
+            }
+            
+            // Initialize copy button
+            function initCopyButton(data) {
+                $('#debug-copy-btn').off('click').on('click', function() {
+                    const debugText = JSON.stringify(data, null, 2);
+                    
+                    // Copy to clipboard
+                    navigator.clipboard.writeText(debugText).then(function() {
+                        const $btn = $(this);
+                        const originalText = $btn.text();
+                        $btn.text('Copied!');
+                        $btn.css('background', '#059669');
+                        
+                        setTimeout(function() {
+                            $btn.text(originalText);
+                            $btn.css('background', '#10b981');
+                        }, 2000);
+                    }.bind(this)).catch(function(err) {
+                        console.error('Failed to copy: ', err);
+                        alert('Failed to copy to clipboard. Please select and copy manually.');
+                    });
+                });
+            }
+            
+            // Load sample sessions for debugging
+            function loadSampleSessions(userId) {
+                $.ajax({
+                        url: '<?php echo rest_url('aph/v1/debug/database'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.tables && response.tables.jph_practice_sessions) {
+                            const sessions = response.tables.jph_practice_sessions.user_data;
+                            if (sessions && sessions.length > 0) {
+                                let sessionText = '';
+                                sessions.slice(0, 5).forEach((session, index) => {
+                                    sessionText += `Session ${index + 1}: ${session.created_at} (${session.duration_minutes} min)\n`;
+                                });
+                                $('#debug-sessions').text(sessionText);
+                            } else {
+                                $('#debug-sessions').text('No sessions found for this user');
+                            }
+                        } else {
+                            $('#debug-sessions').text('Failed to load session data');
+                        }
+                    },
+                    error: function() {
+                        $('#debug-sessions').text('Error loading session data');
                     }
                 });
             }
@@ -2566,7 +4177,7 @@ class JPH_Frontend {
                     $button.prop('disabled', true).text('Adding...');
                     
                     $.ajax({
-                        url: '<?php echo rest_url('jph/v1/practice-items'); ?>',
+                        url: '<?php echo rest_url('aph/v1/practice-items'); ?>',
                         method: 'POST',
                         data: JSON.stringify(formData),
                         contentType: 'application/json',
@@ -2627,7 +4238,7 @@ class JPH_Frontend {
                     $button.prop('disabled', true).text('Updating...');
                     
                     $.ajax({
-                        url: '<?php echo rest_url('jph/v1/practice-items/'); ?>' + itemId,
+                        url: '<?php echo rest_url('aph/v1/practice-items/'); ?>' + itemId,
                         method: 'PUT',
                         data: JSON.stringify(formData),
                         contentType: 'application/json',
@@ -2671,7 +4282,7 @@ class JPH_Frontend {
                     
                     if (confirm('Are you sure you want to delete "' + name + '"? This action cannot be undone. Note: Any practice sessions logged for this item will be preserved.')) {
                         $.ajax({
-                            url: '<?php echo rest_url('jph/v1/practice-items/'); ?>' + itemId,
+                            url: '<?php echo rest_url('aph/v1/practice-items/'); ?>' + itemId,
                             method: 'DELETE',
                             headers: {
                                 'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -2721,7 +4332,7 @@ class JPH_Frontend {
             // Load lesson favorites for practice item modal
             function loadLessonFavorites() {
                 $.ajax({
-                    url: '<?php echo rest_url('jph/v1/lesson-favorites'); ?>',
+                    url: '<?php echo rest_url('aph/v1/lesson-favorites'); ?>',
                     method: 'GET',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -2844,7 +4455,7 @@ class JPH_Frontend {
                     console.log('Log form data:', formData);
                     
                     $.ajax({
-                        url: '<?php echo rest_url('jph/v1/practice-sessions'); ?>',
+                        url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',
                         method: 'POST',
                         headers: {
                             'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -2955,7 +4566,7 @@ class JPH_Frontend {
                     }
                     
                     jQuery.ajax({
-                        url: '<?php echo rest_url('jph/v1/purchase-shield'); ?>',
+                        url: '<?php echo rest_url('aph/v1/purchase-shield'); ?>',
                         method: 'POST',
                         headers: {
                             'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -3149,7 +4760,7 @@ class JPH_Frontend {
                     
                     if (confirm('Are you sure you want to delete this practice session for "' + itemName + '"? This action cannot be undone.')) {
                         $.ajax({
-                            url: '<?php echo rest_url('jph/v1/practice-sessions/'); ?>' + sessionId,
+                            url: '<?php echo rest_url('aph/v1/practice-sessions/'); ?>' + sessionId,
                             method: 'DELETE',
                             headers: {
                                 'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -3176,11 +4787,496 @@ class JPH_Frontend {
             // Initialize all functionality
             initDragAndDrop();
             initDeleteSessionHandlers();
+            
+            // Initialize debug functionality
+            initDebugFunctionality();
         });
+        
+        // Debug functionality - moved outside document ready
+        function initDebugFunctionality() {
+            // Endpoint testing
+            jQuery('.endpoint-test-btn').on('click', function() {
+                const $btn = jQuery(this);
+                const endpoint = $btn.data('endpoint');
+                const method = $btn.data('method') || 'GET';
+                
+                $btn.prop('disabled', true);
+                $btn.text('Testing...');
+                
+                const startTime = Date.now();
+                
+                jQuery.ajax({
+                    url: '<?php echo rest_url(); ?>' + endpoint,
+                    method: method,
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        const endTime = Date.now();
+                        const duration = endTime - startTime;
+                        displayEndpointResult(endpoint, method, 'success', response, duration);
+                    },
+                    error: function(xhr, status, error) {
+                        const endTime = Date.now();
+                        const duration = endTime - startTime;
+                        displayEndpointResult(endpoint, method, 'error', {
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            responseText: xhr.responseText,
+                            error: error
+                        }, duration);
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false);
+                        $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
+                    }
+                });
+            });
+            
+            // Database testing
+            jQuery('#db-structure-btn').on('click', function() {
+                testDatabaseEndpoint('structure');
+            });
+            
+            jQuery('#db-data-btn').on('click', function() {
+                testDatabaseEndpoint('data');
+            });
+            
+            jQuery('#db-sessions-btn').on('click', function() {
+                testDatabaseEndpoint('sessions');
+            });
+            
+            jQuery('#db-copy-all-btn').on('click', function() {
+                copyAllDebugData();
+            });
+            
+            // AI testing
+            jQuery('#ai-test-btn').on('click', function() {
+                testAIEndpoint('analysis');
+            });
+            
+            jQuery('#ai-refresh-btn').on('click', function() {
+                testAIEndpoint('refresh');
+            });
+            
+            jQuery('#ai-katahdin-test-btn').on('click', function() {
+                testKatahdinAI();
+            });
+            
+            jQuery('#ai-register-test-btn').on('click', function() {
+                testPluginRegistration();
+            });
+            
+            jQuery('#ai-routes-test-btn').on('click', function() {
+                checkAllRoutes();
+            });
+            
+            // Clear results
+            jQuery('#clear-results-btn').on('click', function() {
+                jQuery('#results-content').html('<p class="no-results">No tests run yet. Click a button above to test an endpoint.</p>');
+            });
+            
+            // Copy results buttons
+            jQuery('#copy-endpoint-results-btn').on('click', function() {
+                copyResults('results-content', 'Endpoint Test Results');
+            });
+            
+            jQuery('#clear-db-results-btn').on('click', function() {
+                jQuery('#db-content').html('<p class="no-results">Click a button above to get database information.</p>');
+            });
+            
+            jQuery('#copy-db-results-btn').on('click', function() {
+                copyResults('db-content', 'Database Test Results');
+            });
+            
+            jQuery('#clear-ai-results-btn').on('click', function() {
+                jQuery('#ai-content').html('<p class="no-results">Click a button above to test AI functionality.</p>');
+            });
+            
+            jQuery('#copy-ai-results-btn').on('click', function() {
+                copyResults('ai-content', 'AI Test Results');
+            });
+        }
+        
+        function displayEndpointResult(endpoint, method, status, response, duration) {
+            const $results = jQuery('#results-content');
+            const $noResults = $results.find('.no-results');
+            
+            if ($noResults.length > 0) {
+                $results.empty();
+            }
+            
+            const statusClass = status === 'success' ? 'success' : 'error';
+            const statusText = status === 'success' ? 'SUCCESS' : 'ERROR';
+            
+            const resultHtml = `
+                <div class="test-result ${statusClass}">
+                    <div class="test-result-header">
+                        <span class="test-endpoint">${method} ${endpoint}</span>
+                        <span class="test-status ${statusClass}">${statusText} (${duration}ms)</span>
+                    </div>
+                    <div class="test-response">${JSON.stringify(response, null, 2)}</div>
+                </div>
+            `;
+            
+            $results.prepend(resultHtml);
+        }
+        
+        function testDatabaseEndpoint(type) {
+            const $btn = jQuery(`#db-${type}-btn`);
+            $btn.prop('disabled', true);
+            $btn.text('Loading...');
+            
+            let endpoint = '';
+            switch(type) {
+                case 'structure':
+                    endpoint = 'aph/v1/debug/database';
+                    break;
+                case 'data':
+                    endpoint = 'aph/v1/debug/database';
+                    break;
+                case 'sessions':
+                    endpoint = 'aph/v1/practice-sessions';
+                    break;
+            }
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url(); ?>' + endpoint,
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    displayDatabaseResult(type, 'success', response);
+                },
+                error: function(xhr, status, error) {
+                    displayDatabaseResult(type, 'error', {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText,
+                        error: error
+                    });
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                    $btn.text($btn.text().replace('Loading...', $btn.text().split(' ').slice(0, -1).join(' ')));
+                }
+            });
+        }
+        
+        function displayDatabaseResult(type, status, response) {
+            const $content = jQuery('#db-content');
+            const $noResults = $content.find('.no-results');
+            
+            if ($noResults.length > 0) {
+                $content.empty();
+            }
+            
+            const statusClass = status === 'success' ? 'success' : 'error';
+            const statusText = status === 'success' ? 'SUCCESS' : 'ERROR';
+            
+            const resultHtml = `
+                <div class="test-result ${statusClass}">
+                    <div class="test-result-header">
+                        <span class="test-endpoint">Database ${type.toUpperCase()}</span>
+                        <span class="test-status ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="test-response">${JSON.stringify(response, null, 2)}</div>
+                </div>
+            `;
+            
+            $content.prepend(resultHtml);
+        }
+        
+        function testAIEndpoint(type) {
+            const $btn = jQuery(`#ai-${type}-btn`);
+            $btn.prop('disabled', true);
+            $btn.text('Testing...');
+            
+            let endpoint = '';
+            let method = 'GET';
+            
+            switch(type) {
+                case 'analysis':
+                    endpoint = 'aph/v1/ai-analysis';
+                    break;
+                case 'refresh':
+                    endpoint = 'aph/v1/ai-analysis/refresh';
+                    method = 'POST';
+                    break;
+            }
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url(); ?>' + endpoint,
+                method: method,
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    displayAIResult(type, 'success', response);
+                },
+                error: function(xhr, status, error) {
+                    displayAIResult(type, 'error', {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText,
+                        error: error
+                    });
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                    $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
+                }
+            });
+        }
+        
+        function displayAIResult(type, status, response) {
+            const $content = jQuery('#ai-content');
+            const $noResults = $content.find('.no-results');
+            
+            if ($noResults.length > 0) {
+                $content.empty();
+            }
+            
+            const statusClass = status === 'success' ? 'success' : 'error';
+            const statusText = status === 'success' ? 'SUCCESS' : 'ERROR';
+            
+            const resultHtml = `
+                <div class="test-result ${statusClass}">
+                    <div class="test-result-header">
+                        <span class="test-endpoint">AI ${type.toUpperCase()}</span>
+                        <span class="test-status ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="test-response">${JSON.stringify(response, null, 2)}</div>
+                </div>
+            `;
+            
+            $content.prepend(resultHtml);
+        }
+        
+        function testKatahdinAI() {
+            const $btn = jQuery('#ai-katahdin-test-btn');
+            $btn.prop('disabled', true);
+            $btn.text('Testing...');
+            
+            // Test if Katahdin AI Hub is available
+            jQuery.ajax({
+                url: '<?php echo rest_url(); ?>katahdin-ai-hub/v1/usage',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                    'X-Plugin-ID': 'academy-practice-hub'
+                },
+                success: function(response) {
+                    displayAIResult('katahdin', 'success', response);
+                },
+                error: function(xhr, status, error) {
+                    displayAIResult('katahdin', 'error', {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText,
+                        error: error,
+                        message: 'Katahdin AI Hub plugin may not be installed or activated'
+                    });
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                    $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
+                }
+            });
+        }
+        
+        function testPluginRegistration() {
+            const $btn = jQuery('#ai-register-test-btn');
+            $btn.prop('disabled', true);
+            $btn.text('Testing...');
+            
+            // Test plugin registration by trying to register
+            const registrationData = {
+                plugin_id: 'academy-practice-hub',
+                name: 'Academy Practice Hub',
+                version: '3.0',
+                features: ['chat', 'completions'],
+                quota_limit: 5000
+            };
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url(); ?>katahdin-ai-hub/v1/register-plugin',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                    'Content-Type': 'application/json'
+                },
+                data: JSON.stringify(registrationData),
+                success: function(response) {
+                    displayAIResult('registration', 'success', response);
+                },
+                error: function(xhr, status, error) {
+                    displayAIResult('registration', 'error', {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText,
+                        error: error,
+                        message: 'Plugin registration failed'
+                    });
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                    $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
+                }
+            });
+        }
+        
+        function checkAllRoutes() {
+            const $btn = jQuery('#ai-routes-test-btn');
+            $btn.prop('disabled', true);
+            $btn.text('Checking...');
+            
+            // Get all registered routes
+            jQuery.ajax({
+                url: '<?php echo rest_url(); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    // Filter for katahdin routes
+                    const katahdinRoutes = [];
+                    if (response.routes) {
+                        Object.keys(response.routes).forEach(route => {
+                            if (route.includes('katahdin-ai-hub')) {
+                                katahdinRoutes.push(route);
+                            }
+                        });
+                    }
+                    
+                    displayAIResult('routes', 'success', {
+                        total_routes: Object.keys(response.routes || {}).length,
+                        katahdin_routes: katahdinRoutes,
+                        katahdin_route_count: katahdinRoutes.length,
+                        all_routes: Object.keys(response.routes || {})
+                    });
+                },
+                error: function(xhr, status, error) {
+                    displayAIResult('routes', 'error', {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        responseText: xhr.responseText,
+                        error: error
+                    });
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                    $btn.text($btn.text().replace('Checking...', $btn.text().split(' ').slice(0, -1).join(' ')));
+                }
+            });
+        }
+        
+        function copyAllDebugData() {
+            const debugData = {
+                timestamp: new Date().toISOString(),
+                user_id: <?php echo get_current_user_id(); ?>,
+                wordpress_time: '<?php echo current_time('mysql'); ?>',
+                server_time: '<?php echo date('Y-m-d H:i:s'); ?>',
+                rest_base_url: '<?php echo rest_url(); ?>',
+                site_url: '<?php echo site_url(); ?>',
+                home_url: '<?php echo home_url(); ?>',
+                plugins: {
+                    academy_practice_hub: '<?php echo is_plugin_active('academy-practice-hub/academy-practice-hub.php') ? 'active' : 'inactive'; ?>',
+                    jazzedge_practice_hub: '<?php echo is_plugin_active('jazzedge-practice-hub/jazzedge-practice-hub.php') ? 'active' : 'inactive'; ?>',
+                    katahdin_ai_hub: '<?php echo is_plugin_active('katahdin-ai-hub/katahdin-ai-hub.php') ? 'active' : 'inactive'; ?>'
+                }
+            };
+            
+            const debugText = JSON.stringify(debugData, null, 2);
+            
+            // Copy to clipboard
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(debugText).then(function() {
+                    alert('Debug data copied to clipboard!');
+                }).catch(function(err) {
+                    console.error('Failed to copy: ', err);
+                    fallbackCopyTextToClipboard(debugText);
+                });
+            } else {
+                fallbackCopyTextToClipboard(debugText);
+            }
+        }
+        
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    alert('Debug data copied to clipboard!');
+                } else {
+                    alert('Failed to copy debug data. Please copy manually from the console.');
+                    console.log('Debug Data:', text);
+                }
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                alert('Failed to copy debug data. Please copy manually from the console.');
+                console.log('Debug Data:', text);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        function copyResults(containerId, title) {
+            const $container = jQuery('#' + containerId);
+            const $noResults = $container.find('.no-results');
+            
+            if ($noResults.length > 0) {
+                alert('No results to copy yet. Run some tests first.');
+                return;
+            }
+            
+            // Get all test results
+            const results = [];
+            $container.find('.test-result').each(function() {
+                const $result = jQuery(this);
+                const endpoint = $result.find('.test-endpoint').text();
+                const status = $result.find('.test-status').text();
+                const response = $result.find('.test-response').text();
+                
+                results.push({
+                    endpoint: endpoint,
+                    status: status,
+                    response: response
+                });
+            });
+            
+            const copyData = {
+                title: title,
+                timestamp: new Date().toISOString(),
+                user_id: <?php echo get_current_user_id(); ?>,
+                results: results
+            };
+            
+            const copyText = JSON.stringify(copyData, null, 2);
+            
+            // Copy to clipboard
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(copyText).then(function() {
+                    alert(title + ' copied to clipboard!');
+                }).catch(function(err) {
+                    console.error('Failed to copy: ', err);
+                    fallbackCopyTextToClipboard(copyText);
+                });
+            } else {
+                fallbackCopyTextToClipboard(copyText);
+            }
+        }
         </script>
         <?php
         
         return ob_get_clean();
     }
 }
+
 

@@ -36,6 +36,31 @@ if (APH_FRONTEND_SEPARATED) {
     new JPH_Frontend();
 }
 
+// Register with Katahdin AI Hub if available
+add_action('katahdin_ai_hub_init', function($hub) {
+    $hub->register_plugin('academy-practice-hub', array(
+        'name' => 'Academy Practice Hub',
+        'version' => '3.0',
+        'features' => array('chat', 'completions'),
+        'quota_limit' => 5000 // tokens per month
+    ));
+});
+
+// Also try to register on init in case the hook was already fired
+add_action('init', function() {
+    if (class_exists('Katahdin_AI_Hub') && function_exists('katahdin_ai_hub')) {
+        $hub = katahdin_ai_hub();
+        if ($hub && method_exists($hub, 'register_plugin')) {
+            $hub->register_plugin('academy-practice-hub', array(
+                'name' => 'Academy Practice Hub',
+                'version' => '3.0',
+                'features' => array('chat', 'completions'),
+                'quota_limit' => 5000 // tokens per month
+            ));
+        }
+    }
+});
+
 // Add asset enqueuing hooks to match original plugin
 add_action('wp_enqueue_scripts', 'aph_enqueue_frontend_assets');
 add_action('admin_enqueue_scripts', 'aph_enqueue_admin_assets');

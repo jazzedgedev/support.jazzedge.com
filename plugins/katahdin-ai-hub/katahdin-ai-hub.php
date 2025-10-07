@@ -105,6 +105,11 @@ class Katahdin_AI_Hub {
     private function __construct() {
         $this->init_hooks();
         $this->init_components();
+        
+        // Initialize REST API early to ensure routes are registered
+        if (class_exists('Katahdin_AI_Hub_REST_API')) {
+            $this->rest_api = new Katahdin_AI_Hub_REST_API();
+        }
     }
     
     /**
@@ -112,7 +117,7 @@ class Katahdin_AI_Hub {
      */
     private function init_hooks() {
         add_action('init', array($this, 'init'));
-        add_action('rest_api_init', array($this, 'init_rest_api'));
+        // REST API is initialized by the REST_API class itself
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         
         // Activation and deactivation hooks
@@ -137,9 +142,7 @@ class Katahdin_AI_Hub {
             if (class_exists('Katahdin_AI_Hub_Admin')) {
                 $this->admin = new Katahdin_AI_Hub_Admin();
             }
-            if (class_exists('Katahdin_AI_Hub_REST_API')) {
-                $this->rest_api = new Katahdin_AI_Hub_REST_API();
-            }
+            // REST API is initialized in constructor to ensure routes are registered early
         } catch (Exception $e) {
             error_log('Katahdin AI Hub component initialization error: ' . $e->getMessage());
         }
@@ -175,13 +178,8 @@ class Katahdin_AI_Hub {
     }
     
     /**
-     * Initialize REST API
+     * Initialize REST API (handled by REST_API class itself)
      */
-    public function init_rest_api() {
-        if ($this->rest_api && method_exists($this->rest_api, 'init')) {
-            $this->rest_api->init();
-        }
-    }
     
     /**
      * Enqueue admin scripts

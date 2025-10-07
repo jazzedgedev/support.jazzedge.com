@@ -24,196 +24,238 @@ class JPH_REST_API {
      */
     public function register_rest_routes() {
         // Test endpoint
-        register_rest_route('jph/v1', '/test', array(
+        register_rest_route('aph/v1', '/test', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_test'),
             'permission_callback' => '__return_true'
         ));
         
+        // Debug endpoint to check if routes are registered
+        register_rest_route('aph/v1', '/debug/routes', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_routes'),
+            'permission_callback' => '__return_true'
+        ));
+        
         // Practice Sessions endpoints
-        register_rest_route('jph/v1', '/practice-sessions', array(
+        register_rest_route('aph/v1', '/practice-sessions', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_log_practice_session'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/practice-sessions', array(
+        register_rest_route('aph/v1', '/practice-sessions', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_practice_sessions'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/practice-sessions/(?P<id>\d+)', array(
+        register_rest_route('aph/v1', '/practice-sessions/(?P<id>\d+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'rest_delete_practice_session'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
         // Export endpoint
-        register_rest_route('jph/v1', '/export-practice-history', array(
+        register_rest_route('aph/v1', '/export-practice-history', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_export_practice_history'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
         // Badge management endpoints
-        register_rest_route('jph/v1', '/admin/badges', array(
+        register_rest_route('aph/v1', '/admin/badges', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_badges_admin'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/admin/badges', array(
+        register_rest_route('aph/v1', '/admin/badges', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_add_badge'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+        register_rest_route('aph/v1', '/badges/(?P<id>\d+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_badge'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/badges/(?P<id>\d+)', array(
+        register_rest_route('aph/v1', '/badges/(?P<id>\d+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'rest_delete_badge'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
+        register_rest_route('aph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'rest_delete_badge_by_key'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
+        register_rest_route('aph/v1', '/badges/key/(?P<badge_key>[a-zA-Z0-9_-]+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_badge_by_key'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
         // User-facing endpoints
-        register_rest_route('jph/v1', '/badges', array(
+        register_rest_route('aph/v1', '/badges', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_user_badges'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/lesson-favorites', array(
+        register_rest_route('aph/v1', '/lesson-favorites', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_lesson_favorites'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/purchase-shield', array(
+        register_rest_route('aph/v1', '/purchase-shield', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_purchase_streak_shield'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
         // Admin lesson favorites endpoints
-        register_rest_route('jph/v1', '/admin/lesson-favorites', array(
+        register_rest_route('aph/v1', '/admin/lesson-favorites', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_lesson_favorites_admin'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/admin/lesson-favorites-stats', array(
+        register_rest_route('aph/v1', '/admin/lesson-favorites-stats', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_lesson_favorites_stats'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/export-lesson-favorites', array(
+        register_rest_route('aph/v1', '/export-lesson-favorites', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_export_lesson_favorites'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
         // Admin settings endpoints
-        register_rest_route('jph/v1', '/admin/clear-all-user-data', array(
+        register_rest_route('aph/v1', '/admin/clear-all-user-data', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_clear_all_user_data'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
         // Event tracking endpoints
-        register_rest_route('jph/v1', '/test-badge-event', array(
+        register_rest_route('aph/v1', '/test-badge-event', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_test_badge_event'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/debug-user-badges', array(
+        register_rest_route('aph/v1', '/debug-user-badges', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_debug_user_badges'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/test-badge-assignment', array(
+        register_rest_route('aph/v1', '/test-badge-assignment', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_test_badge_assignment'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/debug-badge-database', array(
+        register_rest_route('aph/v1', '/debug-badge-database', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_debug_badge_database'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/debug-practice-sessions', array(
+        register_rest_route('aph/v1', '/debug-practice-sessions', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_debug_practice_sessions'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
         // Admin students endpoints
-        register_rest_route('jph/v1', '/students', array(
+        register_rest_route('aph/v1', '/students', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_students'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/students/stats', array(
+        register_rest_route('aph/v1', '/students/stats', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_students_stats'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/students/(?P<id>\d+)', array(
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_student'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/students/(?P<id>\d+)', array(
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_student'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/export-students', array(
+        register_rest_route('aph/v1', '/export-students', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_export_students'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // Analytics endpoint
+        register_rest_route('aph/v1', '/analytics', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_analytics'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // AI Analysis endpoint
+        register_rest_route('aph/v1', '/ai-analysis', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_ai_analysis'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // AI Analysis refresh endpoint
+        register_rest_route('aph/v1', '/ai-analysis/refresh', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_refresh_ai_analysis'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // Database debug endpoint
+        register_rest_route('aph/v1', '/debug/database', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_database_debug'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // Date test endpoint
+        register_rest_route('aph/v1', '/debug/date-test', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_test_date_queries'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Practice item management endpoints
-        register_rest_route('jph/v1', '/practice-items', array(
+        register_rest_route('aph/v1', '/practice-items', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_add_practice_item'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/practice-items/(?P<id>\d+)', array(
+        register_rest_route('aph/v1', '/practice-items/(?P<id>\d+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_practice_item'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        register_rest_route('jph/v1', '/practice-items/(?P<id>\d+)', array(
+        register_rest_route('aph/v1', '/practice-items/(?P<id>\d+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'rest_delete_practice_item'),
             'permission_callback' => array($this, 'check_user_permission')
@@ -234,7 +276,33 @@ class JPH_REST_API {
         return rest_ensure_response(array(
             'success' => true,
             'message' => 'Academy Practice Hub API is working',
-            'timestamp' => current_time('mysql')
+            'timestamp' => current_time('mysql'),
+            'user_id' => get_current_user_id(),
+            'is_logged_in' => is_user_logged_in()
+        ));
+    }
+    
+    /**
+     * Debug routes endpoint
+     */
+    public function rest_debug_routes($request) {
+        global $wp_rest_server;
+        
+        $routes = array();
+        if ($wp_rest_server) {
+            $all_routes = $wp_rest_server->get_routes();
+            foreach ($all_routes as $route => $handlers) {
+                if (strpos($route, '/aph/v1/') === 0) {
+                    $routes[] = $route;
+                }
+            }
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'registered_routes' => $routes,
+            'total_jph_routes' => count($routes),
+            'wp_rest_server_exists' => $wp_rest_server ? true : false
         ));
     }
     
@@ -1634,6 +1702,668 @@ class JPH_REST_API {
     }
     
     /**
+     * Get user analytics data
+     */
+    public function rest_get_analytics($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view analytics', array('status' => 401));
+            }
+            
+            global $wpdb;
+            
+            // Get practice sessions for different time periods
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            
+            // Calculate date ranges
+            $now = current_time('mysql');
+            $seven_days_ago = date('Y-m-d H:i:s', strtotime('-7 days'));
+            $thirty_days_ago = date('Y-m-d H:i:s', strtotime('-30 days'));
+            $ninety_days_ago = date('Y-m-d H:i:s', strtotime('-90 days'));
+            $three_sixty_five_days_ago = date('Y-m-d H:i:s', strtotime('-365 days'));
+            
+            // Get practice data for different periods
+            $analytics = array();
+            
+            // 7 days
+            $seven_day_data = $wpdb->get_row($wpdb->prepare("
+                SELECT 
+                    COUNT(*) as sessions,
+                    SUM(duration_minutes) as total_minutes,
+                    AVG(duration_minutes) as avg_duration,
+                    AVG(sentiment_score) as avg_sentiment,
+                    SUM(improvement_detected) as improvements
+                FROM $sessions_table 
+                WHERE user_id = %d AND created_at >= %s
+            ", $user_id, $seven_days_ago), ARRAY_A);
+            
+            // 30 days
+            $thirty_day_data = $wpdb->get_row($wpdb->prepare("
+                SELECT 
+                    COUNT(*) as sessions,
+                    SUM(duration_minutes) as total_minutes,
+                    AVG(duration_minutes) as avg_duration,
+                    AVG(sentiment_score) as avg_sentiment,
+                    SUM(improvement_detected) as improvements
+                FROM $sessions_table 
+                WHERE user_id = %d AND created_at >= %s
+            ", $user_id, $thirty_days_ago), ARRAY_A);
+            
+            // 90 days
+            $ninety_day_data = $wpdb->get_row($wpdb->prepare("
+                SELECT 
+                    COUNT(*) as sessions,
+                    SUM(duration_minutes) as total_minutes,
+                    AVG(duration_minutes) as avg_duration,
+                    AVG(sentiment_score) as avg_sentiment,
+                    SUM(improvement_detected) as improvements
+                FROM $sessions_table 
+                WHERE user_id = %d AND created_at >= %s
+            ", $user_id, $ninety_days_ago), ARRAY_A);
+            
+            // 365 days
+            $year_data = $wpdb->get_row($wpdb->prepare("
+                SELECT 
+                    COUNT(*) as sessions,
+                    SUM(duration_minutes) as total_minutes,
+                    AVG(duration_minutes) as avg_duration,
+                    AVG(sentiment_score) as avg_sentiment,
+                    SUM(improvement_detected) as improvements
+                FROM $sessions_table 
+                WHERE user_id = %d AND created_at >= %s
+            ", $user_id, $three_sixty_five_days_ago), ARRAY_A);
+            
+            // Get current user stats
+            $user_stats = $wpdb->get_row($wpdb->prepare("
+                SELECT * FROM $stats_table WHERE user_id = %d
+            ", $user_id), ARRAY_A);
+            
+            // Get practice frequency (days with practice in last 30 days)
+            $practice_days = $wpdb->get_var($wpdb->prepare("
+                SELECT COUNT(DISTINCT DATE(created_at)) 
+                FROM $sessions_table 
+                WHERE user_id = %d AND created_at >= %s
+            ", $user_id, $thirty_days_ago));
+            
+            // Get best practice day (most minutes in a single day)
+            $best_day = $wpdb->get_row($wpdb->prepare("
+                SELECT DATE(created_at) as practice_date, SUM(duration_minutes) as total_minutes
+                FROM $sessions_table 
+                WHERE user_id = %d 
+                GROUP BY DATE(created_at) 
+                ORDER BY total_minutes DESC 
+                LIMIT 1
+            ", $user_id), ARRAY_A);
+            
+            // Get favorite practice time (hour of day)
+            $favorite_hour = $wpdb->get_row($wpdb->prepare("
+                SELECT HOUR(created_at) as hour, COUNT(*) as sessions
+                FROM $sessions_table 
+                WHERE user_id = %d 
+                GROUP BY HOUR(created_at) 
+                ORDER BY sessions DESC 
+                LIMIT 1
+            ", $user_id), ARRAY_A);
+            
+            // Get most practiced item
+            $most_practiced = $wpdb->get_row($wpdb->prepare("
+                SELECT pi.name as item_name, COUNT(*) as sessions, SUM(ps.duration_minutes) as total_minutes
+                FROM $sessions_table ps
+                LEFT JOIN {$wpdb->prefix}jph_practice_items pi ON ps.practice_item_id = pi.id
+                WHERE ps.user_id = %d
+                GROUP BY ps.practice_item_id, pi.name
+                ORDER BY sessions DESC
+                LIMIT 1
+            ", $user_id), ARRAY_A);
+            
+            // Calculate consistency score (percentage of days practiced in last 30 days)
+            $consistency_score = $practice_days ? round(($practice_days / 30) * 100, 1) : 0;
+            
+            // Calculate improvement rate
+            $total_sessions_30 = $thirty_day_data['sessions'] ?: 0;
+            $improvements_30 = $thirty_day_data['improvements'] ?: 0;
+            $improvement_rate = $total_sessions_30 > 0 ? round(($improvements_30 / $total_sessions_30) * 100, 1) : 0;
+            
+            // Calculate average sentiment score
+            $avg_sentiment_30 = $thirty_day_data['avg_sentiment'] ?: 0;
+            $sentiment_rating = '';
+            if ($avg_sentiment_30 >= 4.5) $sentiment_rating = 'Excellent';
+            elseif ($avg_sentiment_30 >= 3.5) $sentiment_rating = 'Good';
+            elseif ($avg_sentiment_30 >= 2.5) $sentiment_rating = 'Okay';
+            elseif ($avg_sentiment_30 >= 1.5) $sentiment_rating = 'Challenging';
+            else $sentiment_rating = 'Frustrating';
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'periods' => array(
+                        '7_days' => array(
+                            'sessions' => (int)($seven_day_data['sessions'] ?: 0),
+                            'total_minutes' => (int)($seven_day_data['total_minutes'] ?: 0),
+                            'avg_duration' => round($seven_day_data['avg_duration'] ?: 0, 1),
+                            'avg_sentiment' => round($seven_day_data['avg_sentiment'] ?: 0, 1),
+                            'improvements' => (int)($seven_day_data['improvements'] ?: 0)
+                        ),
+                        '30_days' => array(
+                            'sessions' => (int)($thirty_day_data['sessions'] ?: 0),
+                            'total_minutes' => (int)($thirty_day_data['total_minutes'] ?: 0),
+                            'avg_duration' => round($thirty_day_data['avg_duration'] ?: 0, 1),
+                            'avg_sentiment' => round($thirty_day_data['avg_sentiment'] ?: 0, 1),
+                            'improvements' => (int)($thirty_day_data['improvements'] ?: 0)
+                        ),
+                        '90_days' => array(
+                            'sessions' => (int)($ninety_day_data['sessions'] ?: 0),
+                            'total_minutes' => (int)($ninety_day_data['total_minutes'] ?: 0),
+                            'avg_duration' => round($ninety_day_data['avg_duration'] ?: 0, 1),
+                            'avg_sentiment' => round($ninety_day_data['avg_sentiment'] ?: 0, 1),
+                            'improvements' => (int)($ninety_day_data['improvements'] ?: 0)
+                        ),
+                        '365_days' => array(
+                            'sessions' => (int)($year_data['sessions'] ?: 0),
+                            'total_minutes' => (int)($year_data['total_minutes'] ?: 0),
+                            'avg_duration' => round($year_data['avg_duration'] ?: 0, 1),
+                            'avg_sentiment' => round($year_data['avg_sentiment'] ?: 0, 1),
+                            'improvements' => (int)($year_data['improvements'] ?: 0)
+                        )
+                    ),
+                    'insights' => array(
+                        'consistency_score' => $consistency_score,
+                        'improvement_rate' => $improvement_rate,
+                        'sentiment_rating' => $sentiment_rating,
+                        'practice_days_30' => (int)$practice_days,
+                        'best_day' => $best_day ? array(
+                            'date' => $best_day['practice_date'],
+                            'minutes' => (int)$best_day['total_minutes']
+                        ) : null,
+                        'favorite_hour' => $favorite_hour ? array(
+                            'hour' => (int)$favorite_hour['hour'],
+                            'sessions' => (int)$favorite_hour['sessions']
+                        ) : null,
+                        'most_practiced' => $most_practiced ? array(
+                            'item_name' => $most_practiced['item_name'] ?: 'Unknown',
+                            'sessions' => (int)$most_practiced['sessions'],
+                            'total_minutes' => (int)$most_practiced['total_minutes']
+                        ) : null
+                    ),
+                    'current_stats' => $user_stats ?: array()
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('analytics_error', 'Error retrieving analytics: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get AI analysis of practice data
+     */
+    public function rest_get_ai_analysis($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view AI analysis', array('status' => 401));
+            }
+            
+            // Check for cached analysis (valid for 24 hours)
+            $cache_key = 'jph_ai_analysis_' . $user_id;
+            $cached_analysis = get_transient($cache_key);
+            
+            if ($cached_analysis !== false) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'data' => $cached_analysis,
+                    'cached' => true,
+                    'cache_expires' => get_option('_transient_timeout_' . $cache_key)
+                ));
+            }
+            
+            // Generate new analysis
+            $analysis = $this->generate_ai_analysis($user_id);
+            
+            if (is_wp_error($analysis)) {
+                return $analysis;
+            }
+            
+            // Cache the analysis for 24 hours
+            set_transient($cache_key, $analysis, DAY_IN_SECONDS);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $analysis,
+                'cached' => false
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('ai_analysis_error', 'Error retrieving AI analysis: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Refresh AI analysis (bypass cache)
+     */
+    public function rest_refresh_ai_analysis($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to refresh AI analysis', array('status' => 401));
+            }
+            
+            // Clear existing cache
+            $cache_key = 'jph_ai_analysis_' . $user_id;
+            delete_transient($cache_key);
+            
+            // Generate new analysis
+            $analysis = $this->generate_ai_analysis($user_id);
+            
+            if (is_wp_error($analysis)) {
+                return $analysis;
+            }
+            
+            // Cache the new analysis for 24 hours
+            set_transient($cache_key, $analysis, DAY_IN_SECONDS);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $analysis,
+                'cached' => false,
+                'refreshed' => true
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('ai_analysis_refresh_error', 'Error refreshing AI analysis: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Generate AI analysis using Katahdin AI Hub
+     */
+    private function generate_ai_analysis($user_id) {
+        global $wpdb;
+        
+        // Get practice data for last 30 days
+        $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+        $items_table = $wpdb->prefix . 'jph_practice_items';
+        $stats_table = $wpdb->prefix . 'jph_user_stats';
+        
+        // Use WordPress timezone for consistent date calculation
+        $thirty_days_ago = date('Y-m-d H:i:s', strtotime('-30 days', current_time('timestamp')));
+        $current_time = current_time('mysql');
+        
+        // Get practice sessions data
+        $sessions_query = $wpdb->prepare("
+            SELECT 
+                ps.duration_minutes,
+                ps.sentiment_score,
+                ps.improvement_detected,
+                ps.created_at,
+                pi.name as item_name
+            FROM $sessions_table ps
+            LEFT JOIN $items_table pi ON ps.practice_item_id = pi.id
+            WHERE ps.user_id = %d AND ps.created_at >= %s
+            ORDER BY ps.created_at DESC
+        ", $user_id, $thirty_days_ago);
+        
+        $sessions = $wpdb->get_results($sessions_query, ARRAY_A);
+        
+        // Debug: Log the query and results
+        error_log("AI Analysis Debug - User ID: " . $user_id);
+        error_log("AI Analysis Debug - Date Range: " . $thirty_days_ago . " to " . $current_time);
+        error_log("AI Analysis Debug - SQL Query: " . $sessions_query);
+        error_log("AI Analysis Debug - Sessions Found: " . count($sessions));
+        
+        // Log some sample session dates for debugging
+        if (!empty($sessions)) {
+            error_log("AI Analysis Debug - Sample session dates:");
+            foreach (array_slice($sessions, 0, 3) as $session) {
+                error_log("  - Session date: " . $session['created_at']);
+            }
+        }
+        
+        // Also check if tables exist and have data
+        $sessions_count_total = $wpdb->get_var("SELECT COUNT(*) FROM $sessions_table WHERE user_id = $user_id");
+        $sessions_count_30_days = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $sessions_table WHERE user_id = %d AND created_at >= %s", $user_id, $thirty_days_ago));
+        
+        error_log("AI Analysis Debug - Total sessions for user: " . $sessions_count_total);
+        error_log("AI Analysis Debug - Sessions in last 30 days: " . $sessions_count_30_days);
+        
+        // Check table structure
+        $table_structure = $wpdb->get_results("DESCRIBE $sessions_table", ARRAY_A);
+        error_log("AI Analysis Debug - Sessions table structure: " . print_r($table_structure, true));
+        
+        // Additional debugging - check if tables exist
+        $tables_exist = $wpdb->get_results("SHOW TABLES LIKE '{$wpdb->prefix}jph_%'", ARRAY_A);
+        error_log("AI Analysis Debug - JPH tables found: " . print_r($tables_exist, true));
+        
+        // Check if user exists in user_stats table
+        $user_in_stats = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $stats_table WHERE user_id = %d", $user_id));
+        error_log("AI Analysis Debug - User found in stats table: " . $user_in_stats);
+        
+        // Check recent sessions without date filter
+        $recent_sessions = $wpdb->get_results($wpdb->prepare("SELECT * FROM $sessions_table WHERE user_id = %d ORDER BY created_at DESC LIMIT 5", $user_id), ARRAY_A);
+        error_log("AI Analysis Debug - Recent sessions for user: " . print_r($recent_sessions, true));
+        
+        // Test the date comparison directly
+        $test_query = $wpdb->prepare("SELECT COUNT(*) as count, MIN(created_at) as earliest, MAX(created_at) as latest FROM $sessions_table WHERE user_id = %d AND created_at >= %s", $user_id, $thirty_days_ago);
+        $test_result = $wpdb->get_row($test_query, ARRAY_A);
+        error_log("AI Analysis Debug - Date test result: " . print_r($test_result, true));
+        
+        // Test with different date formats
+        $test_date_formats = array(
+            'Y-m-d H:i:s' => date('Y-m-d H:i:s', strtotime('-30 days', current_time('timestamp'))),
+            'Y-m-d' => date('Y-m-d', strtotime('-30 days', current_time('timestamp'))),
+            'Y-m-d 00:00:00' => date('Y-m-d 00:00:00', strtotime('-30 days', current_time('timestamp')))
+        );
+        
+        foreach ($test_date_formats as $format => $test_date) {
+            $test_count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $sessions_table WHERE user_id = %d AND created_at >= %s", $user_id, $test_date));
+            error_log("AI Analysis Debug - Test with format '$format' ($test_date): $test_count sessions found");
+        }
+        
+        // Get user stats
+        $user_stats = $wpdb->get_row($wpdb->prepare("
+            SELECT * FROM $stats_table WHERE user_id = %d
+        ", $user_id), ARRAY_A);
+        
+        // Always populate debug info regardless of session count
+        $debug_info = array(
+            'user_id' => $user_id,
+            'date_range_start' => $thirty_days_ago,
+            'date_range_end' => $current_time,
+            'sql_query' => $sessions_query,
+            'sessions_found' => count($sessions),
+            'total_sessions_user' => $sessions_count_total,
+            'sessions_30_days' => $sessions_count_30_days,
+            'table_names' => array(
+                'sessions_table' => $sessions_table,
+                'items_table' => $items_table,
+                'stats_table' => $stats_table
+            )
+        );
+        
+        if (empty($sessions)) {
+            return array(
+                'analysis' => 'You haven\'t practiced in the last 30 days. Start logging your practice sessions to get personalized AI insights!',
+                'data_period' => 'Last 30 days',
+                'generated_at' => current_time('mysql'),
+                'debug_prompt' => 'No prompt generated - no sessions found',
+                'debug_info' => $debug_info,
+                'data_summary' => array(
+                    'total_sessions' => 0,
+                    'total_minutes' => 0,
+                    'avg_duration' => 0,
+                    'avg_sentiment' => 0,
+                    'improvement_rate' => 0,
+                    'most_frequent_day' => 'None',
+                    'most_practiced_item' => 'None'
+                )
+            );
+        }
+        
+        // Prepare data for AI analysis
+        $total_sessions = count($sessions);
+        $total_minutes = array_sum(array_column($sessions, 'duration_minutes'));
+        $avg_duration = round($total_minutes / $total_sessions, 1);
+        $avg_sentiment = round(array_sum(array_column($sessions, 'sentiment_score')) / $total_sessions, 1);
+        $improvements = array_sum(array_column($sessions, 'improvement_detected'));
+        $improvement_rate = round(($improvements / $total_sessions) * 100, 1);
+        
+        // Get practice frequency by day of week
+        $day_frequency = array();
+        foreach ($sessions as $session) {
+            $day = date('l', strtotime($session['created_at']));
+            $day_frequency[$day] = ($day_frequency[$day] ?? 0) + 1;
+        }
+        $most_frequent_day = array_keys($day_frequency, max($day_frequency))[0] ?? 'Unknown';
+        
+        // Get most practiced item
+        $item_frequency = array();
+        foreach ($sessions as $session) {
+            $item = $session['item_name'] ?: 'Unknown';
+            $item_frequency[$item] = ($item_frequency[$item] ?? 0) + 1;
+        }
+        $most_practiced_item = array_keys($item_frequency, max($item_frequency))[0] ?? 'Unknown';
+        
+        // Prepare prompt for AI
+        $prompt = "Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:
+
+Practice Sessions: {$total_sessions} sessions
+Total Practice Time: {$total_minutes} minutes
+Average Session Length: {$avg_duration} minutes
+Average Mood/Sentiment: {$avg_sentiment}/5 (1=frustrating, 5=excellent)
+Improvement Rate: {$improvement_rate}% of sessions showed improvement
+Most Frequent Practice Day: {$most_frequent_day}
+Most Practiced Item: {$most_practiced_item}
+Current Level: " . ($user_stats['current_level'] ?? 1) . "
+Current Streak: " . ($user_stats['current_streak'] ?? 0) . " days
+
+Provide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.";
+
+        // Call Katahdin AI Hub
+        $ai_response = $this->call_katahdin_ai($prompt);
+        
+        if (is_wp_error($ai_response)) {
+            return $ai_response;
+        }
+        
+        return array(
+            'analysis' => $ai_response,
+            'data_period' => 'Last 30 days',
+            'generated_at' => current_time('mysql'),
+            'debug_prompt' => $prompt,
+            'debug_info' => $debug_info,
+            'data_summary' => array(
+                'total_sessions' => $total_sessions,
+                'total_minutes' => $total_minutes,
+                'avg_duration' => $avg_duration,
+                'avg_sentiment' => $avg_sentiment,
+                'improvement_rate' => $improvement_rate,
+                'most_frequent_day' => $most_frequent_day,
+                'most_practiced_item' => $most_practiced_item
+            )
+        );
+    }
+    
+    /**
+     * Call Katahdin AI Hub for analysis
+     */
+    private function call_katahdin_ai($prompt) {
+        // Check if Katahdin AI Hub is available
+        if (!class_exists('Katahdin_AI_Hub_REST_API')) {
+            return new WP_Error('ai_hub_unavailable', 'Katahdin AI Hub is not available', array('status' => 503));
+        }
+        
+        // Prepare the request
+        $request_data = array(
+            'messages' => array(
+                array(
+                    'role' => 'system',
+                    'content' => 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.'
+                ),
+                array(
+                    'role' => 'user',
+                    'content' => $prompt
+                )
+            ),
+            'model' => 'gpt-3.5-turbo',
+            'max_tokens' => 300,
+            'temperature' => 0.7,
+            'plugin_id' => 'academy-practice-hub'
+        );
+        
+        // Make the request to Katahdin AI Hub
+        $response = wp_remote_post(rest_url('katahdin-ai-hub/v1/chat/completions'), array(
+            'method' => 'POST',
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'X-WP-Nonce' => wp_create_nonce('wp_rest'),
+                'X-Plugin-ID' => 'academy-practice-hub'
+            ),
+            'body' => json_encode($request_data),
+            'timeout' => 30
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('ai_request_failed', 'Failed to connect to AI service: ' . $response->get_error_message(), array('status' => 500));
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        $response_body = wp_remote_retrieve_body($response);
+        
+        if ($response_code !== 200) {
+            return new WP_Error('ai_service_error', 'AI service returned error: ' . $response_code, array('status' => $response_code));
+        }
+        
+        $data = json_decode($response_body, true);
+        
+        if (!$data || !isset($data['choices'][0]['message']['content'])) {
+            return new WP_Error('ai_response_invalid', 'Invalid response from AI service', array('status' => 500));
+        }
+        
+        return trim($data['choices'][0]['message']['content']);
+    }
+    
+    /**
+     * Get comprehensive database debug information
+     */
+    public function rest_get_database_debug($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view debug information', array('status' => 401));
+            }
+            
+            global $wpdb;
+            
+            // Get all JPH tables
+            $tables = array(
+                'jph_practice_sessions',
+                'jph_practice_items', 
+                'jph_user_stats',
+                'jph_user_badges',
+                'jph_badges',
+                'jph_gems_transactions',
+                'jph_lesson_favorites'
+            );
+            
+            $debug_data = array();
+            
+            foreach ($tables as $table) {
+                $table_name = $wpdb->prefix . $table;
+                
+                // Check if table exists
+                $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'");
+                
+                if ($table_exists) {
+                    // Get table structure
+                    $structure = $wpdb->get_results("DESCRIBE $table_name", ARRAY_A);
+                    
+                    // Get row count
+                    $row_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+                    
+                    // Get user-specific data if applicable
+                    $user_data = array();
+                    if (in_array($table, array('jph_practice_sessions', 'jph_practice_items', 'jph_user_stats', 'jph_user_badges', 'jph_gems_transactions', 'jph_lesson_favorites'))) {
+                        $user_data = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_name WHERE user_id = %d ORDER BY created_at DESC LIMIT 10", $user_id), ARRAY_A);
+                    }
+                    
+                    // Get recent data (last 10 rows) for non-user tables
+                    $recent_data = array();
+                    if (!in_array($table, array('jph_practice_sessions', 'jph_practice_items', 'jph_user_stats', 'jph_user_badges', 'jph_gems_transactions', 'jph_lesson_favorites'))) {
+                        $recent_data = $wpdb->get_results("SELECT * FROM $table_name ORDER BY id DESC LIMIT 10", ARRAY_A);
+                    }
+                    
+                    $debug_data[$table] = array(
+                        'exists' => true,
+                        'row_count' => $row_count,
+                        'structure' => $structure,
+                        'user_data' => $user_data,
+                        'recent_data' => $recent_data
+                    );
+                } else {
+                    $debug_data[$table] = array(
+                        'exists' => false,
+                        'row_count' => 0,
+                        'structure' => array(),
+                        'user_data' => array(),
+                        'recent_data' => array()
+                    );
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'user_id' => $user_id,
+                'tables' => $debug_data,
+                'generated_at' => current_time('mysql')
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_error', 'Error retrieving debug information: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Test date queries for debugging
+     */
+    public function rest_test_date_queries($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to test date queries', array('status' => 401));
+            }
+            
+            global $wpdb;
+            
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            
+            // Test different date calculations
+            $current_time = current_time('mysql');
+            $current_timestamp = current_time('timestamp');
+            
+            $date_tests = array(
+                'current_time_mysql' => $current_time,
+                'current_time_timestamp' => $current_timestamp,
+                'thirty_days_ago_mysql' => date('Y-m-d H:i:s', strtotime('-30 days', $current_timestamp)),
+                'thirty_days_ago_simple' => date('Y-m-d H:i:s', strtotime('-30 days')),
+                'thirty_days_ago_date_only' => date('Y-m-d', strtotime('-30 days', $current_timestamp)),
+                'thirty_days_ago_start_of_day' => date('Y-m-d 00:00:00', strtotime('-30 days', $current_timestamp))
+            );
+            
+            $results = array();
+            
+            // Get all sessions for this user first
+            $all_sessions = $wpdb->get_results($wpdb->prepare("SELECT created_at FROM $sessions_table WHERE user_id = %d ORDER BY created_at DESC LIMIT 10", $user_id), ARRAY_A);
+            
+            foreach ($date_tests as $test_name => $test_date) {
+                $count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $sessions_table WHERE user_id = %d AND created_at >= %s", $user_id, $test_date));
+                
+                $results[$test_name] = array(
+                    'date' => $test_date,
+                    'sessions_found' => $count
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'user_id' => $user_id,
+                'all_sessions_sample' => $all_sessions,
+                'date_tests' => $results,
+                'generated_at' => current_time('mysql')
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('date_test_error', 'Error testing date queries: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
      * Add practice item
      */
     public function rest_add_practice_item($request) {
@@ -1735,5 +2465,74 @@ class JPH_REST_API {
         } catch (Exception $e) {
             return new WP_Error('delete_item_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
+    }
+    
+    /**
+     * Generate fallback analysis when AI Hub is unavailable
+     */
+    private function generate_fallback_analysis($sessions, $user_stats, $debug_info) {
+        $total_sessions = count($sessions);
+        $total_minutes = array_sum(array_column($sessions, 'duration_minutes'));
+        $avg_duration = $total_sessions > 0 ? round($total_minutes / $total_sessions, 1) : 0;
+        $avg_sentiment = $total_sessions > 0 ? round(array_sum(array_column($sessions, 'sentiment_score')) / $total_sessions, 1) : 0;
+        $improvements = count(array_filter($sessions, function($s) { return $s['improvement_detected'] == 1; }));
+        $improvement_rate = $total_sessions > 0 ? round(($improvements / $total_sessions) * 100, 1) : 0;
+        
+        // Get most practiced item
+        $item_counts = array();
+        foreach ($sessions as $session) {
+            $item_name = $session['item_name'] ?? 'Unknown';
+            $item_counts[$item_name] = ($item_counts[$item_name] ?? 0) + 1;
+        }
+        arsort($item_counts);
+        $most_practiced = array_key_first($item_counts);
+        
+        // Generate analysis based on data
+        $analysis = "🎹 **Practice Analysis for the Last 30 Days**\n\n";
+        
+        if ($total_sessions > 0) {
+            $analysis .= "**📊 Your Practice Summary:**\n";
+            $analysis .= "• You practiced {$total_sessions} times totaling {$total_minutes} minutes\n";
+            $analysis .= "• Average session length: {$avg_duration} minutes\n";
+            $analysis .= "• Your mood rating averaged {$avg_sentiment}/5 (";
+            
+            if ($avg_sentiment >= 4) {
+                $analysis .= "Excellent! 🎉";
+            } elseif ($avg_sentiment >= 3) {
+                $analysis .= "Good! 😊";
+            } elseif ($avg_sentiment >= 2) {
+                $analysis .= "Okay 👍";
+            } else {
+                $analysis .= "Keep going! 💪";
+            }
+            $analysis .= ")\n";
+            
+            $analysis .= "• You noticed improvement in {$improvement_rate}% of your sessions\n\n";
+            
+            if ($most_practiced) {
+                $analysis .= "**🎯 Your Focus:** You've been working most on \"{$most_practiced}\" - great dedication!\n\n";
+            }
+            
+            // Add insights based on data
+            if ($avg_duration >= 30) {
+                $analysis .= "**💡 Insight:** Your practice sessions are substantial (30+ minutes) - this shows great commitment to improvement!\n\n";
+            }
+            
+            if ($improvement_rate >= 50) {
+                $analysis .= "**🌟 Achievement:** You're noticing improvement in over half your sessions - that's fantastic progress!\n\n";
+            }
+            
+            if ($user_stats['current_streak'] >= 3) {
+                $analysis .= "**🔥 Streak Power:** You're on a {$user_stats['current_streak']}-day streak! Consistency is key to mastery.\n\n";
+            }
+            
+            $analysis .= "**🚀 Keep It Up:** Your practice data shows you're building great habits. Every session counts toward your musical goals!";
+            
+        } else {
+            $analysis .= "**📝 Ready to Start:** No practice sessions found in the last 30 days. This is a perfect time to begin your musical journey!\n\n";
+            $analysis .= "**💡 Suggestion:** Try starting with just 15-20 minutes of focused practice. Every great musician started with their first note!";
+        }
+        
+        return $analysis;
     }
 }

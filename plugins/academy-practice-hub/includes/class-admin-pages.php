@@ -523,7 +523,7 @@ class JPH_Admin_Pages {
         }
         
         function loadStudentsStats() {
-            fetch('<?php echo rest_url('jph/v1/students/stats'); ?>', {
+            fetch('<?php echo rest_url('aph/v1/students/stats'); ?>', {
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -553,7 +553,7 @@ class JPH_Admin_Pages {
             if (level) params.append('level', level);
             if (activity) params.append('activity', activity);
             
-            const url = '<?php echo rest_url('jph/v1/students'); ?>' + (params.toString() ? '?' + params.toString() : '');
+            const url = '<?php echo rest_url('aph/v1/students'); ?>' + (params.toString() ? '?' + params.toString() : '');
             
             fetch(url, {
                 method: 'GET',
@@ -619,7 +619,7 @@ class JPH_Admin_Pages {
             modal.style.display = 'flex';
             content.innerHTML = '<div class="jph-loading">Loading student details...</div>';
             
-            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+            fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}`, {
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -663,7 +663,7 @@ class JPH_Admin_Pages {
             modal.style.display = 'flex';
             content.innerHTML = '<div class="jph-loading">Loading student data...</div>';
             
-            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+            fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}`, {
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -748,7 +748,7 @@ class JPH_Admin_Pages {
             const formData = new FormData(event.target);
             const data = Object.fromEntries(formData.entries());
             
-            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+            fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -787,7 +787,7 @@ class JPH_Admin_Pages {
         }
         
         function exportStudents() {
-            window.location.href = '<?php echo rest_url('jph/v1/export-students'); ?>';
+            window.location.href = '<?php echo rest_url('aph/v1/export-students'); ?>';
         }
         
         function showStudentAnalytics() {
@@ -1072,7 +1072,7 @@ class JPH_Admin_Pages {
             console.log('Editing badge key:', badgeKey);
             
             // Fetch badge data
-            fetch('<?php echo rest_url('jph/v1/admin/badges'); ?>', {
+            fetch('<?php echo rest_url('aph/v1/admin/badges'); ?>', {
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                 }
@@ -1139,7 +1139,7 @@ class JPH_Admin_Pages {
             
             console.log('Updating badge:', badgeKey, badgeData);
             
-            fetch('<?php echo rest_url('jph/v1/badges/key/'); ?>' + badgeKey, {
+            fetch('<?php echo rest_url('aph/v1/badges/key/'); ?>' + badgeKey, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1171,7 +1171,7 @@ class JPH_Admin_Pages {
         function deleteBadge(badgeKey) {
             if (confirm('Are you sure you want to delete this badge? This action cannot be undone.')) {
                 console.log('Deleting badge key:', badgeKey);
-                fetch('<?php echo rest_url('jph/v1/badges/key/'); ?>' + badgeKey, {
+                fetch('<?php echo rest_url('aph/v1/badges/key/'); ?>' + badgeKey, {
                     method: 'DELETE',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1209,7 +1209,7 @@ class JPH_Admin_Pages {
                     
                     console.log('Creating badge with data:', data);
                     
-                    fetch('<?php echo rest_url('jph/v1/admin/badges'); ?>', {
+                    fetch('<?php echo rest_url('aph/v1/admin/badges'); ?>', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1556,12 +1556,12 @@ class JPH_Admin_Pages {
             
             // Export button
             $('#export-favorites-btn').on('click', function() {
-                window.location.href = '<?php echo rest_url('jph/v1/export-lesson-favorites'); ?>';
+                window.location.href = '<?php echo rest_url('aph/v1/export-lesson-favorites'); ?>';
             });
             
             function loadLessonFavoritesData() {
                 $.ajax({
-                    url: '<?php echo rest_url('jph/v1/admin/lesson-favorites'); ?>',
+                    url: '<?php echo rest_url('aph/v1/admin/lesson-favorites'); ?>',
                     method: 'GET',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1607,7 +1607,7 @@ class JPH_Admin_Pages {
             
             function loadLessonFavoritesStats() {
                 $.ajax({
-                    url: '<?php echo rest_url('jph/v1/admin/lesson-favorites-stats'); ?>',
+                    url: '<?php echo rest_url('aph/v1/admin/lesson-favorites-stats'); ?>',
                     method: 'GET',
                     headers: {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1836,7 +1836,7 @@ class JPH_Admin_Pages {
             jQuery('#webhook-test-results').html('<p>Testing badge event: ' + badgeKey + '...</p>');
             
             jQuery.ajax({
-                url: '<?php echo rest_url('jph/v1/test-badge-event'); ?>',
+                url: '<?php echo rest_url('aph/v1/test-badge-event'); ?>',
                 method: 'POST',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1875,7 +1875,7 @@ class JPH_Admin_Pages {
             jQuery('#badge-debug-results').html('<p>Checking badge status for user: ' + userId + '...</p>');
             
             jQuery.ajax({
-                url: '<?php echo rest_url('jph/v1/debug-user-badges'); ?>',
+                url: '<?php echo rest_url('aph/v1/debug-user-badges'); ?>',
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1900,7 +1900,7 @@ class JPH_Admin_Pages {
             jQuery('#badge-debug-results').html('<p>Running badge assignment test...</p>');
             
             jQuery.ajax({
-                url: '<?php echo rest_url('jph/v1/test-badge-assignment'); ?>',
+                url: '<?php echo rest_url('aph/v1/test-badge-assignment'); ?>',
                 method: 'POST',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1934,7 +1934,7 @@ class JPH_Admin_Pages {
             jQuery('#badge-debug-results').html('<p>Inspecting badge database...</p>');
             
             jQuery.ajax({
-                url: '<?php echo rest_url('jph/v1/debug-badge-database'); ?>',
+                url: '<?php echo rest_url('aph/v1/debug-badge-database'); ?>',
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -1956,7 +1956,7 @@ class JPH_Admin_Pages {
             jQuery('#badge-debug-results').html('<p>Checking practice sessions...</p>');
             
             jQuery.ajax({
-                url: '<?php echo rest_url('jph/v1/debug-practice-sessions'); ?>',
+                url: '<?php echo rest_url('aph/v1/debug-practice-sessions'); ?>',
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
@@ -2137,7 +2137,7 @@ class JPH_Admin_Pages {
             jQuery('#danger-results').html('<p>Clearing all user data...</p>');
             
             jQuery.ajax({
-                url: '<?php echo rest_url('jph/v1/admin/clear-all-user-data'); ?>',
+                url: '<?php echo rest_url('aph/v1/admin/clear-all-user-data'); ?>',
                 method: 'POST',
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
