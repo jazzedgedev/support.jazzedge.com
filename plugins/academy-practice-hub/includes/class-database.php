@@ -450,4 +450,168 @@ class JPH_Database {
         
         return $purchases[0]['count'] ?? 0;
     }
+    
+    /**
+     * Add practice item
+     */
+    public function add_practice_item($user_id, $name, $category = 'custom', $description = '', $url = '') {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_practice_items';
+        
+        // Check if user already has this name (only active items)
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND name = %s AND is_active = 1",
+            $user_id, $name
+        ));
+        
+        if ($existing) {
+            return new WP_Error('duplicate_name', 'You already have a practice item with this name');
+        }
+        
+        // Check total item limit (max 6 active items total)
+        $total_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table_name} WHERE user_id = %d AND is_active = 1",
+            $user_id
+        ));
+        
+        if ($total_count >= 6) {
+            return new WP_Error('limit_exceeded', 'You can only have 6 active practice items at once. Delete an item to add a new one.');
+        }
+        
+        // Prepare insert data
+        $insert_data = array(
+            'user_id' => $user_id,
+            'name' => $name,
+            'category' => $category,
+            'description' => $description,
+            'is_active' => 1,
+            'sort_order' => $total_count
+        );
+        
+        // Add URL if provided (check if column exists)
+        $columns = $wpdb->get_col("DESCRIBE {$table_name}");
+        if (in_array('url', $columns) && !empty($url)) {
+            $insert_data['url'] = $url;
+        }
+        
+        $format = array('%d', '%s', '%s', '%s', '%d', '%d');
+        if (in_array('url', $columns) && !empty($url)) {
+            $format[] = '%s';
+        }
+        
+        $result = $wpdb->insert($table_name, $insert_data, $format);
+        
+        if ($result === false) {
+            return new WP_Error('insert_failed', 'Failed to add practice item: ' . $wpdb->last_error);
+        }
+        
+        return $wpdb->insert_id;
+    }
+    
+    /**
+     * Update practice item
+     */
+    public function update_practice_item($item_id, $name, $category = null, $description = null) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_practice_items';
+        
+        // Get current item
+        $item = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $item_id
+        ), ARRAY_A);
+        
+        if (!$item) {
+            return new WP_Error('item_not_found', 'Practice item not found');
+        }
+        
+        // Prepare update data
+        $update_data = array();
+        $update_format = array();
+        
+        if ($name !== null) {
+            $update_data['name'] = $name;
+            $update_format[] = '%s';
+        }
+        
+        if ($category !== null) {
+            $update_data['category'] = $category;
+            $update_format[] = '%s';
+        }
+        
+        if ($description !== null) {
+            $update_data['description'] = $description;
+            $update_format[] = '%s';
+        }
+        
+        if (empty($update_data)) {
+            return new WP_Error('no_changes', 'No changes provided');
+        }
+        
+        $result = $wpdb->update(
+            $table_name,
+            $update_data,
+            array('id' => $item_id),
+            $update_format,
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update practice item: ' . $wpdb->last_error);
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Delete practice item
+     */
+    public function delete_practice_item($item_id) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_practice_items';
+        
+        // Check if item exists
+        $item = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $item_id
+        ), ARRAY_A);
+        
+        if (!$item) {
+            return new WP_Error('item_not_found', 'Practice item not found');
+        }
+        
+        // Soft delete (set is_active = 0)
+        $result = $wpdb->update(
+            $table_name,
+            array('is_active' => 0),
+            array('id' => $item_id),
+            array('%d'),
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('delete_failed', 'Failed to delete practice item: ' . $wpdb->last_error);
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Get lesson favorite by ID
+     */
+    public function get_lesson_favorite($favorite_id) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        $favorite = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE id = %d",
+            $favorite_id
+        ), ARRAY_A);
+        
+        return $favorite;
+    }
 }

@@ -168,6 +168,56 @@ class JPH_REST_API {
             'callback' => array($this, 'rest_debug_practice_sessions'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
+        
+        // Admin students endpoints
+        register_rest_route('jph/v1', '/students', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_students'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/students/stats', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_students_stats'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/students/(?P<id>\d+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_student'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/students/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_student'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/export-students', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_export_students'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // Practice item management endpoints
+        register_rest_route('jph/v1', '/practice-items', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_add_practice_item'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/practice-items/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_practice_item'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/practice-items/(?P<id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'rest_delete_practice_item'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
     }
     
     /**
@@ -305,7 +355,7 @@ class JPH_REST_API {
             return new WP_Error('not_found', 'Practice session not found', array('status' => 404));
         }
         
-        $result = $this->database->delete_practice_session($session_id);
+        $result = $this->database->delete_practice_session($session_id, $user_id);
         
         if (is_wp_error($result)) {
             return $result;
@@ -861,11 +911,30 @@ class JPH_REST_API {
     public function rest_purchase_streak_shield($request) {
         try {
             $user_id = get_current_user_id();
+            
+            // Check if user is logged in
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to purchase shields', array('status' => 401));
+            }
+            
+            // Check if classes exist
+            if (!class_exists('JPH_Database')) {
+                return new WP_Error('class_not_found', 'Database class not found', array('status' => 500));
+            }
+            
+            if (!class_exists('APH_Gamification')) {
+                return new WP_Error('class_not_found', 'Gamification class not found', array('status' => 500));
+            }
+            
             $database = new JPH_Database();
             $gamification = new APH_Gamification();
             
             // Get current user stats
             $user_stats = $gamification->get_user_stats($user_id);
+            
+            // Log for debugging
+            error_log('JPH: Shield purchase attempt for user ' . $user_id);
+            error_log('JPH: User stats: ' . print_r($user_stats, true));
             $current_shields = $user_stats['streak_shield_count'] ?? 0;
             $gem_balance = $user_stats['gems_balance'] ?? 0;
             $shield_cost = 50;
@@ -894,7 +963,7 @@ class JPH_REST_API {
             
             if ($result) {
                 // Record the gem transaction
-                $database->record_gems_transaction($user_id, -$shield_cost, 'streak_shield_purchase', 'Purchased streak shield');
+                $database->record_gems_transaction($user_id, 'debit', -$shield_cost, 'streak_shield_purchase', 'Purchased streak shield');
                 
                 return rest_ensure_response(array(
                     'success' => true,
@@ -909,6 +978,8 @@ class JPH_REST_API {
             }
             
         } catch (Exception $e) {
+            error_log('JPH: Shield purchase error: ' . $e->getMessage());
+            error_log('JPH: Shield purchase error trace: ' . $e->getTraceAsString());
             return new WP_Error('purchase_shield_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
@@ -1239,6 +1310,430 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             return new WP_Error('debug_practice_sessions_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get students for admin
+     */
+    public function rest_get_students($request) {
+        try {
+            global $wpdb;
+            
+            // Get filter parameters
+            $search = $request->get_param('search');
+            $level_filter = $request->get_param('level');
+            $activity_filter = $request->get_param('activity');
+            
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            // Build the query
+            $where_conditions = array();
+            $params = array();
+            
+            if (!empty($search)) {
+                $where_conditions[] = "(u.display_name LIKE %s OR u.user_email LIKE %s)";
+                $params[] = '%' . $wpdb->esc_like($search) . '%';
+                $params[] = '%' . $wpdb->esc_like($search) . '%';
+            }
+            
+            if (!empty($level_filter)) {
+                if ($level_filter === '3') {
+                    $where_conditions[] = "us.current_level >= 3";
+                } else {
+                    $where_conditions[] = "us.current_level = %d";
+                    $params[] = intval($level_filter);
+                }
+            }
+            
+            if (!empty($activity_filter)) {
+                if ($activity_filter === 'active') {
+                    $where_conditions[] = "us.last_practice_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+                } elseif ($activity_filter === 'inactive') {
+                    $where_conditions[] = "us.last_practice_date < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+                }
+            }
+            
+            // Always filter for students with stats records (like original plugin)
+            $where_conditions[] = "us.user_id IS NOT NULL";
+            
+            $where_clause = '';
+            if (!empty($where_conditions)) {
+                $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+            }
+            
+            $query = "
+                SELECT 
+                    u.ID,
+                    u.display_name,
+                    u.user_email,
+                    us.total_xp,
+                    us.current_level,
+                    us.current_streak,
+                    us.longest_streak,
+                    us.badges_earned,
+                    us.last_practice_date,
+                    us.total_sessions,
+                    us.total_minutes,
+                    us.gems_balance,
+                    us.streak_shield_count
+                FROM {$wpdb->users} u
+                LEFT JOIN $table_name us ON u.ID = us.user_id
+                $where_clause
+                ORDER BY us.total_xp DESC, u.display_name ASC
+            ";
+            
+            if (!empty($params)) {
+                $query = $wpdb->prepare($query, $params);
+            }
+            
+            $students = $wpdb->get_results($query, ARRAY_A);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'students' => $students
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('get_students_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get students statistics
+     */
+    public function rest_get_students_stats($request) {
+        try {
+            global $wpdb;
+            
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            // Total students (all students with stats records AND user records)
+            $total_students = $wpdb->get_var("
+                SELECT COUNT(*) 
+                FROM $table_name us 
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+            ");
+            
+            // Active students (practiced in last 7 days)
+            $active_students = $wpdb->get_var("
+                SELECT COUNT(*) 
+                FROM $table_name us 
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+                WHERE us.last_practice_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ");
+            
+            // Total practice hours
+            $total_hours = $wpdb->get_var("
+                SELECT SUM(us.total_minutes) / 60 
+                FROM $table_name us 
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+            ");
+            
+            // Average level
+            $average_level = $wpdb->get_var("
+                SELECT AVG(us.current_level) 
+                FROM $table_name us 
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+            ");
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'stats' => array(
+                    'total_students' => (int) $total_students,
+                    'active_students' => (int) $active_students,
+                    'total_hours' => round($total_hours, 1),
+                    'average_level' => round($average_level, 1)
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('get_students_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get single student
+     */
+    public function rest_get_student($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = $request->get_param('id');
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            $student = $wpdb->get_row($wpdb->prepare("
+                SELECT 
+                    u.ID,
+                    u.display_name,
+                    u.user_email,
+                    us.*
+                FROM {$wpdb->users} u
+                LEFT JOIN $table_name us ON u.ID = us.user_id
+                WHERE u.ID = %d
+            ", $user_id), ARRAY_A);
+            
+            if (!$student) {
+                return new WP_Error('student_not_found', 'Student not found', array('status' => 404));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'student' => $student
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('get_student_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update student
+     */
+    public function rest_update_student($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = $request->get_param('id');
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            // Get the request body
+            $data = $request->get_json_params();
+            
+            // Validate required fields
+            $allowed_fields = array(
+                'total_xp', 'current_level', 'current_streak', 'longest_streak',
+                'total_sessions', 'total_minutes', 'hearts_count', 'gems_balance',
+                'badges_earned', 'last_practice_date', 'streak_shield_count'
+            );
+            
+            $update_data = array();
+            foreach ($allowed_fields as $field) {
+                if (isset($data[$field])) {
+                    $update_data[$field] = sanitize_text_field($data[$field]);
+                }
+            }
+            
+            if (empty($update_data)) {
+                return new WP_Error('no_data', 'No valid data provided', array('status' => 400));
+            }
+            
+            // Add updated timestamp
+            $update_data['updated_at'] = current_time('mysql');
+            
+            // Update the student
+            $result = $wpdb->update(
+                $table_name,
+                $update_data,
+                array('user_id' => $user_id),
+                array_fill(0, count($update_data), '%s'),
+                array('%d')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to update student', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Student updated successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('update_student_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Export students as CSV
+     */
+    public function rest_export_students($request) {
+        try {
+            global $wpdb;
+            
+            $table_name = $wpdb->prefix . 'jph_user_stats';
+            
+            $students = $wpdb->get_results("
+                SELECT 
+                    u.ID as user_id,
+                    u.display_name,
+                    u.user_email,
+                    us.total_xp,
+                    us.current_level,
+                    us.current_streak,
+                    us.longest_streak,
+                    us.badges_earned,
+                    us.last_practice_date,
+                    us.total_sessions,
+                    us.total_minutes,
+                    us.gems_balance,
+                    us.hearts_count,
+                    us.streak_shield_count
+                FROM {$wpdb->users} u
+                LEFT JOIN $table_name us ON u.ID = us.user_id
+                WHERE us.user_id IS NOT NULL
+                ORDER BY us.total_xp DESC, u.display_name ASC
+            ", ARRAY_A);
+            
+            // Set headers for CSV download
+            header('Content-Type: text/csv');
+            header('Content-Disposition: attachment; filename="students-' . date('Y-m-d') . '.csv"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+            
+            // Add UTF-8 BOM for proper Excel display
+            echo "\xEF\xBB\xBF";
+            
+            // Open output stream
+            $output = fopen('php://output', 'w');
+            
+            // Add CSV headers
+            fputcsv($output, array(
+                'User ID',
+                'Name',
+                'Email',
+                'Total XP',
+                'Level',
+                'Current Streak',
+                'Longest Streak',
+                'Badges Earned',
+                'Streak Shields',
+                'Last Practice',
+                'Total Sessions',
+                'Total Minutes',
+                'Gems Balance',
+                'Hearts Count'
+            ));
+            
+            // Add data rows
+            foreach ($students as $student) {
+                fputcsv($output, array(
+                    $student['user_id'],
+                    $student['display_name'] ?: 'Unknown',
+                    $student['user_email'] ?: '',
+                    $student['total_xp'] ?: 0,
+                    $student['current_level'] ?: 1,
+                    $student['current_streak'] ?: 0,
+                    $student['longest_streak'] ?: 0,
+                    $student['badges_earned'] ?: 0,
+                    $student['streak_shield_count'] ?: 0,
+                    $student['last_practice_date'] ?: '',
+                    $student['total_sessions'] ?: 0,
+                    $student['total_minutes'] ?: 0,
+                    $student['gems_balance'] ?: 0,
+                    $student['hearts_count'] ?: 0
+                ));
+            }
+            
+            fclose($output);
+            exit;
+            
+        } catch (Exception $e) {
+            return new WP_Error('export_students_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Add practice item
+     */
+    public function rest_add_practice_item($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to add practice items', array('status' => 401));
+            }
+            
+            $name = $request->get_param('item_name') ?: $request->get_param('name');
+            $category = $request->get_param('category') ?: 'custom';
+            $description = $request->get_param('item_description') ?: $request->get_param('description') ?: '';
+            $lesson_favorite = $request->get_param('lesson_favorite');
+            $url = '';
+            
+            // If created from lesson favorite, get the URL
+            if (!empty($lesson_favorite)) {
+                $favorite = $this->database->get_lesson_favorite($lesson_favorite);
+                if ($favorite && !is_wp_error($favorite)) {
+                    $url = $favorite['url'];
+                    $category = $favorite['category'];
+                }
+            }
+            
+            if (!$name) {
+                return new WP_Error('missing_name', 'Practice item name is required', array('status' => 400));
+            }
+            
+            $result = $this->database->add_practice_item($user_id, $name, $category, $description, $url);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'item_id' => $result,
+                'message' => 'Practice item added successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('add_item_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update practice item
+     */
+    public function rest_update_practice_item($request) {
+        try {
+            $item_id = $request->get_param('id');
+            $name = $request->get_param('item_name') ?: $request->get_param('name');
+            $category = $request->get_param('category');
+            $description = $request->get_param('item_description') ?: $request->get_param('description');
+            
+            if (!$item_id) {
+                return new WP_Error('missing_id', 'Item ID is required', array('status' => 400));
+            }
+            
+            $result = $this->database->update_practice_item($item_id, $name, $category, $description);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice item updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_item_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Delete practice item
+     */
+    public function rest_delete_practice_item($request) {
+        try {
+            $item_id = $request->get_param('id');
+            
+            if (!$item_id) {
+                return new WP_Error('missing_id', 'Item ID is required', array('status' => 400));
+            }
+            
+            $result = $this->database->delete_practice_item($item_id);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice item deleted successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('delete_item_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
 }

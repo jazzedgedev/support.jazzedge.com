@@ -119,84 +119,120 @@ class JPH_Admin_Pages {
      * Students page
      */
     public function students_page() {
-        global $wpdb;
-        
-        // Get all users with practice stats
-        $stats_table = $wpdb->prefix . 'jph_user_stats';
-        $users = $wpdb->get_results(
-            "SELECT u.ID, u.display_name, u.user_email, s.total_sessions, s.total_minutes, s.gems_balance, s.current_level
-             FROM {$wpdb->users} u
-             LEFT JOIN {$stats_table} s ON u.ID = s.user_id
-             WHERE s.user_id IS NOT NULL
-             ORDER BY s.total_sessions DESC"
-        );
         ?>
         <div class="wrap">
-            <h1>👥 Students</h1>
+            <h1>👥 Practice Hub Students</h1>
             
             <div class="jph-students-overview">
                 <div class="jph-students-stats">
                     <div class="jph-stat-card">
                         <h3>Total Students</h3>
-                        <p><?php echo count($users); ?></p>
+                        <p id="total-students">Loading...</p>
                     </div>
                     <div class="jph-stat-card">
-                        <h3>Active Students</h3>
-                        <p><?php echo count(array_filter($users, function($u) { return $u->total_sessions > 0; })); ?></p>
+                        <h3>Active This Week</h3>
+                        <p id="active-students">Loading...</p>
                     </div>
                     <div class="jph-stat-card">
-                        <h3>Total Sessions</h3>
-                        <p><?php echo array_sum(array_column($users, 'total_sessions')); ?></p>
+                        <h3>Total Practice Hours</h3>
+                        <p id="total-hours">Loading...</p>
                     </div>
                     <div class="jph-stat-card">
-                        <h3>Total Minutes</h3>
-                        <p><?php echo array_sum(array_column($users, 'total_minutes')); ?></p>
+                        <h3>Average Level</h3>
+                        <p id="average-level">Loading...</p>
                     </div>
                 </div>
             </div>
             
-            <div class="jph-students-actions">
-                <button type="button" class="button button-secondary" onclick="location.reload()">🔄 Refresh</button>
-                <button type="button" class="button button-secondary" onclick="alert('Export functionality coming soon')">📊 Export CSV</button>
+            <div class="jph-students-filters">
+                <div class="jph-filter-group">
+                    <label for="student-search">Search Students:</label>
+                    <input type="text" id="student-search" placeholder="Search by name or email...">
+                </div>
+                <div class="jph-filter-group">
+                    <label for="level-filter">Filter by Level:</label>
+                    <select id="level-filter">
+                        <option value="">All Levels</option>
+                        <option value="1">Level 1</option>
+                        <option value="2">Level 2</option>
+                        <option value="3">Level 3+</option>
+                    </select>
+                </div>
+                <div class="jph-filter-group">
+                    <label for="activity-filter">Activity Status:</label>
+                    <select id="activity-filter">
+                        <option value="">All Students</option>
+                        <option value="active">Active (7 days)</option>
+                        <option value="inactive">Inactive (30+ days)</option>
+                    </select>
+                </div>
+                <div class="jph-filter-group">
+                    <button type="button" class="button button-primary" id="search-students-btn">🔍 Search</button>
+                    <button type="button" class="button button-secondary" id="clear-filters-btn">Clear Filters</button>
+                </div>
             </div>
             
             <div class="jph-students-table-container">
-                <table class="wp-list-table widefat fixed striped">
+                <table class="jph-students-table">
                     <thead>
                         <tr>
+                            <th>User ID</th>
                             <th>Student</th>
+                            <th>Level</th>
+                            <th>XP</th>
+                            <th>Current Streak</th>
+                            <th>Longest Streak</th>
+                            <th>Badges</th>
+                            <th>Shields</th>
+                            <th>Last Practice</th>
                             <th>Total Sessions</th>
                             <th>Total Hours</th>
-                            <th>Level</th>
                             <th>Gems</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <?php if (empty($users)): ?>
-                            <tr>
-                                <td colspan="6">No students found.</td>
-                            </tr>
-                        <?php else: ?>
-                            <?php foreach ($users as $user): ?>
-                                <tr>
-                                    <td>
-                                        <strong><?php echo esc_html($user->display_name); ?></strong><br>
-                                        <small><?php echo esc_html($user->user_email); ?></small>
-                                    </td>
-                                    <td><?php echo esc_html($user->total_sessions ?: 0); ?></td>
-                                    <td><?php echo esc_html(round(($user->total_minutes ?: 0) / 60, 1)); ?>h</td>
-                                    <td><?php echo esc_html($user->current_level ?: 1); ?></td>
-                                    <td><?php echo esc_html($user->gems_balance ?: 0); ?></td>
-                                    <td>
-                                        <button type="button" class="button button-small" onclick="alert('View functionality coming soon')">View</button>
-                                        <button type="button" class="button button-small" onclick="alert('Edit functionality coming soon')">Edit</button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                    <tbody id="students-table-body">
+                        <tr>
+                            <td colspan="13" class="jph-loading">Loading students...</td>
+                        </tr>
                     </tbody>
                 </table>
+            </div>
+            
+            <div class="jph-students-actions">
+                <button type="button" class="button button-primary" onclick="refreshStudents()">Refresh Data</button>
+                <button type="button" class="button button-secondary" onclick="exportStudents()">Export CSV</button>
+                <button type="button" class="button button-secondary" onclick="showStudentAnalytics()">View Analytics</button>
+            </div>
+        </div>
+        
+        <!-- View Student Modal -->
+        <div id="jph-view-student-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h2>👤 Student Details</h2>
+                    <button class="jph-modal-close" onclick="closeViewStudentModal()">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+                <div class="jph-modal-body" id="jph-view-student-content">
+                    <div class="jph-loading">Loading student details...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Edit Student Modal -->
+        <div id="jph-edit-student-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h2>✏️ Edit Student Stats</h2>
+                    <button class="jph-modal-close" onclick="closeEditStudentModal()">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+                <div class="jph-modal-body" id="jph-edit-student-content">
+                    <div class="jph-loading">Loading student data...</div>
+                </div>
             </div>
         </div>
         
@@ -223,27 +259,554 @@ class JPH_Admin_Pages {
         
         .jph-stat-card h3 {
             margin: 0 0 10px 0;
-            color: #333;
+            color: #666;
             font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-weight: 600;
         }
         
         .jph-stat-card p {
             margin: 0;
             font-size: 24px;
-            font-weight: bold;
+            font-weight: 700;
             color: #0073aa;
+        }
+        
+        .jph-students-filters {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+        
+        .jph-filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .jph-filter-group label {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .jph-filter-group input,
+        .jph-filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 150px;
+        }
+        
+        .jph-students-table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .jph-students-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .jph-students-table th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .jph-students-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f1f1f1;
+        }
+        
+        .jph-students-table tr:hover {
+            background: #f8f9fa;
         }
         
         .jph-students-actions {
             margin: 20px 0;
         }
         
-        .jph-students-actions .button {
-            margin-right: 10px;
+        .jph-loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .jph-modal {
+            position: fixed;
+            z-index: 100000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .jph-modal-content {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-height: 90vh;
+            max-width: 90vw;
+            width: 90%;
+            overflow-y: auto;
+            position: relative;
+            margin: auto;
+            padding: 30px;
+        }
+        
+        .jph-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .jph-modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .jph-modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .jph-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+            z-index: 10;
+        }
+        
+        .jph-close:hover {
+            color: #333;
+        }
+        
+        .jph-modal-body {
+            padding: 20px;
+        }
+        
+        .jph-edit-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .jph-edit-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .jph-edit-form-group label {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .jph-edit-form-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .jph-edit-form-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        
+        @media (max-width: 768px) {
+            .explanation-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Stats Help Button Styling */
+        .jph-stats-help-btn {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: white !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            backdrop-filter: blur(10px);
+            padding: 10px 16px !important;
+            font-size: 14px !important;
+            white-space: nowrap;
+        }
+        
+        .jph-stats-help-btn:hover {
+            background: rgba(255, 255, 255, 0.25) !important;
+            transform: translateY(-1px);
+        }
+        
+        .jph-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .jph-btn-secondary {
+            background: #f8f9fa;
+            color: #495057;
+            border: 1px solid #dee2e6;
+        }
+        
+        .jph-btn-secondary:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+        
+        .btn-icon {
+            font-size: 16px;
         }
         </style>
+        
+        <script>
+        // Load students data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStudentsStats();
+            loadStudents();
+            
+            // Search functionality
+            document.getElementById('search-students-btn').addEventListener('click', function() {
+                loadStudents();
+            });
+            
+            document.getElementById('clear-filters-btn').addEventListener('click', function() {
+                document.getElementById('student-search').value = '';
+                document.getElementById('level-filter').value = '';
+                document.getElementById('activity-filter').value = '';
+                loadStudents();
+            });
+        });
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'Never';
+            
+            // Handle YYYY-MM-DD format from database
+            const date = new Date(dateString + 'T00:00:00');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const year = date.getFullYear();
+            
+            return `${month}/${day}/${year}`;
+        }
+        
+        function loadStudentsStats() {
+            fetch('<?php echo rest_url('jph/v1/students/stats'); ?>', {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('total-students').textContent = data.stats.total_students;
+                    document.getElementById('active-students').textContent = data.stats.active_students;
+                    document.getElementById('total-hours').textContent = data.stats.total_hours;
+                    document.getElementById('average-level').textContent = data.stats.average_level;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading stats:', error);
+            });
+        }
+        
+        function loadStudents() {
+            const search = document.getElementById('student-search').value;
+            const level = document.getElementById('level-filter').value;
+            const activity = document.getElementById('activity-filter').value;
+            
+            const params = new URLSearchParams();
+            if (search) params.append('search', search);
+            if (level) params.append('level', level);
+            if (activity) params.append('activity', activity);
+            
+            const url = '<?php echo rest_url('jph/v1/students'); ?>' + (params.toString() ? '?' + params.toString() : '');
+            
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayStudents(data.students);
+                } else {
+                    document.getElementById('students-table-body').innerHTML = '<tr><td colspan="13">Error loading students</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading students:', error);
+                document.getElementById('students-table-body').innerHTML = '<tr><td colspan="13">Error loading students</td></tr>';
+            });
+        }
+        
+        function displayStudents(students) {
+            const tbody = document.getElementById('students-table-body');
+            
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="13">No students found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = students.map(student => `
+                <tr>
+                    <td>
+                        <a href="<?php echo admin_url('user-edit.php?user_id='); ?>${student.ID}" target="_blank">
+                            ${student.ID}
+                        </a>
+                    </td>
+                    <td>
+                        <strong>${student.display_name || 'Unknown'}</strong><br>
+                        <small>${student.user_email || ''}</small>
+                    </td>
+                    <td>${student.current_level || 1}</td>
+                    <td>${student.total_xp || 0}</td>
+                    <td>${student.current_streak || 0}</td>
+                    <td>${student.longest_streak || 0}</td>
+                    <td>${student.badges_earned || 0}</td>
+                    <td>${student.streak_shield_count || 0}</td>
+                    <td>${student.last_practice_date ? formatDate(student.last_practice_date) : 'Never'}</td>
+                    <td>${student.total_sessions || 0}</td>
+                    <td>${Math.round((student.total_minutes || 0) / 60 * 10) / 10}h</td>
+                    <td>${student.gems_balance || 0}</td>
+                    <td>
+                        <button type="button" class="button button-small" onclick="viewStudent(${student.ID})">View</button>
+                        <button type="button" class="button button-small" onclick="editStudentStats(${student.ID})">Edit</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function viewStudent(userId) {
+            const modal = document.getElementById('jph-view-student-modal');
+            const content = document.getElementById('jph-view-student-content');
+            
+            modal.style.display = 'flex';
+            content.innerHTML = '<div class="jph-loading">Loading student details...</div>';
+            
+            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const student = data.student;
+                    content.innerHTML = `
+                        <div class="jph-student-details">
+                            <h3>${student.display_name || 'Unknown'}</h3>
+                            <p><strong>Email:</strong> ${student.user_email || 'N/A'}</p>
+                            <p><strong>Total XP:</strong> ${student.total_xp || 0}</p>
+                            <p><strong>Level:</strong> ${student.current_level || 1}</p>
+                            <p><strong>Current Streak:</strong> ${student.current_streak || 0}</p>
+                            <p><strong>Longest Streak:</strong> ${student.longest_streak || 0}</p>
+                            <p><strong>Badges Earned:</strong> ${student.badges_earned || 0}</p>
+                            <p><strong>Total Sessions:</strong> ${student.total_sessions || 0}</p>
+                            <p><strong>Total Minutes:</strong> ${student.total_minutes || 0}</p>
+                            <p><strong>Gems Balance:</strong> ${student.gems_balance || 0}</p>
+                            <p><strong>Hearts Count:</strong> ${student.hearts_count || 0}</p>
+                            <p><strong>Streak Shields:</strong> ${student.streak_shield_count || 0}</p>
+                            <p><strong>Last Practice:</strong> ${student.last_practice_date ? formatDate(student.last_practice_date) : 'Never'}</p>
+                        </div>
+                    `;
+                } else {
+                    content.innerHTML = '<p>Error loading student details</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading student:', error);
+                content.innerHTML = '<p>Error loading student details</p>';
+            });
+        }
+        
+        function editStudentStats(userId) {
+            const modal = document.getElementById('jph-edit-student-modal');
+            const content = document.getElementById('jph-edit-student-content');
+            
+            modal.style.display = 'flex';
+            content.innerHTML = '<div class="jph-loading">Loading student data...</div>';
+            
+            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderEditStudentForm(data.student);
+                } else {
+                    content.innerHTML = '<p>Error loading student data</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading student:', error);
+                content.innerHTML = '<p>Error loading student data</p>';
+            });
+        }
+        
+        function renderEditStudentForm(student) {
+            const content = document.getElementById('jph-edit-student-content');
+            
+            content.innerHTML = `
+                <form id="jph-edit-student-form" onsubmit="saveStudentStats(event, ${student.ID})">
+                    <div class="jph-edit-form">
+                        <div class="jph-edit-form-group">
+                            <label>Total XP</label>
+                            <input type="number" name="total_xp" value="${student.total_xp || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Current Level</label>
+                            <input type="number" name="current_level" value="${student.current_level || 1}" min="1" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Current Streak</label>
+                            <input type="number" name="current_streak" value="${student.current_streak || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Longest Streak</label>
+                            <input type="number" name="longest_streak" value="${student.longest_streak || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Total Sessions</label>
+                            <input type="number" name="total_sessions" value="${student.total_sessions || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Total Minutes</label>
+                            <input type="number" name="total_minutes" value="${student.total_minutes || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Hearts Count</label>
+                            <input type="number" name="hearts_count" value="${student.hearts_count || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Gems Balance</label>
+                            <input type="number" name="gems_balance" value="${student.gems_balance || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Streak Shields</label>
+                            <input type="number" name="streak_shield_count" value="${student.streak_shield_count || 0}" min="0" max="3" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Badges Earned</label>
+                            <input type="number" name="badges_earned" value="${student.badges_earned || 0}" min="0" required>
+                        </div>
+                        <div class="jph-edit-form-group">
+                            <label>Last Practice Date</label>
+                            <input type="date" name="last_practice_date" value="${student.last_practice_date || ''}">
+                        </div>
+                        <div class="jph-edit-form-actions">
+                            <button type="button" class="button button-secondary" onclick="closeEditStudentModal()">Cancel</button>
+                            <button type="submit" class="button button-primary">Save Changes</button>
+                        </div>
+                    </div>
+                </form>
+            `;
+        }
+        
+        function saveStudentStats(event, userId) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = Object.fromEntries(formData.entries());
+            
+            fetch(`<?php echo rest_url('jph/v1/students/'); ?>${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Student updated successfully!');
+                    closeEditStudentModal();
+                    loadStudents();
+                    loadStudentsStats();
+                } else {
+                    alert('Error updating student: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error updating student:', error);
+                alert('Error updating student');
+            });
+        }
+        
+        function closeViewStudentModal() {
+            document.getElementById('jph-view-student-modal').style.display = 'none';
+        }
+        
+        function closeEditStudentModal() {
+            document.getElementById('jph-edit-student-modal').style.display = 'none';
+        }
+        
+        function refreshStudents() {
+            loadStudentsStats();
+            loadStudents();
+        }
+        
+        function exportStudents() {
+            window.location.href = '<?php echo rest_url('jph/v1/export-students'); ?>';
+        }
+        
+        function showStudentAnalytics() {
+            alert('Student analytics - Coming Soon');
+        }
+        
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const viewModal = document.getElementById('jph-view-student-modal');
+            const editModal = document.getElementById('jph-edit-student-modal');
+            
+            if (event.target === viewModal) {
+                closeViewStudentModal();
+            }
+            if (event.target === editModal) {
+                closeEditStudentModal();
+            }
+        }
+        </script>
         <?php
     }
     
