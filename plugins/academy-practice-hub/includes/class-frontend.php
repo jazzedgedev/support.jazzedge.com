@@ -194,105 +194,28 @@ class JPH_Frontend {
                         </div>
                     </div>
                     
-                    <!-- Comprehensive Debug Card -->
-                    <div class="analytics-card debug-card">
+                    <!-- AI Analysis Card -->
+                    <div class="analytics-card ai-analysis-card">
                         <div class="card-header">
-                            <h4>🔧 System Debug & Testing</h4>
-                            <span class="card-subtitle">Comprehensive debugging and endpoint testing</span>
+                            <h4>🤖 AI Practice Analysis</h4>
+                            <span class="card-subtitle">Personalized insights from your practice data</span>
                         </div>
-                        <div class="debug-content">
-                            <!-- Quick Status -->
-                            <div class="debug-status-section">
-                                <div class="status-grid">
-                                    <div class="status-item">
-                                        <span class="status-label">Current User ID:</span>
-                                        <span class="status-value" id="debug-current-user-id"><?php echo get_current_user_id(); ?></span>
-                                    </div>
-                                    <div class="status-item">
-                                        <span class="status-label">WordPress Time:</span>
-                                        <span class="status-value" id="debug-wp-time"><?php echo current_time('mysql'); ?></span>
-                                    </div>
-                                    <div class="status-item">
-                                        <span class="status-label">Server Time:</span>
-                                        <span class="status-value" id="debug-server-time"><?php echo date('Y-m-d H:i:s'); ?></span>
-                                    </div>
-                                    <div class="status-item">
-                                        <span class="status-label">REST Base URL:</span>
-                                        <span class="status-value"><?php echo rest_url(); ?></span>
-                                    </div>
+                        <div class="ai-analysis-content">
+                            <div class="ai-analysis-text" id="ai-analysis-text">
+                                <div class="loading-spinner">
+                                    <div class="spinner"></div>
+                                    <span>Analyzing your practice data...</span>
                                 </div>
                             </div>
-
-                            <!-- Endpoint Testing Section -->
-                            <div class="endpoint-testing-section">
-                                <h5>🧪 Endpoint Testing</h5>
-                                <div class="endpoint-buttons">
-                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/test" data-method="GET">Test APH Test Endpoint</button>
-                                    <button type="button" class="endpoint-test-btn" data-endpoint="jph/v1/test" data-method="GET">Test JPH Test Endpoint</button>
-                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/analytics" data-method="GET">Test APH Analytics</button>
-                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/ai-analysis" data-method="GET">Test APH AI Analysis</button>
-                                    <button type="button" class="endpoint-test-btn" data-endpoint="jph/v1/badges" data-method="GET">Test JPH Badges</button>
-                                    <button type="button" class="endpoint-test-btn" data-endpoint="aph/v1/debug/routes" data-method="GET">Test APH Routes Debug</button>
+                            <div class="ai-analysis-footer">
+                                <div class="ai-data-period" id="ai-data-period">
+                                    <span class="period-label">📊</span>
+                                    <span class="period-text">Last 30 days</span>
                                 </div>
-                                <div class="endpoint-results" id="endpoint-results">
-                                    <div class="results-header">
-                                        <h6>Test Results:</h6>
-                                        <div class="results-buttons">
-                                            <button type="button" class="copy-results-btn" id="copy-endpoint-results-btn">Copy Results</button>
-                                            <button type="button" class="clear-results-btn" id="clear-results-btn">Clear Results</button>
-                                        </div>
-                                    </div>
-                                    <div class="results-content" id="results-content">
-                                        <p class="no-results">No tests run yet. Click a button above to test an endpoint.</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Database Information Section -->
-                            <div class="database-info-section">
-                                <h5>🗄️ Database Information</h5>
-                                <div class="db-buttons">
-                                    <button type="button" class="db-test-btn" id="db-structure-btn">Get Table Structure</button>
-                                    <button type="button" class="db-test-btn" id="db-data-btn">Get User Data</button>
-                                    <button type="button" class="db-test-btn" id="db-sessions-btn">Get Practice Sessions</button>
-                                    <button type="button" class="db-test-btn" id="db-copy-all-btn">Copy All Debug Data</button>
-                                </div>
-                                <div class="db-results" id="db-results">
-                                    <div class="results-header">
-                                        <h6>Database Results:</h6>
-                                        <div class="results-buttons">
-                                            <button type="button" class="copy-results-btn" id="copy-db-results-btn">Copy Results</button>
-                                            <button type="button" class="clear-results-btn" id="clear-db-results-btn">Clear Results</button>
-                                        </div>
-                                    </div>
-                                    <div class="db-content" id="db-content">
-                                        <p class="no-results">Click a button above to get database information.</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- AI Analysis Section -->
-                            <div class="ai-analysis-section">
-                                <h5>🤖 AI Analysis Testing</h5>
-                                <div class="ai-buttons">
-                                    <button type="button" class="ai-test-btn" id="ai-test-btn">Test AI Analysis</button>
-                                    <button type="button" class="ai-test-btn" id="ai-refresh-btn">Refresh AI Analysis</button>
-                                    <button type="button" class="ai-test-btn" id="ai-katahdin-test-btn">Test Katahdin AI Hub</button>
-                                    <button type="button" class="ai-test-btn" id="ai-register-test-btn">Test Plugin Registration</button>
-                                    <button type="button" class="ai-test-btn" id="ai-routes-test-btn">Check All Routes</button>
-                                </div>
-                                <div class="ai-results" id="ai-results">
-                                    <div class="results-header">
-                                        <h6>AI Test Results:</h6>
-                                        <div class="results-buttons">
-                                            <button type="button" class="copy-results-btn" id="copy-ai-results-btn">Copy Results</button>
-                                            <button type="button" class="clear-results-btn" id="clear-ai-results-btn">Clear Results</button>
-                                        </div>
-                                    </div>
-                                    <div class="ai-content" id="ai-content">
-                                        <p class="no-results">Click a button above to test AI functionality.</p>
-                                    </div>
-                                </div>
+                                <button type="button" class="ai-refresh-btn" id="ai-refresh-btn">
+                                    <span class="refresh-icon">🔄</span>
+                                    Refresh
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -2927,23 +2850,135 @@ class JPH_Frontend {
             overflow-y: auto;
         }
         
+        /* AI Analysis Card Styles */
+        .ai-analysis-card {
+            grid-column: span 2;
+        }
+        
+        /* Practice Insights Card - make it span full width when alone */
+        .insights-card {
+            grid-column: span 2;
+        }
+        
+        /* Improve insights card layout for full width */
+        .insights-card .insights-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        
+        .insights-card .insight-item {
+            text-align: center;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .insights-card .insight-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .insights-card .insight-label {
+            font-size: 0.9em;
+            color: #64748b;
+            margin-bottom: 4px;
+            display: block;
+        }
+        
+        .insights-card .insight-value {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #0f172a;
+            display: block;
+        }
+        
+        .ai-analysis-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
         .ai-analysis-text {
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             border-radius: 16px;
-            padding: 24px;
+            padding: 20px;
             border: 1px solid #bae6fd;
             min-height: 120px;
+            max-height: 300px;
+            overflow-y: auto;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            align-items: flex-start;
+            justify-content: flex-start;
         }
         
         .ai-analysis-text p {
             color: #0c4a6e;
-            font-size: 1.1em;
-            line-height: 1.6;
+            font-size: 0.95em;
+            line-height: 1.5;
             margin: 0;
             font-weight: 500;
+        }
+        
+        .ai-analysis-text h5 {
+            color: #0c4a6e;
+            font-size: 1em;
+            line-height: 1.4;
+            margin: 0 0 8px 0;
+            font-weight: 700;
+        }
+        
+        .ai-analysis-text div {
+            color: #0c4a6e;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        
+        .ai-analysis-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 4px;
+        }
+        
+        .ai-data-period {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 0.9em;
+        }
+        
+        .ai-refresh-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .ai-refresh-btn:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            transform: translateY(-1px);
+        }
+        
+        .ai-refresh-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .refresh-icon {
+            font-size: 0.9em;
         }
         
         .loading-spinner {
@@ -3249,6 +3284,13 @@ class JPH_Frontend {
             }
         }
         
+        @media (max-width: 1024px) {
+            .insights-card .insights-list {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px;
+            }
+        }
+        
         @media (max-width: 768px) {
             .analytics-grid {
                 grid-template-columns: 1fr;
@@ -3276,6 +3318,29 @@ class JPH_Frontend {
             .analytics-card {
                 padding: 24px;
             }
+            
+            .ai-analysis-card {
+                grid-column: span 1;
+            }
+            
+            .insights-card {
+                grid-column: span 1;
+            }
+            
+            .insights-card .insights-list {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .ai-analysis-footer {
+                flex-direction: column;
+                gap: 12px;
+                align-items: stretch;
+            }
+            
+            .ai-refresh-btn {
+                justify-content: center;
+            }
         }
         </style>
         
@@ -3301,7 +3366,7 @@ class JPH_Frontend {
             loadAnalytics();
             
             // Load AI analysis
-            loadAIAnalysis();
+            loadAIAnalysisActual();
             
             // Initialize other functionality
             initModalHandlers();
@@ -3648,8 +3713,9 @@ class JPH_Frontend {
                 const $analysisText = $('#ai-analysis-text');
                 const $dataPeriod = $('#ai-data-period .period-text');
                 
-                // Display the analysis
-                $analysisText.html('<p>' + data.analysis + '</p>');
+                // Format the analysis text for better readability
+                let formattedAnalysis = formatAIAnalysisText(data.analysis);
+                $analysisText.html(formattedAnalysis);
                 
                 // Update data period
                 $dataPeriod.text(data.data_period);
@@ -3659,11 +3725,41 @@ class JPH_Frontend {
                     $dataPeriod.text(data.data_period + ' (cached)');
                 }
                 
-                // Populate debug information
-                populateDebugInfo(data);
-                
                 // Initialize refresh button
                 initAIRefreshButton();
+            }
+            
+            // Format AI analysis text for better display
+            function formatAIAnalysisText(analysisText) {
+                if (!analysisText) return '<p>No analysis available.</p>';
+                
+                // Split by double newlines to get sections
+                let sections = analysisText.split('\n\n');
+                let formattedHtml = '';
+                
+                sections.forEach(section => {
+                    section = section.trim();
+                    if (!section) return;
+                    
+                    // Check if it's a header (starts with ** and ends with **)
+                    if (section.startsWith('**') && section.endsWith('**')) {
+                        const headerText = section.replace(/\*\*/g, '');
+                        formattedHtml += `<h5 style="color: #0c4a6e; margin: 0 0 8px 0; font-size: 1.1em; font-weight: 700;">${headerText}</h5>`;
+                    }
+                    // Check if it's a bullet point (starts with •)
+                    else if (section.startsWith('•')) {
+                        const bulletText = section.replace(/^•\s*/, '');
+                        formattedHtml += `<div style="margin: 4px 0; padding-left: 8px;">• ${bulletText}</div>`;
+                    }
+                    // Check if it's a regular paragraph
+                    else {
+                        // Replace single newlines with <br> for better formatting
+                        const formattedSection = section.replace(/\n/g, '<br>');
+                        formattedHtml += `<p style="margin: 8px 0; line-height: 1.5;">${formattedSection}</p>`;
+                    }
+                });
+                
+                return formattedHtml || '<p>Analysis formatting error.</p>';
             }
             
             // Display AI analysis error
@@ -3688,23 +3784,26 @@ class JPH_Frontend {
                     // Show loading in analysis text
                     $analysisText.html('<div class="loading-spinner"><div class="spinner"></div><span>Generating fresh analysis...</span></div>');
                     
-                    // Make refresh request
+                    // Make refresh request (use regular endpoint with refresh parameter)
                     $.ajax({
-                        url: '<?php echo rest_url('aph/v1/ai-analysis/refresh'); ?>',
-                        method: 'POST',
+                        url: '<?php echo rest_url('aph/v1/ai-analysis'); ?>?refresh=1',
+                        method: 'GET',
                         headers: {
                             'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                         },
                         success: function(response) {
+                            console.log('AI Analysis refresh response:', response);
                             if (response.success && response.data) {
                                 displayAIAnalysis(response.data, false);
                             } else {
-                                displayAIAnalysisError('Failed to refresh AI analysis');
+                                displayAIAnalysisError('Failed to refresh AI analysis: ' + (response.message || 'Unknown error'));
                             }
                         },
                         error: function(xhr, status, error) {
                             console.error('AI Analysis refresh error:', error);
-                            displayAIAnalysisError('Failed to refresh AI analysis');
+                            console.error('XHR response:', xhr.responseText);
+                            console.error('Status:', xhr.status);
+                            displayAIAnalysisError('Failed to refresh AI analysis (Status: ' + xhr.status + ')');
                         },
                         complete: function() {
                             // Re-enable button
@@ -4788,495 +4887,12 @@ class JPH_Frontend {
             initDragAndDrop();
             initDeleteSessionHandlers();
             
-            // Initialize debug functionality
-            initDebugFunctionality();
         });
         
-        // Debug functionality - moved outside document ready
-        function initDebugFunctionality() {
-            // Endpoint testing
-            jQuery('.endpoint-test-btn').on('click', function() {
-                const $btn = jQuery(this);
-                const endpoint = $btn.data('endpoint');
-                const method = $btn.data('method') || 'GET';
-                
-                $btn.prop('disabled', true);
-                $btn.text('Testing...');
-                
-                const startTime = Date.now();
-                
-                jQuery.ajax({
-                    url: '<?php echo rest_url(); ?>' + endpoint,
-                    method: method,
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    success: function(response) {
-                        const endTime = Date.now();
-                        const duration = endTime - startTime;
-                        displayEndpointResult(endpoint, method, 'success', response, duration);
-                    },
-                    error: function(xhr, status, error) {
-                        const endTime = Date.now();
-                        const duration = endTime - startTime;
-                        displayEndpointResult(endpoint, method, 'error', {
-                            status: xhr.status,
-                            statusText: xhr.statusText,
-                            responseText: xhr.responseText,
-                            error: error
-                        }, duration);
-                    },
-                    complete: function() {
-                        $btn.prop('disabled', false);
-                        $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
-                    }
-                });
-            });
-            
-            // Database testing
-            jQuery('#db-structure-btn').on('click', function() {
-                testDatabaseEndpoint('structure');
-            });
-            
-            jQuery('#db-data-btn').on('click', function() {
-                testDatabaseEndpoint('data');
-            });
-            
-            jQuery('#db-sessions-btn').on('click', function() {
-                testDatabaseEndpoint('sessions');
-            });
-            
-            jQuery('#db-copy-all-btn').on('click', function() {
-                copyAllDebugData();
-            });
-            
-            // AI testing
-            jQuery('#ai-test-btn').on('click', function() {
-                testAIEndpoint('analysis');
-            });
-            
-            jQuery('#ai-refresh-btn').on('click', function() {
-                testAIEndpoint('refresh');
-            });
-            
-            jQuery('#ai-katahdin-test-btn').on('click', function() {
-                testKatahdinAI();
-            });
-            
-            jQuery('#ai-register-test-btn').on('click', function() {
-                testPluginRegistration();
-            });
-            
-            jQuery('#ai-routes-test-btn').on('click', function() {
-                checkAllRoutes();
-            });
-            
-            // Clear results
-            jQuery('#clear-results-btn').on('click', function() {
-                jQuery('#results-content').html('<p class="no-results">No tests run yet. Click a button above to test an endpoint.</p>');
-            });
-            
-            // Copy results buttons
-            jQuery('#copy-endpoint-results-btn').on('click', function() {
-                copyResults('results-content', 'Endpoint Test Results');
-            });
-            
-            jQuery('#clear-db-results-btn').on('click', function() {
-                jQuery('#db-content').html('<p class="no-results">Click a button above to get database information.</p>');
-            });
-            
-            jQuery('#copy-db-results-btn').on('click', function() {
-                copyResults('db-content', 'Database Test Results');
-            });
-            
-            jQuery('#clear-ai-results-btn').on('click', function() {
-                jQuery('#ai-content').html('<p class="no-results">Click a button above to test AI functionality.</p>');
-            });
-            
-            jQuery('#copy-ai-results-btn').on('click', function() {
-                copyResults('ai-content', 'AI Test Results');
-            });
-        }
-        
-        function displayEndpointResult(endpoint, method, status, response, duration) {
-            const $results = jQuery('#results-content');
-            const $noResults = $results.find('.no-results');
-            
-            if ($noResults.length > 0) {
-                $results.empty();
-            }
-            
-            const statusClass = status === 'success' ? 'success' : 'error';
-            const statusText = status === 'success' ? 'SUCCESS' : 'ERROR';
-            
-            const resultHtml = `
-                <div class="test-result ${statusClass}">
-                    <div class="test-result-header">
-                        <span class="test-endpoint">${method} ${endpoint}</span>
-                        <span class="test-status ${statusClass}">${statusText} (${duration}ms)</span>
-                    </div>
-                    <div class="test-response">${JSON.stringify(response, null, 2)}</div>
-                </div>
-            `;
-            
-            $results.prepend(resultHtml);
-        }
-        
-        function testDatabaseEndpoint(type) {
-            const $btn = jQuery(`#db-${type}-btn`);
-            $btn.prop('disabled', true);
-            $btn.text('Loading...');
-            
-            let endpoint = '';
-            switch(type) {
-                case 'structure':
-                    endpoint = 'aph/v1/debug/database';
-                    break;
-                case 'data':
-                    endpoint = 'aph/v1/debug/database';
-                    break;
-                case 'sessions':
-                    endpoint = 'aph/v1/practice-sessions';
-                    break;
-            }
-            
-            jQuery.ajax({
-                url: '<?php echo rest_url(); ?>' + endpoint,
-                method: 'GET',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                },
-                success: function(response) {
-                    displayDatabaseResult(type, 'success', response);
-                },
-                error: function(xhr, status, error) {
-                    displayDatabaseResult(type, 'error', {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        responseText: xhr.responseText,
-                        error: error
-                    });
-                },
-                complete: function() {
-                    $btn.prop('disabled', false);
-                    $btn.text($btn.text().replace('Loading...', $btn.text().split(' ').slice(0, -1).join(' ')));
-                }
-            });
-        }
-        
-        function displayDatabaseResult(type, status, response) {
-            const $content = jQuery('#db-content');
-            const $noResults = $content.find('.no-results');
-            
-            if ($noResults.length > 0) {
-                $content.empty();
-            }
-            
-            const statusClass = status === 'success' ? 'success' : 'error';
-            const statusText = status === 'success' ? 'SUCCESS' : 'ERROR';
-            
-            const resultHtml = `
-                <div class="test-result ${statusClass}">
-                    <div class="test-result-header">
-                        <span class="test-endpoint">Database ${type.toUpperCase()}</span>
-                        <span class="test-status ${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="test-response">${JSON.stringify(response, null, 2)}</div>
-                </div>
-            `;
-            
-            $content.prepend(resultHtml);
-        }
-        
-        function testAIEndpoint(type) {
-            const $btn = jQuery(`#ai-${type}-btn`);
-            $btn.prop('disabled', true);
-            $btn.text('Testing...');
-            
-            let endpoint = '';
-            let method = 'GET';
-            
-            switch(type) {
-                case 'analysis':
-                    endpoint = 'aph/v1/ai-analysis';
-                    break;
-                case 'refresh':
-                    endpoint = 'aph/v1/ai-analysis/refresh';
-                    method = 'POST';
-                    break;
-            }
-            
-            jQuery.ajax({
-                url: '<?php echo rest_url(); ?>' + endpoint,
-                method: method,
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                },
-                success: function(response) {
-                    displayAIResult(type, 'success', response);
-                },
-                error: function(xhr, status, error) {
-                    displayAIResult(type, 'error', {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        responseText: xhr.responseText,
-                        error: error
-                    });
-                },
-                complete: function() {
-                    $btn.prop('disabled', false);
-                    $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
-                }
-            });
-        }
-        
-        function displayAIResult(type, status, response) {
-            const $content = jQuery('#ai-content');
-            const $noResults = $content.find('.no-results');
-            
-            if ($noResults.length > 0) {
-                $content.empty();
-            }
-            
-            const statusClass = status === 'success' ? 'success' : 'error';
-            const statusText = status === 'success' ? 'SUCCESS' : 'ERROR';
-            
-            const resultHtml = `
-                <div class="test-result ${statusClass}">
-                    <div class="test-result-header">
-                        <span class="test-endpoint">AI ${type.toUpperCase()}</span>
-                        <span class="test-status ${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="test-response">${JSON.stringify(response, null, 2)}</div>
-                </div>
-            `;
-            
-            $content.prepend(resultHtml);
-        }
-        
-        function testKatahdinAI() {
-            const $btn = jQuery('#ai-katahdin-test-btn');
-            $btn.prop('disabled', true);
-            $btn.text('Testing...');
-            
-            // Test if Katahdin AI Hub is available
-            jQuery.ajax({
-                url: '<?php echo rest_url(); ?>katahdin-ai-hub/v1/usage',
-                method: 'GET',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
-                    'X-Plugin-ID': 'academy-practice-hub'
-                },
-                success: function(response) {
-                    displayAIResult('katahdin', 'success', response);
-                },
-                error: function(xhr, status, error) {
-                    displayAIResult('katahdin', 'error', {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        responseText: xhr.responseText,
-                        error: error,
-                        message: 'Katahdin AI Hub plugin may not be installed or activated'
-                    });
-                },
-                complete: function() {
-                    $btn.prop('disabled', false);
-                    $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
-                }
-            });
-        }
-        
-        function testPluginRegistration() {
-            const $btn = jQuery('#ai-register-test-btn');
-            $btn.prop('disabled', true);
-            $btn.text('Testing...');
-            
-            // Test plugin registration by trying to register
-            const registrationData = {
-                plugin_id: 'academy-practice-hub',
-                name: 'Academy Practice Hub',
-                version: '3.0',
-                features: ['chat', 'completions'],
-                quota_limit: 5000
-            };
-            
-            jQuery.ajax({
-                url: '<?php echo rest_url(); ?>katahdin-ai-hub/v1/register-plugin',
-                method: 'POST',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
-                    'Content-Type': 'application/json'
-                },
-                data: JSON.stringify(registrationData),
-                success: function(response) {
-                    displayAIResult('registration', 'success', response);
-                },
-                error: function(xhr, status, error) {
-                    displayAIResult('registration', 'error', {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        responseText: xhr.responseText,
-                        error: error,
-                        message: 'Plugin registration failed'
-                    });
-                },
-                complete: function() {
-                    $btn.prop('disabled', false);
-                    $btn.text($btn.text().replace('Testing...', $btn.text().split(' ').slice(0, -1).join(' ')));
-                }
-            });
-        }
-        
-        function checkAllRoutes() {
-            const $btn = jQuery('#ai-routes-test-btn');
-            $btn.prop('disabled', true);
-            $btn.text('Checking...');
-            
-            // Get all registered routes
-            jQuery.ajax({
-                url: '<?php echo rest_url(); ?>',
-                method: 'GET',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                },
-                success: function(response) {
-                    // Filter for katahdin routes
-                    const katahdinRoutes = [];
-                    if (response.routes) {
-                        Object.keys(response.routes).forEach(route => {
-                            if (route.includes('katahdin-ai-hub')) {
-                                katahdinRoutes.push(route);
-                            }
-                        });
-                    }
-                    
-                    displayAIResult('routes', 'success', {
-                        total_routes: Object.keys(response.routes || {}).length,
-                        katahdin_routes: katahdinRoutes,
-                        katahdin_route_count: katahdinRoutes.length,
-                        all_routes: Object.keys(response.routes || {})
-                    });
-                },
-                error: function(xhr, status, error) {
-                    displayAIResult('routes', 'error', {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        responseText: xhr.responseText,
-                        error: error
-                    });
-                },
-                complete: function() {
-                    $btn.prop('disabled', false);
-                    $btn.text($btn.text().replace('Checking...', $btn.text().split(' ').slice(0, -1).join(' ')));
-                }
-            });
-        }
-        
-        function copyAllDebugData() {
-            const debugData = {
-                timestamp: new Date().toISOString(),
-                user_id: <?php echo get_current_user_id(); ?>,
-                wordpress_time: '<?php echo current_time('mysql'); ?>',
-                server_time: '<?php echo date('Y-m-d H:i:s'); ?>',
-                rest_base_url: '<?php echo rest_url(); ?>',
-                site_url: '<?php echo site_url(); ?>',
-                home_url: '<?php echo home_url(); ?>',
-                plugins: {
-                    academy_practice_hub: '<?php echo is_plugin_active('academy-practice-hub/academy-practice-hub.php') ? 'active' : 'inactive'; ?>',
-                    jazzedge_practice_hub: '<?php echo is_plugin_active('jazzedge-practice-hub/jazzedge-practice-hub.php') ? 'active' : 'inactive'; ?>',
-                    katahdin_ai_hub: '<?php echo is_plugin_active('katahdin-ai-hub/katahdin-ai-hub.php') ? 'active' : 'inactive'; ?>'
-                }
-            };
-            
-            const debugText = JSON.stringify(debugData, null, 2);
-            
-            // Copy to clipboard
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(debugText).then(function() {
-                    alert('Debug data copied to clipboard!');
-                }).catch(function(err) {
-                    console.error('Failed to copy: ', err);
-                    fallbackCopyTextToClipboard(debugText);
-                });
-            } else {
-                fallbackCopyTextToClipboard(debugText);
-            }
-        }
-        
-        function fallbackCopyTextToClipboard(text) {
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    alert('Debug data copied to clipboard!');
-                } else {
-                    alert('Failed to copy debug data. Please copy manually from the console.');
-                    console.log('Debug Data:', text);
-                }
-            } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
-                alert('Failed to copy debug data. Please copy manually from the console.');
-                console.log('Debug Data:', text);
-            }
-            
-            document.body.removeChild(textArea);
-        }
-        
-        function copyResults(containerId, title) {
-            const $container = jQuery('#' + containerId);
-            const $noResults = $container.find('.no-results');
-            
-            if ($noResults.length > 0) {
-                alert('No results to copy yet. Run some tests first.');
-                return;
-            }
-            
-            // Get all test results
-            const results = [];
-            $container.find('.test-result').each(function() {
-                const $result = jQuery(this);
-                const endpoint = $result.find('.test-endpoint').text();
-                const status = $result.find('.test-status').text();
-                const response = $result.find('.test-response').text();
-                
-                results.push({
-                    endpoint: endpoint,
-                    status: status,
-                    response: response
-                });
-            });
-            
-            const copyData = {
-                title: title,
-                timestamp: new Date().toISOString(),
-                user_id: <?php echo get_current_user_id(); ?>,
-                results: results
-            };
-            
-            const copyText = JSON.stringify(copyData, null, 2);
-            
-            // Copy to clipboard
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(copyText).then(function() {
-                    alert(title + ' copied to clipboard!');
-                }).catch(function(err) {
-                    console.error('Failed to copy: ', err);
-                    fallbackCopyTextToClipboard(copyText);
-                });
-            } else {
-                fallbackCopyTextToClipboard(copyText);
-            }
-        }
+        // Debug functionality removed - no longer needed
         </script>
         <?php
-        
+
         return ob_get_clean();
     }
 }
-
-

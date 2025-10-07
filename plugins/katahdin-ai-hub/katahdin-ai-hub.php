@@ -109,6 +109,8 @@ class Katahdin_AI_Hub {
         // Initialize REST API early to ensure routes are registered
         if (class_exists('Katahdin_AI_Hub_REST_API')) {
             $this->rest_api = new Katahdin_AI_Hub_REST_API();
+            // Ensure routes are registered immediately
+            add_action('rest_api_init', array($this->rest_api, 'register_routes'));
         }
     }
     

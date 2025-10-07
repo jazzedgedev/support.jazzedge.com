@@ -1908,11 +1908,19 @@ class JPH_REST_API {
                 return new WP_Error('not_logged_in', 'You must be logged in to view AI analysis', array('status' => 401));
             }
             
-            // Check for cached analysis (valid for 24 hours)
+            // Check if refresh is requested
+            $refresh = $request->get_param('refresh');
             $cache_key = 'jph_ai_analysis_' . $user_id;
+            
+            // If refresh is requested, clear cache
+            if ($refresh === '1' || $refresh === 'true') {
+                delete_transient($cache_key);
+            }
+            
+            // Check for cached analysis (valid for 24 hours)
             $cached_analysis = get_transient($cache_key);
             
-            if ($cached_analysis !== false) {
+            if ($cached_analysis !== false && !$refresh) {
                 return rest_ensure_response(array(
                     'success' => true,
                     'data' => $cached_analysis,
@@ -1934,7 +1942,8 @@ class JPH_REST_API {
             return rest_ensure_response(array(
                 'success' => true,
                 'data' => $analysis,
-                'cached' => false
+                'cached' => false,
+                'refreshed' => $refresh ? true : false
             ));
             
         } catch (Exception $e) {
@@ -2147,7 +2156,9 @@ Provide specific, actionable insights about their practice patterns and suggesti
         $ai_response = $this->call_katahdin_ai($prompt);
         
         if (is_wp_error($ai_response)) {
-            return $ai_response;
+            // Fallback to basic analysis if AI service fails
+            error_log("AI service failed, using fallback analysis: " . $ai_response->get_error_message());
+            $ai_response = $this->generate_fallback_analysis($sessions, $user_stats, $debug_info);
         }
         
         return array(
@@ -2177,6 +2188,19 @@ Provide specific, actionable insights about their practice patterns and suggesti
             return new WP_Error('ai_hub_unavailable', 'Katahdin AI Hub is not available', array('status' => 503));
         }
         
+        // Ensure plugin is registered with Katahdin AI Hub
+        if (class_exists('Katahdin_AI_Hub') && function_exists('katahdin_ai_hub')) {
+            $hub = katahdin_ai_hub();
+            if ($hub && method_exists($hub, 'register_plugin')) {
+                $hub->register_plugin('academy-practice-hub', array(
+                    'name' => 'Academy Practice Hub',
+                    'version' => '3.0',
+                    'features' => array('chat', 'completions'),
+                    'quota_limit' => 5000
+                ));
+            }
+        }
+        
         // Prepare the request
         $request_data = array(
             'messages' => array(
@@ -2195,36 +2219,42 @@ Provide specific, actionable insights about their practice patterns and suggesti
             'plugin_id' => 'academy-practice-hub'
         );
         
-        // Make the request to Katahdin AI Hub
-        $response = wp_remote_post(rest_url('katahdin-ai-hub/v1/chat/completions'), array(
-            'method' => 'POST',
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'X-WP-Nonce' => wp_create_nonce('wp_rest'),
-                'X-Plugin-ID' => 'academy-practice-hub'
-            ),
-            'body' => json_encode($request_data),
-            'timeout' => 30
-        ));
+        // Make the request to Katahdin AI Hub using internal WordPress REST API
+        $rest_server = rest_get_server();
+        $request = new WP_REST_Request('POST', '/katahdin-ai-hub/v1/chat/completions');
+        $request->set_header('Content-Type', 'application/json');
+        $request->set_header('X-Plugin-ID', 'academy-practice-hub');
+        $request->set_body(json_encode($request_data));
+        
+        // Add the request data as parameters
+        foreach ($request_data as $key => $value) {
+            $request->set_param($key, $value);
+        }
+        
+        $response = $rest_server->dispatch($request);
         
         if (is_wp_error($response)) {
             return new WP_Error('ai_request_failed', 'Failed to connect to AI service: ' . $response->get_error_message(), array('status' => 500));
         }
         
-        $response_code = wp_remote_retrieve_response_code($response);
-        $response_body = wp_remote_retrieve_body($response);
+        // Get the response data
+        $response_data = $response->get_data();
+        $response_status = $response->get_status();
         
-        if ($response_code !== 200) {
-            return new WP_Error('ai_service_error', 'AI service returned error: ' . $response_code, array('status' => $response_code));
+        // Debug logging
+        error_log("Katahdin AI Hub Response Status: " . $response_status);
+        error_log("Katahdin AI Hub Response Data: " . print_r($response_data, true));
+        
+        if ($response_status !== 200) {
+            $error_message = isset($response_data['message']) ? $response_data['message'] : 'Unknown error';
+            return new WP_Error('ai_service_error', 'AI service returned error: ' . $response_status . ' - ' . $error_message, array('status' => $response_status));
         }
         
-        $data = json_decode($response_body, true);
-        
-        if (!$data || !isset($data['choices'][0]['message']['content'])) {
+        if (!isset($response_data['choices'][0]['message']['content'])) {
             return new WP_Error('ai_response_invalid', 'Invalid response from AI service', array('status' => 500));
         }
         
-        return trim($data['choices'][0]['message']['content']);
+        return trim($response_data['choices'][0]['message']['content']);
     }
     
     /**
