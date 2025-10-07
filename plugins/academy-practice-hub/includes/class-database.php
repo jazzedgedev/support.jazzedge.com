@@ -125,7 +125,7 @@ class JPH_Database {
         $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
         $items_table = $wpdb->prefix . 'jph_practice_items';
         
-        $sessions = $wpdb->get_results($wpdb->prepare(
+        $query = $wpdb->prepare(
             "SELECT s.*, i.name as item_name 
              FROM {$sessions_table} s 
              LEFT JOIN {$items_table} i ON s.practice_item_id = i.id 
@@ -133,7 +133,13 @@ class JPH_Database {
              ORDER BY s.created_at DESC 
              LIMIT %d OFFSET %d",
             $user_id, $limit, $offset
-        ), ARRAY_A);
+        );
+        
+        error_log('Practice Sessions Query: ' . $query);
+        
+        $sessions = $wpdb->get_results($query, ARRAY_A);
+        
+        error_log('Practice Sessions Result: ' . print_r($sessions, true));
         
         return $sessions ?: array();
     }

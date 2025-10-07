@@ -249,6 +249,31 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // Event tracking logs endpoints
+        register_rest_route('aph/v1', '/event-logs/badge', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_badge_event_logs'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/event-logs/fluentcrm', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_fluentcrm_event_logs'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/event-logs/clear-badge', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_clear_badge_event_logs'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/event-logs/empty-fluentcrm', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_empty_fluentcrm_event_logs'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
         register_rest_route('aph/v1', '/practice-items/(?P<id>\d+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_practice_item'),
@@ -267,6 +292,13 @@ class JPH_REST_API {
      */
     public function check_user_permission() {
         return is_user_logged_in();
+    }
+    
+    /**
+     * Check admin permission
+     */
+    public function check_admin_permission() {
+        return current_user_can('manage_options');
     }
     
     /**
@@ -389,7 +421,11 @@ class JPH_REST_API {
         $limit = $request->get_param('limit') ?: 10;
         $offset = $request->get_param('offset') ?: 0;
         
+        error_log('Practice Sessions API: User ID: ' . $user_id . ', Limit: ' . $limit . ', Offset: ' . $offset);
+        
         $sessions = $this->database->get_practice_sessions($user_id, $limit, $offset);
+        
+        error_log('Practice Sessions API: Retrieved ' . count($sessions) . ' sessions');
         
         if (is_wp_error($sessions)) {
             return $sessions;
@@ -444,56 +480,50 @@ class JPH_REST_API {
             return new WP_Error('not_logged_in', 'You must be logged in to export your practice history', array('status' => 401));
         }
         
+        error_log('Export: User ID: ' . $user_id);
+        
         $sessions = $this->database->get_practice_sessions($user_id, 1000, 0);
         
+        error_log('Export: Sessions query result: ' . print_r($sessions, true));
+        
         if (is_wp_error($sessions)) {
+            error_log('Export: Database error: ' . $sessions->get_error_message());
             return $sessions;
         }
         
         // Check if we have any sessions to export
         if (empty($sessions)) {
+            error_log('Export: No sessions found for user ' . $user_id);
             return new WP_Error('no_sessions', 'No practice sessions found to export', array('status' => 404));
         }
         
-        // Set headers for CSV download
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="practice-history-' . date('Y-m-d') . '.csv"');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-        
-        // Create CSV output
-        $output = fopen('php://output', 'w');
+        // Create CSV content in memory
+        $csv_content = '';
         
         // Add BOM for UTF-8 compatibility with Excel
-        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+        $csv_content .= chr(0xEF).chr(0xBB).chr(0xBF);
         
         // CSV headers
-        fputcsv($output, array(
-            'Date',
-            'Practice Item',
-            'Duration (minutes)',
-            'Sentiment Score',
-            'Improvement Detected',
-            'XP Earned',
-            'Notes'
-        ));
+        $csv_content .= '"Date","Practice Item","Duration (minutes)","Sentiment Score","Improvement Detected","XP Earned","Notes"' . "\n";
         
         // Add session data
         foreach ($sessions as $session) {
-            fputcsv($output, array(
+            $csv_content .= sprintf(
+                '"%s","%s","%s","%s","%s","%s","%s"' . "\n",
                 date('Y-m-d H:i:s', strtotime($session['created_at'])),
-                $session['item_name'] ?: 'Unknown Item',
+                str_replace('"', '""', $session['item_name'] ?: 'Unknown Item'),
                 $session['duration_minutes'],
                 $session['sentiment_score'],
                 $session['improvement_detected'] ? 'Yes' : 'No',
                 $session['xp_earned'] ?: 0,
-                $session['notes'] ?: ''
-            ));
+                str_replace('"', '""', $session['notes'] ?: '')
+            );
         }
         
-        fclose($output);
-        exit;
+        error_log('Export: CSV content length: ' . strlen($csv_content));
+        error_log('Export: CSV preview: ' . substr($csv_content, 0, 200));
+        
+        return rest_ensure_response($csv_content);
     }
     
     /**
@@ -1260,9 +1290,9 @@ class JPH_REST_API {
             $user_badges = $wpdb->get_results($wpdb->prepare("
                 SELECT ub.*, b.name, b.description, b.badge_key 
                 FROM {$wpdb->prefix}jph_user_badges ub
-                LEFT JOIN {$wpdb->prefix}jph_badges b ON ub.badge_id = b.id
+                LEFT JOIN {$wpdb->prefix}jph_badges b ON ub.badge_key = b.badge_key
                 WHERE ub.user_id = %d
-                ORDER BY ub.earned_date DESC
+                ORDER BY ub.earned_at DESC
             ", $user_id), ARRAY_A);
             
             // Get practice sessions count
@@ -1902,7 +1932,13 @@ class JPH_REST_API {
      */
     public function rest_get_ai_analysis($request) {
         try {
-            $user_id = get_current_user_id();
+            // Allow admin to test with specific user ID
+            $requested_user_id = $request->get_param('user_id');
+            if ($requested_user_id && current_user_can('manage_options')) {
+                $user_id = intval($requested_user_id);
+            } else {
+                $user_id = get_current_user_id();
+            }
             
             if (!$user_id) {
                 return new WP_Error('not_logged_in', 'You must be logged in to view AI analysis', array('status' => 401));
@@ -2137,20 +2173,47 @@ class JPH_REST_API {
         }
         $most_practiced_item = array_keys($item_frequency, max($item_frequency))[0] ?? 'Unknown';
         
-        // Prepare prompt for AI
-        $prompt = "Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:
+        // Get configurable AI prompt
+        $ai_prompt_template = get_option('aph_ai_prompt', 'Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:
 
-Practice Sessions: {$total_sessions} sessions
-Total Practice Time: {$total_minutes} minutes
-Average Session Length: {$avg_duration} minutes
-Average Mood/Sentiment: {$avg_sentiment}/5 (1=frustrating, 5=excellent)
-Improvement Rate: {$improvement_rate}% of sessions showed improvement
-Most Frequent Practice Day: {$most_frequent_day}
-Most Practiced Item: {$most_practiced_item}
-Current Level: " . ($user_stats['current_level'] ?? 1) . "
-Current Streak: " . ($user_stats['current_streak'] ?? 0) . " days
+Practice Sessions: {total_sessions} sessions
+Total Practice Time: {total_minutes} minutes
+Average Session Length: {avg_duration} minutes
+Average Mood/Sentiment: {avg_sentiment}/5 (1=frustrating, 5=excellent)
+Improvement Rate: {improvement_rate}% of sessions showed improvement
+Most Frequent Practice Day: {most_frequent_day}
+Most Practiced Item: {most_practiced_item}
+Current Level: {current_level}
+Current Streak: {current_streak} days
 
-Provide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.";
+Provide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.');
+        
+        // Replace placeholders in the prompt
+        $prompt = str_replace(
+            array(
+                '{total_sessions}',
+                '{total_minutes}',
+                '{avg_duration}',
+                '{avg_sentiment}',
+                '{improvement_rate}',
+                '{most_frequent_day}',
+                '{most_practiced_item}',
+                '{current_level}',
+                '{current_streak}'
+            ),
+            array(
+                $total_sessions,
+                $total_minutes,
+                $avg_duration,
+                $avg_sentiment,
+                $improvement_rate,
+                $most_frequent_day,
+                $most_practiced_item,
+                ($user_stats['current_level'] ?? 1),
+                ($user_stats['current_streak'] ?? 0)
+            ),
+            $ai_prompt_template
+        );
 
         // Call Katahdin AI Hub
         $ai_response = $this->call_katahdin_ai($prompt);
@@ -2201,21 +2264,27 @@ Provide specific, actionable insights about their practice patterns and suggesti
             }
         }
         
+        // Get configurable AI settings
+        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.');
+        $ai_model = get_option('aph_ai_model', 'gpt-3.5-turbo');
+        $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
+        $ai_temperature = get_option('aph_ai_temperature', 0.7);
+        
         // Prepare the request
         $request_data = array(
             'messages' => array(
                 array(
                     'role' => 'system',
-                    'content' => 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.'
+                    'content' => $ai_system_message
                 ),
                 array(
                     'role' => 'user',
                     'content' => $prompt
                 )
             ),
-            'model' => 'gpt-3.5-turbo',
-            'max_tokens' => 300,
-            'temperature' => 0.7,
+            'model' => $ai_model,
+            'max_tokens' => $ai_max_tokens,
+            'temperature' => $ai_temperature,
             'plugin_id' => 'academy-practice-hub'
         );
         
@@ -2564,5 +2633,178 @@ Provide specific, actionable insights about their practice patterns and suggesti
         }
         
         return $analysis;
+    }
+    
+    /**
+     * Get badge event logs
+     */
+    public function rest_get_badge_event_logs($request) {
+        try {
+            $logs = get_option('jph_badge_events_log', array());
+            $logs = array_slice(array_reverse($logs), 0, 50); // Last 50 entries
+            
+            $log_html = '';
+            if (empty($logs)) {
+                $log_html = '<div class="log-entry info">';
+                $log_html .= '<strong>No badge event tracking logs found.</strong><br>';
+                $log_html .= 'Events will appear here when badges are awarded with FluentCRM tracking enabled.<br>';
+                $log_html .= '<br><strong>To test:</strong><br>';
+                $log_html .= '1. Go to Badge Management and enable "FluentCRM Event Tracking" for a badge<br>';
+                $log_html .= '2. Use the "Test Event" button in the badge table<br>';
+                $log_html .= '3. Or award the badge to a user through normal gameplay<br>';
+                $log_html .= '</div>';
+            } else {
+                $log_html .= '<strong>Total logs found: ' . count($logs) . '</strong><br><br>';
+                
+                foreach ($logs as $log) {
+                    $status_class = $log['success'] ? 'success' : 'error';
+                    $log_html .= "<div class='log-entry {$status_class}'>";
+                    $log_html .= "<strong>" . date('Y-m-d H:i:s', $log['timestamp']) . "</strong> ";
+                    $log_html .= "[🏆 {$log['badge_key']}] ";
+                    
+                    // Add user information
+                    $user_email = $log['user_email'] ?? 'Unknown';
+                    $user_name = $log['user_name'] ?? 'Unknown';
+                    $contact_id = $log['contact_id'] ?? 'N/A';
+                    
+                    $log_html .= "<br><span class='log-user-info'>";
+                    $log_html .= "👤 {$user_name} ({$user_email})";
+                    if ($contact_id !== 'N/A' && $contact_id !== 'Not Found' && $contact_id !== 'Error') {
+                        $log_html .= " | 🆔 Contact ID: {$contact_id}";
+                    } else {
+                        $log_html .= " | 🆔 Contact: {$contact_id}";
+                    }
+                    $log_html .= "</span><br>";
+                    
+                    // Add event details
+                    if (isset($log['data']['event_key'])) {
+                        $log_html .= "<strong>Event Key:</strong> {$log['data']['event_key']}<br>";
+                    }
+                    if (isset($log['data']['title'])) {
+                        $log_html .= "<strong>Event Title:</strong> {$log['data']['title']}<br>";
+                    }
+                    
+                    $log_html .= $log['message'];
+                    $log_html .= "</div>";
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $log_html
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('badge_logs_error', 'Error retrieving badge event logs: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get FluentCRM event logs
+     */
+    public function rest_get_fluentcrm_event_logs($request) {
+        try {
+            global $wpdb;
+            
+            // Check if FluentCRM event tracking table exists
+            $table_name = $wpdb->prefix . 'fc_event_tracking';
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+            
+            if (!$table_exists) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'FluentCRM event tracking table (wp_fc_event_tracking) does not exist. Make sure FluentCRM plugin is installed and activated.'
+                ));
+            }
+            
+            // Get recent event logs (last 50 entries)
+            $events = $wpdb->get_results(
+                "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT 50",
+                ARRAY_A
+            );
+            
+            if (empty($events)) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'data' => 'No event tracking logs found in wp_fc_event_tracking table.'
+                ));
+            }
+            
+            $log_output = "Recent Event Tracking Logs (Last 50 entries):\n\n";
+            $log_output .= "Total events found: " . count($events) . "\n\n";
+            
+            foreach ($events as $event) {
+                $log_output .= "Event ID: " . $event['id'] . "\n";
+                $log_output .= "Event Key: " . $event['event_key'] . "\n";
+                $log_output .= "Title: " . $event['title'] . "\n";
+                $log_output .= "Value: " . $event['value'] . "\n";
+                $log_output .= "Email: " . $event['email'] . "\n";
+                $log_output .= "Provider: " . $event['provider'] . "\n";
+                $log_output .= "Created: " . $event['created_at'] . "\n";
+                if (!empty($event['custom_data'])) {
+                    $log_output .= "Custom Data: " . $event['custom_data'] . "\n";
+                }
+                $log_output .= "---\n\n";
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $log_output
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('fluentcrm_logs_error', 'Error retrieving FluentCRM event logs: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Clear badge event logs
+     */
+    public function rest_clear_badge_event_logs($request) {
+        try {
+            delete_option('jph_badge_events_log');
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Badge event logs cleared successfully.'
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('clear_badge_logs_error', 'Error clearing badge event logs: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Empty FluentCRM event tracking table
+     */
+    public function rest_empty_fluentcrm_event_logs($request) {
+        try {
+            global $wpdb;
+            
+            // Check if FluentCRM event tracking table exists
+            $table_name = $wpdb->prefix . 'fc_event_tracking';
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+            
+            if (!$table_exists) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'FluentCRM event tracking table does not exist.'
+                ));
+            }
+            
+            // Empty the table
+            $result = $wpdb->query("TRUNCATE TABLE {$table_name}");
+            
+            if ($result === false) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'Error emptying FluentCRM event tracking table.'
+                ));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'FluentCRM event tracking table emptied successfully.'
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('empty_fluentcrm_logs_error', 'Error emptying FluentCRM event logs: ' . $e->getMessage(), array('status' => 500));
+        }
     }
 }

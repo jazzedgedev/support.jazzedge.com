@@ -86,6 +86,15 @@ class JPH_Admin_Pages {
         
         add_submenu_page(
             'academy-practice-hub',
+            __('AI Settings', 'academy-practice-hub'),
+            __('AI Settings', 'academy-practice-hub'),
+            'manage_options',
+            'aph-ai-settings',
+            array($this, 'ai_settings_page')
+        );
+        
+        add_submenu_page(
+            'academy-practice-hub',
             __('Settings', 'academy-practice-hub'),
             __('Settings', 'academy-practice-hub'),
             'manage_options',
@@ -1690,6 +1699,39 @@ class JPH_Admin_Pages {
                         <div id="webhook-test-results" class="webhook-test-results"></div>
                     </div>
                     
+                    <!-- Event Tracking Logs -->
+                    <div class="jph-event-section">
+                        <h2>📋 Event Tracking Logs</h2>
+                        <p>View recent FluentCRM event activity and badge event tracking logs.</p>
+                        
+                        <div class="event-logs-tabs">
+                            <button type="button" class="tab-button active" onclick="showTab('badge-logs')">🏆 Badge Events</button>
+                            <button type="button" class="tab-button" onclick="showTab('fluentcrm-logs')">🔗 FluentCRM Events</button>
+                        </div>
+                        
+                        <!-- Badge Event Logs -->
+                        <div id="badge-logs" class="tab-content active">
+                            <div class="logs-controls">
+                                <button type="button" class="button button-primary" onclick="refreshBadgeEventLogs()">🔄 Refresh Badge Logs</button>
+                                <button type="button" class="button button-secondary" onclick="clearBadgeEventLogs()">🗑️ Clear Badge Logs</button>
+                            </div>
+                            <div id="badge-event-logs-content" class="webhook-logs-content">
+                                <!-- Badge event logs will be loaded via AJAX -->
+                            </div>
+                        </div>
+                        
+                        <!-- FluentCRM Event Logs -->
+                        <div id="fluentcrm-logs" class="tab-content">
+                            <div class="logs-controls">
+                                <button type="button" class="button button-primary" onclick="loadEventLogs()">🔄 Refresh FluentCRM Logs</button>
+                                <button type="button" class="button button-secondary" onclick="emptyEventTrackingTable()">🗑️ Empty Event Table</button>
+                            </div>
+                            <div id="event-logs-results" class="webhook-logs-content">
+                                <!-- FluentCRM event logs will be loaded via AJAX -->
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="jph-debug-section">
                         <h2>🔍 Badge Assignment Debugging</h2>
                         <p>Comprehensive tools to debug and test badge assignment logic.</p>
@@ -1708,12 +1750,6 @@ class JPH_Admin_Pages {
                             <div class="debug-form-group">
                                 <button type="button" onclick="runBadgeAssignmentTest()" class="button button-primary">
                                     ⚡ Run Badge Assignment Test
-                                </button>
-                                <button type="button" onclick="debugMarathonBadge()" class="button button-secondary">
-                                    🏃 Debug Marathon Badge
-                                </button>
-                                <button type="button" onclick="simulateBadgeCheck()" class="button button-secondary">
-                                    🎯 Simulate Badge Check
                                 </button>
                             </div>
                             
@@ -1829,9 +1865,205 @@ class JPH_Admin_Pages {
             border-radius: 8px;
             min-height: 50px;
         }
+        
+        /* Event Logs Tabs */
+        .event-logs-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e1e1e1;
+        }
+        
+        .tab-button {
+            background: #f8f9fa;
+            border: 1px solid #e1e1e1;
+            border-bottom: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-button:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+        
+        .tab-button.active {
+            background: #fff;
+            color: #007cba;
+            border-color: #007cba;
+            border-bottom: 1px solid #fff;
+            margin-bottom: -1px;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .logs-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e1e1e1;
+        }
+        
+        .webhook-logs-content {
+            background: #f8f9fa;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #ccc;
+        }
+        
+        .log-entry.success {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        
+        .log-entry.error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .log-entry.info {
+            background: #d1ecf1;
+            border-left-color: #17a2b8;
+            color: #0c5460;
+        }
+        
+        .log-user-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
         </style>
         
         <script>
+        // Tab functionality
+        function showTab(tabName) {
+            // Hide all tab contents
+            jQuery('.tab-content').removeClass('active');
+            jQuery('.tab-button').removeClass('active');
+            
+            // Show selected tab
+            jQuery('#' + tabName).addClass('active');
+            jQuery('button[onclick="showTab(\'' + tabName + '\')"]').addClass('active');
+            
+            // Load content for the selected tab
+            if (tabName === 'badge-logs') {
+                refreshBadgeEventLogs();
+            } else if (tabName === 'fluentcrm-logs') {
+                loadEventLogs();
+            }
+        }
+        
+        // Badge Event Logs Functions
+        function refreshBadgeEventLogs() {
+            const logsDiv = document.getElementById('badge-event-logs-content');
+            logsDiv.innerHTML = 'Loading badge event logs...';
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/event-logs/badge'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        logsDiv.innerHTML = response.data;
+                    } else {
+                        logsDiv.innerHTML = 'Error loading badge logs: ' + response.message;
+                    }
+                },
+                error: function() {
+                    logsDiv.innerHTML = 'Error loading badge event logs.';
+                }
+            });
+        }
+        
+        function clearBadgeEventLogs() {
+            if (confirm('Are you sure you want to clear all badge event tracking logs?')) {
+                jQuery.ajax({
+                    url: '<?php echo rest_url('aph/v1/event-logs/clear-badge'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        refreshBadgeEventLogs();
+                    },
+                    error: function() {
+                        alert('Error clearing badge logs');
+                    }
+                });
+            }
+        }
+        
+        // FluentCRM Event Logs Functions
+        function loadEventLogs() {
+            const logsDiv = document.getElementById('event-logs-results');
+            logsDiv.innerHTML = 'Loading FluentCRM event logs...';
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/event-logs/fluentcrm'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        logsDiv.innerHTML = '<pre>' + response.data + '</pre>';
+                    } else {
+                        logsDiv.innerHTML = 'Error loading logs: ' + response.message;
+                    }
+                },
+                error: function() {
+                    logsDiv.innerHTML = 'Error loading FluentCRM event logs.';
+                }
+            });
+        }
+        
+        function emptyEventTrackingTable() {
+            if (confirm('Are you sure you want to empty the FluentCRM event tracking table? This action cannot be undone.')) {
+                jQuery.ajax({
+                    url: '<?php echo rest_url('aph/v1/event-logs/empty-fluentcrm'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        loadEventLogs();
+                    },
+                    error: function() {
+                        alert('Error emptying event tracking table');
+                    }
+                });
+            }
+        }
+        
         function testBadgeEvent(badgeKey) {
             jQuery('#webhook-test-results').html('<p>Testing badge event: ' + badgeKey + '...</p>');
             
@@ -1918,18 +2150,6 @@ class JPH_Admin_Pages {
             });
         }
         
-        function debugMarathonBadge() {
-            jQuery('#badge-debug-results').html('<p>Debugging marathon badge...</p>');
-            // Placeholder for marathon badge debugging
-            jQuery('#badge-debug-results').html('<p>Marathon badge debugging functionality will be implemented.</p>');
-        }
-        
-        function simulateBadgeCheck() {
-            jQuery('#badge-debug-results').html('<p>Simulating badge check...</p>');
-            // Placeholder for badge check simulation
-            jQuery('#badge-debug-results').html('<p>Badge check simulation functionality will be implemented.</p>');
-        }
-        
         function inspectBadgeDatabase() {
             jQuery('#badge-debug-results').html('<p>Inspecting badge database...</p>');
             
@@ -1973,6 +2193,12 @@ class JPH_Admin_Pages {
                 }
             });
         }
+        
+        // Initialize event tracking logs on page load
+        jQuery(document).ready(function() {
+            // Load badge event logs by default
+            refreshBadgeEventLogs();
+        });
         </script>
         <?php
     }
@@ -1995,6 +2221,286 @@ class JPH_Admin_Pages {
         echo '<h1>Documentation</h1>';
         echo '<p>Documentation functionality will be implemented here.</p>';
         echo '</div>';
+    }
+    
+    /**
+     * AI Settings page
+     */
+    public function ai_settings_page() {
+        // Handle form submission
+        if (isset($_POST['submit']) && wp_verify_nonce($_POST['ai_settings_nonce'], 'ai_settings_action')) {
+            $ai_prompt = sanitize_textarea_field($_POST['ai_prompt']);
+            $ai_system_message = sanitize_textarea_field($_POST['ai_system_message']);
+            $ai_model = sanitize_text_field($_POST['ai_model']);
+            $ai_max_tokens = intval($_POST['ai_max_tokens']);
+            $ai_temperature = floatval($_POST['ai_temperature']);
+            
+            update_option('aph_ai_prompt', $ai_prompt);
+            update_option('aph_ai_system_message', $ai_system_message);
+            update_option('aph_ai_model', $ai_model);
+            update_option('aph_ai_max_tokens', $ai_max_tokens);
+            update_option('aph_ai_temperature', $ai_temperature);
+            
+            echo '<div class="notice notice-success"><p>AI settings saved successfully!</p></div>';
+        }
+        
+        // Get current settings
+        $ai_prompt = get_option('aph_ai_prompt', 'Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:
+
+Practice Sessions: {total_sessions} sessions
+Total Practice Time: {total_minutes} minutes
+Average Session Length: {avg_duration} minutes
+Average Mood/Sentiment: {avg_sentiment}/5 (1=frustrating, 5=excellent)
+Improvement Rate: {improvement_rate}% of sessions showed improvement
+Most Frequent Practice Day: {most_frequent_day}
+Most Practiced Item: {most_practiced_item}
+Current Level: {current_level}
+Current Streak: {current_streak} days
+
+Provide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.');
+        
+        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.');
+        $ai_model = get_option('aph_ai_model', 'gpt-3.5-turbo');
+        $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
+        $ai_temperature = get_option('aph_ai_temperature', 0.7);
+        ?>
+        <div class="wrap">
+            <h1>🤖 AI Practice Analysis Settings</h1>
+            <p>Configure the AI prompt and settings used for generating practice analysis insights.</p>
+            
+            <form method="post" action="">
+                <?php wp_nonce_field('ai_settings_action', 'ai_settings_nonce'); ?>
+                
+                <div class="jph-ai-settings-sections">
+                    <!-- AI Prompt Configuration -->
+                    <div class="jph-ai-settings-section">
+                        <h2>📝 AI Prompt Configuration</h2>
+                        <p>Customize the prompt sent to the AI for practice analysis. Use placeholders like {total_sessions}, {total_minutes}, etc.</p>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="ai_prompt">Analysis Prompt</label>
+                                </th>
+                                <td>
+                                    <textarea id="ai_prompt" name="ai_prompt" rows="12" cols="80" class="large-text code"><?php echo esc_textarea($ai_prompt); ?></textarea>
+                                    <p class="description">
+                                        <strong>Available placeholders:</strong><br>
+                                        <code>{total_sessions}</code> - Number of practice sessions<br>
+                                        <code>{total_minutes}</code> - Total practice time in minutes<br>
+                                        <code>{avg_duration}</code> - Average session length<br>
+                                        <code>{avg_sentiment}</code> - Average mood/sentiment score<br>
+                                        <code>{improvement_rate}</code> - Percentage of sessions with improvement<br>
+                                        <code>{most_frequent_day}</code> - Most common practice day<br>
+                                        <code>{most_practiced_item}</code> - Most practiced item<br>
+                                        <code>{current_level}</code> - User's current level<br>
+                                        <code>{current_streak}</code> - Current practice streak
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="ai_system_message">System Message</label>
+                                </th>
+                                <td>
+                                    <textarea id="ai_system_message" name="ai_system_message" rows="3" cols="80" class="large-text"><?php echo esc_textarea($ai_system_message); ?></textarea>
+                                    <p class="description">The system message that sets the AI's role and behavior.</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <!-- AI Model Settings -->
+                    <div class="jph-ai-settings-section">
+                        <h2>⚙️ AI Model Settings</h2>
+                        <p>Configure the AI model parameters for analysis generation.</p>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="ai_model">AI Model</label>
+                                </th>
+                                <td>
+                                    <select id="ai_model" name="ai_model">
+                                        <option value="gpt-3.5-turbo" <?php selected($ai_model, 'gpt-3.5-turbo'); ?>>GPT-3.5 Turbo</option>
+                                        <option value="gpt-4" <?php selected($ai_model, 'gpt-4'); ?>>GPT-4</option>
+                                        <option value="gpt-4-turbo" <?php selected($ai_model, 'gpt-4-turbo'); ?>>GPT-4 Turbo</option>
+                                    </select>
+                                    <p class="description">Choose the AI model for generating analysis.</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="ai_max_tokens">Max Tokens</label>
+                                </th>
+                                <td>
+                                    <input type="number" id="ai_max_tokens" name="ai_max_tokens" value="<?php echo esc_attr($ai_max_tokens); ?>" min="50" max="1000" class="small-text">
+                                    <p class="description">Maximum number of tokens in the AI response (50-1000).</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="ai_temperature">Temperature</label>
+                                </th>
+                                <td>
+                                    <input type="number" id="ai_temperature" name="ai_temperature" value="<?php echo esc_attr($ai_temperature); ?>" min="0" max="2" step="0.1" class="small-text">
+                                    <p class="description">Controls randomness (0.0 = deterministic, 2.0 = very creative).</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <!-- Test Section -->
+                    <div class="jph-ai-settings-section">
+                        <h2>🧪 Test AI Analysis</h2>
+                        <p>Test the current AI settings with sample data.</p>
+                        
+                        <div class="test-controls">
+                            <div class="test-input-group">
+                                <label for="test-user-id">User ID to test:</label>
+                                <input type="number" id="test-user-id" name="test_user_id" placeholder="Enter user ID (leave empty for current user)" min="1" style="width: 200px; margin-left: 10px;">
+                            </div>
+                            <div class="test-buttons">
+                                <button type="button" class="button button-primary" onclick="testAIAnalysis()">Test AI Analysis</button>
+                                <button type="button" class="button button-secondary" onclick="resetToDefaults()">Reset to Defaults</button>
+                            </div>
+                        </div>
+                        
+                        <div id="ai-test-results" class="ai-test-results"></div>
+                    </div>
+                </div>
+                
+                <?php submit_button('Save AI Settings'); ?>
+            </form>
+        </div>
+        
+        <style>
+        .jph-ai-settings-sections {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+            margin: 25px 0;
+        }
+        
+        .jph-ai-settings-section {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .jph-ai-settings-section h2 {
+            margin: 0 0 15px 0;
+            color: #1e1e1e;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .test-controls {
+            margin-bottom: 20px;
+        }
+        
+        .test-input-group {
+            margin-bottom: 15px;
+        }
+        
+        .test-input-group label {
+            font-weight: 600;
+            color: #1e1e1e;
+        }
+        
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .ai-test-results {
+            background: #f8f9fa;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .form-table th {
+            width: 200px;
+            padding: 20px 10px 20px 0;
+            vertical-align: top;
+        }
+        
+        .form-table td {
+            padding: 15px 10px;
+        }
+        
+        .large-text.code {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        </style>
+        
+        <script>
+        function testAIAnalysis() {
+            const resultsDiv = document.getElementById('ai-test-results');
+            const userIdInput = document.getElementById('test-user-id');
+            const userId = userIdInput.value.trim();
+            
+            resultsDiv.innerHTML = 'Testing AI analysis with current settings...';
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/ai-analysis'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    refresh: 1,
+                    user_id: userId || undefined
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<h4>AI Analysis Test Results:</h4>';
+                        html += '<p><strong>Tested User ID:</strong> ' + (userId || 'Current User') + '</p>';
+                        html += '<p><strong>Generated:</strong> ' + response.data.generated_at + '</p>';
+                        html += '<p><strong>Data Period:</strong> ' + response.data.data_period + '</p>';
+                        html += '<h5>AI Response:</h5>';
+                        html += '<div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid #007cba;">';
+                        html += response.data.analysis;
+                        html += '</div>';
+                        
+                        if (response.data.debug_prompt) {
+                            html += '<h5>Prompt Sent to AI:</h5>';
+                            html += '<div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745; font-family: monospace; font-size: 12px; white-space: pre-wrap;">';
+                            html += response.data.debug_prompt;
+                            html += '</div>';
+                        }
+                        
+                        resultsDiv.innerHTML = html;
+                    } else {
+                        resultsDiv.innerHTML = '<p style="color: red;">Error: ' + response.message + '</p>';
+                    }
+                },
+                error: function() {
+                    resultsDiv.innerHTML = '<p style="color: red;">Error testing AI analysis</p>';
+                }
+            });
+        }
+        
+        function resetToDefaults() {
+            if (confirm('Are you sure you want to reset all AI settings to defaults?')) {
+                document.getElementById('ai_prompt').value = 'Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:\n\nPractice Sessions: {total_sessions} sessions\nTotal Practice Time: {total_minutes} minutes\nAverage Session Length: {avg_duration} minutes\nAverage Mood/Sentiment: {avg_sentiment}/5 (1=frustrating, 5=excellent)\nImprovement Rate: {improvement_rate}% of sessions showed improvement\nMost Frequent Practice Day: {most_frequent_day}\nMost Practiced Item: {most_practiced_item}\nCurrent Level: {current_level}\nCurrent Streak: {current_streak} days\n\nProvide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.';
+                document.getElementById('ai_system_message').value = 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.';
+                document.getElementById('ai_model').value = 'gpt-3.5-turbo';
+                document.getElementById('ai_max_tokens').value = '300';
+                document.getElementById('ai_temperature').value = '0.7';
+            }
+        }
+        </script>
+        <?php
     }
     
     /**

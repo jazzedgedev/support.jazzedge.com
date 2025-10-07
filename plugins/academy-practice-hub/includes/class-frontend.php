@@ -106,7 +106,7 @@ class JPH_Frontend {
             <!-- Analytics Section -->
             <div class="jph-analytics-section">
                 <div class="analytics-header">
-                    <h3>📈 Your Practice Analytics</h3>
+                    <h3><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="analytics-icon"><!--!Font Awesome Pro v7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2025 Fonticons, Inc.--><path d="M500 89c13.8-11 16-31.2 5-45s-31.2-16-45-5L319.4 151.5 211.2 70.4c-11.7-8.8-27.8-8.5-39.2 .6L12 199c-13.8 11-16 31.2-5 45s31.2 16 45 5l140.6-112.5 108.2 81.1c11.7 8.8 27.8 8.5 39.2-.6L500 89zM160 256l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32zM32 352l0 96c0 17.7 14.3 32 32 32s32-14.3 32-32l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32zm288-64c-17.7 0-32 14.3-32 32l0 128c0 17.7 14.3 32 32 32s32-14.3 32-32l0-128c0-17.7-14.3-32-32-32zm96-32l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32z"/></svg> Your Practice Analytics</h3>
                     <p>Track your progress and discover insights about your practice habits</p>
                 </div>
                 
@@ -120,19 +120,19 @@ class JPH_Frontend {
                         <div class="time-periods">
                             <div class="time-period">
                                 <span class="period-label">Last 7 days</span>
-                                <span class="period-value" id="analytics-7-days-minutes">-</span>
+                                <span class="period-value count-up" id="analytics-7-days-minutes" data-target="0" data-start="0">0</span>
                             </div>
                             <div class="time-period">
                                 <span class="period-label">Last 30 days</span>
-                                <span class="period-value" id="analytics-30-days-minutes">-</span>
+                                <span class="period-value count-up" id="analytics-30-days-minutes" data-target="0" data-start="0">0</span>
                             </div>
                             <div class="time-period">
                                 <span class="period-label">Last 90 days</span>
-                                <span class="period-value" id="analytics-90-days-minutes">-</span>
+                                <span class="period-value count-up" id="analytics-90-days-minutes" data-target="0" data-start="0">0</span>
                             </div>
                             <div class="time-period">
                                 <span class="period-label">Last year</span>
-                                <span class="period-value" id="analytics-365-days-minutes">-</span>
+                                <span class="period-value count-up" id="analytics-365-days-minutes" data-target="0" data-start="0">0</span>
                             </div>
                         </div>
                     </div>
@@ -145,19 +145,19 @@ class JPH_Frontend {
                         </div>
                         <div class="sessions-grid">
                             <div class="session-stat">
-                                <span class="session-value" id="analytics-7-days-sessions">-</span>
+                                <span class="session-value count-up" id="analytics-7-days-sessions" data-target="0" data-start="0">0</span>
                                 <span class="session-label">7 days</span>
                             </div>
                             <div class="session-stat">
-                                <span class="session-value" id="analytics-30-days-sessions">-</span>
+                                <span class="session-value count-up" id="analytics-30-days-sessions" data-target="0" data-start="0">0</span>
                                 <span class="session-label">30 days</span>
                             </div>
                             <div class="session-stat">
-                                <span class="session-value" id="analytics-90-days-sessions">-</span>
+                                <span class="session-value count-up" id="analytics-90-days-sessions" data-target="0" data-start="0">0</span>
                                 <span class="session-label">90 days</span>
                             </div>
                             <div class="session-stat">
-                                <span class="session-value" id="analytics-365-days-sessions">-</span>
+                                <span class="session-value count-up" id="analytics-365-days-sessions" data-target="0" data-start="0">0</span>
                                 <span class="session-label">1 year</span>
                             </div>
                         </div>
@@ -191,6 +191,12 @@ class JPH_Frontend {
                                     <span class="insight-value" id="analytics-sentiment">-</span>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <!-- Practice Chart -->
+                        <div class="practice-chart-container">
+                            <h5>📊 Practice Trends (Last 30 Days)</h5>
+                            <canvas id="practice-chart" width="400" height="200"></canvas>
                         </div>
                     </div>
                     
@@ -496,11 +502,11 @@ class JPH_Frontend {
                     </div>
                 </div>
                 <div class="practice-history-header">
+                    <div class="practice-history-header-item">Date</div>
                     <div class="practice-history-header-item">Item</div>
                     <div class="practice-history-header-item center">Duration</div>
                     <div class="practice-history-header-item center">How it felt</div>
                     <div class="practice-history-header-item center">Improvement</div>
-                    <div class="practice-history-header-item center">Date</div>
                     <div class="practice-history-header-item center">Actions</div>
                 </div>
                 <div class="practice-history-list" id="practice-history-list">
@@ -1466,6 +1472,19 @@ class JPH_Frontend {
         }
         .practice-history-item .center { text-align: center; }
         
+        .practice-history-notes {
+            grid-column: 1 / -1;
+            padding: 8px 0 0 0;
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+            border-top: 1px solid #f8f8f8;
+            margin-top: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
         .practice-history-item:hover {
             background: #f8f9fa;
         }
@@ -2357,7 +2376,104 @@ class JPH_Frontend {
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
         }
+        
+        .analytics-icon {
+            width: 32px;
+            height: 32px;
+            fill: #0f172a;
+            flex-shrink: 0;
+        }
+        
+        /* Counting Animation Styles */
+        .count-up {
+            transition: all 0.3s ease-in-out;
+        }
+        
+        .count-up.animate {
+            animation: countUp 1.5s ease-out forwards;
+        }
+        
+        @keyframes countUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Toast Notifications */
+        .jph-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        .jph-toast-success {
+            border-left: 4px solid #28a745;
+        }
+        
+        .jph-toast-error {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .jph-toast-info {
+            border-left: 4px solid #007cba;
+        }
+        
+        .toast-content {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .toast-message {
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #666;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 10px;
+            line-height: 1;
+        }
+        
+        .toast-close:hover {
+            color: #333;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
         
         .analytics-header p {
             color: #64748b;
@@ -2433,7 +2549,7 @@ class JPH_Frontend {
         
         .time-period {
             text-align: center;
-            padding: 20px 16px;
+            padding: 18px 16px;
             background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
             border-radius: 16px;
             border: 1px solid #93c5fd;
@@ -2466,9 +2582,9 @@ class JPH_Frontend {
         .period-label {
             display: block;
             color: #1e40af;
-            font-size: 0.9em;
+            font-size: 0.85em;
             font-weight: 600;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             position: relative;
             z-index: 1;
         }
@@ -2476,8 +2592,8 @@ class JPH_Frontend {
         .period-value {
             display: block;
             color: #1e3a8a;
-            font-size: 1.6em;
-            font-weight: 800;
+            font-size: 1.4em;
+            font-weight: 700;
             position: relative;
             z-index: 1;
         }
@@ -2491,7 +2607,7 @@ class JPH_Frontend {
         
         .session-stat {
             text-align: center;
-            padding: 24px 16px;
+            padding: 18px 16px;
             background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
             border-radius: 16px;
             border: 1px solid #c4b5fd;
@@ -2524,8 +2640,8 @@ class JPH_Frontend {
         .session-value {
             display: block;
             color: #6b21a8;
-            font-size: 2.2em;
-            font-weight: 800;
+            font-size: 1.4em;
+            font-weight: 700;
             margin-bottom: 8px;
             position: relative;
             z-index: 1;
@@ -2534,7 +2650,7 @@ class JPH_Frontend {
         .session-label {
             display: block;
             color: #581c87;
-            font-size: 0.95em;
+            font-size: 0.85em;
             font-weight: 600;
             position: relative;
             z-index: 1;
@@ -2879,6 +2995,28 @@ class JPH_Frontend {
             font-size: 24px;
             margin-bottom: 8px;
             display: block;
+        }
+        
+        /* Practice Chart Styles */
+        .practice-chart-container {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .practice-chart-container h5 {
+            margin: 0 0 15px 0;
+            color: #004555;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        
+        #practice-chart {
+            width: 100% !important;
+            height: 200px !important;
+            max-width: 100%;
         }
         
         .insights-card .insight-label {
@@ -3311,6 +3449,11 @@ class JPH_Frontend {
                 font-size: 1.8em;
             }
             
+            .analytics-icon {
+                width: 28px;
+                height: 28px;
+            }
+            
             .analytics-header p {
                 font-size: 1.1em;
             }
@@ -3343,6 +3486,9 @@ class JPH_Frontend {
             }
         }
         </style>
+        
+        <!-- Chart.js -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         
         <script>
         jQuery(document).ready(function($) {
@@ -3429,6 +3575,17 @@ class JPH_Frontend {
                 });
             }
             
+            // Helper function to truncate notes
+            function truncateNotes(notes, maxLength = 50) {
+                if (!notes || notes.trim() === '') {
+                    return '';
+                }
+                if (notes.length <= maxLength) {
+                    return notes;
+                }
+                return notes.substring(0, maxLength) + '...';
+            }
+            
             // Display practice history
             function displayPracticeHistory(sessions) {
                 let html = '';
@@ -3457,19 +3614,183 @@ class JPH_Frontend {
                         
                     html += `
                             <div class="practice-history-item">
+                                <div class="practice-history-item-content">${date}</div>
                                 <div class="practice-history-item-content">${session.item_name}</div>
                                 <div class="practice-history-item-content center">${session.duration_minutes} min</div>
                                 <div class="practice-history-item-content center">${sentiment}</div>
                                 <div class="practice-history-item-content center">${improvement}</div>
-                                <div class="practice-history-item-content center">${date}</div>
                                 <div class="practice-history-item-content center">
                                     <button type="button" class="jph-delete-session-btn" data-session-id="${session.id}" data-item-name="${session.item_name || 'Unknown Item'}" title="Delete this practice session"><i class="fa-solid fa-circle-xmark"></i></button>
                                 </div>
+                                ${session.notes ? `<div class="practice-history-notes">${truncateNotes(session.notes)}</div>` : ''}
                             </div>
                         `;
                     });
                 }
                 $('#practice-history-list').html(html);
+            }
+            
+            // Export practice history to CSV
+            function exportPracticeHistory() {
+                // Use AJAX to get the CSV data and trigger download
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/export-practice-history'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(data, status, xhr) {
+                        console.log('Export response:', data, 'Status:', status, 'XHR:', xhr);
+                        
+                        // Check if we got CSV data or an error
+                        if (typeof data === 'string' && (data.includes('Date,Practice Item') || data.includes('"Date","Practice Item"'))) {
+                            // We got CSV data, trigger download
+                            const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement('a');
+                            const url = URL.createObjectURL(blob);
+                            link.setAttribute('href', url);
+                            link.setAttribute('download', 'practice-history-' + new Date().toISOString().split('T')[0] + '.csv');
+                            link.style.visibility = 'hidden';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            
+                            showToast('Practice history exported successfully!', 'success');
+                        } else {
+                            // Error response
+                            let errorMsg = 'Unknown error';
+                            if (typeof data === 'object' && data.message) {
+                                errorMsg = data.message;
+                            } else if (typeof data === 'string') {
+                                errorMsg = data;
+                            }
+                            console.error('Export error:', errorMsg);
+                            showToast('Error exporting practice history: ' + errorMsg, 'error');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Export AJAX error:', xhr, status, error);
+                        let errorMsg = error;
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMsg = xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            errorMsg = xhr.responseText;
+                        }
+                        showToast('Error exporting practice history: ' + errorMsg, 'error');
+                    }
+                });
+            }
+            
+            // Load more practice sessions
+            function loadMorePracticeSessions() {
+                const currentSessions = $('#practice-history-list .practice-history-item').length;
+                const limit = 10;
+                
+                console.log('Load More: Current sessions count:', currentSessions, 'Offset:', currentSessions);
+                
+                $('#load-more-sessions-btn, #load-more-sessions-bottom').prop('disabled', true).text('Loading...');
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: { 
+                        limit: limit,
+                        offset: currentSessions
+                    },
+                    success: function(response) {
+                        console.log('Load More: Response received:', response);
+                        if (response.success && response.sessions && response.sessions.length > 0) {
+                            console.log('Load More: Adding', response.sessions.length, 'new sessions');
+                            // Append new sessions to existing list
+                            let html = '';
+                            response.sessions.forEach(session => {
+                                const date = new Date(session.created_at).toLocaleDateString();
+                                const score = parseInt(session.sentiment_score, 10);
+                                const sentimentEmojiMap = {1:'😞',2:'😕',3:'😐',4:'😊',5:'🤩'};
+                                const sentimentLabelMap = {1:'Struggled',2:'Difficult',3:'Okay',4:'Good',5:'Excellent'};
+                                const sentiment = score ? (sentimentEmojiMap[score] + ' ' + sentimentLabelMap[score]) : 'Not specified';
+                                // DB may return '0'/'1' strings; ensure strict numeric/boolean check
+                                const improvementDetected = (session.improvement_detected === true)
+                                    || (session.improvement_detected === 1)
+                                    || (session.improvement_detected === '1')
+                                    || (Number(session.improvement_detected) === 1);
+                                let improvement;
+                                if (useImprovementPills) {
+                                    improvement = improvementDetected
+                                        ? '<span class="jph-pill jph-pill-progress" title="You reported improvement today—nice!">↑ Progress</span>'
+                                        : '<span class="jph-pill jph-pill-logged" title="Consistency builds skills—great work!">• Logged</span>';
+                                } else {
+                                    improvement = improvementDetected ? 'Yes' : 'No';
+                                }
+                                
+                    html += `
+                            <div class="practice-history-item">
+                                <div class="practice-history-item-content">${date}</div>
+                                <div class="practice-history-item-content">${session.item_name}</div>
+                                <div class="practice-history-item-content center">${session.duration_minutes} min</div>
+                                <div class="practice-history-item-content center">${sentiment}</div>
+                                <div class="practice-history-item-content center">${improvement}</div>
+                                <div class="practice-history-item-content center">
+                                    <button type="button" class="jph-delete-session-btn" data-session-id="${session.id}" data-item-name="${session.item_name || 'Unknown Item'}" title="Delete this practice session"><i class="fa-solid fa-circle-xmark"></i></button>
+                                </div>
+                                ${session.notes ? `<div class="practice-history-notes">${truncateNotes(session.notes)}</div>` : ''}
+                            </div>
+                        `;
+                            });
+                            
+                            $('#practice-history-list').append(html);
+                            
+                            // Show/hide load more button based on whether we got a full batch
+                            if (response.sessions.length < limit) {
+                                $('#load-more-container').hide();
+                            } else {
+                                $('#load-more-container').show();
+                            }
+                            
+                            showToast(`Loaded ${response.sessions.length} more sessions`, 'success');
+                        } else {
+                            $('#load-more-container').hide();
+                            showToast('No more sessions to load', 'info');
+                        }
+                    },
+                    error: function() {
+                        showToast('Error loading more sessions', 'error');
+                    },
+                    complete: function() {
+                        $('#load-more-sessions-btn, #load-more-sessions-bottom').prop('disabled', false).html('<span class="btn-icon">📈</span>Load More Sessions');
+                    }
+                });
+            }
+            
+            // Show toast notification
+            function showToast(message, type = 'info') {
+                const toast = $(`
+                    <div class="jph-toast jph-toast-${type}">
+                        <div class="toast-content">
+                            <span class="toast-message">${message}</span>
+                            <button class="toast-close">&times;</button>
+                        </div>
+                    </div>
+                `);
+                
+                $('body').append(toast);
+                
+                // Auto remove after 3 seconds
+                setTimeout(() => {
+                    toast.fadeOut(300, function() {
+                        $(this).remove();
+                    });
+                }, 3000);
+                
+                // Manual close
+                toast.find('.toast-close').on('click', function() {
+                    toast.fadeOut(300, function() {
+                        $(this).remove();
+                    });
+                });
             }
             
             // Load badges
@@ -3594,17 +3915,30 @@ class JPH_Frontend {
             
             // Display analytics data
             function displayAnalytics(data) {
-                // Practice time data
-                $('#analytics-7-days-minutes').text(data.periods['7_days'].total_minutes || '0');
-                $('#analytics-30-days-minutes').text(data.periods['30_days'].total_minutes || '0');
-                $('#analytics-90-days-minutes').text(data.periods['90_days'].total_minutes || '0');
-                $('#analytics-365-days-minutes').text(data.periods['365_days'].total_minutes || '0');
+                // Set target values for counting animation
+                $('#analytics-7-days-minutes').attr('data-target', data.periods['7_days'].total_minutes || '0');
+                $('#analytics-30-days-minutes').attr('data-target', data.periods['30_days'].total_minutes || '0');
+                $('#analytics-90-days-minutes').attr('data-target', data.periods['90_days'].total_minutes || '0');
+                $('#analytics-365-days-minutes').attr('data-target', data.periods['365_days'].total_minutes || '0');
                 
-                // Practice sessions data
-                $('#analytics-7-days-sessions').text(data.periods['7_days'].sessions || '0');
-                $('#analytics-30-days-sessions').text(data.periods['30_days'].sessions || '0');
-                $('#analytics-90-days-sessions').text(data.periods['90_days'].sessions || '0');
-                $('#analytics-365-days-sessions').text(data.periods['365_days'].sessions || '0');
+                $('#analytics-7-days-sessions').attr('data-target', data.periods['7_days'].sessions || '0');
+                $('#analytics-30-days-sessions').attr('data-target', data.periods['30_days'].sessions || '0');
+                $('#analytics-90-days-sessions').attr('data-target', data.periods['90_days'].sessions || '0');
+                $('#analytics-365-days-sessions').attr('data-target', data.periods['365_days'].sessions || '0');
+                
+                // Set start values for realistic counting animation
+                $('#analytics-7-days-minutes').attr('data-start', Math.max(0, Math.floor((data.periods['7_days'].total_minutes || 0) * 0.7)));
+                $('#analytics-30-days-minutes').attr('data-start', Math.max(0, Math.floor((data.periods['30_days'].total_minutes || 0) * 0.7)));
+                $('#analytics-90-days-minutes').attr('data-start', Math.max(0, Math.floor((data.periods['90_days'].total_minutes || 0) * 0.7)));
+                $('#analytics-365-days-minutes').attr('data-start', Math.max(0, Math.floor((data.periods['365_days'].total_minutes || 0) * 0.7)));
+                
+                $('#analytics-7-days-sessions').attr('data-start', Math.max(0, Math.floor((data.periods['7_days'].sessions || 0) * 0.7)));
+                $('#analytics-30-days-sessions').attr('data-start', Math.max(0, Math.floor((data.periods['30_days'].sessions || 0) * 0.7)));
+                $('#analytics-90-days-sessions').attr('data-start', Math.max(0, Math.floor((data.periods['90_days'].sessions || 0) * 0.7)));
+                $('#analytics-365-days-sessions').attr('data-start', Math.max(0, Math.floor((data.periods['365_days'].sessions || 0) * 0.7)));
+                
+                // Initialize counting animation
+                initCountingAnimation();
                 
                 // Insights data
                 $('#analytics-consistency').text(data.insights.consistency_score + '%');
@@ -3632,6 +3966,64 @@ class JPH_Frontend {
                 } else {
                     $('#analytics-most-practiced .fact-text').text('Add practice items to see your favorites!');
                 }
+            }
+            
+            // Initialize counting animation with Intersection Observer
+            function initCountingAnimation() {
+                const observerOptions = {
+                    threshold: 0.5,
+                    rootMargin: '0px 0px -100px 0px'
+                };
+                
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting && !entry.target.classList.contains('animated')) {
+                            animateCountUp(entry.target);
+                            entry.target.classList.add('animated');
+                        }
+                    });
+                }, observerOptions);
+                
+                // Observe all count-up elements
+                document.querySelectorAll('.count-up').forEach(element => {
+                    observer.observe(element);
+                });
+            }
+            
+            // Animate count up effect
+            function animateCountUp(element) {
+                const target = parseInt(element.getAttribute('data-target')) || 0;
+                const start = parseInt(element.getAttribute('data-start')) || 0;
+                const duration = 2000; // 2 seconds
+                const increment = (target - start) / (duration / 16); // 60fps
+                let current = start;
+                
+                element.classList.add('animate');
+                
+                // Set initial value
+                const isHeroStat = element.classList.contains('stat-value');
+                if (isHeroStat) {
+                    // For hero stats, extract the emoji and add it back
+                    const emoji = element.textContent.match(/[⭐⚡🔥💎]/)?.[0] || '';
+                    element.textContent = emoji + start.toLocaleString();
+                } else {
+                    element.textContent = start.toLocaleString();
+                }
+                
+                const timer = setInterval(() => {
+                    current += increment;
+                    if (current >= target) {
+                        current = target;
+                        clearInterval(timer);
+                    }
+                    
+                    if (isHeroStat) {
+                        const emoji = element.textContent.match(/[⭐⚡🔥💎]/)?.[0] || '';
+                        element.textContent = emoji + Math.floor(current).toLocaleString();
+                    } else {
+                        element.textContent = Math.floor(current).toLocaleString();
+                    }
+                }, 16);
             }
             
             // Load AI analysis
@@ -4496,6 +4888,16 @@ class JPH_Frontend {
             
             // Initialize practice session handlers
             function initPracticeSessionHandlers() {
+                // Export CSV functionality
+                $(document).on('click', '#export-history-btn', function() {
+                    exportPracticeHistory();
+                });
+                
+                // Load more sessions functionality
+                $(document).on('click', '#load-more-sessions-btn, #load-more-sessions-bottom', function() {
+                    loadMorePracticeSessions();
+                });
+                
                 // Open log practice modal
                 $(document).on('click', '.jph-log-practice-btn', function() {
                     var itemId = $(this).data('item-id');
