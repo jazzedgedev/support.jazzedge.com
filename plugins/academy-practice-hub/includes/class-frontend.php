@@ -2209,10 +2209,19 @@ class JPH_Frontend {
             font-size: 16px;
         }
         </style>
+        <style>
+        /* Improvement pills */
+        .jph-pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+        .jph-pill-progress { background:#e6f5f3; color:#1e8279; border:1px solid #bfe7e2; }
+        .jph-pill-logged { background:#f3f4f6; color:#4b5563; border:1px solid #e5e7eb; }
+        </style>
         
         <script>
         jQuery(document).ready(function($) {
             
+            // Toggle new improvement pill UI. Set false to revert to simple text.
+            const useImprovementPills = true;
+
             // Initialize clean neuroscience tips
             initNeuroscienceTips();
             
@@ -2303,7 +2312,14 @@ class JPH_Frontend {
                             || (session.improvement_detected === 1)
                             || (session.improvement_detected === '1')
                             || (Number(session.improvement_detected) === 1);
-                        const improvement = improvementDetected ? '👍' : '👎';
+                        let improvement;
+                        if (useImprovementPills) {
+                            improvement = improvementDetected
+                                ? '<span class="jph-pill jph-pill-progress" title="You reported improvement today—nice!">↑ Progress</span>'
+                                : '<span class="jph-pill jph-pill-logged" title="Consistency builds skills—great work!">• Logged</span>';
+                        } else {
+                            improvement = improvementDetected ? 'Yes' : 'No';
+                        }
                         
                     html += `
                             <div class="practice-history-item">
