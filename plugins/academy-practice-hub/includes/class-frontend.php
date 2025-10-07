@@ -3006,17 +3006,37 @@ class JPH_Frontend {
             border: 1px solid rgba(0, 0, 0, 0.05);
         }
         
-        .practice-chart-container h5 {
-            margin: 0 0 15px 0;
-            color: #004555;
-            font-size: 1.1em;
-            font-weight: 600;
-        }
         
         #practice-chart {
             width: 100% !important;
             height: 200px !important;
             max-width: 100%;
+        }
+        
+        /* AI Analysis Text Styling */
+        #ai-analysis-text {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+        }
+        
+        #ai-analysis-text p {
+            margin: 12px 0;
+            line-height: 1.6;
+            color: #1e293b;
+        }
+        
+        #ai-analysis-text h5 {
+            color: #0c4a6e;
+            margin: 16px 0 8px 0;
+            font-size: 1.1em;
+            font-weight: 700;
+        }
+        
+        #ai-analysis-text div {
+            margin: 8px 0;
+            padding-left: 12px;
+            line-height: 1.5;
         }
         
         .insights-card .insight-label {
@@ -3510,9 +3530,6 @@ class JPH_Frontend {
             
             // Load analytics
             loadAnalytics();
-            
-            // Load AI analysis
-            loadAIAnalysisActual();
             
             // Initialize other functionality
             initModalHandlers();
