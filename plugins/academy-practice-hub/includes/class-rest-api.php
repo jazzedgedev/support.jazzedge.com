@@ -285,6 +285,19 @@ class JPH_REST_API {
             'callback' => array($this, 'rest_delete_practice_item'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
+        
+        // Admin data management endpoints
+        register_rest_route('aph/v1', '/admin/export-user-data', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_export_user_data'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/admin/import-user-data', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_import_user_data'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
     }
     
     /**
@@ -420,10 +433,60 @@ class JPH_REST_API {
         $user_id = get_current_user_id();
         $limit = $request->get_param('limit') ?: 10;
         $offset = $request->get_param('offset') ?: 0;
+        $start_date = $request->get_param('start_date');
+        $end_date = $request->get_param('end_date');
         
-        error_log('Practice Sessions API: User ID: ' . $user_id . ', Limit: ' . $limit . ', Offset: ' . $offset);
+        error_log('Practice Sessions API: User ID: ' . $user_id . ', Limit: ' . $limit . ', Offset: ' . $offset . ', Start Date: ' . $start_date . ', End Date: ' . $end_date);
         
-        $sessions = $this->database->get_practice_sessions($user_id, $limit, $offset);
+        // If date filtering is requested, use direct database query
+        if ($start_date || $end_date) {
+            global $wpdb;
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $items_table = $wpdb->prefix . 'jph_practice_items';
+            
+            $where_conditions = array("ps.user_id = %d");
+            $params = array($user_id);
+            
+            if ($start_date) {
+                $where_conditions[] = "DATE(ps.created_at) >= %s";
+                $params[] = $start_date;
+            }
+            
+            if ($end_date) {
+                $where_conditions[] = "DATE(ps.created_at) <= %s";
+                $params[] = $end_date;
+            }
+            
+            $where_clause = implode(' AND ', $where_conditions);
+            
+            $query = $wpdb->prepare("
+                SELECT 
+                    ps.*,
+                    pi.name as item_name
+                FROM $sessions_table ps
+                LEFT JOIN $items_table pi ON ps.practice_item_id = pi.id
+                WHERE $where_clause
+                ORDER BY ps.created_at DESC
+                LIMIT %d OFFSET %d
+            ", array_merge($params, array($limit, $offset)));
+            
+            $sessions = $wpdb->get_results($query, ARRAY_A);
+            
+            // Get total count for has_more calculation
+            $count_query = $wpdb->prepare("
+                SELECT COUNT(*) 
+                FROM $sessions_table ps
+                WHERE $where_clause
+            ", $params);
+            
+            $total_count = $wpdb->get_var($count_query);
+            $has_more = ($offset + $limit) < $total_count;
+            
+        } else {
+            // Use existing database method for regular requests
+            $sessions = $this->database->get_practice_sessions($user_id, $limit, $offset);
+            $has_more = count($sessions) >= $limit;
+        }
         
         error_log('Practice Sessions API: Retrieved ' . count($sessions) . ' sessions');
         
@@ -434,7 +497,8 @@ class JPH_REST_API {
         return rest_ensure_response(array(
             'success' => true,
             'sessions' => $sessions,
-            'count' => count($sessions)
+            'count' => count($sessions),
+            'has_more' => $has_more ?? false
         ));
     }
     
@@ -525,6 +589,7 @@ class JPH_REST_API {
         
         return rest_ensure_response($csv_content);
     }
+    
     
     /**
      * Get badges for admin
@@ -2173,8 +2238,11 @@ class JPH_REST_API {
         }
         $most_practiced_item = array_keys($item_frequency, max($item_frequency))[0] ?? 'Unknown';
         
-        // Get configurable AI prompt
-        $ai_prompt_template = get_option('aph_ai_prompt', 'Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:
+        // Get configurable AI prompt - force update if it contains the old typo
+        $current_prompt = get_option('aph_ai_prompt', '');
+        $new_prompt = 'CRITICAL FORMATTING REQUIREMENT: You MUST respond with ONLY plain text. NO emojis, NO markdown, NO bold text, NO asterisks, NO section headers, NO bullet points, NO special characters. Write as a single paragraph of normal text only.
+
+Analyze this piano practice data from the last 30 days and provide insights in 2–3 sentences. Be encouraging, specific, and actionable. Use the data to highlight positive progress, consistency, and areas for small improvements.
 
 Practice Sessions: {total_sessions} sessions
 Total Practice Time: {total_minutes} minutes
@@ -2186,7 +2254,17 @@ Most Practiced Item: {most_practiced_item}
 Current Level: {current_level}
 Current Streak: {current_streak} days
 
-Provide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.');
+Provide specific, motivational insights about their practice habits and suggest 1–2 focused next steps for improvement. Keep it uplifting, practical, and concise. When recommending lessons, use these titles naturally where relevant: Technique - Jazzedge Practice Curriculum™; Improvisation - The Confident Improviser™; Accompaniment - Piano Accompaniment Essentials™; Jazz Standards - Standards By The Dozen™; Super Easy Jazz Standards - Super Simple Standards™.
+
+FORMATTING RULE: Write your response as one continuous paragraph using only regular letters, numbers, and basic punctuation. Do not use any symbols, emojis, or formatting characters.';
+
+        // Force update the prompt to ensure we have the latest formatting instructions
+        if (strpos($current_prompt, 'CRITICAL FORMATTING REQUIREMENT') === false) {
+            update_option('aph_ai_prompt', $new_prompt);
+            $ai_prompt_template = $new_prompt;
+        } else {
+            $ai_prompt_template = get_option('aph_ai_prompt', $new_prompt);
+        }
         
         // Replace placeholders in the prompt
         $prompt = str_replace(
@@ -2215,8 +2293,14 @@ Provide specific, actionable insights about their practice patterns and suggesti
             $ai_prompt_template
         );
 
+        // Get AI settings for the call
+        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns. CRITICAL FORMATTING RULE: You MUST respond with ONLY plain text. NO emojis, NO markdown, NO bold text, NO asterisks, NO section headers, NO bullet points, NO special characters. Write as a single paragraph using only regular letters, numbers, and basic punctuation.');
+        $ai_model = get_option('aph_ai_model', 'gpt-3.5-turbo');
+        $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
+        $ai_temperature = get_option('aph_ai_temperature', 0.3);
+        
         // Call Katahdin AI Hub
-        $ai_response = $this->call_katahdin_ai($prompt);
+        $ai_response = $this->call_katahdin_ai($prompt, $ai_system_message, $ai_model, $ai_max_tokens, $ai_temperature);
         
         if (is_wp_error($ai_response)) {
             // Fallback to basic analysis if AI service fails
@@ -2229,7 +2313,27 @@ Provide specific, actionable insights about their practice patterns and suggesti
             'data_period' => 'Last 30 days',
             'generated_at' => current_time('mysql'),
             'debug_prompt' => $prompt,
-            'debug_info' => $debug_info,
+            'debug_info' => array_merge($debug_info, array(
+                'system_message' => $ai_system_message,
+                'ai_model' => $ai_model,
+                'temperature' => $ai_temperature,
+                'max_tokens' => $ai_max_tokens,
+                'request_data' => array(
+                    'messages' => array(
+                        array(
+                            'role' => 'system',
+                            'content' => $ai_system_message
+                        ),
+                        array(
+                            'role' => 'user',
+                            'content' => $prompt
+                        )
+                    ),
+                    'model' => $ai_model,
+                    'max_tokens' => $ai_max_tokens,
+                    'temperature' => $ai_temperature
+                )
+            )),
             'data_summary' => array(
                 'total_sessions' => $total_sessions,
                 'total_minutes' => $total_minutes,
@@ -2242,10 +2346,11 @@ Provide specific, actionable insights about their practice patterns and suggesti
         );
     }
     
+    
     /**
      * Call Katahdin AI Hub for analysis
      */
-    private function call_katahdin_ai($prompt) {
+    private function call_katahdin_ai($prompt, $ai_system_message, $ai_model, $ai_max_tokens, $ai_temperature) {
         // Check if Katahdin AI Hub is available
         if (!class_exists('Katahdin_AI_Hub_REST_API')) {
             return new WP_Error('ai_hub_unavailable', 'Katahdin AI Hub is not available', array('status' => 503));
@@ -2264,11 +2369,7 @@ Provide specific, actionable insights about their practice patterns and suggesti
             }
         }
         
-        // Get configurable AI settings
-        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.');
-        $ai_model = get_option('aph_ai_model', 'gpt-3.5-turbo');
-        $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
-        $ai_temperature = get_option('aph_ai_temperature', 0.7);
+        // Use the AI settings passed as parameters
         
         // Prepare the request
         $request_data = array(
@@ -2586,50 +2687,47 @@ Provide specific, actionable insights about their practice patterns and suggesti
         arsort($item_counts);
         $most_practiced = array_key_first($item_counts);
         
-        // Generate analysis based on data
-        $analysis = "🎹 **Practice Analysis for the Last 30 Days**\n\n";
+        // Generate analysis based on data - PLAIN TEXT ONLY
+        $analysis = "Practice Analysis for the Last 30 Days. ";
         
         if ($total_sessions > 0) {
-            $analysis .= "**📊 Your Practice Summary:**\n";
-            $analysis .= "• You practiced {$total_sessions} times totaling {$total_minutes} minutes\n";
-            $analysis .= "• Average session length: {$avg_duration} minutes\n";
-            $analysis .= "• Your mood rating averaged {$avg_sentiment}/5 (";
+            $analysis .= "You practiced {$total_sessions} times totaling {$total_minutes} minutes with an average session length of {$avg_duration} minutes. ";
+            $analysis .= "Your mood rating averaged {$avg_sentiment} out of 5, which is ";
             
             if ($avg_sentiment >= 4) {
-                $analysis .= "Excellent! 🎉";
+                $analysis .= "excellent";
             } elseif ($avg_sentiment >= 3) {
-                $analysis .= "Good! 😊";
+                $analysis .= "good";
             } elseif ($avg_sentiment >= 2) {
-                $analysis .= "Okay 👍";
+                $analysis .= "okay";
             } else {
-                $analysis .= "Keep going! 💪";
+                $analysis .= "needs improvement";
             }
-            $analysis .= ")\n";
+            $analysis .= ". ";
             
-            $analysis .= "• You noticed improvement in {$improvement_rate}% of your sessions\n\n";
+            $analysis .= "You noticed improvement in {$improvement_rate}% of your sessions. ";
             
             if ($most_practiced) {
-                $analysis .= "**🎯 Your Focus:** You've been working most on \"{$most_practiced}\" - great dedication!\n\n";
+                $analysis .= "You've been working most on {$most_practiced}, which shows great dedication. ";
             }
             
             // Add insights based on data
             if ($avg_duration >= 30) {
-                $analysis .= "**💡 Insight:** Your practice sessions are substantial (30+ minutes) - this shows great commitment to improvement!\n\n";
+                $analysis .= "Your practice sessions are substantial at 30+ minutes, showing great commitment to improvement. ";
             }
             
             if ($improvement_rate >= 50) {
-                $analysis .= "**🌟 Achievement:** You're noticing improvement in over half your sessions - that's fantastic progress!\n\n";
+                $analysis .= "You're noticing improvement in over half your sessions, which is fantastic progress. ";
             }
             
             if ($user_stats['current_streak'] >= 3) {
-                $analysis .= "**🔥 Streak Power:** You're on a {$user_stats['current_streak']}-day streak! Consistency is key to mastery.\n\n";
+                $analysis .= "You're on a {$user_stats['current_streak']}-day streak, which shows consistency is key to mastery. ";
             }
             
-            $analysis .= "**🚀 Keep It Up:** Your practice data shows you're building great habits. Every session counts toward your musical goals!";
+            $analysis .= "Your practice data shows you're building great habits and every session counts toward your musical goals.";
             
         } else {
-            $analysis .= "**📝 Ready to Start:** No practice sessions found in the last 30 days. This is a perfect time to begin your musical journey!\n\n";
-            $analysis .= "**💡 Suggestion:** Try starting with just 15-20 minutes of focused practice. Every great musician started with their first note!";
+            $analysis .= "No practice sessions found in the last 30 days, which is a perfect time to begin your musical journey. Try starting with just 15-20 minutes of focused practice, as every great musician started with their first note.";
         }
         
         return $analysis;
@@ -2807,4 +2905,162 @@ Provide specific, actionable insights about their practice patterns and suggesti
             return new WP_Error('empty_fluentcrm_logs_error', 'Error emptying FluentCRM event logs: ' . $e->getMessage(), array('status' => 500));
         }
     }
+    
+    /**
+     * Export all user data for backup
+     */
+    public function rest_export_user_data($request) {
+        try {
+            global $wpdb;
+            
+            // Get all user data
+            $export_data = array(
+                'export_date' => current_time('mysql'),
+                'export_version' => '1.0',
+                'data' => array()
+            );
+            
+            // Practice sessions
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $export_data['data']['practice_sessions'] = $wpdb->get_results("SELECT * FROM $sessions_table", ARRAY_A);
+            
+            // Practice items
+            $items_table = $wpdb->prefix . 'jph_practice_items';
+            $export_data['data']['practice_items'] = $wpdb->get_results("SELECT * FROM $items_table", ARRAY_A);
+            
+            // User stats
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            $export_data['data']['user_stats'] = $wpdb->get_results("SELECT * FROM $stats_table", ARRAY_A);
+            
+            // User badges
+            $badges_table = $wpdb->prefix . 'jph_user_badges';
+            $export_data['data']['user_badges'] = $wpdb->get_results("SELECT * FROM $badges_table", ARRAY_A);
+            
+            // Gem transactions
+            $gems_table = $wpdb->prefix . 'jph_gem_transactions';
+            $export_data['data']['gem_transactions'] = $wpdb->get_results("SELECT * FROM $gems_table", ARRAY_A);
+            
+            // Lesson favorites
+            $favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
+            $export_data['data']['lesson_favorites'] = $wpdb->get_results("SELECT * FROM $favorites_table", ARRAY_A);
+            
+            // Add summary
+            $export_data['summary'] = array(
+                'practice_sessions_count' => count($export_data['data']['practice_sessions']),
+                'practice_items_count' => count($export_data['data']['practice_items']),
+                'user_stats_count' => count($export_data['data']['user_stats']),
+                'user_badges_count' => count($export_data['data']['user_badges']),
+                'gem_transactions_count' => count($export_data['data']['gem_transactions']),
+                'lesson_favorites_count' => count($export_data['data']['lesson_favorites'])
+            );
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $export_data,
+                'message' => 'User data exported successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('export_error', 'Error exporting user data: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Import user data from backup
+     */
+    public function rest_import_user_data($request) {
+        try {
+            global $wpdb;
+            
+            $backup_data = $request->get_param('backup_data');
+            if (empty($backup_data)) {
+                return new WP_Error('import_error', 'No backup data provided', array('status' => 400));
+            }
+            
+            $data = json_decode($backup_data, true);
+            if (!$data || !isset($data['data'])) {
+                return new WP_Error('import_error', 'Invalid backup data format', array('status' => 400));
+            }
+            
+            $imported_counts = array();
+            
+            // Import practice sessions
+            if (isset($data['data']['practice_sessions']) && !empty($data['data']['practice_sessions'])) {
+                $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+                $wpdb->query("TRUNCATE TABLE $sessions_table");
+                foreach ($data['data']['practice_sessions'] as $session) {
+                    unset($session['id']); // Remove ID to allow auto-increment
+                    $wpdb->insert($sessions_table, $session);
+                }
+                $imported_counts['practice_sessions'] = count($data['data']['practice_sessions']);
+            }
+            
+            // Import practice items
+            if (isset($data['data']['practice_items']) && !empty($data['data']['practice_items'])) {
+                $items_table = $wpdb->prefix . 'jph_practice_items';
+                $wpdb->query("TRUNCATE TABLE $items_table");
+                foreach ($data['data']['practice_items'] as $item) {
+                    unset($item['id']); // Remove ID to allow auto-increment
+                    $wpdb->insert($items_table, $item);
+                }
+                $imported_counts['practice_items'] = count($data['data']['practice_items']);
+            }
+            
+            // Import user stats
+            if (isset($data['data']['user_stats']) && !empty($data['data']['user_stats'])) {
+                $stats_table = $wpdb->prefix . 'jph_user_stats';
+                $wpdb->query("TRUNCATE TABLE $stats_table");
+                foreach ($data['data']['user_stats'] as $stat) {
+                    unset($stat['id']); // Remove ID to allow auto-increment
+                    $wpdb->insert($stats_table, $stat);
+                }
+                $imported_counts['user_stats'] = count($data['data']['user_stats']);
+            }
+            
+            // Import user badges
+            if (isset($data['data']['user_badges']) && !empty($data['data']['user_badges'])) {
+                $badges_table = $wpdb->prefix . 'jph_user_badges';
+                $wpdb->query("TRUNCATE TABLE $badges_table");
+                foreach ($data['data']['user_badges'] as $badge) {
+                    unset($badge['id']); // Remove ID to allow auto-increment
+                    $wpdb->insert($badges_table, $badge);
+                }
+                $imported_counts['user_badges'] = count($data['data']['user_badges']);
+            }
+            
+            // Import gem transactions
+            if (isset($data['data']['gem_transactions']) && !empty($data['data']['gem_transactions'])) {
+                $gems_table = $wpdb->prefix . 'jph_gem_transactions';
+                $wpdb->query("TRUNCATE TABLE $gems_table");
+                foreach ($data['data']['gem_transactions'] as $transaction) {
+                    unset($transaction['id']); // Remove ID to allow auto-increment
+                    $wpdb->insert($gems_table, $transaction);
+                }
+                $imported_counts['gem_transactions'] = count($data['data']['gem_transactions']);
+            }
+            
+            // Import lesson favorites
+            if (isset($data['data']['lesson_favorites']) && !empty($data['data']['lesson_favorites'])) {
+                $favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
+                $wpdb->query("TRUNCATE TABLE $favorites_table");
+                foreach ($data['data']['lesson_favorites'] as $favorite) {
+                    unset($favorite['id']); // Remove ID to allow auto-increment
+                    $wpdb->insert($favorites_table, $favorite);
+                }
+                $imported_counts['lesson_favorites'] = count($data['data']['lesson_favorites']);
+            }
+            
+            $message = 'User data imported successfully. Imported: ' . implode(', ', array_map(function($k, $v) { return "$k ($v)"; }, array_keys($imported_counts), $imported_counts));
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => $message,
+                'imported_counts' => $imported_counts
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('import_error', 'Error importing user data: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
 }

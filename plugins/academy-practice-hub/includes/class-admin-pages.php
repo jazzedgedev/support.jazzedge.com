@@ -2245,7 +2245,9 @@ class JPH_Admin_Pages {
         }
         
         // Get current settings
-        $ai_prompt = get_option('aph_ai_prompt', 'Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:
+        $ai_prompt = get_option('aph_ai_prompt', 'IMPORTANT: Respond with plain text only. No emojis, no markdown, no bold text, no section headers. Use only simple paragraph text.
+
+Analyze this piano practice data from the last 30 days and provide insights in 2–3 sentences. Be encouraging, specific, and actionable. Use the data to highlight positive progress, consistency, and areas for small improvements.
 
 Practice Sessions: {total_sessions} sessions
 Total Practice Time: {total_minutes} minutes
@@ -2257,12 +2259,14 @@ Most Practiced Item: {most_practiced_item}
 Current Level: {current_level}
 Current Streak: {current_streak} days
 
-Provide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.');
+Provide specific, motivational insights about their practice habits and suggest 1–2 focused next steps for improvement. Keep it uplifting, practical, and concise. When recommending lessons, use these titles naturally where relevant: Technique - Jazzedge Practice Curriculum™; Improvisation - The Confident Improviser™; Accompaniment - Piano Accompaniment Essentials™; Jazz Standards - Standards By The Dozen™; Super Easy Jazz Standards - Super Simple Standards™.
+
+Remember: Plain text only, no formatting.');
         
-        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.');
+        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns. CRITICAL: Always respond with plain text only - no emojis, no markdown formatting, no bold text, no section headers. Use only simple paragraph text.');
         $ai_model = get_option('aph_ai_model', 'gpt-3.5-turbo');
         $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
-        $ai_temperature = get_option('aph_ai_temperature', 0.7);
+        $ai_temperature = get_option('aph_ai_temperature', 0.3);
         ?>
         <div class="wrap">
             <h1>🤖 AI Practice Analysis Settings</h1>
@@ -2479,6 +2483,30 @@ Provide specific, actionable insights about their practice patterns and suggesti
                             html += '</div>';
                         }
                         
+                        // Add comprehensive debug information
+                        html += '<h5>🔍 DEBUG INFORMATION:</h5>';
+                        html += '<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6; font-family: monospace; font-size: 11px;">';
+                        
+                        if (response.data.debug_info) {
+                            html += '<strong>System Message:</strong><br>';
+                            html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #007cba;">';
+                            html += response.data.debug_info.system_message || 'Not available';
+                            html += '</div>';
+                            
+                            html += '<strong>AI Model:</strong> ' + (response.data.debug_info.ai_model || 'Not available') + '<br>';
+                            html += '<strong>Temperature:</strong> ' + (response.data.debug_info.temperature || 'Not available') + '<br>';
+                            html += '<strong>Max Tokens:</strong> ' + (response.data.debug_info.max_tokens || 'Not available') + '<br>';
+                            
+                            if (response.data.debug_info.request_data) {
+                                html += '<strong>Full Request Data:</strong><br>';
+                                html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #28a745; white-space: pre-wrap;">';
+                                html += JSON.stringify(response.data.debug_info.request_data, null, 2);
+                                html += '</div>';
+                            }
+                        }
+                        
+                        html += '</div>';
+                        
                         resultsDiv.innerHTML = html;
                     } else {
                         resultsDiv.innerHTML = '<p style="color: red;">Error: ' + response.message + '</p>';
@@ -2512,6 +2540,47 @@ Provide specific, actionable insights about their practice patterns and suggesti
             <h1>⚙️ Practice Hub Settings</h1>
             
             <div class="jph-settings-sections">
+                <!-- Data Backup & Restore Section -->
+                <div class="jph-settings-section jph-backup-section">
+                    <h2>💾 Data Backup & Restore</h2>
+                    <p><strong>SAFETY TOOL:</strong> Export all user data for backup before making changes to the plugin.</p>
+                    
+                    <div class="backup-actions">
+                        <div class="backup-export">
+                            <h3>📤 Export User Data</h3>
+                            <p>Create a backup file containing all user data:</p>
+                            <ul>
+                                <li>📝 All practice sessions and items</li>
+                                <li>👥 All user statistics (XP, levels, streaks)</li>
+                                <li>🎖️ All earned badges (user badges)</li>
+                                <li>💎 All gem transactions and balances</li>
+                                <li>❤️ All lesson favorites</li>
+                            </ul>
+                            
+                            <button type="button" class="button button-primary jph-export-btn" onclick="exportUserData()">
+                                📥 Export User Data
+                            </button>
+                        </div>
+                        
+                        <div class="backup-import">
+                            <h3>📥 Restore User Data</h3>
+                            <p>Restore user data from a previously exported backup file:</p>
+                            
+                            <div class="import-controls">
+                                <input type="file" id="backup-file" accept=".json" style="margin-bottom: 10px;">
+                                <br>
+                                <button type="button" class="button button-secondary jph-import-btn" onclick="importUserData()">
+                                    📤 Restore from Backup
+                                </button>
+                            </div>
+                            
+                            <p class="import-warning"><strong>⚠️ Warning:</strong> This will replace all existing user data with the backup data.</p>
+                        </div>
+                    </div>
+                    
+                    <div id="backup-results" class="backup-results"></div>
+                </div>
+                
                 <div class="jph-settings-section jph-danger-section">
                     <h2>🧪 DATA MANAGEMENT FOR TESTING</h2>
                     <p><strong>DEVELOPMENT/TESTING TOOL:</strong> This will permanently delete ALL user data and cannot be undone!</p>
@@ -2544,6 +2613,74 @@ Provide specific, actionable insights about their practice patterns and suggesti
             gap: 25px;
             margin: 25px 0;
             max-width: 900px;
+        }
+        
+        .jph-settings-section {
+            background: #fff;
+        }
+        
+        .jph-backup-section {
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .jph-backup-section h2 {
+            color: #28a745;
+            margin-top: 0;
+        }
+        
+        .backup-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        
+        .backup-export, .backup-import {
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #f9f9f9;
+        }
+        
+        .backup-export h3, .backup-import h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .backup-export ul, .backup-import ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .import-warning {
+            color: #d63384;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+        
+        .jph-export-btn, .jph-import-btn {
+            margin-top: 15px;
+        }
+        
+        .backup-results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .backup-results.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .backup-results.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
         }
         
         .jph-settings-section {
@@ -2633,6 +2770,87 @@ Provide specific, actionable insights about their practice patterns and suggesti
         </style>
         
         <script>
+        function exportUserData() {
+            jQuery('#backup-results').html('<p>Exporting user data...</p>').show().removeClass('success error');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/admin/export-user-data'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Create download link
+                        const dataStr = JSON.stringify(response.data, null, 2);
+                        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                        const url = URL.createObjectURL(dataBlob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = 'practice-hub-backup-' + new Date().toISOString().split('T')[0] + '.json';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                        
+                        jQuery('#backup-results').html('<p>✅ User data exported successfully! Download started automatically.</p>').addClass('success');
+                    } else {
+                        jQuery('#backup-results').html('<p>❌ Export failed: ' + response.message + '</p>').addClass('error');
+                    }
+                },
+                error: function() {
+                    jQuery('#backup-results').html('<p>❌ Export failed: Network error</p>').addClass('error');
+                }
+            });
+        }
+        
+        function importUserData() {
+            const fileInput = document.getElementById('backup-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a backup file to import.');
+                return;
+            }
+            
+            if (!confirm('⚠️ WARNING: This will replace ALL existing user data with the backup data.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?')) {
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const backupData = JSON.parse(e.target.result);
+                    
+                    jQuery('#backup-results').html('<p>Importing user data...</p>').show().removeClass('success error');
+                    
+                    jQuery.ajax({
+                        url: '<?php echo rest_url('aph/v1/admin/import-user-data'); ?>',
+                        method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        data: {
+                            backup_data: JSON.stringify(backupData)
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                jQuery('#backup-results').html('<p>✅ User data imported successfully! ' + response.message + '</p>').addClass('success');
+                            } else {
+                                jQuery('#backup-results').html('<p>❌ Import failed: ' + response.message + '</p>').addClass('error');
+                            }
+                        },
+                        error: function() {
+                            jQuery('#backup-results').html('<p>❌ Import failed: Network error</p>').addClass('error');
+                        }
+                    });
+                } catch (error) {
+                    jQuery('#backup-results').html('<p>❌ Invalid backup file format</p>').addClass('error');
+                }
+            };
+            reader.readAsText(file);
+        }
+        
         function confirmClearAllUserData() {
             if (confirm('⚠️ DANGER: This will permanently delete ALL user data including:\n\n• All practice sessions and items\n• All user statistics (XP, levels, streaks)\n• All earned badges\n• All gem transactions and balances\n• All lesson favorites\n\nThis action CANNOT be undone!\n\nAre you absolutely sure you want to continue?')) {
                 clearAllUserData();

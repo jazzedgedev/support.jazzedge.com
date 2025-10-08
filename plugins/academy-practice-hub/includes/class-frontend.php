@@ -70,25 +70,49 @@ class JPH_Frontend {
                     <h2>🎹 Your Practice Dashboard</h2>
                     <!-- Stats Explanation Button - Top Right -->
                     <button id="jph-stats-explanation-btn" type="button" class="jph-btn jph-btn-secondary jph-stats-help-btn">
-                        <span class="btn-icon">📊</span>
+                        <span class="btn-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                            </svg>
+                        </span>
                         How do these stats work?
                     </button>
                 </div>
                 <div class="jph-stats">
                     <div class="stat">
-                        <span class="stat-value">⭐<?php echo esc_html($user_stats['current_level']); ?></span>
+                        <span class="stat-value">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffd700" width="28" height="28">
+                                <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clip-rule="evenodd" />
+                            </svg>
+                            <?php echo esc_html($user_stats['current_level']); ?>
+                        </span>
                         <span class="stat-label">Level</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">⚡<?php echo esc_html($user_stats['total_xp']); ?></span>
+                        <span class="stat-value">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6" width="28" height="28">
+                                <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71L10.018 14.25H2.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd" />
+                            </svg>
+                            <?php echo esc_html($user_stats['total_xp']); ?>
+                        </span>
                         <span class="stat-label">XP</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">🔥<?php echo esc_html($user_stats['current_streak']); ?></span>
+                        <span class="stat-value">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f97316" width="28" height="28">
+                                <path fill-rule="evenodd" d="M15.22 6.268a.75.75 0 01.968-.432l5.942 2.28a.75.75 0 01.431.97l-2.28 5.941a.75.75 0 11-1.4-.537l1.63-4.251-1.086.483a11.2 11.2 0 00-5.45 5.174.75.75 0 01-1.199.12L9 12.31l-6.22 6.22a.75.75 0 11-1.06-1.06l6.75-6.75a.75.75 0 011.06 0l3.606 3.605a12.694 12.694 0 015.68-4.973l1.086-.484-4.251-1.631a.75.75 0 01-.432-.97z" clip-rule="evenodd" />
+                            </svg>
+                            <?php echo esc_html($user_stats['current_streak']); ?>
+                        </span>
                         <span class="stat-label">Streak</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">💎 <?php echo esc_html($user_stats['gems_balance']); ?></span>
+                        <span class="stat-value">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#8b5cf6" width="28" height="28">
+                                <path fill-rule="evenodd" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" clip-rule="evenodd" />
+                            </svg>
+                            <?php echo esc_html($user_stats['gems_balance']); ?>
+                        </span>
                         <span class="stat-label">GEMS</span>
                     </div>
                 </div>
@@ -107,29 +131,44 @@ class JPH_Frontend {
             <div class="jph-tabs-container">
                 <div class="jph-tabs-nav">
                     <button class="jph-tab-btn active" data-tab="practice-items">
-                        <span class="tab-icon">🎹</span>
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
+                            </svg>
+                        </span>
                         <span class="tab-title">Practice Items</span>
-                        <span class="tab-description">Log & manage your practice</span>
                     </button>
                     <button class="jph-tab-btn" data-tab="shield-protection">
-                        <span class="tab-icon">🛡️</span>
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                            </svg>
+                        </span>
                         <span class="tab-title">Shield Protection</span>
-                        <span class="tab-description">Protect your streak</span>
-                    </button>
-                    <button class="jph-tab-btn" data-tab="analytics">
-                        <span class="tab-icon">📊</span>
-                        <span class="tab-title">Analytics</span>
-                        <span class="tab-description">Track your progress</span>
                     </button>
                     <button class="jph-tab-btn" data-tab="badges">
-                        <span class="tab-icon">🏆</span>
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                            </svg>
+                        </span>
                         <span class="tab-title">Badges</span>
-                        <span class="tab-description">View achievements</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="analytics">
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                            </svg>
+                        </span>
+                        <span class="tab-title">Analytics</span>
                     </button>
                     <button class="jph-tab-btn" data-tab="history">
-                        <span class="tab-icon">📈</span>
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </span>
                         <span class="tab-title">History</span>
-                        <span class="tab-description">Practice session log</span>
                     </button>
                 </div>
                 
@@ -330,6 +369,46 @@ class JPH_Frontend {
                         </div>
                     </div>
                     
+                    <!-- Badges Tab -->
+                    <div class="jph-tab-pane" id="badges-tab">
+                        <!-- Badges Section -->
+                        <div class="jph-badges-section">
+                            <h2>🏆 Your Badges</h2>
+                            <div id="jph-badges-grid" class="jph-badges-grid">
+                                <?php
+                                $badges = $this->database->get_badges();
+                                $user_badges = $this->database->get_user_badges($user_id);
+                                $earned_badge_keys = array_column($user_badges, 'badge_key');
+                                
+                                foreach ($badges as $badge):
+                                    $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
+                                ?>
+                                <div class="jph-badge-card <?php echo $is_earned ? 'earned' : 'locked'; ?>">
+                                    <div class="jph-badge-image">
+                                        <?php if (!empty($badge['image_url'])): ?>
+                                            <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
+                                        <?php else: ?>
+                                            <span class="jph-badge-icon"><?php echo $badge['icon'] ?? '🏆'; ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="jph-badge-content">
+                                        <h4><?php echo esc_html($badge['name']); ?></h4>
+                                        <p><?php echo esc_html($badge['description']); ?></p>
+                                        <div class="jph-badge-rewards">
+                                            <?php if ($badge['xp_reward'] > 0): ?>
+                                                <span class="jph-reward">+<?php echo $badge['xp_reward']; ?> XP</span>
+                                            <?php endif; ?>
+                                            <?php if ($badge['gem_reward'] > 0): ?>
+                                                <span class="jph-reward">+<?php echo $badge['gem_reward']; ?> 💎</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Analytics Tab -->
                     <div class="jph-tab-pane" id="analytics-tab">
                         <!-- Analytics Section -->
@@ -427,8 +506,8 @@ class JPH_Frontend {
                                         <div class="chart-header">
                                             <h5>📊 Practice Trends</h5>
                                             <div class="chart-period-links">
-                                                <a href="#" class="period-link active" data-days="7">7 days</a>
-                                                <a href="#" class="period-link" data-days="30">30 days</a>
+                                                <a href="#" class="period-link" data-days="7">7 days</a>
+                                                <a href="#" class="period-link active" data-days="30">30 days</a>
                                                 <a href="#" class="period-link" data-days="90">90 days</a>
                                             </div>
                                         </div>
@@ -465,46 +544,6 @@ class JPH_Frontend {
                         </div>
                     </div>
                     
-                    <!-- Badges Tab -->
-                    <div class="jph-tab-pane" id="badges-tab">
-                        <!-- Badges Section -->
-                        <div class="jph-badges-section">
-                            <h2>🏆 Your Badges</h2>
-                            <div id="jph-badges-grid" class="jph-badges-grid">
-                                <?php
-                                $badges = $this->database->get_badges();
-                                $user_badges = $this->database->get_user_badges($user_id);
-                                $earned_badge_keys = array_column($user_badges, 'badge_key');
-                                
-                                foreach ($badges as $badge):
-                                    $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
-                                ?>
-                                <div class="jph-badge-card <?php echo $is_earned ? 'earned' : 'locked'; ?>">
-                                    <div class="jph-badge-image">
-                                        <?php if (!empty($badge['image_url'])): ?>
-                                            <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
-                                        <?php else: ?>
-                                            <span class="jph-badge-icon"><?php echo $badge['icon'] ?? '🏆'; ?></span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="jph-badge-content">
-                                        <h4><?php echo esc_html($badge['name']); ?></h4>
-                                        <p><?php echo esc_html($badge['description']); ?></p>
-                                        <div class="jph-badge-rewards">
-                                            <?php if ($badge['xp_reward'] > 0): ?>
-                                                <span class="jph-reward">+<?php echo $badge['xp_reward']; ?> XP</span>
-                                            <?php endif; ?>
-                                            <?php if ($badge['gem_reward'] > 0): ?>
-                                                <span class="jph-reward">+<?php echo $badge['gem_reward']; ?> 💎</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <!-- History Tab -->
                     <div class="jph-tab-pane" id="history-tab">
                         <!-- Full Width Practice History -->
@@ -515,10 +554,6 @@ class JPH_Frontend {
                                     <button id="export-history-btn" class="jph-btn jph-btn-secondary">
                                         <span class="btn-icon">📥</span>
                                         Export CSV
-                                    </button>
-                                    <button id="load-more-sessions-btn" class="jph-btn jph-btn-secondary">
-                                        <span class="btn-icon">📈</span>
-                                        Load More Sessions
                                     </button>
                                 </div>
                             </div>
@@ -567,7 +602,7 @@ class JPH_Frontend {
         <div id="jph-stats-explanation-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
                 <div class="jph-modal-header">
-                    <h3>📊 How Your Stats Work</h3>
+                    <h3>How Your Stats Work</h3>
                     <span class="jph-close"><i class="fa-solid fa-circle-xmark"></i></span>
                 </div>
                 <div class="jph-modal-body">
@@ -965,11 +1000,20 @@ class JPH_Frontend {
         }
         
         .stat-value {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             font-size: 2.5em;
             font-weight: 800;
             color: #004555;
             margin-bottom: 8px;
+        }
+        
+        .stat-value svg {
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
         }
         
         .stat-label {
@@ -1002,6 +1046,15 @@ class JPH_Frontend {
         
         .btn-icon {
             font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn-icon svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
         }
         
         .jph-badges-section {
@@ -1168,10 +1221,11 @@ class JPH_Frontend {
         
         .jph-shield-protection {
             background: white;
-            border-radius: 8px;
-            margin: 20px 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            overflow: hidden;
+            border-radius: 16px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 8px 25px rgba(0, 69, 85, 0.1);
+            padding: 30px;
+            margin: 30px 0;
         }
         
         .shield-accordion-header {
@@ -1234,7 +1288,7 @@ class JPH_Frontend {
         
         .shield-info-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
         
@@ -3131,9 +3185,17 @@ class JPH_Frontend {
             min-height: 120px;
             max-height: 300px;
             overflow-y: auto;
+        }
+        
+        .ai-analysis-text .loading-spinner {
             display: flex;
-            align-items: flex-start;
-            justify-content: flex-start;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #0c4a6e;
+            text-align: center;
+            min-height: 80px;
         }
         
         .ai-analysis-text p {
@@ -3203,13 +3265,6 @@ class JPH_Frontend {
             font-size: 0.9em;
         }
         
-        .loading-spinner {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            color: #0c4a6e;
-        }
         
         .spinner {
             width: 32px;
@@ -3599,10 +3654,10 @@ class JPH_Frontend {
         
         .jph-tab-btn {
             flex: 1;
-            min-width: 180px;
+            min-width: 140px;
             background: transparent;
             border: none;
-            padding: 16px 20px;
+            padding: 10px 20px;
             border-radius: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -3610,7 +3665,8 @@ class JPH_Frontend {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            gap: 3px;
             color: #64748b;
             font-family: inherit;
         }
@@ -3631,12 +3687,47 @@ class JPH_Frontend {
         .jph-tab-btn .tab-icon {
             font-size: 24px;
             line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            margin: 0 auto;
+        }
+        
+        .jph-tab-btn .tab-icon svg {
+            width: 24px;
+            height: 24px;
+            transition: all 0.3s ease;
+            stroke: #666;
+            flex-shrink: 0;
+            display: block;
+        }
+        
+        .jph-tab-btn.active .tab-icon svg {
+            stroke: white;
+            transform: scale(1.05);
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+        
+        .jph-tab-btn:hover:not(.active) .tab-icon svg {
+            stroke: #004555;
+            transform: scale(1.05);
+        }
+        
+        .jph-tab-btn:hover.active .tab-icon svg {
+            stroke: white;
+            transform: scale(1.05);
         }
         
         .jph-tab-btn .tab-title {
             font-size: 16px;
             font-weight: 600;
             line-height: 1.2;
+            text-align: center;
+            margin: 0;
+            width: 100%;
+            display: block;
         }
         
         .jph-tab-btn .tab-description {
@@ -3821,8 +3912,8 @@ class JPH_Frontend {
                         }, {
                             label: 'Sentiment',
                             data: sentiments,
-                            borderColor: '#059669',
-                            backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                            borderColor: '#f04e23',
+                            backgroundColor: 'rgba(240, 78, 35, 0.1)',
                             borderWidth: 2,
                             fill: false,
                             tension: 0.4,
@@ -3865,35 +3956,106 @@ class JPH_Frontend {
                 });
             }
             
-            // Function to generate daily data for the selected period
+            // Function to generate daily data for the selected period using real practice sessions
             function generateDailyData(days, analyticsData) {
                 const labels = [];
                 const durations = [];
                 const sentiments = [];
                 
-                // For now, we'll create mock daily data since we don't have daily breakdown
-                // In a real implementation, you'd fetch daily data from the API
-                const totalMinutes = analyticsData.periods[days + '_days']?.total_minutes || 0;
-                const totalSessions = analyticsData.periods[days + '_days']?.sessions || 0;
-                const avgSentiment = analyticsData.periods[days + '_days']?.avg_sentiment || 3;
+                // Fetch real practice sessions for the selected period
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - days);
                 
-                // Generate mock daily data
+                // Get practice sessions for the period
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: { 
+                        limit: 1000, // Get a large number to cover the period
+                        start_date: startDate.toISOString().split('T')[0],
+                        end_date: endDate.toISOString().split('T')[0]
+                    },
+                    success: function(response) {
+                        if (response.success && response.sessions) {
+                            // Group sessions by date
+                            const dailyData = {};
+                            
+                            response.sessions.forEach(session => {
+                                const sessionDate = new Date(session.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                
+                                if (!dailyData[sessionDate]) {
+                                    dailyData[sessionDate] = {
+                                        totalMinutes: 0,
+                                        totalSentiment: 0,
+                                        sessionCount: 0
+                                    };
+                                }
+                                
+                                dailyData[sessionDate].totalMinutes += parseInt(session.duration_minutes) || 0;
+                                dailyData[sessionDate].totalSentiment += parseFloat(session.sentiment_score) || 0;
+                                dailyData[sessionDate].sessionCount += 1;
+                            });
+                            
+                            // Generate data for each day in the period
+                            for (let i = days - 1; i >= 0; i--) {
+                                const date = new Date();
+                                date.setDate(date.getDate() - i);
+                                const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                
+                                labels.push(dateKey);
+                                
+                                if (dailyData[dateKey]) {
+                                    durations.push(dailyData[dateKey].totalMinutes);
+                                    const avgSentiment = dailyData[dateKey].totalSentiment / dailyData[dateKey].sessionCount;
+                                    sentiments.push(Math.round(avgSentiment * 10) / 10);
+                                } else {
+                                    durations.push(0);
+                                    sentiments.push(0);
+                                }
+                            }
+                            
+                            // Update the chart with real data
+                            updateChartWithData(labels, durations, sentiments);
+                        } else {
+                            // Fallback to empty data if no sessions found
+                            generateEmptyChartData(days, labels, durations, sentiments);
+                        }
+                    },
+                    error: function() {
+                        // Fallback to empty data if API call fails
+                        generateEmptyChartData(days, labels, durations, sentiments);
+                    }
+                });
+                
+                return { labels, durations, sentiments };
+            }
+            
+            // Helper function to generate empty chart data
+            function generateEmptyChartData(days, labels, durations, sentiments) {
                 for (let i = days - 1; i >= 0; i--) {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
                     labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-                    
-                    // Distribute sessions and minutes randomly across days
-                    const dailySessions = Math.floor(Math.random() * 3); // 0-2 sessions per day
-                    const dailyMinutes = dailySessions * (totalMinutes / totalSessions) * (Math.random() * 0.5 + 0.75);
-                    durations.push(Math.round(dailyMinutes));
-                    
-                    // Generate sentiment around the average
-                    const dailySentiment = Math.max(1, Math.min(5, avgSentiment + (Math.random() - 0.5) * 2));
-                    sentiments.push(Math.round(dailySentiment * 10) / 10);
+                    durations.push(0);
+                    sentiments.push(0);
                 }
+                updateChartWithData(labels, durations, sentiments);
+            }
+            
+            // Helper function to update chart with data
+            function updateChartWithData(labels, durations, sentiments) {
+                const ctx = document.getElementById('practice-chart');
+                if (!ctx || !window.practiceChart) return;
                 
-                return { labels, durations, sentiments };
+                // Update chart data
+                window.practiceChart.data.labels = labels;
+                window.practiceChart.data.datasets[0].data = durations;
+                window.practiceChart.data.datasets[1].data = sentiments;
+                window.practiceChart.update();
             }
             
             // Initialize period link functionality
@@ -4031,13 +4193,15 @@ class JPH_Frontend {
                     data: { limit: 10 },
                     success: function(response) {
                         if (response.success && response.sessions) {
-                            displayPracticeHistory(response.sessions);
+                            displayPracticeHistory(response.sessions, response.has_more);
                         } else {
                             $('#practice-history-list').html('<div class="no-sessions">No practice sessions found.</div>');
+                            $('#load-more-container').hide();
                         }
                     },
                     error: function() {
                         $('#practice-history-list').html('<div class="error-message">Error loading practice history.</div>');
+                        $('#load-more-container').hide();
                     }
                 });
             }
@@ -4054,7 +4218,7 @@ class JPH_Frontend {
             }
             
             // Display practice history
-            function displayPracticeHistory(sessions) {
+            function displayPracticeHistory(sessions, hasMore = false) {
                 let html = '';
                 if (sessions.length === 0) {
                     html = '<div class="no-sessions">No practice sessions found.</div>';
@@ -4095,6 +4259,13 @@ class JPH_Frontend {
                     });
                 }
                 $('#practice-history-list').html(html);
+                
+                // Show/hide load more button based on whether there are more sessions
+                if (hasMore && sessions.length >= 10) {
+                    $('#load-more-container').show();
+                } else {
+                    $('#load-more-container').hide();
+                }
             }
             
             // Export practice history to CSV
@@ -4155,7 +4326,7 @@ class JPH_Frontend {
                 
                 console.log('Load More: Current sessions count:', currentSessions, 'Offset:', currentSessions);
                 
-                $('#load-more-sessions-btn, #load-more-sessions-bottom').prop('disabled', true).text('Loading...');
+                $('#load-more-sessions-bottom').prop('disabled', true).text('Loading...');
                 
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',
@@ -4227,7 +4398,7 @@ class JPH_Frontend {
                         showToast('Error loading more sessions', 'error');
                     },
                     complete: function() {
-                        $('#load-more-sessions-btn, #load-more-sessions-bottom').prop('disabled', false).html('<span class="btn-icon">📈</span>Load More Sessions');
+                        $('#load-more-sessions-bottom').prop('disabled', false).html('<span class="btn-icon">📈</span>Load More Sessions');
                     }
                 });
             }
@@ -5328,7 +5499,7 @@ class JPH_Frontend {
                 });
                 
                 // Load more sessions functionality
-                $(document).on('click', '#load-more-sessions-btn, #load-more-sessions-bottom', function() {
+                $(document).on('click', '#load-more-sessions-bottom', function() {
                     loadMorePracticeSessions();
                 });
                 
