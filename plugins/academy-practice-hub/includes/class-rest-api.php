@@ -526,7 +526,6 @@ class JPH_REST_API {
         return rest_ensure_response($csv_content);
     }
     
-    
     /**
      * Get badges for admin
      */
@@ -2242,7 +2241,6 @@ Provide specific, actionable insights about their practice patterns and suggesti
             )
         );
     }
-    
     
     /**
      * Call Katahdin AI Hub for analysis
