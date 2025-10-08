@@ -103,429 +103,448 @@ class JPH_Frontend {
                 </div>
             </div>
             
-            <!-- Analytics Section -->
-            <div class="jph-analytics-section">
-                <div class="analytics-header">
-                    <h3><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="analytics-icon"><!--!Font Awesome Pro v7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2025 Fonticons, Inc.--><path d="M500 89c13.8-11 16-31.2 5-45s-31.2-16-45-5L319.4 151.5 211.2 70.4c-11.7-8.8-27.8-8.5-39.2 .6L12 199c-13.8 11-16 31.2-5 45s31.2 16 45 5l140.6-112.5 108.2 81.1c11.7 8.8 27.8 8.5 39.2-.6L500 89zM160 256l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32zM32 352l0 96c0 17.7 14.3 32 32 32s32-14.3 32-32l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32zm288-64c-17.7 0-32 14.3-32 32l0 128c0 17.7 14.3 32 32 32s32-14.3 32-32l0-128c0-17.7-14.3-32-32-32zm96-32l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32z"/></svg> Your Practice Analytics</h3>
-                    <p>Track your progress and discover insights about your practice habits</p>
-                </div>
-                
-                <div class="analytics-grid">
-                    <!-- Practice Time Overview -->
-                    <div class="analytics-card practice-time-card">
-                        <div class="card-header">
-                            <h4>⏱️ Practice Time</h4>
-                            <span class="card-subtitle">Minutes practiced</span>
-                        </div>
-                        <div class="time-periods">
-                            <div class="time-period">
-                                <span class="period-label">Last 7 days</span>
-                                <span class="period-value count-up" id="analytics-7-days-minutes" data-target="0" data-start="0">0</span>
-                            </div>
-                            <div class="time-period">
-                                <span class="period-label">Last 30 days</span>
-                                <span class="period-value count-up" id="analytics-30-days-minutes" data-target="0" data-start="0">0</span>
-                            </div>
-                            <div class="time-period">
-                                <span class="period-label">Last 90 days</span>
-                                <span class="period-value count-up" id="analytics-90-days-minutes" data-target="0" data-start="0">0</span>
-                            </div>
-                            <div class="time-period">
-                                <span class="period-label">Last year</span>
-                                <span class="period-value count-up" id="analytics-365-days-minutes" data-target="0" data-start="0">0</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Practice Sessions -->
-                    <div class="analytics-card practice-sessions-card">
-                        <div class="card-header">
-                            <h4>🎯 Practice Sessions</h4>
-                            <span class="card-subtitle">Number of sessions</span>
-                        </div>
-                        <div class="sessions-grid">
-                            <div class="session-stat">
-                                <span class="session-value count-up" id="analytics-7-days-sessions" data-target="0" data-start="0">0</span>
-                                <span class="session-label">7 days</span>
-                            </div>
-                            <div class="session-stat">
-                                <span class="session-value count-up" id="analytics-30-days-sessions" data-target="0" data-start="0">0</span>
-                                <span class="session-label">30 days</span>
-                            </div>
-                            <div class="session-stat">
-                                <span class="session-value count-up" id="analytics-90-days-sessions" data-target="0" data-start="0">0</span>
-                                <span class="session-label">90 days</span>
-                            </div>
-                            <div class="session-stat">
-                                <span class="session-value count-up" id="analytics-365-days-sessions" data-target="0" data-start="0">0</span>
-                                <span class="session-label">1 year</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Insights Card -->
-                    <div class="analytics-card insights-card">
-                        <div class="card-header">
-                            <h4>🧠 Practice Insights</h4>
-                            <span class="card-subtitle">Your practice patterns</span>
-                        </div>
-                        <div class="insights-list">
-                            <div class="insight-item">
-                                <span class="insight-icon">🎯</span>
-                                <div class="insight-content">
-                                    <span class="insight-label">Consistency Score</span>
-                                    <span class="insight-value" id="analytics-consistency">-</span>
-                                </div>
-                            </div>
-                            <div class="insight-item">
-                                <span class="insight-icon">📈</span>
-                                <div class="insight-content">
-                                    <span class="insight-label">Improvement Rate</span>
-                                    <span class="insight-value" id="analytics-improvement-rate">-</span>
-                                </div>
-                            </div>
-                            <div class="insight-item">
-                                <span class="insight-icon">😊</span>
-                                <div class="insight-content">
-                                    <span class="insight-label">Mood Rating</span>
-                                    <span class="insight-value" id="analytics-sentiment">-</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Practice Chart -->
-                        <div class="practice-chart-container">
-                            <div class="chart-header">
-                                <h5>📊 Practice Trends</h5>
-                                <div class="chart-period-links">
-                                    <a href="#" class="period-link active" data-days="7">7 days</a>
-                                    <a href="#" class="period-link" data-days="30">30 days</a>
-                                    <a href="#" class="period-link" data-days="90">90 days</a>
-                                </div>
-                            </div>
-                            <canvas id="practice-chart" width="400" height="200"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- AI Analysis Card -->
-                    <div class="analytics-card ai-analysis-card">
-                        <div class="card-header">
-                            <h4>🤖 AI Practice Analysis</h4>
-                            <span class="card-subtitle">Personalized insights from your practice data</span>
-                        </div>
-                        <div class="ai-analysis-content">
-                            <div class="ai-analysis-text" id="ai-analysis-text">
-                                <div class="loading-spinner">
-                                    <div class="spinner"></div>
-                                    <span>Analyzing your practice data...</span>
-                                </div>
-                            </div>
-                            <div class="ai-analysis-footer">
-                                <div class="ai-data-period" id="ai-data-period">
-                                    <span class="period-label">📊</span>
-                                    <span class="period-text">Last 30 days</span>
-                                </div>
-                                <button type="button" class="ai-refresh-btn" id="ai-refresh-btn">
-                                    <span class="refresh-icon">🔄</span>
-                                    Refresh
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Shield Protection Section - Moved outside hero section -->
-            <div class="jph-shield-protection">
-                <div class="shield-accordion-header">
-                    <h3>🛡️ Shield Protection</h3>
-                    <span class="shield-toggle-icon"><i class="fa-solid fa-chevron-down"></i></span>
-                </div>
-                
-                <div class="shield-accordion-content" id="shield-accordion-content" style="display: none;">
-                    <!-- Shield Stats and Actions -->
-                    <div class="jph-protection-stats">
-                        <div class="protection-item">
-                            <span class="protection-icon">🛡️</span>
-                            <span class="protection-label">Shields:</span>
-                            <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
-                        </div>
-                        <div class="protection-actions">
-                            <?php 
-                            $shield_count = $user_stats['streak_shield_count'] ?? 0;
-                            $gem_balance = $user_stats['gems_balance'] ?? 0;
-                            $shield_cost = 50;
-                            $has_enough_gems = $gem_balance >= $shield_cost;
-                            ?>
-                            
-                            <?php if ($shield_count < 3): ?>
-                                <?php if ($has_enough_gems): ?>
-                                <button type="button" class="button button-secondary" id="purchase-shield-btn" 
-                                        data-cost="50" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
-                                    Buy Shield (50 💎)
-                                </button>
-                                <?php else: ?>
-                                <button type="button" class="button button-secondary" id="purchase-shield-btn-insufficient" 
-                                        data-cost="50" data-gem-balance="<?php echo $gem_balance; ?>" data-nonce="<?php echo wp_create_nonce('jph_purchase_streak_shield'); ?>">
-                                    Buy Shield (50 💎)
-                                </button>
-                                <?php endif; ?>
-                            <?php else: ?>
-                            <button type="button" class="button button-secondary" disabled>
-                                Max Shields (3)
-                            </button>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    
-                    <!-- Shield Explanation -->
-                    <div class="shield-explanation-section">
-                        <h4>🛡️ How Shield Protection Works</h4>
-                        <p>Shields automatically protect your practice streak when you miss practice days. Think of them as insurance for your streak!</p>
-                        
-                        <div class="shield-info-grid">
-                            <div class="shield-info-item">
-                                <h5>⚡ How It Works</h5>
-                                <p>Shield protection follows a simple 3-step process:</p>
-                                <ul>
-                                    <li><strong>Step 1:</strong> You miss a practice day</li>
-                                    <li><strong>Step 2:</strong> System checks for available shields</li>
-                                    <li><strong>Step 3:</strong> Shield activates automatically</li>
-                                </ul>
-                            </div>
-                            
-                            <div class="shield-info-item">
-                                <h5>💰 Cost & Limits</h5>
-                                <p>Shields have clear pricing and usage limits:</p>
-                                <ul>
-                                    <li><strong>Cost:</strong> 50 💎 gems per shield</li>
-                                    <li><strong>Limit:</strong> Maximum 3 shields at once</li>
-                                    <li><strong>Activation:</strong> Completely automatic</li>
-                                </ul>
-                            </div>
-                            
-                            <div class="shield-info-item">
-                                <h5>💡 Pro Tips</h5>
-                                <p>Get the most out of your shield protection:</p>
-                                <ul>
-                                    <li>Keep 1-2 shields active for peace of mind</li>
-                                    <li>Practice regularly to minimize shield usage</li>
-                                    <li>Balance shield purchases with other gem priorities</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <?php if (($user_stats['current_streak'] ?? 0) === 0 && ($user_stats['longest_streak'] ?? 0) > 0 && ($user_stats['total_sessions'] ?? 0) > 0): ?>
-                <div class="jph-streak-recovery">
-                    <h4>🔧 Streak Recovery Available</h4>
-                    <p>Your streak is broken. You can repair it using gems!</p>
-                    <div class="recovery-options">
-                        <button type="button" class="button button-primary" id="repair-1-day" data-days="1" data-cost="25">
-                            Repair 1 Day (25 💎)
-                        </button>
-                        <button type="button" class="button button-primary" id="repair-3-days" data-days="3" data-cost="75">
-                            Repair 3 Days (75 💎)
-                        </button>
-                        <button type="button" class="button button-primary" id="repair-7-days" data-days="7" data-cost="175">
-                            Repair 7 Days (175 💎)
-                        </button>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-            
-            <!-- Practice Items Section -->
-            <div class="jph-practice-items">
-                <h3>Your Practice Items 
-                    <span class="item-count">(<?php echo count($practice_items); ?>/6)</span>
-                </h3>
-                <div class="jph-items-grid" id="sortable-practice-items">
-                    <?php 
-                    // Always show 6 cards
-                    for ($i = 0; $i < 6; $i++): 
-                        if (isset($practice_items[$i])):
-                            $item = $practice_items[$i];
-                            
-                            // Get last practice date for this item
-                            $last_practice = $this->database->get_last_practice_session($user_id, $item['id']);
-                            $last_practice_date = $last_practice ? $last_practice['created_at'] : null;
-                            
-                            // Format the date for display
-                            $practice_date_display = '';
-                            if ($last_practice_date) {
-                                $db_timestamp = strtotime($last_practice_date . ' UTC');
-                                $current_utc_timestamp = current_time('timestamp', true);
-                                $time_ago = human_time_diff($db_timestamp, $current_utc_timestamp);
-                                
-                                // Shorten time units for better space usage
-                                $time_ago = str_replace('hours', 'hrs', $time_ago);
-                                $time_ago = str_replace('minutes', 'min', $time_ago);
-                                $time_ago = str_replace('seconds', 'sec', $time_ago);
-                                $practice_date_display = $time_ago . " ago";
-                            } else {
-                                $practice_date_display = "Never practiced";
-                            }
-                    ?>
-                        <div class="jph-item sortable-practice-item" data-item-id="<?php echo esc_attr($item['id']); ?>" draggable="true" style="display:flex; flex-direction:column; min-height:240px;">
-                            <!-- Drag Handle -->
-                            <div class="drag-handle" title="Drag to reorder">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <circle cx="4" cy="4" r="1" fill="#666"/>
-                                    <circle cx="8" cy="4" r="1" fill="#666"/>
-                                    <circle cx="12" cy="4" r="1" fill="#666"/>
-                                    <circle cx="4" cy="8" r="1" fill="#666"/>
-                                    <circle cx="8" cy="8" r="1" fill="#666"/>
-                                    <circle cx="12" cy="8" r="1" fill="#666"/>
-                                    <circle cx="4" cy="12" r="1" fill="#666"/>
-                                    <circle cx="8" cy="12" r="1" fill="#666"/>
-                                    <circle cx="12" cy="12" r="1" fill="#666"/>
-                                </svg>
-                            </div>
-                            <!-- Card Header -->
-                            <div class="item-card-header">
-                                <h4><?php echo esc_html($item['name']); ?></h4>
-                            </div>
-                            
-                            <!-- Last Practiced Date -->
-                            <div class="item-last-practiced" style="margin-top:6px; color:#6c757d; font-size:0.9em;">
-                                Last practiced: <?php echo esc_html($practice_date_display); ?>
-                            </div>
-                            
-                            <!-- Description -->
-                        <div class="item-description" style="min-height:40px;">
-                            <p><?php echo esc_html($item['description']); ?></p>
-                        </div>
-                        
-                        <!-- Action Buttons at bottom -->
-                        <div class="item-actions" style="margin-top:auto; display:flex; flex-direction:column; gap:10px; align-items:center;">
-                                <button type="button" class="jph-log-practice-btn" data-item-id="<?php echo esc_attr($item['id']); ?>">
-                                    Log Practice
-                                </button>
-                                <div class="item-controls">
-                                    <?php if (isset($lesson_urls[$item['name']])): ?>
-                                    <a href="<?php echo esc_url($lesson_urls[$item['name']]); ?>" target="_blank" class="lesson-link-icon" title="View Lesson">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
-                                            <path d="M384 64C366.3 64 352 78.3 352 96C352 113.7 366.3 128 384 128L466.7 128L265.3 329.4C252.8 341.9 252.8 362.2 265.3 374.7C277.8 387.2 298.1 387.2 310.6 374.7L512 173.3L512 256C512 273.7 526.3 288 544 288C561.7 288 576 273.7 576 256L576 96C576 78.3 561.7 64 544 64L384 64zM144 160C99.8 160 64 195.8 64 240L64 496C64 540.2 99.8 576 144 576L400 576C444.2 576 480 540.2 480 496L480 416C480 398.3 465.7 384 448 384C430.3 384 416 398.3 416 416L416 496C416 504.8 408.8 512 400 512L144 512C135.2 512 128 504.8 128 496L128 240C128 231.2 135.2 224 144 224L224 224C241.7 224 256 209.7 256 192C256 174.3 241.7 160 224 160L144 160z"/>
-                                        </svg>
-                                    </a>
-                                    <?php endif; ?>
-                                    <button type="button" class="jph-edit-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" data-category="<?php echo esc_attr($item['category']); ?>" data-description="<?php echo esc_attr($item['description']); ?>" title="Edit">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
-                                            <path d="M100.4 417.2C104.5 402.6 112.2 389.3 123 378.5L304.2 197.3L338.1 163.4C354.7 180 389.4 214.7 442.1 267.4L476 301.3L442.1 335.2L260.9 516.4C250.2 527.1 236.8 534.9 222.2 539L94.4 574.6C86.1 576.9 77.1 574.6 71 568.4C64.9 562.2 62.6 553.3 64.9 545L100.4 417.2zM156 413.5C151.6 418.2 148.4 423.9 146.7 430.1L122.6 517L209.5 492.9C215.9 491.1 221.7 487.8 226.5 483.2L155.9 413.5zM510 267.4C493.4 250.8 458.7 216.1 406 163.4L372 129.5C398.5 103 413.4 88.1 416.9 84.6C430.4 71 448.8 63.4 468 63.4C487.2 63.4 505.6 71 519.1 84.6L554.8 120.3C568.4 133.9 576 152.3 576 171.4C576 190.5 568.4 209 554.8 222.5C551.3 226 536.4 240.9 509.9 267.4z"/>
-                                        </svg>
-                                    </button>
-                                    <button type="button" class="jph-delete-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" title="Delete">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
-                                            <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <div class="jph-item jph-empty-item sortable-empty-slot">
-                            <div class="drag-handle disabled" title="Empty slot - not draggable">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <circle cx="4" cy="4" r="1" fill="#ccc"/>
-                                    <circle cx="8" cy="4" r="1" fill="#ccc"/>
-                                    <circle cx="12" cy="4" r="1" fill="#ccc"/>
-                                    <circle cx="4" cy="8" r="1" fill="#ccc"/>
-                                    <circle cx="8" cy="8" r="1" fill="#ccc"/>
-                                    <circle cx="12" cy="8" r="1" fill="#ccc"/>
-                                    <circle cx="4" cy="12" r="1" fill="#ccc"/>
-                                    <circle cx="8" cy="12" r="1" fill="#ccc"/>
-                                    <circle cx="12" cy="12" r="1" fill="#ccc"/>
-                                </svg>
-                            </div>
-                            <div class="item-info">
-                                <h4>Empty Slot</h4>
-                                <p>Add a new practice item to get started!</p>
-                            </div>
-                            <div class="item-actions">
-                                <button class="jph-btn jph-btn-primary jph-add-item-btn" type="button">
-                                    Add Practice Item
-                                </button>
-                            </div>
-                        </div>
-                    <?php 
-                        endif;
-                    endfor; 
-                    ?>
-                </div>
-            </div>
-            
-            <!-- Badges Section -->
-            <div class="jph-badges-section">
-                <h2>🏆 Your Badges</h2>
-                <div id="jph-badges-grid" class="jph-badges-grid">
-                    <?php
-                    $badges = $this->database->get_badges();
-                    $user_badges = $this->database->get_user_badges($user_id);
-                    $earned_badge_keys = array_column($user_badges, 'badge_key');
-                    
-                    foreach ($badges as $badge):
-                        $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
-                    ?>
-                    <div class="jph-badge-card <?php echo $is_earned ? 'earned' : 'locked'; ?>">
-                        <div class="jph-badge-image">
-                            <?php if (!empty($badge['image_url'])): ?>
-                                <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
-                            <?php else: ?>
-                                <span class="jph-badge-icon"><?php echo $badge['icon'] ?? '🏆'; ?></span>
-                            <?php endif; ?>
-                        </div>
-                        <div class="jph-badge-content">
-                            <h4><?php echo esc_html($badge['name']); ?></h4>
-                            <p><?php echo esc_html($badge['description']); ?></p>
-                            <div class="jph-badge-rewards">
-                                <?php if ($badge['xp_reward'] > 0): ?>
-                                    <span class="jph-reward">+<?php echo $badge['xp_reward']; ?> XP</span>
-                                <?php endif; ?>
-                                <?php if ($badge['gem_reward'] > 0): ?>
-                                    <span class="jph-reward">+<?php echo $badge['gem_reward']; ?> 💎</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            
-            <!-- Full Width Practice History -->
-            <div class="jph-practice-history-full">
-                <div class="practice-history-header-section">
-                    <h3>📊 Your Practice History</h3>
-                    <div class="practice-history-controls">
-                        <button id="export-history-btn" class="jph-btn jph-btn-secondary">
-                            <span class="btn-icon">📥</span>
-                            Export CSV
-                        </button>
-                        <button id="load-more-sessions-btn" class="jph-btn jph-btn-secondary">
-                            <span class="btn-icon">📈</span>
-                            Load More Sessions
-                        </button>
-                    </div>
-                </div>
-                <div class="practice-history-header">
-                    <div class="practice-history-header-item">Date</div>
-                    <div class="practice-history-header-item">Item</div>
-                    <div class="practice-history-header-item center">Duration</div>
-                    <div class="practice-history-header-item center">How it felt</div>
-                    <div class="practice-history-header-item center">Improvement</div>
-                    <div class="practice-history-header-item center">Actions</div>
-                </div>
-                <div class="practice-history-list" id="practice-history-list">
-                    <div class="loading-message">Loading practice history...</div>
-                </div>
-                <div id="load-more-container" style="text-align: center; margin-top: 20px; display: none;">
-                    <button id="load-more-sessions-bottom" class="jph-btn jph-btn-secondary">
-                        <span class="btn-icon">📈</span>
-                        Load More Sessions
+            <!-- Tabbed Navigation -->
+            <div class="jph-tabs-container">
+                <div class="jph-tabs-nav">
+                    <button class="jph-tab-btn active" data-tab="practice-items">
+                        <span class="tab-icon">🎹</span>
+                        <span class="tab-title">Practice Items</span>
+                        <span class="tab-description">Log & manage your practice</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="shield-protection">
+                        <span class="tab-icon">🛡️</span>
+                        <span class="tab-title">Shield Protection</span>
+                        <span class="tab-description">Protect your streak</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="analytics">
+                        <span class="tab-icon">📊</span>
+                        <span class="tab-title">Analytics</span>
+                        <span class="tab-description">Track your progress</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="badges">
+                        <span class="tab-icon">🏆</span>
+                        <span class="tab-title">Badges</span>
+                        <span class="tab-description">View achievements</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="history">
+                        <span class="tab-icon">📈</span>
+                        <span class="tab-title">History</span>
+                        <span class="tab-description">Practice session log</span>
                     </button>
                 </div>
+                
+                <!-- Tab Content -->
+                <div class="jph-tabs-content">
+                    
+                    <!-- Practice Items Tab -->
+                    <div class="jph-tab-pane active" id="practice-items-tab">
+                        <!-- Practice Items Section -->
+                        <div class="jph-practice-items">
+                            <h3>Your Practice Items 
+                                <span class="item-count">(<?php echo count($practice_items); ?>/6)</span>
+                            </h3>
+                            <div class="jph-items-grid" id="sortable-practice-items">
+                                <?php 
+                                // Always show 6 cards
+                                for ($i = 0; $i < 6; $i++): 
+                                    if (isset($practice_items[$i])):
+                                        $item = $practice_items[$i];
+                                        
+                                        // Get last practice date for this item
+                                        $last_practice = $this->database->get_last_practice_session($user_id, $item['id']);
+                                        $last_practice_date = $last_practice ? $last_practice['created_at'] : null;
+                                        
+                                        // Format the date for display
+                                        $practice_date_display = '';
+                                        if ($last_practice_date) {
+                                            $db_timestamp = strtotime($last_practice_date . ' UTC');
+                                            $current_utc_timestamp = current_time('timestamp', true);
+                                            $time_ago = human_time_diff($db_timestamp, $current_utc_timestamp);
+                                            
+                                            // Shorten time units for better space usage
+                                            $time_ago = str_replace('hours', 'hrs', $time_ago);
+                                            $time_ago = str_replace('minutes', 'min', $time_ago);
+                                            $time_ago = str_replace('seconds', 'sec', $time_ago);
+                                            $practice_date_display = $time_ago . " ago";
+                                        } else {
+                                            $practice_date_display = "Never practiced";
+                                        }
+                                ?>
+                                    <div class="jph-item sortable-practice-item" data-item-id="<?php echo esc_attr($item['id']); ?>" draggable="true" style="display:flex; flex-direction:column; min-height:240px;">
+                                        <!-- Drag Handle -->
+                                        <div class="drag-handle" title="Drag to reorder">
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                                <circle cx="4" cy="4" r="1" fill="#666"/>
+                                                <circle cx="8" cy="4" r="1" fill="#666"/>
+                                                <circle cx="12" cy="4" r="1" fill="#666"/>
+                                                <circle cx="4" cy="8" r="1" fill="#666"/>
+                                                <circle cx="8" cy="8" r="1" fill="#666"/>
+                                                <circle cx="12" cy="8" r="1" fill="#666"/>
+                                                <circle cx="4" cy="12" r="1" fill="#666"/>
+                                                <circle cx="8" cy="12" r="1" fill="#666"/>
+                                                <circle cx="12" cy="12" r="1" fill="#666"/>
+                                            </svg>
+                                        </div>
+                                        <!-- Card Header -->
+                                        <div class="item-card-header">
+                                            <h4><?php echo esc_html($item['name']); ?></h4>
+                                        </div>
+                                        
+                                        <!-- Last Practiced Date -->
+                                        <div class="item-last-practiced" style="margin-top:6px; color:#6c757d; font-size:0.9em;">
+                                            Last practiced: <?php echo esc_html($practice_date_display); ?>
+                                        </div>
+                                        
+                                        <!-- Description -->
+                                    <div class="item-description" style="min-height:40px;">
+                                        <p><?php echo esc_html($item['description']); ?></p>
+                                    </div>
+                                    
+                                    <!-- Action Buttons at bottom -->
+                                    <div class="item-actions" style="margin-top:auto; display:flex; flex-direction:column; gap:10px; align-items:center;">
+                                            <button type="button" class="jph-log-practice-btn" data-item-id="<?php echo esc_attr($item['id']); ?>">
+                                                Log Practice
+                                            </button>
+                                            <div class="item-controls">
+                                                <?php if (isset($lesson_urls[$item['name']])): ?>
+                                                <a href="<?php echo esc_url($lesson_urls[$item['name']]); ?>" target="_blank" class="lesson-link-icon" title="View Lesson">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
+                                                        <path d="M384 64C366.3 64 352 78.3 352 96C352 113.7 366.3 128 384 128L466.7 128L265.3 329.4C252.8 341.9 252.8 362.2 265.3 374.7C277.8 387.2 298.1 387.2 310.6 374.7L512 173.3L512 256C512 273.7 526.3 288 544 288C561.7 288 576 273.7 576 256L576 96C576 78.3 561.7 64 544 64L384 64zM144 160C99.8 160 64 195.8 64 240L64 496C64 540.2 99.8 576 144 576L400 576C444.2 576 480 540.2 480 496L480 416C480 398.3 465.7 384 448 384C430.3 384 416 398.3 416 416L416 496C416 504.8 408.8 512 400 512L144 512C135.2 512 128 504.8 128 496L128 240C128 231.2 135.2 224 144 224L224 224C241.7 224 256 209.7 256 192C256 174.3 241.7 160 224 160L144 160z"/>
+                                                    </svg>
+                                                </a>
+                                                <?php endif; ?>
+                                                <button type="button" class="jph-edit-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" data-category="<?php echo esc_attr($item['category']); ?>" data-description="<?php echo esc_attr($item['description']); ?>" title="Edit">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
+                                                        <path d="M100.4 417.2C104.5 402.6 112.2 389.3 123 378.5L304.2 197.3L338.1 163.4C354.7 180 389.4 214.7 442.1 267.4L476 301.3L442.1 335.2L260.9 516.4C250.2 527.1 236.8 534.9 222.2 539L94.4 574.6C86.1 576.9 77.1 574.6 71 568.4C64.9 562.2 62.6 553.3 64.9 545L100.4 417.2zM156 413.5C151.6 418.2 148.4 423.9 146.7 430.1L122.6 517L209.5 492.9C215.9 491.1 221.7 487.8 226.5 483.2L155.9 413.5zM510 267.4C493.4 250.8 458.7 216.1 406 163.4L372 129.5C398.5 103 413.4 88.1 416.9 84.6C430.4 71 448.8 63.4 468 63.4C487.2 63.4 505.6 71 519.1 84.6L554.8 120.3C568.4 133.9 576 152.3 576 171.4C576 190.5 568.4 209 554.8 222.5C551.3 226 536.4 240.9 509.9 267.4z"/>
+                                                    </svg>
+                                                </button>
+                                                <button type="button" class="jph-delete-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" title="Delete">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
+                                                        <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="jph-item jph-empty-item sortable-empty-slot">
+                                        <div class="drag-handle disabled" title="Empty slot - not draggable">
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                                <circle cx="4" cy="4" r="1" fill="#ccc"/>
+                                                <circle cx="8" cy="4" r="1" fill="#ccc"/>
+                                                <circle cx="12" cy="4" r="1" fill="#ccc"/>
+                                                <circle cx="4" cy="8" r="1" fill="#ccc"/>
+                                                <circle cx="8" cy="8" r="1" fill="#ccc"/>
+                                                <circle cx="12" cy="8" r="1" fill="#ccc"/>
+                                                <circle cx="4" cy="12" r="1" fill="#ccc"/>
+                                                <circle cx="8" cy="12" r="1" fill="#ccc"/>
+                                                <circle cx="12" cy="12" r="1" fill="#ccc"/>
+                                            </svg>
+                                        </div>
+                                        <div class="item-info">
+                                            <h4>Empty Slot</h4>
+                                            <p>Add a new practice item to get started!</p>
+                                        </div>
+                                        <div class="item-actions">
+                                            <button class="jph-btn jph-btn-primary jph-add-item-btn" type="button">
+                                                Add Practice Item
+                                            </button>
+                                        </div>
+                                    </div>
+                                <?php 
+                                    endif;
+                                endfor; 
+                                ?>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Shield Protection Tab -->
+                    <div class="jph-tab-pane" id="shield-protection-tab">
+                        <!-- Shield Protection Section -->
+                        <div class="jph-shield-protection">
+                            <h3>🛡️ Shield Protection</h3>
+                            
+                            <!-- Shield Stats and Actions -->
+                            <div class="jph-protection-stats">
+                                <div class="protection-item">
+                                    <span class="protection-icon">🛡️</span>
+                                    <span class="protection-label">Shields:</span>
+                                    <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
+                                </div>
+                                <div class="protection-actions">
+                                    <button type="button" class="jph-btn jph-btn-primary" id="purchase-shield-btn">
+                                        <span class="btn-icon">🛡️</span>
+                                        Purchase Shield (50 💎)
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Shield Information -->
+                            <div class="shield-info-section">
+                                <div class="shield-info-grid">
+                                    <div class="shield-info-item">
+                                        <h5>🛡️ What are Shields?</h5>
+                                        <p>Shield Protection prevents your streak from breaking if you miss a day of practice. Each shield protects you for one missed day.</p>
+                                    </div>
+                                    
+                                    <div class="shield-info-item">
+                                        <h5>⚡ How it Works</h5>
+                                        <p>If you miss a practice day, your shield automatically activates to maintain your streak. No action required!</p>
+                                    </div>
+                                    
+                                    <div class="shield-info-item">
+                                        <h5>💎 Cost & Limits</h5>
+                                        <p>Each shield costs 50 gems. You can hold a maximum of 3 shields at once for optimal protection.</p>
+                                    </div>
+                                    
+                                    <div class="shield-info-item">
+                                        <h5>💡 Pro Tips</h5>
+                                        <p>Get the most out of your shield protection:</p>
+                                        <ul>
+                                            <li>Keep 1-2 shields active for peace of mind</li>
+                                            <li>Practice regularly to minimize shield usage</li>
+                                            <li>Balance shield purchases with other gem priorities</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <?php if (($user_stats['current_streak'] ?? 0) === 0 && ($user_stats['longest_streak'] ?? 0) > 0 && ($user_stats['total_sessions'] ?? 0) > 0): ?>
+                            <div class="jph-streak-recovery">
+                                <h4>🔧 Streak Recovery Available</h4>
+                                <p>Your streak is broken. You can repair it using gems!</p>
+                                <div class="recovery-options">
+                                    <button type="button" class="button button-primary" id="repair-1-day" data-days="1" data-cost="25">
+                                        Repair 1 Day (25 💎)
+                                    </button>
+                                    <button type="button" class="button button-primary" id="repair-3-days" data-days="3" data-cost="75">
+                                        Repair 3 Days (75 💎)
+                                    </button>
+                                    <button type="button" class="button button-primary" id="repair-7-days" data-days="7" data-cost="175">
+                                        Repair 7 Days (175 💎)
+                                    </button>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    
+                    <!-- Analytics Tab -->
+                    <div class="jph-tab-pane" id="analytics-tab">
+                        <!-- Analytics Section -->
+                        <div class="jph-analytics-section">
+                            <div class="analytics-header">
+                                <h3><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="analytics-icon"><!--!Font Awesome Pro v7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2025 Fonticons, Inc.--><path d="M500 89c13.8-11 16-31.2 5-45s-31.2-16-45-5L319.4 151.5 211.2 70.4c-11.7-8.8-27.8-8.5-39.2 .6L12 199c-13.8 11-16 31.2-5 45s31.2 16 45 5l140.6-112.5 108.2 81.1c11.7 8.8 27.8 8.5 39.2-.6L500 89zM160 256l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32zM32 352l0 96c0 17.7 14.3 32 32 32s32-14.3 32-32l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32zm288-64c-17.7 0-32 14.3-32 32l0 128c0 17.7 14.3 32 32 32s32-14.3 32-32l0-128c0-17.7-14.3-32-32-32zm96-32l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32z"/></svg> Your Practice Analytics</h3>
+                                <p>Track your progress and discover insights about your practice habits</p>
+                            </div>
+                            
+                            <div class="analytics-grid">
+                                <!-- Practice Time Overview -->
+                                <div class="analytics-card practice-time-card">
+                                    <div class="card-header">
+                                        <h4>⏱️ Practice Time</h4>
+                                        <span class="card-subtitle">Minutes practiced</span>
+                                    </div>
+                                    <div class="time-periods">
+                                        <div class="time-period">
+                                            <span class="period-label">Last 7 days</span>
+                                            <span class="period-value count-up" id="analytics-7-days-minutes" data-target="0" data-start="0">0</span>
+                                        </div>
+                                        <div class="time-period">
+                                            <span class="period-label">Last 30 days</span>
+                                            <span class="period-value count-up" id="analytics-30-days-minutes" data-target="0" data-start="0">0</span>
+                                        </div>
+                                        <div class="time-period">
+                                            <span class="period-label">Last 90 days</span>
+                                            <span class="period-value count-up" id="analytics-90-days-minutes" data-target="0" data-start="0">0</span>
+                                        </div>
+                                        <div class="time-period">
+                                            <span class="period-label">Last year</span>
+                                            <span class="period-value count-up" id="analytics-365-days-minutes" data-target="0" data-start="0">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Practice Sessions -->
+                                <div class="analytics-card practice-sessions-card">
+                                    <div class="card-header">
+                                        <h4>🎯 Practice Sessions</h4>
+                                        <span class="card-subtitle">Number of sessions</span>
+                                    </div>
+                                    <div class="sessions-grid">
+                                        <div class="session-stat">
+                                            <span class="session-value count-up" id="analytics-7-days-sessions" data-target="0" data-start="0">0</span>
+                                            <span class="session-label">7 days</span>
+                                        </div>
+                                        <div class="session-stat">
+                                            <span class="session-value count-up" id="analytics-30-days-sessions" data-target="0" data-start="0">0</span>
+                                            <span class="session-label">30 days</span>
+                                        </div>
+                                        <div class="session-stat">
+                                            <span class="session-value count-up" id="analytics-90-days-sessions" data-target="0" data-start="0">0</span>
+                                            <span class="session-label">90 days</span>
+                                        </div>
+                                        <div class="session-stat">
+                                            <span class="session-value count-up" id="analytics-365-days-sessions" data-target="0" data-start="0">0</span>
+                                            <span class="session-label">1 year</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Insights Card -->
+                                <div class="analytics-card insights-card">
+                                    <div class="card-header">
+                                        <h4>🧠 Practice Insights</h4>
+                                        <span class="card-subtitle">Your practice patterns</span>
+                                    </div>
+                                    <div class="insights-list">
+                                        <div class="insight-item">
+                                            <span class="insight-icon">🎯</span>
+                                            <div class="insight-content">
+                                                <span class="insight-label">Consistency Score</span>
+                                                <span class="insight-value" id="analytics-consistency">-</span>
+                                            </div>
+                                        </div>
+                                        <div class="insight-item">
+                                            <span class="insight-icon">📈</span>
+                                            <div class="insight-content">
+                                                <span class="insight-label">Improvement Rate</span>
+                                                <span class="insight-value" id="analytics-improvement-rate">-</span>
+                                            </div>
+                                        </div>
+                                        <div class="insight-item">
+                                            <span class="insight-icon">😊</span>
+                                            <div class="insight-content">
+                                                <span class="insight-label">Mood Rating</span>
+                                                <span class="insight-value" id="analytics-sentiment">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Practice Chart -->
+                                    <div class="practice-chart-container">
+                                        <div class="chart-header">
+                                            <h5>📊 Practice Trends</h5>
+                                            <div class="chart-period-links">
+                                                <a href="#" class="period-link active" data-days="7">7 days</a>
+                                                <a href="#" class="period-link" data-days="30">30 days</a>
+                                                <a href="#" class="period-link" data-days="90">90 days</a>
+                                            </div>
+                                        </div>
+                                        <canvas id="practice-chart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                                
+                                <!-- AI Analysis Card -->
+                                <div class="analytics-card ai-analysis-card">
+                                    <div class="card-header">
+                                        <h4>🤖 AI Practice Analysis</h4>
+                                        <span class="card-subtitle">Personalized insights from your practice data</span>
+                                    </div>
+                                    <div class="ai-analysis-content">
+                                        <div class="ai-analysis-text" id="ai-analysis-text">
+                                            <div class="loading-spinner">
+                                                <div class="spinner"></div>
+                                                <span>Analyzing your practice data...</span>
+                                            </div>
+                                        </div>
+                                        <div class="ai-analysis-footer">
+                                            <div class="ai-data-period" id="ai-data-period">
+                                                <span class="period-label">📊</span>
+                                                <span class="period-text">Last 30 days</span>
+                                            </div>
+                                            <button type="button" class="ai-refresh-btn" id="ai-refresh-btn">
+                                                <span class="refresh-icon">🔄</span>
+                                                Refresh
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Badges Tab -->
+                    <div class="jph-tab-pane" id="badges-tab">
+                        <!-- Badges Section -->
+                        <div class="jph-badges-section">
+                            <h2>🏆 Your Badges</h2>
+                            <div id="jph-badges-grid" class="jph-badges-grid">
+                                <?php
+                                $badges = $this->database->get_badges();
+                                $user_badges = $this->database->get_user_badges($user_id);
+                                $earned_badge_keys = array_column($user_badges, 'badge_key');
+                                
+                                foreach ($badges as $badge):
+                                    $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
+                                ?>
+                                <div class="jph-badge-card <?php echo $is_earned ? 'earned' : 'locked'; ?>">
+                                    <div class="jph-badge-image">
+                                        <?php if (!empty($badge['image_url'])): ?>
+                                            <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
+                                        <?php else: ?>
+                                            <span class="jph-badge-icon"><?php echo $badge['icon'] ?? '🏆'; ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="jph-badge-content">
+                                        <h4><?php echo esc_html($badge['name']); ?></h4>
+                                        <p><?php echo esc_html($badge['description']); ?></p>
+                                        <div class="jph-badge-rewards">
+                                            <?php if ($badge['xp_reward'] > 0): ?>
+                                                <span class="jph-reward">+<?php echo $badge['xp_reward']; ?> XP</span>
+                                            <?php endif; ?>
+                                            <?php if ($badge['gem_reward'] > 0): ?>
+                                                <span class="jph-reward">+<?php echo $badge['gem_reward']; ?> 💎</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- History Tab -->
+                    <div class="jph-tab-pane" id="history-tab">
+                        <!-- Full Width Practice History -->
+                        <div class="jph-practice-history-full">
+                            <div class="practice-history-header-section">
+                                <h3>📊 Your Practice History</h3>
+                                <div class="practice-history-controls">
+                                    <button id="export-history-btn" class="jph-btn jph-btn-secondary">
+                                        <span class="btn-icon">📥</span>
+                                        Export CSV
+                                    </button>
+                                    <button id="load-more-sessions-btn" class="jph-btn jph-btn-secondary">
+                                        <span class="btn-icon">📈</span>
+                                        Load More Sessions
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="practice-history-header">
+                                <div class="practice-history-header-item">Date</div>
+                                <div class="practice-history-header-item">Item</div>
+                                <div class="practice-history-header-item center">Duration</div>
+                                <div class="practice-history-header-item center">How it felt</div>
+                                <div class="practice-history-header-item center">Improvement</div>
+                                <div class="practice-history-header-item center">Actions</div>
+                            </div>
+                            <div class="practice-history-list" id="practice-history-list">
+                                <div class="loading-message">Loading practice history...</div>
+                            </div>
+                            <div id="load-more-container" style="text-align: center; margin-top: 20px; display: none;">
+                                <button id="load-more-sessions-bottom" class="jph-btn jph-btn-secondary">
+                                    <span class="btn-icon">📈</span>
+                                    Load More Sessions
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
             </div>
+            
             
             <!-- Debug Information (for logged in users) -->
             <?php if (current_user_can('manage_options')): ?>
@@ -3560,6 +3579,166 @@ class JPH_Frontend {
                 justify-content: center;
             }
         }
+        
+        /* Tabbed Navigation Styles */
+        .jph-tabs-container {
+            margin: 30px 0;
+        }
+        
+        .jph-tabs-nav {
+            display: flex;
+            background: white;
+            border-radius: 16px;
+            padding: 8px;
+            box-shadow: 0 4px 20px rgba(0, 69, 85, 0.1);
+            border: 2px solid #e8f5f4;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            gap: 4px;
+        }
+        
+        .jph-tab-btn {
+            flex: 1;
+            min-width: 180px;
+            background: transparent;
+            border: none;
+            padding: 16px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-family: inherit;
+        }
+        
+        .jph-tab-btn:hover {
+            background: rgba(0, 69, 85, 0.05);
+            color: #004555;
+            transform: translateY(-2px);
+        }
+        
+        .jph-tab-btn.active {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 69, 85, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .jph-tab-btn .tab-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+        
+        .jph-tab-btn .tab-title {
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+        
+        .jph-tab-btn .tab-description {
+            font-size: 12px;
+            opacity: 0.8;
+            line-height: 1.2;
+        }
+        
+        .jph-tab-btn.active .tab-description {
+            opacity: 0.9;
+        }
+        
+        .jph-tabs-content {
+            position: relative;
+        }
+        
+        .jph-tab-pane {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .jph-tab-pane.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Responsive Tab Design */
+        @media (max-width: 1024px) {
+            .jph-tab-btn {
+                min-width: 150px;
+                padding: 14px 16px;
+            }
+            
+            .jph-tab-btn .tab-title {
+                font-size: 15px;
+            }
+            
+            .jph-tab-btn .tab-description {
+                font-size: 11px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .jph-tabs-nav {
+                flex-direction: column;
+                gap: 8px;
+                padding: 16px;
+            }
+            
+            .jph-tab-btn {
+                min-width: auto;
+                flex-direction: row;
+                justify-content: flex-start;
+                text-align: left;
+                padding: 16px 20px;
+                gap: 16px;
+            }
+            
+            .jph-tab-btn .tab-icon {
+                font-size: 20px;
+                flex-shrink: 0;
+            }
+            
+            .jph-tab-btn .tab-title {
+                font-size: 16px;
+            }
+            
+            .jph-tab-btn .tab-description {
+                font-size: 13px;
+                margin-left: auto;
+                text-align: right;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .jph-tabs-nav {
+                padding: 12px;
+            }
+            
+            .jph-tab-btn {
+                padding: 14px 16px;
+                gap: 12px;
+            }
+            
+            .jph-tab-btn .tab-title {
+                font-size: 15px;
+            }
+            
+            .jph-tab-btn .tab-description {
+                font-size: 12px;
+            }
+        }
         </style>
         
         <!-- Chart.js -->
@@ -3582,6 +3761,9 @@ class JPH_Frontend {
             
             // Load practice history
             loadPracticeHistory();
+            
+            // Initialize tab functionality
+            initTabs();
             
             // Function to initialize practice chart
             function initializePracticeChart() {
@@ -3742,6 +3924,48 @@ class JPH_Frontend {
                             console.error('Error loading chart data:', error);
                         }
                     });
+                });
+            }
+            
+            // Initialize tab functionality
+            function initTabs() {
+                $('.jph-tab-btn').on('click', function(e) {
+                    e.preventDefault();
+                    
+                    const targetTab = $(this).data('tab');
+                    
+                    // Remove active class from all tabs and panes
+                    $('.jph-tab-btn').removeClass('active');
+                    $('.jph-tab-pane').removeClass('active');
+                    
+                    // Add active class to clicked tab and corresponding pane
+                    $(this).addClass('active');
+                    $('#' + targetTab + '-tab').addClass('active');
+                    
+                    // Trigger any necessary content loading for the active tab
+                    switch(targetTab) {
+                        case 'analytics':
+                            // Ensure analytics are loaded when switching to analytics tab
+                            if (typeof loadAnalytics === 'function') {
+                                loadAnalytics();
+                            }
+                            if (typeof loadAIAnalysis === 'function') {
+                                loadAIAnalysis();
+                            }
+                            break;
+                        case 'history':
+                            // Ensure practice history is loaded when switching to history tab
+                            if (typeof loadPracticeHistory === 'function') {
+                                loadPracticeHistory();
+                            }
+                            break;
+                        case 'badges':
+                            // Ensure badges are loaded when switching to badges tab
+                            if (typeof loadBadges === 'function') {
+                                loadBadges();
+                            }
+                            break;
+                    }
                 });
             }
             
