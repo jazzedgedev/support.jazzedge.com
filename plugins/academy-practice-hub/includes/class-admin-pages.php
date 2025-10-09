@@ -2588,7 +2588,8 @@ Remember: Plain text only, no formatting.');
                     <div class="clear-all-section">
                         <p>This action will clear:</p>
                         <ul>
-                            <li>📝 All practice sessions and items</li>
+                            <li>📝 All practice sessions</li>
+                            <li>🎯 All practice items (custom items created by users)</li>
                             <li>👥 All user statistics (XP, levels, streaks)</li>
                             <li>🎖️ All earned badges (user badges)</li>
                             <li>💎 All gem transactions and balances</li>
@@ -2852,7 +2853,7 @@ Remember: Plain text only, no formatting.');
         }
         
         function confirmClearAllUserData() {
-            if (confirm('⚠️ DANGER: This will permanently delete ALL user data including:\n\n• All practice sessions and items\n• All user statistics (XP, levels, streaks)\n• All earned badges\n• All gem transactions and balances\n• All lesson favorites\n\nThis action CANNOT be undone!\n\nAre you absolutely sure you want to continue?')) {
+            if (confirm('⚠️ DANGER: This will permanently delete ALL user data including:\n\n• All practice sessions\n• All practice items (custom items created by users)\n• All user statistics (XP, levels, streaks)\n• All earned badges\n• All gem transactions and balances\n• All lesson favorites\n\nThis action CANNOT be undone!\n\nAre you absolutely sure you want to continue?')) {
                 clearAllUserData();
             }
         }

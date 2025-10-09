@@ -1284,6 +1284,7 @@ class JPH_REST_API {
             // Get all table names
             $tables = array(
                 $wpdb->prefix . 'jph_practice_sessions',
+                $wpdb->prefix . 'jph_practice_items',
                 $wpdb->prefix . 'jph_user_stats',
                 $wpdb->prefix . 'jph_user_badges',
                 $wpdb->prefix . 'jph_gem_transactions',
