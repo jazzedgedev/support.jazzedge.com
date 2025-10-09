@@ -169,10 +169,22 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        register_rest_route('aph/v1', '/admin/lesson-favorites', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_lesson_favorite'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/admin/lesson-favorites', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'rest_delete_lesson_favorite'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
         register_rest_route('aph/v1', '/export-lesson-favorites', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_export_lesson_favorites'),
-            'permission_callback' => array($this, 'check_user_permission')
+            'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Admin settings endpoints
@@ -241,7 +253,7 @@ class JPH_REST_API {
         register_rest_route('aph/v1', '/export-students', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_export_students'),
-            'permission_callback' => array($this, 'check_user_permission')
+            'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Analytics endpoint
@@ -333,6 +345,18 @@ class JPH_REST_API {
         register_rest_route('aph/v1', '/admin/import-user-data', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_import_user_data'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/admin/generate-test-students', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_generate_test_students'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/admin/clear-test-data', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_clear_test_data'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
     }
@@ -3291,6 +3315,420 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
         } catch (Exception $e) {
             return new WP_Error('user_stats_error', 'Error retrieving user stats: ' . $e->getMessage(), array('status' => 500));
         }
+    }
+    
+    /**
+     * Generate test students with realistic data
+     */
+    public function rest_generate_test_students($request) {
+        try {
+            global $wpdb;
+            
+            $students_created = 0;
+            $sessions_created = 0;
+            $items_created = 0;
+            $badges_awarded = 0;
+            
+            // Test student names
+            $test_names = array(
+                'Alex Johnson', 'Sarah Chen', 'Michael Rodriguez', 'Emily Davis', 'James Wilson',
+                'Maria Garcia', 'David Brown', 'Lisa Anderson', 'Robert Taylor', 'Jennifer Martinez',
+                'Christopher Lee', 'Amanda White', 'Daniel Thompson', 'Jessica Moore', 'Matthew Jackson',
+                'Ashley Harris', 'Andrew Martin', 'Stephanie Garcia', 'Joshua Robinson', 'Nicole Clark',
+                'Ryan Lewis', 'Megan Rodriguez', 'Kevin Walker', 'Rachel Hall', 'Brandon Young',
+                'Lauren Allen', 'Tyler King', 'Samantha Wright', 'Jacob Lopez', 'Brittany Hill',
+                'Nathan Scott', 'Kayla Green', 'Zachary Adams', 'Morgan Baker', 'Caleb Gonzalez',
+                'Taylor Nelson', 'Austin Carter', 'Jordan Mitchell', 'Connor Perez', 'Alexis Roberts',
+                'Logan Turner', 'Paige Phillips', 'Cameron Campbell', 'Brooke Parker', 'Hunter Evans',
+                'Madison Edwards', 'Cole Collins', 'Sydney Stewart', 'Blake Sanchez', 'Avery Morris'
+            );
+            
+            // Practice items
+            $practice_items = array(
+                'Jazz Standards' => array('Autumn Leaves', 'Blue Moon', 'All the Things You Are', 'Summertime', 'Take Five'),
+                'Scales' => array('Major Scales', 'Minor Scales', 'Blues Scale', 'Pentatonic Scale', 'Chromatic Scale'),
+                'Exercises' => array('Hanon Exercises', 'Czerny Studies', 'Chord Progressions', 'Arpeggios', 'Sight Reading'),
+                'Classical' => array('Bach Inventions', 'Chopin Nocturnes', 'Debussy Preludes', 'Mozart Sonatas', 'Beethoven Sonatas'),
+                'Modern' => array('Pop Songs', 'Movie Themes', 'Video Game Music', 'Contemporary Jazz', 'Fusion Pieces')
+            );
+            
+            // Badge types
+            $badge_types = array('first_session', 'streak_7', 'streak_30', 'level_5', 'level_10', 'xp_1000', 'xp_5000', 'sessions_10', 'sessions_50', 'minutes_100', 'minutes_500');
+            
+            // Clear existing test data first
+            $this->clear_test_data();
+            
+            for ($i = 0; $i < 50; $i++) {
+                // Create test user
+                $username = 'test_student_' . ($i + 1);
+                $email = 'test' . ($i + 1) . '@example.com';
+                $display_name = $test_names[$i];
+                
+                // Always create new user since we cleared existing ones
+                $user_id = wp_create_user($username, 'testpassword123', $email);
+                if (is_wp_error($user_id)) {
+                    continue; // Skip if user creation failed
+                }
+                
+                // Update display name
+                wp_update_user(array(
+                    'ID' => $user_id,
+                    'display_name' => $display_name,
+                    'first_name' => explode(' ', $display_name)[0],
+                    'last_name' => explode(' ', $display_name)[1] ?? ''
+                ));
+                
+                $students_created++;
+                
+                // Generate random stats
+                $total_sessions = rand(1, 100);
+                $total_minutes = rand(5, 3000);
+                $current_streak = rand(0, 30);
+                $longest_streak = max($current_streak, rand(0, 60));
+                $total_xp = rand(50, 15000);
+                $current_level = max(1, floor($total_xp / 1000) + rand(0, 3));
+                $badges_earned = rand(0, 8);
+                $gems_balance = rand(0, 500);
+                $hearts_count = rand(0, 20);
+                $streak_shield_count = rand(0, 5);
+                
+                // Calculate last practice date
+                $last_practice_date = date('Y-m-d H:i:s', strtotime('-' . rand(0, 30) . ' days'));
+                
+                // Insert/update user stats
+                $stats_table = $wpdb->prefix . 'jph_user_stats';
+                $wpdb->replace($stats_table, array(
+                    'user_id' => $user_id,
+                    'total_xp' => $total_xp,
+                    'current_level' => $current_level,
+                    'total_sessions' => $total_sessions,
+                    'total_minutes' => $total_minutes,
+                    'current_streak' => $current_streak,
+                    'longest_streak' => $longest_streak,
+                    'badges_earned' => $badges_earned,
+                    'gems_balance' => $gems_balance,
+                    'hearts_count' => $hearts_count,
+                    'streak_shield_count' => $streak_shield_count,
+                    'last_practice_date' => $last_practice_date,
+                    'display_name' => $display_name,
+                    'show_on_leaderboard' => 1
+                ));
+                
+                // Generate practice sessions
+                $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+                $items_table = $wpdb->prefix . 'jph_practice_items';
+                
+                for ($j = 0; $j < $total_sessions; $j++) {
+                    $session_date = date('Y-m-d H:i:s', strtotime('-' . rand(0, 90) . ' days'));
+                    $session_minutes = rand(5, 120);
+                    $session_xp = $session_minutes * rand(8, 15);
+                    $sentiment_score = rand(1, 5);
+                    
+                    // Insert practice session
+                    $session_result = $wpdb->insert($sessions_table, array(
+                        'user_id' => $user_id,
+                        'session_date' => $session_date,
+                        'duration_minutes' => $session_minutes,
+                        'xp_earned' => $session_xp,
+                        'sentiment_score' => $sentiment_score,
+                        'notes' => $this->generate_random_notes()
+                    ));
+                    
+                    if ($session_result !== false) {
+                        $sessions_created++;
+                        $session_id = $wpdb->insert_id;
+                        
+                        // Add practice items to session
+                        $num_items = rand(1, 5);
+                        $item_categories = array_keys($practice_items);
+                        
+                        for ($k = 0; $k < $num_items; $k++) {
+                            $category = $item_categories[array_rand($item_categories)];
+                            $item_name = $practice_items[$category][array_rand($practice_items[$category])];
+                            
+                            $item_result = $wpdb->insert($items_table, array(
+                                'session_id' => $session_id,
+                                'item_name' => $item_name,
+                                'item_category' => $category,
+                                'duration_minutes' => rand(5, 30),
+                                'xp_earned' => rand(10, 50)
+                            ));
+                            
+                            if ($item_result !== false) {
+                                $items_created++;
+                            }
+                        }
+                    }
+                }
+                
+                // Award random badges
+                $user_badges_table = $wpdb->prefix . 'jph_user_badges';
+                $awarded_badges = array();
+                
+                for ($l = 0; $l < $badges_earned; $l++) {
+                    $badge_type = $badge_types[array_rand($badge_types)];
+                    if (!in_array($badge_type, $awarded_badges)) {
+                        $wpdb->insert($user_badges_table, array(
+                            'user_id' => $user_id,
+                            'badge_type' => $badge_type,
+                            'earned_date' => date('Y-m-d H:i:s', strtotime('-' . rand(0, 60) . ' days'))
+                        ));
+                        $awarded_badges[] = $badge_type;
+                        $badges_awarded++;
+                    }
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'students_created' => $students_created,
+                    'sessions_created' => $sessions_created,
+                    'items_created' => $items_created,
+                    'badges_awarded' => $badges_awarded
+                ),
+                'message' => 'Test data generated successfully!'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('generate_test_students_error', 'Error generating test students: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Clear test data
+     */
+    public function rest_clear_test_data($request) {
+        try {
+            global $wpdb;
+            
+            $users_deleted = 0;
+            $sessions_deleted = 0;
+            $items_deleted = 0;
+            $badges_deleted = 0;
+            
+            // Get all test users
+            $test_users = $wpdb->get_results("SELECT ID FROM {$wpdb->users} WHERE user_login LIKE 'test_student_%'", ARRAY_A);
+            
+            if (!empty($test_users)) {
+                $user_ids = array_column($test_users, 'ID');
+                $user_ids_str = implode(',', $user_ids);
+                
+                // Count items before deletion for reporting
+                $sessions_deleted = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_practice_sessions WHERE user_id IN ($user_ids_str)");
+                $items_deleted = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_practice_items WHERE user_id IN ($user_ids_str)");
+                $badges_deleted = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_user_badges WHERE user_id IN ($user_ids_str)");
+                
+                // Clear user stats
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_user_stats WHERE user_id IN ($user_ids_str)");
+                
+                // Clear practice sessions
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_practice_sessions WHERE user_id IN ($user_ids_str)");
+                
+                // Clear practice items
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_practice_items WHERE user_id IN ($user_ids_str)");
+                
+                // Clear user badges
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_user_badges WHERE user_id IN ($user_ids_str)");
+                
+                // Clear gem transactions
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_gem_transactions WHERE user_id IN ($user_ids_str)");
+                
+                // Clear lesson favorites
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_lesson_favorites WHERE user_id IN ($user_ids_str)");
+                
+                // Delete the users themselves
+                foreach ($user_ids as $user_id) {
+                    if (wp_delete_user($user_id)) {
+                        $users_deleted++;
+                    }
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'users_deleted' => $users_deleted,
+                    'sessions_deleted' => $sessions_deleted,
+                    'items_deleted' => $items_deleted,
+                    'badges_deleted' => $badges_deleted
+                ),
+                'message' => 'Test data cleared successfully!'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('clear_test_data_error', 'Error clearing test data: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Generate random practice notes
+     */
+    private function generate_random_notes() {
+        $notes = array(
+            'Great practice session!',
+            'Working on technique today.',
+            'Focused on scales and arpeggios.',
+            'Practicing jazz standards.',
+            'Working on sight reading.',
+            'Concentrated on rhythm and timing.',
+            'Practicing chord progressions.',
+            'Working on improvisation.',
+            'Focused on classical pieces.',
+            'Practicing with metronome.',
+            'Working on dynamics and expression.',
+            'Practicing different styles.',
+            'Great progress today!',
+            'Challenging but rewarding session.',
+            'Working on finger independence.',
+            'Practicing scales in all keys.',
+            'Focused on musicality.',
+            'Working on memorization.',
+            'Practicing with backing tracks.',
+            'Great technique work today!'
+        );
+        
+        return $notes[array_rand($notes)];
+    }
+    
+    /**
+     * Update lesson favorite
+     */
+    public function rest_update_lesson_favorite($request) {
+        try {
+            global $wpdb;
+            
+            $params = $request->get_params();
+            $favorite_id = intval($params['favorite_id']);
+            $title = sanitize_text_field($params['title']);
+            $category = sanitize_text_field($params['category']);
+            $url = esc_url_raw($params['url']);
+            $description = sanitize_textarea_field($params['description']);
+            
+            // Validate required fields
+            if (empty($favorite_id) || empty($title) || empty($url)) {
+                return new WP_Error('invalid_data', 'Missing required fields', array('status' => 400));
+            }
+            
+            // Validate category
+            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other');
+            if (!in_array($category, $allowed_categories)) {
+                $category = 'other';
+            }
+            
+            $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+            
+            // Check if favorite exists
+            $existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $favorite_id));
+            if (!$existing) {
+                return new WP_Error('not_found', 'Lesson favorite not found', array('status' => 404));
+            }
+            
+            // Update the favorite
+            $result = $wpdb->update(
+                $table_name,
+                array(
+                    'title' => $title,
+                    'category' => $category,
+                    'url' => $url,
+                    'description' => $description,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('id' => $favorite_id),
+                array('%s', '%s', '%s', '%s', '%s'),
+                array('%d')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to update lesson favorite', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Lesson favorite updated successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('update_lesson_favorite_error', 'Error updating lesson favorite: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Delete lesson favorite
+     */
+    public function rest_delete_lesson_favorite($request) {
+        try {
+            global $wpdb;
+            
+            $params = $request->get_params();
+            $favorite_id = intval($params['favorite_id']);
+            
+            if (empty($favorite_id)) {
+                return new WP_Error('invalid_data', 'Missing favorite ID', array('status' => 400));
+            }
+            
+            $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+            
+            // Check if favorite exists
+            $existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $favorite_id));
+            if (!$existing) {
+                return new WP_Error('not_found', 'Lesson favorite not found', array('status' => 404));
+            }
+            
+            // Delete the favorite
+            $result = $wpdb->delete(
+                $table_name,
+                array('id' => $favorite_id),
+                array('%d')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('delete_failed', 'Failed to delete lesson favorite', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Lesson favorite deleted successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('delete_lesson_favorite_error', 'Error deleting lesson favorite: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Clear existing test data
+     */
+    private function clear_test_data() {
+        global $wpdb;
+        
+        // Get all test users
+        $test_users = $wpdb->get_results("SELECT ID FROM {$wpdb->users} WHERE user_login LIKE 'test_student_%'", ARRAY_A);
+        
+        if (empty($test_users)) {
+            return;
+        }
+        
+        $user_ids = array_column($test_users, 'ID');
+        $user_ids_str = implode(',', $user_ids);
+        
+        // Clear user stats
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_user_stats WHERE user_id IN ($user_ids_str)");
+        
+        // Clear practice sessions
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_practice_sessions WHERE user_id IN ($user_ids_str)");
+        
+        // Clear practice items
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_practice_items WHERE user_id IN ($user_ids_str)");
+        
+        // Clear user badges
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_user_badges WHERE user_id IN ($user_ids_str)");
+        
+        // Clear gem transactions
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_gem_transactions WHERE user_id IN ($user_ids_str)");
+        
+        // Clear lesson favorites
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_lesson_favorites WHERE user_id IN ($user_ids_str)");
     }
     
 }

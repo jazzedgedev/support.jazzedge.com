@@ -659,7 +659,8 @@ class JPH_Database {
                 COALESCE(s.display_name, u.display_name, u.user_login) as leaderboard_name
              FROM {$stats_table} s
              LEFT JOIN {$users_table} u ON s.user_id = u.ID
-             WHERE s.show_on_leaderboard = 1
+             WHERE s.show_on_leaderboard = 1 
+                AND s.total_xp > 0
                 ORDER BY s.{$sort_by} {$sort_order}, s.total_xp DESC
              LIMIT %d OFFSET %d",
             $limit, $offset
@@ -708,6 +709,7 @@ class JPH_Database {
                 "SELECT COUNT(*) + 1 
                  FROM {$stats_table} 
                  WHERE show_on_leaderboard = 1 
+                 AND total_xp > 0
                  AND {$sort_by} > %d",
                 $user_value
             ));
@@ -716,6 +718,7 @@ class JPH_Database {
                 "SELECT COUNT(*) + 1 
                  FROM {$stats_table} 
                  WHERE show_on_leaderboard = 1 
+                 AND total_xp > 0
                  AND {$sort_by} < %d",
                 $user_value
             ));
@@ -818,12 +821,12 @@ class JPH_Database {
         $stats = $wpdb->get_row(
             "SELECT 
                 COUNT(*) as total_users,
-                COUNT(CASE WHEN show_on_leaderboard = 1 THEN 1 END) as leaderboard_users,
-                AVG(total_xp) as avg_xp,
+                COUNT(CASE WHEN show_on_leaderboard = 1 AND total_xp > 0 THEN 1 END) as leaderboard_users,
+                AVG(CASE WHEN total_xp > 0 THEN total_xp END) as avg_xp,
                 MAX(total_xp) as max_xp,
-                AVG(current_level) as avg_level,
+                AVG(CASE WHEN total_xp > 0 THEN current_level END) as avg_level,
                 MAX(current_level) as max_level,
-                AVG(current_streak) as avg_streak,
+                AVG(CASE WHEN total_xp > 0 THEN current_streak END) as avg_streak,
                 MAX(current_streak) as max_streak
              FROM {$stats_table}",
             ARRAY_A

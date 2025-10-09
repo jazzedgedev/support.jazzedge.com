@@ -1945,6 +1945,7 @@ class JPH_Frontend {
         }
         
         
+        
         #jph-display-name-modal .jph-modal-body {
             padding: 30px 0;
         }
@@ -6804,20 +6805,15 @@ class JPH_Frontend {
             updateSortIndicators();
             
             // Ranking explanation button
-            $('#jph-ranking-explanation-btn').on('click', function() {
-                $('#jph-ranking-explanation-modal').show();
-            });
-            
-            // Close modal when clicking the X
-            $('#jph-ranking-explanation-modal .jph-close').on('click', function() {
-                $('#jph-ranking-explanation-modal').hide();
-            });
-            
-            // Close modal when clicking outside
-            $(window).on('click', function(event) {
-                if (event.target.id === 'jph-ranking-explanation-modal') {
-                    $('#jph-ranking-explanation-modal').hide();
-                }
+            $('#jph-ranking-explanation-btn').on('click', function(e) {
+                e.preventDefault();
+                alert('How Does Ranking Work?\n\n' +
+                    '• Users are ranked by their Total XP in descending order\n' +
+                    '• Higher XP = Better rank (lower number)\n' +
+                    '• Click any column header to sort by that metric\n' +
+                    '• Click again to reverse the order\n' +
+                    '• Your row is highlighted so you can easily find yourself\n' +
+                    '• Only users who choose to appear on the leaderboard are included');
             });
             
             // Header click sorting
@@ -7031,58 +7027,6 @@ class JPH_Frontend {
         });
         </script>
         
-        <!-- Ranking Explanation Modal -->
-        <div id="jph-ranking-explanation-modal" class="jph-modal" style="display: none;">
-            <div class="jph-modal-content">
-                <div class="jph-modal-header">
-                    <h3>How Does Ranking Work? 🏆</h3>
-                    <span class="jph-close"><i class="fa-solid fa-circle-xmark"></i></span>
-                </div>
-                <div class="jph-modal-body">
-                    <div class="jph-ranking-explanation">
-                        <h4>Understanding Your Position</h4>
-                        <p>Your rank is determined by comparing your stats to all other users on the leaderboard. Here's how it works:</p>
-                        
-                        <div class="explanation-section">
-                            <h5>📊 <strong>Default Ranking (Total XP)</strong></h5>
-                            <ul>
-                                <li>Users are ranked by their <strong>Total XP</strong> in descending order</li>
-                                <li>Higher XP = Better rank (lower number)</li>
-                                <li>If two users have the same XP, the one with more total XP gets the better rank</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="explanation-section">
-                            <h5>🔄 <strong>Custom Sorting</strong></h5>
-                            <ul>
-                                <li>Click any column header to sort by that metric</li>
-                                <li>Click again to reverse the order (ascending/descending)</li>
-                                <li>Your position updates based on the current sort</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="explanation-section">
-                            <h5>👤 <strong>Your Highlighted Row</strong></h5>
-                            <ul>
-                                <li>Your row is highlighted so you can easily find yourself</li>
-                                <li>Your position shows your rank among all visible users</li>
-                                <li>Only users who choose to appear on the leaderboard are included</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="explanation-section">
-                            <h5>🎯 <strong>Tips for Climbing the Ranks</strong></h5>
-                            <ul>
-                                <li><strong>Practice regularly</strong> to earn XP and maintain streaks</li>
-                                <li><strong>Complete longer sessions</strong> to maximize XP gains</li>
-                                <li><strong>Stay consistent</strong> to build impressive streaks</li>
-                                <li><strong>Earn badges</strong> for bonus XP and recognition</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
         <?php
         
         return ob_get_clean();

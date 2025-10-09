@@ -20,36 +20,22 @@ class JPH_Admin_Pages {
      * Add admin menu
      */
     public function add_admin_menu() {
+        // Remove the main Practice Hub menu item since it's just a placeholder
+        // Start directly with the Students submenu as the main entry point
+        
+        
         add_menu_page(
-            __('Practice Hub', 'academy-practice-hub'),
-            __('Practice Hub', 'academy-practice-hub'),
+            __('Students', 'academy-practice-hub'),
+            __('Students', 'academy-practice-hub'),
             'manage_options',
-            'academy-practice-hub',
-            array($this, 'admin_page'),
+            'aph-students',
+            array($this, 'students_page'),
             'dashicons-format-audio',
             30
         );
         
         add_submenu_page(
-            'academy-practice-hub',
-            __('Dashboard', 'academy-practice-hub'),
-            __('Dashboard', 'academy-practice-hub'),
-            'manage_options',
-            'academy-practice-hub',
-            array($this, 'admin_page')
-        );
-        
-        add_submenu_page(
-            'academy-practice-hub',
-            __('Students', 'academy-practice-hub'),
-            __('Students', 'academy-practice-hub'),
-            'manage_options',
             'aph-students',
-            array($this, 'students_page')
-        );
-        
-        add_submenu_page(
-            'academy-practice-hub',
             __('Badges', 'academy-practice-hub'),
             __('Badges', 'academy-practice-hub'),
             'manage_options',
@@ -58,7 +44,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'academy-practice-hub',
+            'aph-students',
             __('Lesson Favorites', 'academy-practice-hub'),
             __('Lesson Favorites', 'academy-practice-hub'),
             'manage_options',
@@ -67,7 +53,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'academy-practice-hub',
+            'aph-students',
             __('Event Tracking', 'academy-practice-hub'),
             __('Event Tracking', 'academy-practice-hub'),
             'manage_options',
@@ -76,7 +62,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'academy-practice-hub',
+            'aph-students',
             __('Documentation', 'academy-practice-hub'),
             __('Documentation', 'academy-practice-hub'),
             'manage_options',
@@ -85,7 +71,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'academy-practice-hub',
+            'aph-students',
             __('AI Settings', 'academy-practice-hub'),
             __('AI Settings', 'academy-practice-hub'),
             'manage_options',
@@ -94,7 +80,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'academy-practice-hub',
+            'aph-students',
             __('Settings', 'academy-practice-hub'),
             __('Settings', 'academy-practice-hub'),
             'manage_options',
@@ -1559,8 +1545,23 @@ class JPH_Admin_Pages {
             
             // Refresh button
             $('#refresh-favorites-btn').on('click', function() {
+                console.log('Refresh button clicked');
+                $(this).prop('disabled', true).text('🔄 Refreshing...');
+                
+                // Show loading state
+                $('#favorites-tbody').html('<tr><td colspan="7" class="loading">Refreshing lesson favorites...</td></tr>');
+                $('#total-favorites').text('Loading...');
+                $('#active-users').text('Loading...');
+                $('#popular-category').text('Loading...');
+                
+                // Load data
                 loadLessonFavoritesData();
                 loadLessonFavoritesStats();
+                
+                // Re-enable button after a short delay
+                setTimeout(() => {
+                    $('#refresh-favorites-btn').prop('disabled', false).text('🔄 Refresh');
+                }, 1000);
             });
             
             // Export button
@@ -1569,6 +1570,7 @@ class JPH_Admin_Pages {
             });
             
             function loadLessonFavoritesData() {
+                console.log('Loading lesson favorites data...');
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/admin/lesson-favorites'); ?>',
                     method: 'GET',
@@ -1576,14 +1578,17 @@ class JPH_Admin_Pages {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
+                        console.log('Lesson favorites response:', response);
                         if (response.success) {
                             displayLessonFavorites(response.favorites);
                         } else {
-                            $('#favorites-tbody').html('<tr><td colspan="7" class="error">Error loading lesson favorites</td></tr>');
+                            console.error('Lesson favorites error:', response);
+                            $('#favorites-tbody').html('<tr><td colspan="7" class="error">Error loading lesson favorites: ' + (response.message || 'Unknown error') + '</td></tr>');
                         }
                     },
-                    error: function() {
-                        $('#favorites-tbody').html('<tr><td colspan="7" class="error">Error loading lesson favorites</td></tr>');
+                    error: function(xhr, status, error) {
+                        console.error('Lesson favorites AJAX error:', xhr, status, error);
+                        $('#favorites-tbody').html('<tr><td colspan="7" class="error">Error loading lesson favorites: ' + error + '</td></tr>');
                     }
                 });
             }
@@ -1615,6 +1620,7 @@ class JPH_Admin_Pages {
             }
             
             function loadLessonFavoritesStats() {
+                console.log('Loading lesson favorites stats...');
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/admin/lesson-favorites-stats'); ?>',
                     method: 'GET',
@@ -1622,19 +1628,160 @@ class JPH_Admin_Pages {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
+                        console.log('Lesson favorites stats response:', response);
                         if (response.success) {
                             $('#total-favorites').text(response.stats.total_favorites);
                             $('#active-users').text(response.stats.active_users);
                             $('#popular-category').text(response.stats.popular_category);
+                        } else {
+                            console.error('Lesson favorites stats error:', response);
+                            $('#total-favorites').text('Error');
+                            $('#active-users').text('Error');
+                            $('#popular-category').text('Error');
                         }
                     },
-                    error: function() {
+                    error: function(xhr, status, error) {
+                        console.error('Lesson favorites stats AJAX error:', xhr, status, error);
                         $('#total-favorites').text('Error');
                         $('#active-users').text('Error');
                         $('#popular-category').text('Error');
                     }
                 });
             }
+            
+            // Edit favorite function
+            window.editFavorite = function(favoriteId) {
+                // Find the favorite data
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/admin/lesson-favorites'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            const favorite = response.favorites.find(f => f.id == favoriteId);
+                            if (favorite) {
+                                showEditModal(favorite);
+                            }
+                        }
+                    }
+                });
+            };
+            
+            // Delete favorite function
+            window.deleteFavorite = function(favoriteId) {
+                if (confirm('Are you sure you want to delete this lesson favorite? This action cannot be undone.')) {
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/admin/lesson-favorites'); ?>',
+                        method: 'DELETE',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        data: {
+                            favorite_id: favoriteId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                alert('Lesson favorite deleted successfully!');
+                                loadLessonFavoritesData();
+                                loadLessonFavoritesStats();
+                            } else {
+                                alert('Error deleting lesson favorite: ' + response.message);
+                            }
+                        },
+                        error: function() {
+                            alert('Error deleting lesson favorite');
+                        }
+                    });
+                }
+            };
+            
+            // Show edit modal
+            function showEditModal(favorite) {
+                const modal = `
+                    <div id="edit-favorite-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 30px; border-radius: 8px; width: 500px; max-width: 90%;">
+                            <h3>Edit Lesson Favorite</h3>
+                            <form id="edit-favorite-form">
+                                <input type="hidden" id="edit-favorite-id" value="${favorite.id}">
+                                <table class="form-table">
+                                    <tr>
+                                        <th><label for="edit-title">Title</label></th>
+                                        <td><input type="text" id="edit-title" value="${favorite.title}" style="width: 100%;" required></td>
+                                    </tr>
+                                    <tr>
+                                        <th><label for="edit-category">Category</label></th>
+                                        <td>
+                                            <select id="edit-category" style="width: 100%;">
+                                                <option value="lesson" ${favorite.category === 'lesson' ? 'selected' : ''}>Lesson</option>
+                                                <option value="technique" ${favorite.category === 'technique' ? 'selected' : ''}>Technique</option>
+                                                <option value="theory" ${favorite.category === 'theory' ? 'selected' : ''}>Theory</option>
+                                                <option value="ear-training" ${favorite.category === 'ear-training' ? 'selected' : ''}>Ear Training</option>
+                                                <option value="repertoire" ${favorite.category === 'repertoire' ? 'selected' : ''}>Repertoire</option>
+                                                <option value="improvisation" ${favorite.category === 'improvisation' ? 'selected' : ''}>Improvisation</option>
+                                                <option value="other" ${favorite.category === 'other' ? 'selected' : ''}>Other</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th><label for="edit-url">URL</label></th>
+                                        <td><input type="url" id="edit-url" value="${favorite.url}" style="width: 100%;" required></td>
+                                    </tr>
+                                    <tr>
+                                        <th><label for="edit-description">Description</label></th>
+                                        <td><textarea id="edit-description" style="width: 100%; height: 80px;">${favorite.description || ''}</textarea></td>
+                                    </tr>
+                                </table>
+                                <div style="margin-top: 20px; text-align: right;">
+                                    <button type="button" class="button" onclick="closeEditModal()">Cancel</button>
+                                    <button type="submit" class="button button-primary" style="margin-left: 10px;">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `;
+                
+                $('body').append(modal);
+                
+                $('#edit-favorite-form').on('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const formData = {
+                        favorite_id: $('#edit-favorite-id').val(),
+                        title: $('#edit-title').val(),
+                        category: $('#edit-category').val(),
+                        url: $('#edit-url').val(),
+                        description: $('#edit-description').val()
+                    };
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/admin/lesson-favorites'); ?>',
+                        method: 'PUT',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        data: formData,
+                        success: function(response) {
+                            if (response.success) {
+                                alert('Lesson favorite updated successfully!');
+                                closeEditModal();
+                                loadLessonFavoritesData();
+                            } else {
+                                alert('Error updating lesson favorite: ' + response.message);
+                            }
+                        },
+                        error: function() {
+                            alert('Error updating lesson favorite');
+                        }
+                    });
+                });
+            }
+            
+            // Close edit modal
+            window.closeEditModal = function() {
+                $('#edit-favorite-modal').remove();
+            };
         });
         </script>
         <?php
@@ -2581,6 +2728,37 @@ Remember: Plain text only, no formatting.');
                     <div id="backup-results" class="backup-results"></div>
                 </div>
                 
+                <!-- Test Data Generation Section -->
+                <div class="jph-settings-section jph-test-section">
+                    <h2>🧪 Test Data Generation</h2>
+                    <p><strong>TESTING TOOL:</strong> Generate realistic test data for leaderboard testing.</p>
+                    
+                    <div class="test-data-section">
+                        <h3>👥 Generate Test Students</h3>
+                        <p>This will create 50 test students with realistic practice data:</p>
+                        <ul>
+                            <li>📝 Random practice sessions (1-100 per student)</li>
+                            <li>🎯 Various practice items (songs, exercises, scales)</li>
+                            <li>👥 Realistic XP progression and levels</li>
+                            <li>🔥 Random streaks (0-30 days)</li>
+                            <li>🎖️ Random badge awards</li>
+                            <li>💎 Random gem balances</li>
+                            <li>📊 Varied practice durations and sentiments</li>
+                        </ul>
+                        <p><strong>Note:</strong> This will NOT affect existing real user data.</p>
+                        
+                        <button type="button" class="button button-primary jph-generate-test-btn" onclick="generateTestStudents()">
+                            🎭 Generate 50 Test Students
+                        </button>
+                        
+                        <button type="button" class="button button-secondary jph-clear-test-btn" onclick="clearTestData()" style="margin-left: 10px;">
+                            🗑️ Clear Test Data
+                        </button>
+                    </div>
+                    
+                    <div id="test-results" class="test-results"></div>
+                </div>
+                
                 <div class="jph-settings-section jph-danger-section">
                     <h2>🧪 DATA MANAGEMENT FOR TESTING</h2>
                     <p><strong>DEVELOPMENT/TESTING TOOL:</strong> This will permanently delete ALL user data and cannot be undone!</p>
@@ -2628,6 +2806,17 @@ Remember: Plain text only, no formatting.');
         
         .jph-backup-section h2 {
             color: #28a745;
+            margin-top: 0;
+        }
+        
+        .jph-test-section {
+            border: 2px solid #0073aa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .jph-test-section h2 {
+            color: #0073aa;
             margin-top: 0;
         }
         
@@ -2761,6 +2950,26 @@ Remember: Plain text only, no formatting.');
             border-color: #bd2130 !important;
         }
         
+        .test-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 50px;
+        }
+        
+        .test-results.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .test-results.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
         .danger-results {
             margin-top: 20px;
             padding: 15px;
@@ -2850,6 +3059,70 @@ Remember: Plain text only, no formatting.');
                 }
             };
             reader.readAsText(file);
+        }
+        
+        function generateTestStudents() {
+            jQuery('#test-results').html('<p>🎭 Generating 50 test students with realistic data...</p>').show().removeClass('success error');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/admin/generate-test-students'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        jQuery('#test-results').html(
+                            '<p>✅ Test data generated successfully!</p>' +
+                            '<ul>' +
+                            '<li>👥 ' + response.data.students_created + ' test students created</li>' +
+                            '<li>📝 ' + response.data.sessions_created + ' practice sessions generated</li>' +
+                            '<li>🎯 ' + response.data.items_created + ' practice items created</li>' +
+                            '<li>🎖️ ' + response.data.badges_awarded + ' badges awarded</li>' +
+                            '</ul>' +
+                            '<p><strong>You can now test the leaderboard with realistic data!</strong></p>'
+                        ).addClass('success');
+                    } else {
+                        jQuery('#test-results').html('<p>❌ Generation failed: ' + response.message + '</p>').addClass('error');
+                    }
+                },
+                error: function() {
+                    jQuery('#test-results').html('<p>❌ Generation failed: Network error</p>').addClass('error');
+                }
+            });
+        }
+        
+        function clearTestData() {
+            if (confirm('Are you sure you want to clear all test data? This will delete all test students and their associated data. This action cannot be undone.')) {
+                jQuery('#test-results').html('<p>🗑️ Clearing test data...</p>').show().removeClass('success error');
+                
+                jQuery.ajax({
+                    url: '<?php echo rest_url('aph/v1/admin/clear-test-data'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            jQuery('#test-results').html(
+                                '<p>✅ Test data cleared successfully!</p>' +
+                                '<ul>' +
+                                '<li>👥 ' + response.data.users_deleted + ' test users deleted</li>' +
+                                '<li>📝 ' + response.data.sessions_deleted + ' practice sessions deleted</li>' +
+                                '<li>🎯 ' + response.data.items_deleted + ' practice items deleted</li>' +
+                                '<li>🎖️ ' + response.data.badges_deleted + ' badges deleted</li>' +
+                                '</ul>' +
+                                '<p><strong>All test data has been removed.</strong></p>'
+                            ).addClass('success');
+                        } else {
+                            jQuery('#test-results').html('<p>❌ Clear failed: ' + response.message + '</p>').addClass('error');
+                        }
+                    },
+                    error: function() {
+                        jQuery('#test-results').html('<p>❌ Clear failed: Network error</p>').addClass('error');
+                    }
+                });
+            }
         }
         
         function confirmClearAllUserData() {
