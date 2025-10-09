@@ -628,16 +628,22 @@ class JPH_Database {
     /**
      * Get leaderboard data
      */
-    public function get_leaderboard($limit = 50, $offset = 0, $sort_by = 'total_xp') {
+    public function get_leaderboard($limit = 50, $offset = 0, $sort_by = 'total_xp', $sort_order = 'desc') {
         global $wpdb;
         
         $stats_table = $wpdb->prefix . 'jph_user_stats';
         $users_table = $wpdb->users;
         
         // Validate sort_by parameter
-        $allowed_sorts = array('total_xp', 'current_level', 'current_streak', 'total_sessions', 'total_minutes');
+        $allowed_sorts = array('total_xp', 'current_level', 'current_streak', 'total_sessions', 'total_minutes', 'badges_earned');
         if (!in_array($sort_by, $allowed_sorts)) {
             $sort_by = 'total_xp';
+        }
+        
+        // Validate sort_order parameter
+        $sort_order = strtoupper($sort_order);
+        if (!in_array($sort_order, array('ASC', 'DESC'))) {
+            $sort_order = 'DESC';
         }
         
         $query = $wpdb->prepare(
@@ -654,7 +660,7 @@ class JPH_Database {
              FROM {$stats_table} s
              LEFT JOIN {$users_table} u ON s.user_id = u.ID
              WHERE s.show_on_leaderboard = 1
-             ORDER BY s.{$sort_by} DESC, s.total_xp DESC
+                ORDER BY s.{$sort_by} {$sort_order}, s.total_xp DESC
              LIMIT %d OFFSET %d",
             $limit, $offset
         );
@@ -667,15 +673,21 @@ class JPH_Database {
     /**
      * Get user's leaderboard position
      */
-    public function get_user_leaderboard_position($user_id, $sort_by = 'total_xp') {
+    public function get_user_leaderboard_position($user_id, $sort_by = 'total_xp', $sort_order = 'desc') {
         global $wpdb;
         
         $stats_table = $wpdb->prefix . 'jph_user_stats';
         
         // Validate sort_by parameter
-        $allowed_sorts = array('total_xp', 'current_level', 'current_streak', 'total_sessions', 'total_minutes');
+        $allowed_sorts = array('total_xp', 'current_level', 'current_streak', 'total_sessions', 'total_minutes', 'badges_earned');
         if (!in_array($sort_by, $allowed_sorts)) {
             $sort_by = 'total_xp';
+        }
+        
+        // Validate sort_order parameter
+        $sort_order = strtoupper($sort_order);
+        if (!in_array($sort_order, array('ASC', 'DESC'))) {
+            $sort_order = 'DESC';
         }
         
         // Get user's stats
@@ -690,14 +702,24 @@ class JPH_Database {
         
         $user_value = $user_stats[$sort_by];
         
-        // Count users with better stats
-        $position = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) + 1 
-             FROM {$stats_table} 
-             WHERE show_on_leaderboard = 1 
-             AND {$sort_by} > %d",
-            $user_value
-        ));
+        // Count users with better stats based on sort order
+        if ($sort_order === 'DESC') {
+            $position = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) + 1 
+                 FROM {$stats_table} 
+                 WHERE show_on_leaderboard = 1 
+                 AND {$sort_by} > %d",
+                $user_value
+            ));
+        } else {
+            $position = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) + 1 
+                 FROM {$stats_table} 
+                 WHERE show_on_leaderboard = 1 
+                 AND {$sort_by} < %d",
+                $user_value
+            ));
+        }
         
         return (int) $position;
     }

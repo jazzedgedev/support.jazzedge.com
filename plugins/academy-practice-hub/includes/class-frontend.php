@@ -68,8 +68,24 @@ class JPH_Frontend {
             
             <div class="jph-header">
                 <div class="header-top">
-                    <h2>🎹 Your Practice Dashboard</h2>
+                    <div class="welcome-title-container">
+                        <h2 id="jph-welcome-title">🎹 Your Practice Dashboard</h2>
+                        <button id="jph-edit-name-btn" class="jph-edit-name-btn" title="Edit leaderboard name" style="display: none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                            </svg>
+                        </button>
+                    </div>
                     <div class="header-actions">
+                        <!-- Leaderboard Button -->
+                        <button id="jph-leaderboard-btn" type="button" class="jph-btn jph-btn-secondary jph-leaderboard-btn">
+                            <span class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+                                </svg>
+                            </span>
+                            Leaderboard
+                        </button>
                         <!-- Stats Explanation Button -->
                         <button id="jph-stats-explanation-btn" type="button" class="jph-btn jph-btn-secondary jph-stats-help-btn">
                             <span class="btn-icon">
@@ -601,6 +617,30 @@ class JPH_Frontend {
             <?php endif; ?>
         </div>
         
+        <!-- Welcome Modal for First-Time Users -->
+        <div id="jph-welcome-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h3>Welcome to Your Practice Hub! 🎹</h3>
+                </div>
+                <div class="jph-modal-body">
+                    <div class="jph-welcome-form">
+                        <p>Let's personalize your experience! Choose how you'd like your name to appear on the leaderboard.</p>
+                        
+                        <div class="jph-form-group">
+                            <label for="jph-welcome-display-name-input">Your Leaderboard Name:</label>
+                            <input type="text" id="jph-welcome-display-name-input" class="jph-input" placeholder="Enter your leaderboard name" maxlength="100">
+                            <small class="jph-help-text">This will be visible to other students on the leaderboard</small>
+                        </div>
+                        
+                        <div class="jph-form-actions">
+                            <button id="jph-save-welcome-name" class="jph-btn jph-btn-primary">Let's Go!</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Display Name Settings Modal -->
         <div id="jph-display-name-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
@@ -902,8 +942,9 @@ class JPH_Frontend {
                     <div class="jph-modal-footer">
                         <button type="button" class="jph-btn jph-btn-secondary jph-modal-close">Close</button>
                     </div>
-                </div>
             </div>
+        </div>
+        
         </div>
         
         <style>
@@ -934,12 +975,35 @@ class JPH_Frontend {
             margin-bottom: 30px;
         }
         
+        .welcome-title-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+        
         .header-top h2 {
             margin: 0;
-            flex: 1;
             font-size: 1.8em;
             font-weight: 700;
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .jph-edit-name-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 6px;
+            padding: 6px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            opacity: 0.7;
+        }
+        
+        .jph-edit-name-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            opacity: 1;
         }
         
         .header-actions {
@@ -948,12 +1012,18 @@ class JPH_Frontend {
             gap: 15px;
         }
         
+        .jph-leaderboard-btn {
+            width: 200px;
+            justify-content: flex-start;
+            padding: 8px 24px;
+        }
+        
         .jph-stats-help-btn {
             background: rgba(255, 255, 255, 0.15) !important;
             color: white !important;
             border: 1px solid rgba(255, 255, 255, 0.3) !important;
             backdrop-filter: blur(10px);
-            padding: 10px 16px !important;
+            padding: 14px 16px !important;
             font-size: 14px !important;
             white-space: nowrap;
         }
@@ -1649,7 +1719,7 @@ class JPH_Frontend {
         .jph-modal {
             display: none;
             position: fixed;
-            z-index: 1000;
+            z-index: 10001;
             left: 0;
             top: 0;
             width: 100%;
@@ -1707,7 +1777,7 @@ class JPH_Frontend {
         }
         
         .jph-modal-close:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: none;
         }
         
         .jph-modal-body {
@@ -1787,7 +1857,7 @@ class JPH_Frontend {
         }
         
         #jph-stats-explanation-modal .jph-close:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: none;
         }
         
         #jph-stats-explanation-modal .jph-modal-body {
@@ -1829,8 +1899,51 @@ class JPH_Frontend {
         }
         
         #jph-display-name-modal .jph-close:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: none;
         }
+        
+        #jph-ranking-explanation-modal .jph-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.4em;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        #jph-ranking-explanation-modal .jph-close:hover {
+            background: none;
+        }
+        
+        /* Ranking Explanation Modal Styles */
+        #jph-ranking-explanation-modal .jph-modal-content {
+            max-width: 700px;
+            padding: 30px;
+        }
+        
+        #jph-ranking-explanation-modal .jph-modal-header {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: -30px -30px 0 -30px;
+        }
+        
+        #jph-ranking-explanation-modal .jph-modal-header h3 {
+            margin: 0;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+        
+        #jph-ranking-explanation-modal .jph-modal-body {
+            padding: 30px 0;
+        }
+        
         
         #jph-display-name-modal .jph-modal-body {
             padding: 30px 0;
@@ -5887,15 +6000,17 @@ class JPH_Frontend {
             
             // Initialize display name handlers
             function initDisplayNameHandlers() {
-                // Display name button
-                $('#jph-display-name-btn').on('click', function() {
-                    // Set WordPress display name immediately
-                    const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
-                    $('#jph-display-name-input').val(wpDisplayName);
-                    
-                    // Then load any custom display name
-                    loadCurrentDisplayName();
-                    $('#jph-display-name-modal').show();
+                // Check if user needs welcome modal
+                checkFirstTimeUser();
+                
+                // Edit name button (subtle)
+                $('#jph-edit-name-btn').on('click', function() {
+                    openDisplayNameModal();
+                });
+                
+                // Leaderboard button
+                $('#jph-leaderboard-btn').on('click', function() {
+                    window.location.href = '/leaderboard';
                 });
                 
                 // Close modal when clicking the X
@@ -5911,6 +6026,18 @@ class JPH_Frontend {
                 // Save display name
                 $('#jph-save-display-name').on('click', function() {
                     saveDisplayName();
+                });
+                
+                // Welcome modal save button
+                $('#jph-save-welcome-name').on('click', function() {
+                    saveWelcomeDisplayName();
+                });
+                
+                // Enter key to save in welcome modal
+                $('#jph-welcome-display-name-input').on('keypress', function(e) {
+                    if (e.which === 13) { // Enter key
+                        saveWelcomeDisplayName();
+                    }
                 });
                 
                 // Close modal when clicking outside
@@ -5930,6 +6057,8 @@ class JPH_Frontend {
             
             // Load current display name
             function loadCurrentDisplayName() {
+                const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
+                
                 // Get current user's custom display name from user stats
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/user-stats'); ?>',
@@ -5938,15 +6067,18 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
-                        if (response.success && response.data.display_name) {
-                            // Use custom display name if set (override WordPress name)
+                        if (response.success && response.data.display_name && response.data.display_name.trim() !== '') {
+                            // Use custom display name if set
                             $('#jph-display-name-input').val(response.data.display_name);
+                        } else {
+                            // Use WordPress display name as fallback
+                            $('#jph-display-name-input').val(wpDisplayName);
                         }
-                        // If no custom display name, keep the WordPress name that was already set
                     },
                     error: function() {
-                        // Keep the WordPress name that was already set
-                        console.log('Failed to load custom display name, keeping WordPress name');
+                        // Use WordPress display name as fallback
+                        $('#jph-display-name-input').val(wpDisplayName);
+                        console.log('Failed to load custom display name, using WordPress name');
                     }
                 });
             }
@@ -5974,6 +6106,8 @@ class JPH_Frontend {
                         if (response.success) {
                             showModalMessage('Display name updated successfully!', 'success');
                             $('#jph-display-name-modal').hide();
+                            // Update welcome title with new name
+                            updateWelcomeTitle(displayName);
                         } else {
                             showModalMessage('Failed to update display name: ' + (response.message || 'Unknown error'), 'error');
                         }
@@ -5995,6 +6129,99 @@ class JPH_Frontend {
             function showModalMessage(text, type) {
                 // Use the main showMessage function for consistent styling
                 showMessage(text, type);
+            }
+            
+            // Check if user is first-time user
+            function checkFirstTimeUser() {
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/user-stats'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            const hasDisplayName = response.data.display_name && response.data.display_name.trim() !== '';
+                            const hasPracticeSessions = response.data.total_sessions > 0;
+                            
+                            // Show welcome modal if no display name set and no practice sessions
+                            if (!hasDisplayName && !hasPracticeSessions) {
+                                showWelcomeModal();
+                            } else {
+                                // Update welcome title with display name
+                                updateWelcomeTitle(response.data.display_name);
+                            }
+                        }
+                    },
+                    error: function() {
+                        // On error, show welcome modal to be safe
+                        showWelcomeModal();
+                    }
+                });
+            }
+            
+            // Show welcome modal
+            function showWelcomeModal() {
+                const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
+                $('#jph-welcome-display-name-input').val(wpDisplayName);
+                $('#jph-welcome-modal').show();
+            }
+            
+            // Save welcome display name
+            function saveWelcomeDisplayName() {
+                const displayName = $('#jph-welcome-display-name-input').val().trim();
+                const saveBtn = $('#jph-save-welcome-name');
+                
+                // Disable save button
+                saveBtn.prop('disabled', true).text('Setting up...');
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/leaderboard/display-name'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: {
+                        display_name: displayName
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#jph-welcome-modal').hide();
+                            updateWelcomeTitle(displayName);
+                            showMessage('Welcome to your Practice Hub! 🎹', 'success');
+                        } else {
+                            showMessage('Failed to set display name: ' + (response.message || 'Unknown error'), 'error');
+                        }
+                    },
+                    error: function(xhr) {
+                        let errorMessage = 'Failed to set display name';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMessage = xhr.responseJSON.message;
+                        }
+                        showMessage(errorMessage, 'error');
+                    },
+                    complete: function() {
+                        saveBtn.prop('disabled', false).text('Let\'s Go!');
+                    }
+                });
+            }
+            
+            // Update welcome title with display name
+            function updateWelcomeTitle(displayName) {
+                const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
+                const nameToShow = displayName && displayName.trim() !== '' ? displayName : wpDisplayName;
+                
+                $('#jph-welcome-title').text('🎹 Welcome, ' + nameToShow + '!');
+                $('#jph-edit-name-btn').show();
+            }
+            
+            // Open display name modal for editing
+            function openDisplayNameModal() {
+                // Show modal first
+                $('#jph-display-name-modal').show();
+                
+                // Load current display name (which will set the appropriate value)
+                loadCurrentDisplayName();
             }
             
             // Initialize drag and drop for practice items
@@ -6178,33 +6405,30 @@ class JPH_Frontend {
                 <div class="jph-leaderboard-header">
                     <h2>🏆 Practice Leaderboard</h2>
                     
-                    <!-- Sort Options -->
+                    <!-- Ranking Help -->
                     <div class="jph-leaderboard-sort">
-                        <label for="jph-sort-select">Sort by:</label>
-                        <select id="jph-sort-select" class="jph-sort-select">
-                            <option value="total_xp" <?php selected($atts['sort_by'], 'total_xp'); ?>>Total XP</option>
-                            <option value="current_level" <?php selected($atts['sort_by'], 'current_level'); ?>>Level</option>
-                            <option value="current_streak" <?php selected($atts['sort_by'], 'current_streak'); ?>>Current Streak</option>
-                            <option value="total_sessions" <?php selected($atts['sort_by'], 'total_sessions'); ?>>Total Sessions</option>
-                            <option value="total_minutes" <?php selected($atts['sort_by'], 'total_minutes'); ?>>Total Minutes</option>
-                        </select>
+                        <button id="jph-ranking-explanation-btn" class="jph-btn jph-btn-secondary jph-ranking-help-btn" title="How does ranking work?">
+                            <span class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                                </svg>
+                            </span>
+                            How does ranking work?
+                        </button>
                     </div>
                 </div>
                 
-                <!-- User Position (if logged in) -->
-                <?php if (is_user_logged_in() && $atts['show_user_position'] === 'true'): ?>
-                <div id="jph-user-position" class="jph-user-position" style="display: none;">
-                    <div class="jph-user-position-content">
-                        <i class="fa-solid fa-user"></i>
-                        <span class="jph-position-text">Your position: <strong id="jph-user-rank">--</strong></span>
-                    </div>
-                </div>
-                <?php endif; ?>
                 
                 <!-- Leaderboard Stats -->
                 <?php if ($atts['show_stats'] === 'true'): ?>
                 <div id="jph-leaderboard-stats" class="jph-leaderboard-stats" style="display: none;">
                     <div class="jph-stats-grid">
+                        <?php if (is_user_logged_in() && $atts['show_user_position'] === 'true'): ?>
+                        <div class="jph-stat-item">
+                            <span class="jph-stat-value" id="jph-user-rank">--</span>
+                            <span class="jph-stat-label">Your Position</span>
+                        </div>
+                        <?php endif; ?>
                         <div class="jph-stat-item">
                             <span class="jph-stat-value" id="jph-total-users">--</span>
                             <span class="jph-stat-label">Total Users</span>
@@ -6232,12 +6456,12 @@ class JPH_Frontend {
                             <tr>
                                 <th class="jph-rank-col">Rank</th>
                                 <th class="jph-name-col">Name</th>
-                                <th class="jph-xp-col">XP</th>
-                                <th class="jph-level-col">Level</th>
-                                <th class="jph-streak-col">Streak</th>
-                                <th class="jph-sessions-col">Sessions</th>
-                                <th class="jph-minutes-col">Minutes</th>
-                                <th class="jph-badges-col">Badges</th>
+                                <th class="jph-xp-col sortable" data-sort="total_xp">XP</th>
+                                <th class="jph-level-col sortable" data-sort="current_level">Level</th>
+                                <th class="jph-streak-col sortable" data-sort="current_streak">Streak</th>
+                                <th class="jph-sessions-col sortable" data-sort="total_sessions">Sessions</th>
+                                <th class="jph-minutes-col sortable" data-sort="total_minutes">Minutes</th>
+                                <th class="jph-badges-col sortable" data-sort="badges_earned">Badges</th>
                             </tr>
                         </thead>
                         <tbody id="jph-leaderboard-tbody">
@@ -6288,7 +6512,52 @@ class JPH_Frontend {
         .jph-leaderboard-sort {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .jph-ranking-help-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .jph-ranking-help-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Only apply these styles when inside the modal */
+        #jph-ranking-explanation-modal .jph-ranking-explanation {
+            line-height: 1.6;
+        }
+        
+        #jph-ranking-explanation-modal .jph-ranking-explanation h4 {
+            color: #0f766e;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        #jph-ranking-explanation-modal .jph-ranking-explanation h5 {
+            color: #374151;
+            margin: 20px 0 10px 0;
+            font-size: 1em;
+        }
+        
+        #jph-ranking-explanation-modal .explanation-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border-left: 4px solid #0f766e;
+        }
+        
+        #jph-ranking-explanation-modal .explanation-section ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        #jph-ranking-explanation-modal .explanation-section li {
+            margin-bottom: 8px;
         }
         
         .jph-leaderboard-sort label {
@@ -6311,21 +6580,6 @@ class JPH_Frontend {
             border-color: #3b82f6;
         }
         
-        .jph-user-position {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px 20px;
-            border-radius: 12px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        
-        .jph-user-position-content {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 16px;
-        }
         
         .jph-leaderboard-stats {
             background: #f8fafc;
@@ -6375,10 +6629,37 @@ class JPH_Frontend {
         .jph-leaderboard-table th {
             background: #f8fafc;
             padding: 15px 12px;
-            text-align: left;
+            text-align: center;
             font-weight: 600;
             color: #374151;
             border-bottom: 2px solid #e5e7eb;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+        
+        .jph-leaderboard-table th.sortable:hover {
+            background: #f1f5f9;
+        }
+        
+        .jph-leaderboard-table th.sortable::after {
+            content: '↕';
+            position: absolute;
+            right: 8px;
+            opacity: 0.5;
+            font-size: 12px;
+        }
+        
+        .jph-leaderboard-table th.sortable.sort-asc::after {
+            content: '↑';
+            opacity: 1;
+            color: #3b82f6;
+        }
+        
+        .jph-leaderboard-table th.sortable.sort-desc::after {
+            content: '↓';
+            opacity: 1;
+            color: #3b82f6;
         }
         
         .jph-leaderboard-table td {
@@ -6391,26 +6672,19 @@ class JPH_Frontend {
             background: #f9fafb;
         }
         
-        .jph-leaderboard-table tbody tr:nth-child(1) {
-            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-            color: #1f2937;
-            font-weight: 600;
-        }
-        
-        .jph-leaderboard-table tbody tr:nth-child(2) {
-            background: linear-gradient(135deg, #c0c0c0 0%, #e5e7eb 100%);
-            color: #1f2937;
-            font-weight: 600;
-        }
-        
-        .jph-leaderboard-table tbody tr:nth-child(3) {
-            background: linear-gradient(135deg, #cd7f32 0%, #f59e0b 100%);
+        .jph-leaderboard-table tbody tr.current-user {
+            background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
             color: white;
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(15, 118, 110, 0.3);
+        }
+        
+        .jph-leaderboard-table tbody tr.current-user:hover {
+            background: linear-gradient(135deg, #0d6b63 0%, #0f766e 100%);
         }
         
         .jph-rank-col { width: 80px; text-align: center; }
-        .jph-name-col { width: 200px; }
+        .jph-name-col { width: 200px; text-align: center; }
         .jph-xp-col { width: 100px; text-align: center; }
         .jph-level-col { width: 80px; text-align: center; }
         .jph-streak-col { width: 100px; text-align: center; }
@@ -6516,6 +6790,10 @@ class JPH_Frontend {
         jQuery(document).ready(function($) {
             let currentPage = 0;
             let currentSort = '<?php echo esc_js($atts['sort_by']); ?>';
+            // Ensure default sort is descending for XP
+            if (currentSort === 'total_xp' && !currentSort.startsWith('-')) {
+                currentSort = '-' + currentSort;
+            }
             let currentLimit = <?php echo intval($atts['limit']); ?>;
             let isLoading = false;
             
@@ -6523,14 +6801,45 @@ class JPH_Frontend {
             loadLeaderboard();
             loadUserPosition();
             loadLeaderboardStats();
+            updateSortIndicators();
             
-            // Sort change handler
-            $('#jph-sort-select').on('change', function() {
-                currentSort = $(this).val();
+            // Ranking explanation button
+            $('#jph-ranking-explanation-btn').on('click', function() {
+                $('#jph-ranking-explanation-modal').show();
+            });
+            
+            // Close modal when clicking the X
+            $('#jph-ranking-explanation-modal .jph-close').on('click', function() {
+                $('#jph-ranking-explanation-modal').hide();
+            });
+            
+            // Close modal when clicking outside
+            $(window).on('click', function(event) {
+                if (event.target.id === 'jph-ranking-explanation-modal') {
+                    $('#jph-ranking-explanation-modal').hide();
+                }
+            });
+            
+            // Header click sorting
+            $('.jph-leaderboard-table th.sortable').on('click', function() {
+                const sortField = $(this).data('sort');
+                if (sortField === currentSort || '-' + sortField === currentSort) {
+                    // Toggle sort direction if clicking same field
+                    currentSort = currentSort.startsWith('-') ? sortField : '-' + sortField;
+                } else {
+                    // Always start with descending (highest to lowest)
+                    currentSort = '-' + sortField;
+                }
+                
+                // Update visual indicators
+                updateSortIndicators();
+                
+                // Reload data
                 currentPage = 0;
                 loadLeaderboard();
                 loadUserPosition();
             });
+            
             
             // Pagination handlers
             $('#jph-prev-page').on('click', function() {
@@ -6547,6 +6856,16 @@ class JPH_Frontend {
                 }
             });
             
+            // Update sort indicators
+            function updateSortIndicators() {
+                $('.jph-leaderboard-table th.sortable').removeClass('sort-asc sort-desc');
+                
+                const sortField = currentSort.startsWith('-') ? currentSort.substring(1) : currentSort;
+                const sortDirection = currentSort.startsWith('-') ? 'desc' : 'asc';
+                
+                $(`.jph-leaderboard-table th[data-sort="${sortField}"]`).addClass('sort-' + sortDirection);
+            }
+            
             function loadLeaderboard() {
                 if (isLoading) return;
                 
@@ -6561,7 +6880,8 @@ class JPH_Frontend {
                     data: {
                         limit: currentLimit,
                         offset: offset,
-                        sort_by: currentSort
+                        sort_by: currentSort.startsWith('-') ? currentSort.substring(1) : currentSort,
+                        sort_order: currentSort.startsWith('-') ? 'desc' : 'asc'
                     },
                     success: function(response) {
                         if (response.success) {
@@ -6586,14 +6906,21 @@ class JPH_Frontend {
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/leaderboard/position'); ?>',
                     method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
                     data: {
-                        sort_by: currentSort
+                        sort_by: currentSort.startsWith('-') ? currentSort.substring(1) : currentSort,
+                        sort_order: currentSort.startsWith('-') ? 'desc' : 'asc'
                     },
                     success: function(response) {
                         if (response.success && response.data.position) {
                             $('#jph-user-rank').text(response.data.position);
-                            $('#jph-user-position').show();
                         }
+                    },
+                    error: function() {
+                        // Silently fail - user position is not critical
+                        console.log('Failed to load user position');
                     }
                 });
                 <?php endif; ?>
@@ -6627,8 +6954,16 @@ class JPH_Frontend {
                     return;
                 }
                 
+                // Get current user ID for highlighting
+                const currentUserId = <?php echo is_user_logged_in() ? get_current_user_id() : 'null'; ?>;
+                
                 data.forEach(function(user, index) {
                     const row = $('<tr>');
+                    
+                    // Add current-user class if this is the logged-in user
+                    if (currentUserId && user.user_id == currentUserId) {
+                        row.addClass('current-user');
+                    }
                     
                     // Rank with medal emoji for top 3
                     let rankDisplay = user.position;
@@ -6695,6 +7030,59 @@ class JPH_Frontend {
             }
         });
         </script>
+        
+        <!-- Ranking Explanation Modal -->
+        <div id="jph-ranking-explanation-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h3>How Does Ranking Work? 🏆</h3>
+                    <span class="jph-close"><i class="fa-solid fa-circle-xmark"></i></span>
+                </div>
+                <div class="jph-modal-body">
+                    <div class="jph-ranking-explanation">
+                        <h4>Understanding Your Position</h4>
+                        <p>Your rank is determined by comparing your stats to all other users on the leaderboard. Here's how it works:</p>
+                        
+                        <div class="explanation-section">
+                            <h5>📊 <strong>Default Ranking (Total XP)</strong></h5>
+                            <ul>
+                                <li>Users are ranked by their <strong>Total XP</strong> in descending order</li>
+                                <li>Higher XP = Better rank (lower number)</li>
+                                <li>If two users have the same XP, the one with more total XP gets the better rank</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="explanation-section">
+                            <h5>🔄 <strong>Custom Sorting</strong></h5>
+                            <ul>
+                                <li>Click any column header to sort by that metric</li>
+                                <li>Click again to reverse the order (ascending/descending)</li>
+                                <li>Your position updates based on the current sort</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="explanation-section">
+                            <h5>👤 <strong>Your Highlighted Row</strong></h5>
+                            <ul>
+                                <li>Your row is highlighted so you can easily find yourself</li>
+                                <li>Your position shows your rank among all visible users</li>
+                                <li>Only users who choose to appear on the leaderboard are included</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="explanation-section">
+                            <h5>🎯 <strong>Tips for Climbing the Ranks</strong></h5>
+                            <ul>
+                                <li><strong>Practice regularly</strong> to earn XP and maintain streaks</li>
+                                <li><strong>Complete longer sessions</strong> to maximize XP gains</li>
+                                <li><strong>Stay consistent</strong> to build impressive streaks</li>
+                                <li><strong>Earn badges</strong> for bonus XP and recognition</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <?php
         
         return ob_get_clean();

@@ -404,15 +404,25 @@ class JPH_REST_API {
             return new WP_Error('missing_fields', 'Practice item ID and duration are required', array('status' => 400));
         }
         
-        // Convert sentiment to score (1-5)
-        $sentiment_scores = array(
-            'excellent' => 5,
-            'good' => 4,
-            'okay' => 3,
-            'challenging' => 2,
-            'frustrating' => 1
-        );
-        $sentiment_score = isset($sentiment_scores[$params['sentiment']]) ? $sentiment_scores[$params['sentiment']] : 3;
+        // Handle sentiment score - can be numeric (1-5) or string
+        $sentiment_score = 3; // default
+        
+        if (isset($params['sentiment_score'])) {
+            // Frontend sends numeric score directly
+            $sentiment_score = intval($params['sentiment_score']);
+            // Ensure it's within valid range
+            $sentiment_score = max(1, min(5, $sentiment_score));
+        } elseif (isset($params['sentiment'])) {
+            // Legacy support for string-based sentiment
+            $sentiment_scores = array(
+                'excellent' => 5,
+                'good' => 4,
+                'okay' => 3,
+                'challenging' => 2,
+                'frustrating' => 1
+            );
+            $sentiment_score = isset($sentiment_scores[$params['sentiment']]) ? $sentiment_scores[$params['sentiment']] : 3;
+        }
         
         // Convert improvement to boolean - check both 'improvement' and 'improvement_detected' parameters
         $improvement_detected = 0;
@@ -3109,12 +3119,13 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             $limit = $request->get_param('limit') ?: 50;
             $offset = $request->get_param('offset') ?: 0;
             $sort_by = $request->get_param('sort_by') ?: 'total_xp';
+            $sort_order = $request->get_param('sort_order') ?: 'desc';
             
             // Validate parameters
             $limit = max(1, min(100, intval($limit)));
             $offset = max(0, intval($offset));
             
-            $leaderboard = $this->database->get_leaderboard($limit, $offset, $sort_by);
+            $leaderboard = $this->database->get_leaderboard($limit, $offset, $sort_by, $sort_order);
             
             // Add position numbers
             foreach ($leaderboard as $index => $user) {
@@ -3143,12 +3154,13 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
         try {
             $user_id = get_current_user_id();
             $sort_by = $request->get_param('sort_by') ?: 'total_xp';
+            $sort_order = $request->get_param('sort_order') ?: 'desc';
             
             if (!$user_id) {
                 return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
             }
             
-            $position = $this->database->get_user_leaderboard_position($user_id, $sort_by);
+            $position = $this->database->get_user_leaderboard_position($user_id, $sort_by, $sort_order);
             
             return rest_ensure_response(array(
                 'success' => true,
