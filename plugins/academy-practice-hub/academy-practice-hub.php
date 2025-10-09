@@ -19,6 +19,11 @@ if (!defined('APH_WIRE_THROUGH')) {
 require_once __DIR__ . '/includes/database-schema.php';
 require_once __DIR__ . '/includes/class-database.php';
 require_once __DIR__ . '/includes/class-gamification.php';
+require_once __DIR__ . '/includes/class-logger.php';
+require_once __DIR__ . '/includes/class-rate-limiter.php';
+require_once __DIR__ . '/includes/class-cache.php';
+require_once __DIR__ . '/includes/class-validator.php';
+require_once __DIR__ . '/includes/class-audit-logger.php';
 require_once __DIR__ . '/includes/class-rest-api.php';
 require_once __DIR__ . '/includes/class-admin-pages.php';
 require_once __DIR__ . '/includes/class-frontend.php';
@@ -32,6 +37,9 @@ function aph_activate() {
     
     // Add leaderboard columns to existing tables
     APH_Database_Schema::add_leaderboard_columns();
+    
+    // Add additional performance indexes
+    APH_Database_Schema::add_additional_indexes();
 }
 
 // Initialize REST API

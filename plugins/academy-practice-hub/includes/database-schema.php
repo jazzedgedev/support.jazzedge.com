@@ -834,6 +834,36 @@ class APH_Database_Schema {
         
         return true;
     }
+    
+    /**
+     * Add additional performance indexes for all tables
+     */
+    public static function add_additional_indexes() {
+        global $wpdb;
+        
+        $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+        $items_table = $wpdb->prefix . 'jph_practice_items';
+        $badges_table = $wpdb->prefix . 'jph_user_badges';
+        $favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        // Practice sessions indexes
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_sessions_user_date ON {$sessions_table} (user_id, created_at DESC)");
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_sessions_date ON {$sessions_table} (created_at)");
+        
+        // Practice items indexes
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_items_user_active ON {$items_table} (user_id, is_active)");
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_items_session_id ON {$items_table} (session_id)");
+        
+        // User badges indexes
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_user_badges_user_id ON {$badges_table} (user_id)");
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_user_badges_type ON {$badges_table} (badge_type)");
+        
+        // Lesson favorites indexes
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON {$favorites_table} (user_id)");
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_favorites_title ON {$favorites_table} (title)");
+        
+        return true;
+    }
 }
 
 /**

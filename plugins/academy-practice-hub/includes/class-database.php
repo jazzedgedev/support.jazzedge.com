@@ -130,7 +130,7 @@ class JPH_Database {
         $items_table = $wpdb->prefix . 'jph_practice_items';
         
         $query = $wpdb->prepare(
-            "SELECT s.*, i.name as item_name 
+            "SELECT s.*, i.name as item_name, i.category as item_category
              FROM {$sessions_table} s 
              LEFT JOIN {$items_table} i ON s.practice_item_id = i.id 
              WHERE s.user_id = %d 
@@ -139,11 +139,7 @@ class JPH_Database {
             $user_id, $limit, $offset
         );
         
-        error_log('Practice Sessions Query: ' . $query);
-        
         $sessions = $wpdb->get_results($query, ARRAY_A);
-        
-        error_log('Practice Sessions Result: ' . print_r($sessions, true));
         
         return $sessions ?: array();
     }
@@ -656,9 +652,10 @@ class JPH_Database {
                 s.total_minutes,
                 s.badges_earned,
                 s.display_name,
-                COALESCE(s.display_name, u.display_name, u.user_login) as leaderboard_name
+                COALESCE(s.display_name, u.display_name, u.user_login) as leaderboard_name,
+                u.user_email
              FROM {$stats_table} s
-             LEFT JOIN {$users_table} u ON s.user_id = u.ID
+             INNER JOIN {$users_table} u ON s.user_id = u.ID
              WHERE s.show_on_leaderboard = 1 
                 AND s.total_xp > 0
                 ORDER BY s.{$sort_by} {$sort_order}, s.total_xp DESC
@@ -833,5 +830,20 @@ class JPH_Database {
         );
         
         return $stats ?: array();
+    }
+    
+    /**
+     * Get total count of leaderboard users
+     */
+    public function get_leaderboard_total_count() {
+        global $wpdb;
+        
+        $stats_table = $wpdb->prefix . 'jph_user_stats';
+        
+        $count = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$stats_table} WHERE show_on_leaderboard = 1 AND total_xp > 0"
+        );
+        
+        return (int) $count;
     }
 }

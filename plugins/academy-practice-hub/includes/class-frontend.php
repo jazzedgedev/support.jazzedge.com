@@ -21,6 +21,88 @@ class JPH_Frontend {
     }
     
     /**
+     * Sanitize user stats for output
+     */
+    private function sanitize_user_stats($user_stats) {
+        if (!is_array($user_stats)) {
+            return $user_stats;
+        }
+        
+        $sanitized = array();
+        foreach ($user_stats as $key => $value) {
+            if (is_string($value)) {
+                $sanitized[$key] = esc_html($value);
+            } elseif (is_numeric($value)) {
+                $sanitized[$key] = intval($value);
+            } else {
+                $sanitized[$key] = $value;
+            }
+        }
+        
+        return $sanitized;
+    }
+    
+    /**
+     * Sanitize practice items for output
+     */
+    private function sanitize_practice_items($items) {
+        if (!is_array($items)) {
+            return $items;
+        }
+        
+        $sanitized = array();
+        foreach ($items as $item) {
+            if (is_array($item)) {
+                $sanitized_item = array();
+                foreach ($item as $key => $value) {
+                    if (is_string($value)) {
+                        $sanitized_item[$key] = esc_html($value);
+                    } elseif ($key === 'url' && !empty($value)) {
+                        $sanitized_item[$key] = esc_url($value);
+                    } else {
+                        $sanitized_item[$key] = $value;
+                    }
+                }
+                $sanitized[] = $sanitized_item;
+            } else {
+                $sanitized[] = $item;
+            }
+        }
+        
+        return $sanitized;
+    }
+    
+    /**
+     * Sanitize leaderboard data for output
+     */
+    private function sanitize_leaderboard($leaderboard) {
+        if (!is_array($leaderboard)) {
+            return $leaderboard;
+        }
+        
+        $sanitized = array();
+        foreach ($leaderboard as $user) {
+            if (is_array($user)) {
+                $sanitized_user = array();
+                foreach ($user as $key => $value) {
+                    if (is_string($value)) {
+                        $sanitized_user[$key] = esc_html($value);
+                    } elseif (is_numeric($value)) {
+                        $sanitized_user[$key] = intval($value);
+                    } else {
+                        $sanitized_user[$key] = $value;
+                    }
+                }
+                $sanitized[] = $sanitized_user;
+            } else {
+                $sanitized[] = $user;
+            }
+        }
+        
+        return $sanitized;
+    }
+    
+    /**
      * Render the student dashboard
      */
     public function render_dashboard($atts) {
@@ -33,9 +115,11 @@ class JPH_Frontend {
         
         // Get user's practice items
         $practice_items = $this->database->get_user_practice_items($user_id);
+        $practice_items = $this->sanitize_practice_items($practice_items);
         
         // Get user's lesson favorites for matching URLs
         $lesson_favorites = $this->database->get_lesson_favorites($user_id);
+        $lesson_favorites = $this->sanitize_practice_items($lesson_favorites); // Reuse the same sanitization
         
         // Create a lookup array for practice item names to lesson URLs
         $lesson_urls = array();
@@ -48,6 +132,9 @@ class JPH_Frontend {
         // Get user stats using gamification system
         $gamification = new APH_Gamification();
         $user_stats = $gamification->get_user_stats($user_id);
+        
+        // Sanitize user stats for output
+        $user_stats = $this->sanitize_user_stats($user_stats);
         
         // Enqueue scripts and styles
         wp_enqueue_script('jquery');

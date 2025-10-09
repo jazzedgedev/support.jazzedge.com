@@ -13,9 +13,19 @@ if (!defined('ABSPATH')) {
 class JPH_REST_API {
     
     private $database;
+    private $logger;
+    private $rate_limiter;
+    private $cache;
+    private $validator;
+    private $audit_logger;
     
     public function __construct() {
         $this->database = new JPH_Database();
+        $this->logger = JPH_Logger::get_instance();
+        $this->rate_limiter = JPH_Rate_Limiter::get_instance();
+        $this->cache = JPH_Cache::get_instance();
+        $this->validator = JPH_Validator::get_instance();
+        $this->audit_logger = JPH_Audit_Logger::get_instance();
         add_action('rest_api_init', array($this, 'register_rest_routes'));
     }
     
@@ -23,25 +33,25 @@ class JPH_REST_API {
      * Register REST API routes
      */
     public function register_rest_routes() {
-        // Test endpoint
+        // Test endpoint (admin only)
         register_rest_route('aph/v1', '/test', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_test'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_admin_permission')
         ));
         
-        // Debug endpoint to check if routes are registered
+        // Debug endpoint to check if routes are registered (admin only)
         register_rest_route('aph/v1', '/debug/routes', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_debug_routes'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Leaderboard endpoints
         register_rest_route('aph/v1', '/leaderboard', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_leaderboard'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_rate_limit_permission')
         ));
         
         register_rest_route('aph/v1', '/leaderboard/position', array(
@@ -53,7 +63,7 @@ class JPH_REST_API {
         register_rest_route('aph/v1', '/leaderboard/stats', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_leaderboard_stats'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'check_rate_limit_permission')
         ));
         
         register_rest_route('aph/v1', '/leaderboard/display-name', array(
@@ -376,6 +386,22 @@ class JPH_REST_API {
     }
     
     /**
+     * Check rate limit for public endpoints
+     */
+    public function check_rate_limit_permission($request) {
+        $endpoint = $request->get_route();
+        $user_id = get_current_user_id();
+        
+        $rate_limit_check = $this->rate_limiter->check_rate_limit($endpoint, $user_id);
+        
+        if (is_wp_error($rate_limit_check)) {
+            return $rate_limit_check;
+        }
+        
+        return true;
+    }
+    
+    /**
      * Test endpoint
      */
     public function rest_test($request) {
@@ -477,7 +503,7 @@ class JPH_REST_API {
         $xp_result = $gamification->add_xp($user_id, $xp_earned);
         
         if (!$xp_result) {
-            error_log('JPH: Failed to add XP for user ' . $user_id . ' - this will prevent badge checks');
+            $this->logger->error('Failed to add XP for user', array('user_id' => $user_id));
             // Continue anyway, but log the issue
         }
         
@@ -507,7 +533,13 @@ class JPH_REST_API {
         $start_date = $request->get_param('start_date');
         $end_date = $request->get_param('end_date');
         
-        error_log('Practice Sessions API: User ID: ' . $user_id . ', Limit: ' . $limit . ', Offset: ' . $offset . ', Start Date: ' . $start_date . ', End Date: ' . $end_date);
+        $this->logger->debug('Practice Sessions API request', array(
+            'user_id' => $user_id,
+            'limit' => $limit,
+            'offset' => $offset,
+            'start_date' => $start_date,
+            'end_date' => $end_date
+        ));
         
         // If date filtering is requested, use direct database query
         if ($start_date || $end_date) {
@@ -559,7 +591,7 @@ class JPH_REST_API {
             $has_more = count($sessions) >= $limit;
         }
         
-        error_log('Practice Sessions API: Retrieved ' . count($sessions) . ' sessions');
+        $this->logger->debug('Practice Sessions API response', array('session_count' => count($sessions)));
         
         if (is_wp_error($sessions)) {
             return $sessions;
@@ -2193,46 +2225,48 @@ class JPH_REST_API {
         $sessions = $wpdb->get_results($sessions_query, ARRAY_A);
         
         // Debug: Log the query and results
-        error_log("AI Analysis Debug - User ID: " . $user_id);
-        error_log("AI Analysis Debug - Date Range: " . $thirty_days_ago . " to " . $current_time);
-        error_log("AI Analysis Debug - SQL Query: " . $sessions_query);
-        error_log("AI Analysis Debug - Sessions Found: " . count($sessions));
+        $this->logger->debug('AI Analysis Debug', array(
+            'user_id' => $user_id,
+            'date_range' => $thirty_days_ago . ' to ' . $current_time,
+            'sql_query' => $sessions_query,
+            'sessions_found' => count($sessions)
+        ));
         
         // Log some sample session dates for debugging
         if (!empty($sessions)) {
-            error_log("AI Analysis Debug - Sample session dates:");
-            foreach (array_slice($sessions, 0, 3) as $session) {
-                error_log("  - Session date: " . $session['created_at']);
-            }
+            $sample_dates = array_column(array_slice($sessions, 0, 3), 'created_at');
+            $this->logger->debug('AI Analysis Debug - Sample session dates', array('dates' => $sample_dates));
         }
         
         // Also check if tables exist and have data
         $sessions_count_total = $wpdb->get_var("SELECT COUNT(*) FROM $sessions_table WHERE user_id = $user_id");
         $sessions_count_30_days = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $sessions_table WHERE user_id = %d AND created_at >= %s", $user_id, $thirty_days_ago));
         
-        error_log("AI Analysis Debug - Total sessions for user: " . $sessions_count_total);
-        error_log("AI Analysis Debug - Sessions in last 30 days: " . $sessions_count_30_days);
+        $this->logger->debug('AI Analysis Debug - Session counts', array(
+            'total_sessions' => $sessions_count_total,
+            'sessions_30_days' => $sessions_count_30_days
+        ));
         
         // Check table structure
         $table_structure = $wpdb->get_results("DESCRIBE $sessions_table", ARRAY_A);
-        error_log("AI Analysis Debug - Sessions table structure: " . print_r($table_structure, true));
+        $this->logger->debug('AI Analysis Debug - Sessions table structure', array('structure' => $table_structure));
         
         // Additional debugging - check if tables exist
         $tables_exist = $wpdb->get_results("SHOW TABLES LIKE '{$wpdb->prefix}jph_%'", ARRAY_A);
-        error_log("AI Analysis Debug - JPH tables found: " . print_r($tables_exist, true));
+        $this->logger->debug('AI Analysis Debug - JPH tables found', array('tables' => $tables_exist));
         
         // Check if user exists in user_stats table
         $user_in_stats = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $stats_table WHERE user_id = %d", $user_id));
-        error_log("AI Analysis Debug - User found in stats table: " . $user_in_stats);
+        $this->logger->debug('AI Analysis Debug - User found in stats table', array('count' => $user_in_stats));
         
         // Check recent sessions without date filter
         $recent_sessions = $wpdb->get_results($wpdb->prepare("SELECT * FROM $sessions_table WHERE user_id = %d ORDER BY created_at DESC LIMIT 5", $user_id), ARRAY_A);
-        error_log("AI Analysis Debug - Recent sessions for user: " . print_r($recent_sessions, true));
+        $this->logger->debug('AI Analysis Debug - Recent sessions for user', array('sessions' => $recent_sessions));
         
         // Test the date comparison directly
         $test_query = $wpdb->prepare("SELECT COUNT(*) as count, MIN(created_at) as earliest, MAX(created_at) as latest FROM $sessions_table WHERE user_id = %d AND created_at >= %s", $user_id, $thirty_days_ago);
         $test_result = $wpdb->get_row($test_query, ARRAY_A);
-        error_log("AI Analysis Debug - Date test result: " . print_r($test_result, true));
+        $this->logger->debug('AI Analysis Debug - Date test result', array('result' => $test_result));
         
         // Test with different date formats
         $test_date_formats = array(
@@ -2241,10 +2275,12 @@ class JPH_REST_API {
             'Y-m-d 00:00:00' => date('Y-m-d 00:00:00', strtotime('-30 days', current_time('timestamp')))
         );
         
+        $test_results = array();
         foreach ($test_date_formats as $format => $test_date) {
             $test_count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $sessions_table WHERE user_id = %d AND created_at >= %s", $user_id, $test_date));
-            error_log("AI Analysis Debug - Test with format '$format' ($test_date): $test_count sessions found");
+            $test_results[$format] = array('date' => $test_date, 'count' => $test_count);
         }
+        $this->logger->debug('AI Analysis Debug - Date format tests', array('results' => $test_results));
         
         // Get user stats
         $user_stats = $wpdb->get_row($wpdb->prepare("
@@ -2376,7 +2412,7 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
         
         if (is_wp_error($ai_response)) {
             // Fallback to basic analysis if AI service fails
-            error_log("AI service failed, using fallback analysis: " . $ai_response->get_error_message());
+            $this->logger->warning('AI service failed, using fallback analysis', array('error' => $ai_response->get_error_message()));
             $ai_response = $this->generate_fallback_analysis($sessions, $user_stats, $debug_info);
         }
         
@@ -2484,8 +2520,10 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
         $response_status = $response->get_status();
         
         // Debug logging
-        error_log("Katahdin AI Hub Response Status: " . $response_status);
-        error_log("Katahdin AI Hub Response Data: " . print_r($response_data, true));
+        $this->logger->debug('Katahdin AI Hub Response', array(
+            'status' => $response_status,
+            'data' => $response_data
+        ));
         
         if ($response_status !== 200) {
             $error_message = isset($response_data['message']) ? $response_data['message'] : 'Unknown error';
@@ -3146,25 +3184,56 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             $sort_order = $request->get_param('sort_order') ?: 'desc';
             
             // Validate parameters
+            $validation = $this->validator->validate_pagination($limit, $offset);
+            if (is_wp_error($validation)) {
+                return $validation;
+            }
+            
+            $validation = $this->validator->validate_sort($sort_by, $sort_order);
+            if (is_wp_error($validation)) {
+                return $validation;
+            }
+            
             $limit = max(1, min(100, intval($limit)));
             $offset = max(0, intval($offset));
             
-            $leaderboard = $this->database->get_leaderboard($limit, $offset, $sort_by, $sort_order);
+            // Try to get from cache first
+            $leaderboard = $this->cache->get_cached_leaderboard($sort_by, $sort_order, $limit, $offset);
+            
+            if ($leaderboard === false) {
+                // Cache miss - get from database
+                $leaderboard = $this->database->get_leaderboard($limit, $offset, $sort_by, $sort_order);
+                
+                // Cache the result
+                $this->cache->cache_leaderboard($sort_by, $sort_order, $limit, $offset, $leaderboard);
+            }
             
             // Add position numbers
             foreach ($leaderboard as $index => $user) {
                 $leaderboard[$index]['position'] = $offset + $index + 1;
             }
             
-            return rest_ensure_response(array(
+            // Get total count for pagination
+            $total_count = $this->database->get_leaderboard_total_count();
+            
+            $response = rest_ensure_response(array(
                 'success' => true,
                 'data' => $leaderboard,
                 'pagination' => array(
                     'limit' => $limit,
                     'offset' => $offset,
-                    'sort_by' => $sort_by
+                    'total' => $total_count,
+                    'total_pages' => ceil($total_count / $limit),
+                    'current_page' => floor($offset / $limit) + 1,
+                    'sort_by' => $sort_by,
+                    'sort_order' => $sort_order
                 )
             ));
+            
+            // Add rate limit headers
+            $response = $this->rate_limiter->add_rate_limit_headers($response, $request->get_route(), get_current_user_id());
+            
+            return $response;
             
         } catch (Exception $e) {
             return new WP_Error('leaderboard_error', 'Error retrieving leaderboard: ' . $e->getMessage(), array('status' => 500));
@@ -3213,9 +3282,10 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             
             $display_name = $request->get_param('display_name');
             
-            // Allow empty display name (will use WordPress display name)
-            if ($display_name !== null && strlen($display_name) > 100) {
-                return new WP_Error('invalid_display_name', 'Display name must be 100 characters or less', array('status' => 400));
+            // Validate display name
+            $validation = $this->validator->validate_display_name($display_name);
+            if (is_wp_error($validation)) {
+                return $validation;
             }
             
             $result = $this->database->update_user_display_name($user_id, $display_name);
@@ -3223,6 +3293,15 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             if (!$result) {
                 return new WP_Error('update_failed', 'Failed to update display name', array('status' => 500));
             }
+            
+            // Invalidate cache since leaderboard data changed
+            $this->cache->invalidate_user_cache($user_id);
+            
+            // Log the action
+            $this->audit_logger->log_user_action('display_name_updated', array(
+                'old_display_name' => $request->get_param('old_display_name'),
+                'new_display_name' => $display_name
+            ), $user_id);
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -3282,12 +3361,26 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
      */
     public function rest_get_leaderboard_stats($request) {
         try {
-            $stats = $this->database->get_leaderboard_stats();
+            // Try to get from cache first
+            $stats = $this->cache->get_cached_leaderboard_stats();
             
-            return rest_ensure_response(array(
+            if ($stats === false) {
+                // Cache miss - get from database
+                $stats = $this->database->get_leaderboard_stats();
+                
+                // Cache the result
+                $this->cache->cache_leaderboard_stats($stats);
+            }
+            
+            $response = rest_ensure_response(array(
                 'success' => true,
                 'data' => $stats
             ));
+            
+            // Add rate limit headers
+            $response = $this->rate_limiter->add_rate_limit_headers($response, $request->get_route(), get_current_user_id());
+            
+            return $response;
             
         } catch (Exception $e) {
             return new WP_Error('stats_error', 'Error retrieving leaderboard statistics: ' . $e->getMessage(), array('status' => 500));
@@ -3365,7 +3458,8 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
                 $display_name = $test_names[$i];
                 
                 // Always create new user since we cleared existing ones
-                $user_id = wp_create_user($username, 'testpassword123', $email);
+                $password = wp_generate_password(12, true, true); // Generate secure random password
+                $user_id = wp_create_user($username, $password, $email);
                 if (is_wp_error($user_id)) {
                     continue; // Skip if user creation failed
                 }
@@ -3478,6 +3572,14 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
                     }
                 }
             }
+            
+            // Log the admin action
+            $this->audit_logger->log_admin_action('test_data_generated', array(
+                'students_created' => $students_created,
+                'sessions_created' => $sessions_created,
+                'items_created' => $items_created,
+                'badges_awarded' => $badges_awarded
+            ));
             
             return rest_ensure_response(array(
                 'success' => true,
