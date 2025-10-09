@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Academy Practice Hub
- * Description: Refactor scaffold for JazzEdge Practice Hub (no behavior yet).
- * Version: 3.0
+ * Description: Complete practice tracking and gamification system with leaderboards, badges, and progress analytics for JazzEdge Academy students.
+ * Version: 4.0
  * Author: JazzEdge
  * Text Domain: academy-practice-hub
  */
@@ -16,11 +16,23 @@ if (!defined('APH_WIRE_THROUGH')) {
 }
 
 // Load required classes (we'll instantiate conditionally)
+require_once __DIR__ . '/includes/database-schema.php';
 require_once __DIR__ . '/includes/class-database.php';
 require_once __DIR__ . '/includes/class-gamification.php';
 require_once __DIR__ . '/includes/class-rest-api.php';
 require_once __DIR__ . '/includes/class-admin-pages.php';
 require_once __DIR__ . '/includes/class-frontend.php';
+
+// Initialize database schema on activation
+register_activation_hook(__FILE__, 'aph_activate');
+
+function aph_activate() {
+    // Create tables
+    APH_Database_Schema::create_tables();
+    
+    // Add leaderboard columns to existing tables
+    APH_Database_Schema::add_leaderboard_columns();
+}
 
 // Initialize REST API
 new JPH_REST_API();
@@ -40,7 +52,7 @@ if (APH_FRONTEND_SEPARATED) {
 add_action('katahdin_ai_hub_init', function($hub) {
     $hub->register_plugin('academy-practice-hub', array(
         'name' => 'Academy Practice Hub',
-        'version' => '3.0',
+        'version' => '4.0',
         'features' => array('chat', 'completions'),
         'quota_limit' => 5000 // tokens per month
     ));
@@ -53,7 +65,7 @@ add_action('init', function() {
         if ($hub && method_exists($hub, 'register_plugin')) {
             $hub->register_plugin('academy-practice-hub', array(
                 'name' => 'Academy Practice Hub',
-                'version' => '3.0',
+                'version' => '4.0',
                 'features' => array('chat', 'completions'),
                 'quota_limit' => 5000 // tokens per month
             ));
@@ -68,7 +80,7 @@ add_action('admin_init', function() {
         if ($hub && method_exists($hub, 'register_plugin')) {
             $hub->register_plugin('academy-practice-hub', array(
                 'name' => 'Academy Practice Hub',
-                'version' => '3.0',
+                'version' => '4.0',
                 'features' => array('chat', 'completions'),
                 'quota_limit' => 5000 // tokens per month
             ));

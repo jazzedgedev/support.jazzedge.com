@@ -36,7 +36,9 @@ class JPH_Database {
                 'gems_balance' => 0,
                 'hearts_count' => 5,
                 'streak_shield_count' => 0,
-                'last_practice_date' => null
+                'last_practice_date' => null,
+                'display_name' => null,
+                'show_on_leaderboard' => 1
             );
         }
         
@@ -51,7 +53,9 @@ class JPH_Database {
             'gems_balance' => (int) $stats->gems_balance,
             'hearts_count' => (int) $stats->hearts_count,
             'streak_shield_count' => (int) $stats->streak_shield_count,
-            'last_practice_date' => $stats->last_practice_date
+            'last_practice_date' => $stats->last_practice_date,
+            'display_name' => $stats->display_name,
+            'show_on_leaderboard' => (int) $stats->show_on_leaderboard
         );
     }
     
@@ -619,5 +623,190 @@ class JPH_Database {
         ), ARRAY_A);
         
         return $favorite;
+    }
+    
+    /**
+     * Get leaderboard data
+     */
+    public function get_leaderboard($limit = 50, $offset = 0, $sort_by = 'total_xp') {
+        global $wpdb;
+        
+        $stats_table = $wpdb->prefix . 'jph_user_stats';
+        $users_table = $wpdb->users;
+        
+        // Validate sort_by parameter
+        $allowed_sorts = array('total_xp', 'current_level', 'current_streak', 'total_sessions', 'total_minutes');
+        if (!in_array($sort_by, $allowed_sorts)) {
+            $sort_by = 'total_xp';
+        }
+        
+        $query = $wpdb->prepare(
+            "SELECT 
+                s.user_id,
+                s.total_xp,
+                s.current_level,
+                s.current_streak,
+                s.total_sessions,
+                s.total_minutes,
+                s.badges_earned,
+                s.display_name,
+                COALESCE(s.display_name, u.display_name, u.user_login) as leaderboard_name
+             FROM {$stats_table} s
+             LEFT JOIN {$users_table} u ON s.user_id = u.ID
+             WHERE s.show_on_leaderboard = 1
+             ORDER BY s.{$sort_by} DESC, s.total_xp DESC
+             LIMIT %d OFFSET %d",
+            $limit, $offset
+        );
+        
+        $leaderboard = $wpdb->get_results($query, ARRAY_A);
+        
+        return $leaderboard ?: array();
+    }
+    
+    /**
+     * Get user's leaderboard position
+     */
+    public function get_user_leaderboard_position($user_id, $sort_by = 'total_xp') {
+        global $wpdb;
+        
+        $stats_table = $wpdb->prefix . 'jph_user_stats';
+        
+        // Validate sort_by parameter
+        $allowed_sorts = array('total_xp', 'current_level', 'current_streak', 'total_sessions', 'total_minutes');
+        if (!in_array($sort_by, $allowed_sorts)) {
+            $sort_by = 'total_xp';
+        }
+        
+        // Get user's stats
+        $user_stats = $wpdb->get_row($wpdb->prepare(
+            "SELECT {$sort_by} FROM {$stats_table} WHERE user_id = %d",
+            $user_id
+        ), ARRAY_A);
+        
+        if (!$user_stats) {
+            return null;
+        }
+        
+        $user_value = $user_stats[$sort_by];
+        
+        // Count users with better stats
+        $position = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) + 1 
+             FROM {$stats_table} 
+             WHERE show_on_leaderboard = 1 
+             AND {$sort_by} > %d",
+            $user_value
+        ));
+        
+        return (int) $position;
+    }
+    
+    /**
+     * Update user display name
+     */
+    public function update_user_display_name($user_id, $display_name) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Sanitize display name
+        $display_name = sanitize_text_field($display_name);
+        
+        // Check if user stats exist
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d",
+            $user_id
+        ));
+        
+        if (!$existing) {
+            // Create new stats record with display name
+            $result = $wpdb->insert(
+                $table_name,
+                array(
+                    'user_id' => $user_id,
+                    'display_name' => $display_name,
+                    'show_on_leaderboard' => 1
+                ),
+                array('%d', '%s', '%d')
+            );
+        } else {
+            // Update existing stats
+            $result = $wpdb->update(
+                $table_name,
+                array('display_name' => $display_name),
+                array('user_id' => $user_id),
+                array('%s'),
+                array('%d')
+            );
+        }
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Update user leaderboard visibility
+     */
+    public function update_user_leaderboard_visibility($user_id, $show_on_leaderboard) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Convert boolean to int
+        $show_on_leaderboard = $show_on_leaderboard ? 1 : 0;
+        
+        // Check if user stats exist
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d",
+            $user_id
+        ));
+        
+        if (!$existing) {
+            // Create new stats record
+            $result = $wpdb->insert(
+                $table_name,
+                array(
+                    'user_id' => $user_id,
+                    'show_on_leaderboard' => $show_on_leaderboard
+                ),
+                array('%d', '%d')
+            );
+        } else {
+            // Update existing stats
+            $result = $wpdb->update(
+                $table_name,
+                array('show_on_leaderboard' => $show_on_leaderboard),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+        }
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Get leaderboard stats summary
+     */
+    public function get_leaderboard_stats() {
+        global $wpdb;
+        
+        $stats_table = $wpdb->prefix . 'jph_user_stats';
+        
+        $stats = $wpdb->get_row(
+            "SELECT 
+                COUNT(*) as total_users,
+                COUNT(CASE WHEN show_on_leaderboard = 1 THEN 1 END) as leaderboard_users,
+                AVG(total_xp) as avg_xp,
+                MAX(total_xp) as max_xp,
+                AVG(current_level) as avg_level,
+                MAX(current_level) as max_level,
+                AVG(current_streak) as avg_streak,
+                MAX(current_streak) as max_streak
+             FROM {$stats_table}",
+            ARRAY_A
+        );
+        
+        return $stats ?: array();
     }
 }

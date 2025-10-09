@@ -37,6 +37,43 @@ class JPH_REST_API {
             'permission_callback' => '__return_true'
         ));
         
+        // Leaderboard endpoints
+        register_rest_route('aph/v1', '/leaderboard', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_leaderboard'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('aph/v1', '/leaderboard/position', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_user_position'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/leaderboard/stats', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_leaderboard_stats'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('aph/v1', '/leaderboard/display-name', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_update_display_name'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/leaderboard/visibility', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_update_leaderboard_visibility'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/user-stats', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_user_stats'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Practice Sessions endpoints
         register_rest_route('aph/v1', '/practice-sessions', array(
             'methods' => 'POST',
@@ -3061,6 +3098,186 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             
         } catch (Exception $e) {
             return new WP_Error('import_error', 'Error importing user data: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get leaderboard data
+     */
+    public function rest_get_leaderboard($request) {
+        try {
+            $limit = $request->get_param('limit') ?: 50;
+            $offset = $request->get_param('offset') ?: 0;
+            $sort_by = $request->get_param('sort_by') ?: 'total_xp';
+            
+            // Validate parameters
+            $limit = max(1, min(100, intval($limit)));
+            $offset = max(0, intval($offset));
+            
+            $leaderboard = $this->database->get_leaderboard($limit, $offset, $sort_by);
+            
+            // Add position numbers
+            foreach ($leaderboard as $index => $user) {
+                $leaderboard[$index]['position'] = $offset + $index + 1;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $leaderboard,
+                'pagination' => array(
+                    'limit' => $limit,
+                    'offset' => $offset,
+                    'sort_by' => $sort_by
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('leaderboard_error', 'Error retrieving leaderboard: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get user's leaderboard position
+     */
+    public function rest_get_user_position($request) {
+        try {
+            $user_id = get_current_user_id();
+            $sort_by = $request->get_param('sort_by') ?: 'total_xp';
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $position = $this->database->get_user_leaderboard_position($user_id, $sort_by);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'user_id' => $user_id,
+                    'position' => $position,
+                    'sort_by' => $sort_by
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('position_error', 'Error retrieving user position: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update user display name
+     */
+    public function rest_update_display_name($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $display_name = $request->get_param('display_name');
+            
+            // Allow empty display name (will use WordPress display name)
+            if ($display_name !== null && strlen($display_name) > 100) {
+                return new WP_Error('invalid_display_name', 'Display name must be 100 characters or less', array('status' => 400));
+            }
+            
+            $result = $this->database->update_user_display_name($user_id, $display_name);
+            
+            if (!$result) {
+                return new WP_Error('update_failed', 'Failed to update display name', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Display name updated successfully',
+                'data' => array(
+                    'user_id' => $user_id,
+                    'display_name' => $display_name
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('update_error', 'Error updating display name: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update user leaderboard visibility
+     */
+    public function rest_update_leaderboard_visibility($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $show_on_leaderboard = $request->get_param('show_on_leaderboard');
+            
+            if (!is_bool($show_on_leaderboard) && !in_array($show_on_leaderboard, array(0, 1, '0', '1'))) {
+                return new WP_Error('invalid_visibility', 'show_on_leaderboard must be true or false', array('status' => 400));
+            }
+            
+            $show_on_leaderboard = (bool) $show_on_leaderboard;
+            
+            $result = $this->database->update_user_leaderboard_visibility($user_id, $show_on_leaderboard);
+            
+            if (!$result) {
+                return new WP_Error('update_failed', 'Failed to update leaderboard visibility', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Leaderboard visibility updated successfully',
+                'data' => array(
+                    'user_id' => $user_id,
+                    'show_on_leaderboard' => $show_on_leaderboard
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('update_error', 'Error updating leaderboard visibility: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get leaderboard statistics
+     */
+    public function rest_get_leaderboard_stats($request) {
+        try {
+            $stats = $this->database->get_leaderboard_stats();
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $stats
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('stats_error', 'Error retrieving leaderboard statistics: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get current user's stats including display name
+     */
+    public function rest_get_user_stats($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $user_stats = $this->database->get_user_stats($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $user_stats
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('user_stats_error', 'Error retrieving user stats: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

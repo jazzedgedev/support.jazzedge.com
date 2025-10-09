@@ -17,6 +17,7 @@ class JPH_Frontend {
     public function __construct() {
         $this->database = new JPH_Database();
         add_shortcode('jph_dashboard', array($this, 'render_dashboard'));
+        add_shortcode('jph_leaderboard', array($this, 'render_leaderboard'));
     }
     
     /**
@@ -68,15 +69,17 @@ class JPH_Frontend {
             <div class="jph-header">
                 <div class="header-top">
                     <h2>🎹 Your Practice Dashboard</h2>
-                    <!-- Stats Explanation Button - Top Right -->
-                    <button id="jph-stats-explanation-btn" type="button" class="jph-btn jph-btn-secondary jph-stats-help-btn">
-                        <span class="btn-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-                            </svg>
-                        </span>
-                        How do these stats work?
-                    </button>
+                    <div class="header-actions">
+                        <!-- Stats Explanation Button -->
+                        <button id="jph-stats-explanation-btn" type="button" class="jph-btn jph-btn-secondary jph-stats-help-btn">
+                            <span class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                                </svg>
+                            </span>
+                            How do these stats work?
+                        </button>
+                    </div>
                 </div>
                 <div class="jph-stats">
                     <div class="stat">
@@ -598,6 +601,32 @@ class JPH_Frontend {
             <?php endif; ?>
         </div>
         
+        <!-- Display Name Settings Modal -->
+        <div id="jph-display-name-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h3>Leaderboard Display Name</h3>
+                    <span class="jph-close"><i class="fa-solid fa-circle-xmark"></i></span>
+                </div>
+                <div class="jph-modal-body">
+                    <div class="jph-display-name-form">
+                        <p>Set how your name appears on the leaderboard. This name will be visible to other users.</p>
+                        
+                        <div class="jph-form-group">
+                            <label for="jph-display-name-input">Display Name:</label>
+                            <input type="text" id="jph-display-name-input" class="jph-input" placeholder="Enter your leaderboard name" maxlength="100">
+                            <small class="jph-help-text">Leave empty to use your WordPress display name</small>
+                        </div>
+                        
+                        <div class="jph-form-actions">
+                            <button id="jph-save-display-name" class="jph-btn jph-btn-primary">Save Name</button>
+                            <button id="jph-cancel-display-name" class="jph-btn jph-btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Stats Explanation Modal -->
         <div id="jph-stats-explanation-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
@@ -911,6 +940,12 @@ class JPH_Frontend {
             font-size: 1.8em;
             font-weight: 700;
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
         
         .jph-stats-help-btn {
@@ -1757,6 +1792,93 @@ class JPH_Frontend {
         
         #jph-stats-explanation-modal .jph-modal-body {
             padding: 30px 0;
+        }
+        
+        /* Display Name Modal Styles */
+        #jph-display-name-modal .jph-modal-content {
+            max-width: 500px;
+            padding: 30px;
+        }
+        
+        #jph-display-name-modal .jph-modal-header {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: -30px -30px 0 -30px;
+        }
+        
+        #jph-display-name-modal .jph-modal-header h3 {
+            margin: 0;
+            color: white;
+            font-size: 1.4em;
+        }
+        
+        #jph-display-name-modal .jph-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        #jph-display-name-modal .jph-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        #jph-display-name-modal .jph-modal-body {
+            padding: 30px 0;
+        }
+        
+        .jph-display-name-form p {
+            margin-bottom: 25px;
+            color: #666;
+            line-height: 1.5;
+        }
+        
+        .jph-form-group {
+            margin-bottom: 25px;
+        }
+        
+        .jph-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .jph-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+        
+        .jph-input:focus {
+            outline: none;
+            border-color: #004555;
+        }
+        
+        .jph-help-text {
+            display: block;
+            margin-top: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .jph-form-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
         }
         
         /* Practice Type Selection Styles */
@@ -4148,6 +4270,7 @@ class JPH_Frontend {
             initPracticeSessionHandlers();
             initShieldHandlers();
             initStatsHandlers();
+            initDisplayNameHandlers();
             
             // Clean Neuroscience Tips (Adult-oriented)
             function initNeuroscienceTips() {
@@ -5762,6 +5885,118 @@ class JPH_Frontend {
                 });
             }
             
+            // Initialize display name handlers
+            function initDisplayNameHandlers() {
+                // Display name button
+                $('#jph-display-name-btn').on('click', function() {
+                    // Set WordPress display name immediately
+                    const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
+                    $('#jph-display-name-input').val(wpDisplayName);
+                    
+                    // Then load any custom display name
+                    loadCurrentDisplayName();
+                    $('#jph-display-name-modal').show();
+                });
+                
+                // Close modal when clicking the X
+                $('#jph-display-name-modal .jph-close').on('click', function() {
+                    $('#jph-display-name-modal').hide();
+                });
+                
+                // Cancel button
+                $('#jph-cancel-display-name').on('click', function() {
+                    $('#jph-display-name-modal').hide();
+                });
+                
+                // Save display name
+                $('#jph-save-display-name').on('click', function() {
+                    saveDisplayName();
+                });
+                
+                // Close modal when clicking outside
+                $(window).on('click', function(event) {
+                    if (event.target.id === 'jph-display-name-modal') {
+                        $('#jph-display-name-modal').hide();
+                    }
+                });
+                
+                // Enter key to save
+                $('#jph-display-name-input').on('keypress', function(e) {
+                    if (e.which === 13) { // Enter key
+                        saveDisplayName();
+                    }
+                });
+            }
+            
+            // Load current display name
+            function loadCurrentDisplayName() {
+                // Get current user's custom display name from user stats
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/user-stats'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.data.display_name) {
+                            // Use custom display name if set (override WordPress name)
+                            $('#jph-display-name-input').val(response.data.display_name);
+                        }
+                        // If no custom display name, keep the WordPress name that was already set
+                    },
+                    error: function() {
+                        // Keep the WordPress name that was already set
+                        console.log('Failed to load custom display name, keeping WordPress name');
+                    }
+                });
+            }
+            
+            // Save display name
+            function saveDisplayName() {
+                const displayName = $('#jph-display-name-input').val().trim();
+                const saveBtn = $('#jph-save-display-name');
+                const messageDiv = $('#jph-display-name-message');
+                
+                // Disable save button
+                saveBtn.prop('disabled', true).text('Saving...');
+                messageDiv.hide();
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/leaderboard/display-name'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: {
+                        display_name: displayName
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            showModalMessage('Display name updated successfully!', 'success');
+                            $('#jph-display-name-modal').hide();
+                        } else {
+                            showModalMessage('Failed to update display name: ' + (response.message || 'Unknown error'), 'error');
+                        }
+                    },
+                    error: function(xhr) {
+                        let errorMessage = 'Failed to update display name';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMessage = xhr.responseJSON.message;
+                        }
+                        showModalMessage(errorMessage, 'error');
+                    },
+                    complete: function() {
+                        saveBtn.prop('disabled', false).text('Save Name');
+                    }
+                });
+            }
+            
+            // Show message in display name modal (use main notification system)
+            function showModalMessage(text, type) {
+                // Use the main showMessage function for consistent styling
+                showMessage(text, type);
+            }
+            
             // Initialize drag and drop for practice items
             function initDragAndDrop() {
                 let draggedElement = null;
@@ -5900,6 +6135,568 @@ class JPH_Frontend {
         </script>
         <?php
 
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render the leaderboard
+     */
+    public function render_leaderboard($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'limit' => 50,
+            'sort_by' => 'total_xp',
+            'show_user_position' => 'true',
+            'show_stats' => 'true'
+        ), $atts);
+        
+        // Enqueue scripts and styles
+        wp_enqueue_script('jquery');
+        
+        ob_start();
+        ?>
+        <div class="jph-leaderboard" data-limit="<?php echo esc_attr($atts['limit']); ?>" data-sort-by="<?php echo esc_attr($atts['sort_by']); ?>">
+            
+            <!-- Loading State -->
+            <div id="jph-leaderboard-loading" class="jph-loading">
+                <div class="jph-spinner"></div>
+                <p>Loading leaderboard...</p>
+            </div>
+            
+            <!-- Error State -->
+            <div id="jph-leaderboard-error" class="jph-error" style="display: none;">
+                <div class="jph-error-content">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <p>Failed to load leaderboard. Please try again later.</p>
+                </div>
+            </div>
+            
+            <!-- Leaderboard Content -->
+            <div id="jph-leaderboard-content" style="display: none;">
+                
+                <!-- Header -->
+                <div class="jph-leaderboard-header">
+                    <h2>🏆 Practice Leaderboard</h2>
+                    
+                    <!-- Sort Options -->
+                    <div class="jph-leaderboard-sort">
+                        <label for="jph-sort-select">Sort by:</label>
+                        <select id="jph-sort-select" class="jph-sort-select">
+                            <option value="total_xp" <?php selected($atts['sort_by'], 'total_xp'); ?>>Total XP</option>
+                            <option value="current_level" <?php selected($atts['sort_by'], 'current_level'); ?>>Level</option>
+                            <option value="current_streak" <?php selected($atts['sort_by'], 'current_streak'); ?>>Current Streak</option>
+                            <option value="total_sessions" <?php selected($atts['sort_by'], 'total_sessions'); ?>>Total Sessions</option>
+                            <option value="total_minutes" <?php selected($atts['sort_by'], 'total_minutes'); ?>>Total Minutes</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- User Position (if logged in) -->
+                <?php if (is_user_logged_in() && $atts['show_user_position'] === 'true'): ?>
+                <div id="jph-user-position" class="jph-user-position" style="display: none;">
+                    <div class="jph-user-position-content">
+                        <i class="fa-solid fa-user"></i>
+                        <span class="jph-position-text">Your position: <strong id="jph-user-rank">--</strong></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <!-- Leaderboard Stats -->
+                <?php if ($atts['show_stats'] === 'true'): ?>
+                <div id="jph-leaderboard-stats" class="jph-leaderboard-stats" style="display: none;">
+                    <div class="jph-stats-grid">
+                        <div class="jph-stat-item">
+                            <span class="jph-stat-value" id="jph-total-users">--</span>
+                            <span class="jph-stat-label">Total Users</span>
+                        </div>
+                        <div class="jph-stat-item">
+                            <span class="jph-stat-value" id="jph-leaderboard-users">--</span>
+                            <span class="jph-stat-label">On Leaderboard</span>
+                        </div>
+                        <div class="jph-stat-item">
+                            <span class="jph-stat-value" id="jph-avg-xp">--</span>
+                            <span class="jph-stat-label">Average XP</span>
+                        </div>
+                        <div class="jph-stat-item">
+                            <span class="jph-stat-value" id="jph-max-xp">--</span>
+                            <span class="jph-stat-label">Highest XP</span>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <!-- Leaderboard Table -->
+                <div class="jph-leaderboard-table-container">
+                    <table class="jph-leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th class="jph-rank-col">Rank</th>
+                                <th class="jph-name-col">Name</th>
+                                <th class="jph-xp-col">XP</th>
+                                <th class="jph-level-col">Level</th>
+                                <th class="jph-streak-col">Streak</th>
+                                <th class="jph-sessions-col">Sessions</th>
+                                <th class="jph-minutes-col">Minutes</th>
+                                <th class="jph-badges-col">Badges</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jph-leaderboard-tbody">
+                            <!-- Leaderboard data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                <div id="jph-leaderboard-pagination" class="jph-pagination" style="display: none;">
+                    <button id="jph-prev-page" class="jph-btn jph-btn-secondary" disabled>
+                        <i class="fa-solid fa-chevron-left"></i> Previous
+                    </button>
+                    <span id="jph-page-info" class="jph-page-info">Page 1 of 1</span>
+                    <button id="jph-next-page" class="jph-btn jph-btn-secondary" disabled>
+                        Next <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+            </div>
+            
+        </div>
+        
+        <style>
+        .jph-leaderboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .jph-leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .jph-leaderboard-header h2 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .jph-leaderboard-sort {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .jph-leaderboard-sort label {
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .jph-sort-select {
+            padding: 8px 12px;
+            border: 2px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        
+        .jph-sort-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .jph-user-position {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .jph-user-position-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+        }
+        
+        .jph-leaderboard-stats {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .jph-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+        
+        .jph-stat-item {
+            text-align: center;
+        }
+        
+        .jph-stat-value {
+            display: block;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        
+        .jph-stat-label {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .jph-leaderboard-table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 25px;
+        }
+        
+        .jph-leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .jph-leaderboard-table th {
+            background: #f8fafc;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .jph-leaderboard-table td {
+            padding: 15px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+        }
+        
+        .jph-leaderboard-table tbody tr:hover {
+            background: #f9fafb;
+        }
+        
+        .jph-leaderboard-table tbody tr:nth-child(1) {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            color: #1f2937;
+            font-weight: 600;
+        }
+        
+        .jph-leaderboard-table tbody tr:nth-child(2) {
+            background: linear-gradient(135deg, #c0c0c0 0%, #e5e7eb 100%);
+            color: #1f2937;
+            font-weight: 600;
+        }
+        
+        .jph-leaderboard-table tbody tr:nth-child(3) {
+            background: linear-gradient(135deg, #cd7f32 0%, #f59e0b 100%);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .jph-rank-col { width: 80px; text-align: center; }
+        .jph-name-col { width: 200px; }
+        .jph-xp-col { width: 100px; text-align: center; }
+        .jph-level-col { width: 80px; text-align: center; }
+        .jph-streak-col { width: 100px; text-align: center; }
+        .jph-sessions-col { width: 100px; text-align: center; }
+        .jph-minutes-col { width: 100px; text-align: center; }
+        .jph-badges-col { width: 80px; text-align: center; }
+        
+        .jph-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .jph-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jph-btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .jph-btn-secondary:hover:not(:disabled) {
+            background: #e5e7eb;
+        }
+        
+        .jph-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .jph-page-info {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .jph-loading {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .jph-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .jph-error {
+            text-align: center;
+            padding: 40px 20px;
+            color: #dc2626;
+        }
+        
+        .jph-error-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-leaderboard-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .jph-leaderboard-table-container {
+                overflow-x: auto;
+            }
+            
+            .jph-leaderboard-table {
+                min-width: 600px;
+            }
+            
+            .jph-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        </style>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            let currentPage = 0;
+            let currentSort = '<?php echo esc_js($atts['sort_by']); ?>';
+            let currentLimit = <?php echo intval($atts['limit']); ?>;
+            let isLoading = false;
+            
+            // Initialize leaderboard
+            loadLeaderboard();
+            loadUserPosition();
+            loadLeaderboardStats();
+            
+            // Sort change handler
+            $('#jph-sort-select').on('change', function() {
+                currentSort = $(this).val();
+                currentPage = 0;
+                loadLeaderboard();
+                loadUserPosition();
+            });
+            
+            // Pagination handlers
+            $('#jph-prev-page').on('click', function() {
+                if (currentPage > 0 && !isLoading) {
+                    currentPage--;
+                    loadLeaderboard();
+                }
+            });
+            
+            $('#jph-next-page').on('click', function() {
+                if (!isLoading) {
+                    currentPage++;
+                    loadLeaderboard();
+                }
+            });
+            
+            function loadLeaderboard() {
+                if (isLoading) return;
+                
+                isLoading = true;
+                showLoading();
+                
+                const offset = currentPage * currentLimit;
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/leaderboard'); ?>',
+                    method: 'GET',
+                    data: {
+                        limit: currentLimit,
+                        offset: offset,
+                        sort_by: currentSort
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            renderLeaderboard(response.data);
+                            updatePagination(response.pagination);
+                            hideLoading();
+                        } else {
+                            showError('Failed to load leaderboard');
+                        }
+                    },
+                    error: function() {
+                        showError('Failed to load leaderboard');
+                    },
+                    complete: function() {
+                        isLoading = false;
+                    }
+                });
+            }
+            
+            function loadUserPosition() {
+                <?php if (is_user_logged_in() && $atts['show_user_position'] === 'true'): ?>
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/leaderboard/position'); ?>',
+                    method: 'GET',
+                    data: {
+                        sort_by: currentSort
+                    },
+                    success: function(response) {
+                        if (response.success && response.data.position) {
+                            $('#jph-user-rank').text(response.data.position);
+                            $('#jph-user-position').show();
+                        }
+                    }
+                });
+                <?php endif; ?>
+            }
+            
+            function loadLeaderboardStats() {
+                <?php if ($atts['show_stats'] === 'true'): ?>
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/leaderboard/stats'); ?>',
+                    method: 'GET',
+                    success: function(response) {
+                        if (response.success) {
+                            const stats = response.data;
+                            $('#jph-total-users').text(Math.round(stats.total_users || 0));
+                            $('#jph-leaderboard-users').text(Math.round(stats.leaderboard_users || 0));
+                            $('#jph-avg-xp').text(Math.round(stats.avg_xp || 0));
+                            $('#jph-max-xp').text(Math.round(stats.max_xp || 0));
+                            $('#jph-leaderboard-stats').show();
+                        }
+                    }
+                });
+                <?php endif; ?>
+            }
+            
+            function renderLeaderboard(data) {
+                const tbody = $('#jph-leaderboard-tbody');
+                tbody.empty();
+                
+                if (data.length === 0) {
+                    tbody.append('<tr><td colspan="8" style="text-align: center; padding: 40px;">No users found</td></tr>');
+                    return;
+                }
+                
+                data.forEach(function(user, index) {
+                    const row = $('<tr>');
+                    
+                    // Rank with medal emoji for top 3
+                    let rankDisplay = user.position;
+                    if (user.position === 1) rankDisplay = '🥇 1';
+                    else if (user.position === 2) rankDisplay = '🥈 2';
+                    else if (user.position === 3) rankDisplay = '🥉 3';
+                    
+                    row.append('<td class="jph-rank-col">' + rankDisplay + '</td>');
+                    row.append('<td class="jph-name-col">' + escapeHtml(user.leaderboard_name) + '</td>');
+                    row.append('<td class="jph-xp-col">' + numberFormat(user.total_xp) + '</td>');
+                    row.append('<td class="jph-level-col">' + user.current_level + '</td>');
+                    row.append('<td class="jph-streak-col">' + user.current_streak + '</td>');
+                    row.append('<td class="jph-sessions-col">' + user.total_sessions + '</td>');
+                    row.append('<td class="jph-minutes-col">' + numberFormat(user.total_minutes) + '</td>');
+                    row.append('<td class="jph-badges-col">' + user.badges_earned + '</td>');
+                    
+                    tbody.append(row);
+                });
+                
+                $('#jph-leaderboard-content').show();
+            }
+            
+            function updatePagination(pagination) {
+                const totalPages = Math.ceil(pagination.offset / pagination.limit) + 1;
+                const currentPageNum = Math.floor(pagination.offset / pagination.limit) + 1;
+                
+                $('#jph-page-info').text('Page ' + currentPageNum + ' of ' + totalPages);
+                
+                $('#jph-prev-page').prop('disabled', currentPageNum <= 1);
+                $('#jph-next-page').prop('disabled', currentPageNum >= totalPages);
+                
+                if (totalPages > 1) {
+                    $('#jph-leaderboard-pagination').show();
+                } else {
+                    $('#jph-leaderboard-pagination').hide();
+                }
+            }
+            
+            function showLoading() {
+                $('#jph-leaderboard-loading').show();
+                $('#jph-leaderboard-error').hide();
+                $('#jph-leaderboard-content').hide();
+            }
+            
+            function hideLoading() {
+                $('#jph-leaderboard-loading').hide();
+            }
+            
+            function showError(message) {
+                $('#jph-leaderboard-loading').hide();
+                $('#jph-leaderboard-content').hide();
+                $('#jph-leaderboard-error p').text(message);
+                $('#jph-leaderboard-error').show();
+            }
+            
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+            
+            function numberFormat(num) {
+                return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            }
+        });
+        </script>
+        <?php
+        
         return ob_get_clean();
     }
 }
