@@ -81,6 +81,15 @@ class JPH_Admin_Pages {
         
         add_submenu_page(
             'aph-students',
+            __('Widgets', 'academy-practice-hub'),
+            __('Widgets', 'academy-practice-hub'),
+            'manage_options',
+            'aph-widgets',
+            array($this, 'widgets_page')
+        );
+        
+        add_submenu_page(
+            'aph-students',
             __('Settings', 'academy-practice-hub'),
             __('Settings', 'academy-practice-hub'),
             'manage_options',
@@ -1233,6 +1242,33 @@ class JPH_Admin_Pages {
                 });
             }
         });
+        
+        function clearCache() {
+            if (confirm('Are you sure you want to clear all cache? This will refresh leaderboard data.')) {
+                jQuery('#test-results').html('<p>🔄 Clearing cache...</p>').show().removeClass('success error');
+                
+                jQuery.ajax({
+                    url: '<?php echo rest_url('aph/v1/admin/clear-cache'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            jQuery('#test-results').html(
+                                '<p>✅ Cache cleared successfully!</p>' +
+                                '<p><strong>Leaderboard will refresh on next load.</strong></p>'
+                            ).addClass('success');
+                        } else {
+                            jQuery('#test-results').html('<p>❌ Clear failed: ' + response.message + '</p>').addClass('error');
+                        }
+                    },
+                    error: function() {
+                        jQuery('#test-results').html('<p>❌ Clear failed: Network error</p>').addClass('error');
+                    }
+                });
+            }
+        }
         </script>
         
         <style>
@@ -2682,11 +2718,74 @@ Remember: Plain text only, no formatting.');
      * Settings page
      */
     public function settings_page() {
+        // Handle form submission
+        if (isset($_POST['jph_settings_submit']) && wp_verify_nonce($_POST['jph_settings_nonce'], 'jph_settings')) {
+            $practice_hub_page_id = intval($_POST['jph_practice_hub_page_id']);
+            update_option('jph_practice_hub_page_id', $practice_hub_page_id);
+            echo '<div class="notice notice-success"><p>Settings saved successfully!</p></div>';
+        }
+        
+        $current_page_id = get_option('jph_practice_hub_page_id', '');
         ?>
         <div class="wrap">
             <h1>⚙️ Practice Hub Settings</h1>
             
             <div class="jph-settings-sections">
+                <!-- Practice Hub Page Settings -->
+                <div class="jph-settings-section jph-page-settings">
+                    <h2>🎯 Practice Hub Page Settings</h2>
+                    <p>Configure which page contains your practice hub dashboard.</p>
+                    
+                    <form method="post" action="">
+                        <?php wp_nonce_field('jph_settings', 'jph_settings_nonce'); ?>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="jph_practice_hub_page_id">Practice Hub Page</label>
+                                </th>
+                                <td>
+                                    <?php
+                                    $pages = get_pages(array(
+                                        'post_status' => 'publish',
+                                        'sort_column' => 'post_title',
+                                        'sort_order' => 'ASC'
+                                    ));
+                                    ?>
+                                    <select name="jph_practice_hub_page_id" id="jph_practice_hub_page_id" style="width: 300px;">
+                                        <option value="">-- Select Practice Hub Page --</option>
+                                        <?php foreach ($pages as $page): ?>
+                                            <option value="<?php echo $page->ID; ?>" <?php selected($current_page_id, $page->ID); ?>>
+                                                <?php echo esc_html($page->post_title); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <p class="description">
+                                        Select the page that contains your practice hub dashboard (with the <code>[jph_dashboard]</code> shortcode).
+                                        This page will be used for the "Go to Practice Hub" links in widgets.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php submit_button('Save Settings', 'primary', 'jph_settings_submit'); ?>
+                    </form>
+                    
+                    <?php if ($current_page_id): ?>
+                        <div class="jph-current-page-info">
+                            <h3>📄 Current Practice Hub Page</h3>
+                            <?php
+                            $current_page = get_post($current_page_id);
+                            if ($current_page): ?>
+                                <p><strong>Page:</strong> <?php echo esc_html($current_page->post_title); ?></p>
+                                <p><strong>URL:</strong> <a href="<?php echo esc_url(get_permalink($current_page_id)); ?>" target="_blank"><?php echo esc_url(get_permalink($current_page_id)); ?></a></p>
+                                <p><strong>Status:</strong> <?php echo ucfirst($current_page->post_status); ?></p>
+                            <?php else: ?>
+                                <p class="jph-error">⚠️ Selected page not found. Please select a valid page.</p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
                 <!-- Data Backup & Restore Section -->
                 <div class="jph-settings-section jph-backup-section">
                     <h2>💾 Data Backup & Restore</h2>
@@ -2753,6 +2852,10 @@ Remember: Plain text only, no formatting.');
                         
                         <button type="button" class="button button-secondary jph-clear-test-btn" onclick="clearTestData()" style="margin-left: 10px;">
                             🗑️ Clear Test Data
+                        </button>
+                        
+                        <button type="button" class="button button-secondary jph-clear-cache-btn" onclick="clearCache()" style="margin-left: 10px;">
+                            🔄 Clear Cache
                         </button>
                     </div>
                     
@@ -3151,6 +3254,1019 @@ Remember: Plain text only, no formatting.');
                     jQuery('#danger-results').html('<p style="color: red;">❌ Error clearing user data</p>');
                 }
             });
+        }
+        </script>
+        <?php
+    }
+    
+    /**
+     * Widgets documentation page
+     */
+    public function widgets_page() {
+        ?>
+        <div class="wrap">
+            <h1>📊 Practice Hub Widgets</h1>
+            
+            <div class="jph-widgets-documentation">
+                <!-- Practice Stats Widget -->
+                <div class="jph-widget-section">
+                    <h2>📈 Practice Stats Widget</h2>
+                    <p>Display user practice statistics in a customizable format.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code>[jph_stats_widget]</code>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>⚙️ Attributes</h3>
+                        <table class="widefat">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>user_id</code></td>
+                                    <td><code>current</code></td>
+                                    <td>User ID to display stats for (<code>current</code> for logged-in user or specific user ID)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show</code></td>
+                                    <td><code>xp,level,streak,badges</code></td>
+                                    <td>Comma-separated list of stats to display</td>
+                                </tr>
+                                <tr>
+                                    <td><code>style</code></td>
+                                    <td><code>compact</code></td>
+                                    <td>Widget style (<code>compact</code> or <code>detailed</code>)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td><code>Practice Stats</code></td>
+                                    <td>Widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td><code>true</code></td>
+                                    <td>Show/hide widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_practice_hub_link</code></td>
+                                    <td><code>false</code></td>
+                                    <td>Show/hide "Go to Practice Hub" link</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-stats">
+                        <h3>📊 Available Stats</h3>
+                        <div class="jph-stats-grid">
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">⭐</span>
+                                <span class="jph-stat-label">XP</span>
+                                <span class="jph-stat-desc">Total XP earned</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">🏆</span>
+                                <span class="jph-stat-label">Level</span>
+                                <span class="jph-stat-desc">Current level</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">🔥</span>
+                                <span class="jph-stat-label">Streak</span>
+                                <span class="jph-stat-desc">Current practice streak</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">🎖️</span>
+                                <span class="jph-stat-label">Badges</span>
+                                <span class="jph-stat-desc">Number of badges earned</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">📝</span>
+                                <span class="jph-stat-label">Sessions</span>
+                                <span class="jph-stat-desc">Total practice sessions</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">⏱️</span>
+                                <span class="jph-stat-label">Minutes</span>
+                                <span class="jph-stat-desc">Total practice minutes</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">💎</span>
+                                <span class="jph-stat-label">Gems</span>
+                                <span class="jph-stat-desc">Gem balance</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">❤️</span>
+                                <span class="jph-stat-label">Hearts</span>
+                                <span class="jph-stat-desc">Hearts count</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-examples">
+                        <h3>💡 Examples</h3>
+                        
+                        <div class="jph-example">
+                            <h4>Basic Usage</h4>
+                            <div class="jph-code-block">
+                                <code id="example-basic">[jph_stats_widget]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('example-basic')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Custom Stats Selection</h4>
+                            <div class="jph-code-block">
+                                <code id="example-custom">[jph_stats_widget show="xp,level,streak"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('example-custom')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Detailed Style</h4>
+                            <div class="jph-code-block">
+                                <code id="example-detailed">[jph_stats_widget style="detailed" title="My Progress"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('example-detailed')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Specific User</h4>
+                            <div class="jph-code-block">
+                                <code id="example-user">[jph_stats_widget user_id="123" title="Student Progress"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('example-user')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Minimal Widget</h4>
+                            <div class="jph-code-block">
+                                <code id="example-minimal">[jph_stats_widget show="xp,level" show_title="false"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('example-minimal')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>With Practice Hub Link</h4>
+                            <div class="jph-code-block">
+                                <code id="example-hub-link">[jph_stats_widget show_practice_hub_link="true"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('example-hub-link')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>🎨 <strong>Customizable Stats:</strong> Choose which stats to display</li>
+                            <li>📱 <strong>Responsive Design:</strong> Adapts to different screen sizes</li>
+                            <li>👤 <strong>User Targeting:</strong> Show stats for current user or specific user</li>
+                            <li>🎯 <strong>Two Styles:</strong> Compact and detailed layouts</li>
+                            <li>🔒 <strong>Secure:</strong> All output is sanitized to prevent XSS</li>
+                            <li>⚡ <strong>Performance:</strong> Efficient database queries</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="jph-widget-styling">
+                        <h3>🎨 Customization</h3>
+                        <p>You can customize the widget appearance by adding CSS to your theme:</p>
+                        <div class="jph-code-block">
+                            <code>
+.jph-stats-widget {<br>
+&nbsp;&nbsp;/* Custom widget container styles */<br>
+}<br><br>
+.jph-stat-item {<br>
+&nbsp;&nbsp;/* Custom stat item styles */<br>
+}<br><br>
+.jph-stat-value {<br>
+&nbsp;&nbsp;/* Custom value styles */<br>
+}<br><br>
+.jph-stat-label {<br>
+&nbsp;&nbsp;/* Custom label styles */<br>
+}
+                            </code>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-troubleshooting">
+                        <h3>🔧 Troubleshooting</h3>
+                        <div class="jph-troubleshooting-item">
+                            <h4>Widget not displaying:</h4>
+                            <ul>
+                                <li>Check if user is logged in (for <code>user_id="current"</code>)</li>
+                                <li>Verify user ID exists (for specific user IDs)</li>
+                                <li>Ensure valid stats are selected in <code>show</code> attribute</li>
+                            </ul>
+                        </div>
+                        <div class="jph-troubleshooting-item">
+                            <h4>Styling issues:</h4>
+                            <ul>
+                                <li>Check for CSS conflicts with theme</li>
+                                <li>Verify widget CSS is loading properly</li>
+                                <li>Test responsive behavior on different screen sizes</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Practice Widget -->
+                <div class="jph-widget-section">
+                    <h2>📋 Recent Practice Widget</h2>
+                    <p>Display recent practice sessions with customizable details.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code id="recent-basic">[jph_recent_practice_widget]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('recent-basic')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>⚙️ Attributes</h3>
+                        <table class="widefat">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>user_id</code></td>
+                                    <td><code>current</code></td>
+                                    <td>User ID to display sessions for (<code>current</code> for logged-in user or specific user ID)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>limit</code></td>
+                                    <td><code>5</code></td>
+                                    <td>Number of recent sessions to display (1-20)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show</code></td>
+                                    <td><code>date,duration,items,sentiment</code></td>
+                                    <td>Comma-separated list of fields to display</td>
+                                </tr>
+                                <tr>
+                                    <td><code>style</code></td>
+                                    <td><code>compact</code></td>
+                                    <td>Widget style (<code>compact</code> or <code>detailed</code>)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td><code>Recent Practice</code></td>
+                                    <td>Widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td><code>true</code></td>
+                                    <td>Show/hide widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>date_format</code></td>
+                                    <td><code>relative</code></td>
+                                    <td>Date format (<code>relative</code> or <code>absolute</code>)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_practice_hub_link</code></td>
+                                    <td><code>false</code></td>
+                                    <td>Show/hide "Go to Practice Hub" link</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-stats">
+                        <h3>📊 Available Fields</h3>
+                        <div class="jph-stats-grid">
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">📅</span>
+                                <span class="jph-stat-label">Date</span>
+                                <span class="jph-stat-desc">Session date (relative or absolute)</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">⏱️</span>
+                                <span class="jph-stat-label">Duration</span>
+                                <span class="jph-stat-desc">Practice duration in minutes</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">🎯</span>
+                                <span class="jph-stat-label">Items</span>
+                                <span class="jph-stat-desc">Practice item name</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">😊</span>
+                                <span class="jph-stat-label">Sentiment</span>
+                                <span class="jph-stat-desc">How the practice felt</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">📝</span>
+                                <span class="jph-stat-label">Notes</span>
+                                <span class="jph-stat-desc">Practice session notes</span>
+                            </div>
+                            <div class="jph-stat-item">
+                                <span class="jph-stat-icon">⭐</span>
+                                <span class="jph-stat-label">XP</span>
+                                <span class="jph-stat-desc">XP earned from session</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-examples">
+                        <h3>💡 Examples</h3>
+                        
+                        <div class="jph-example">
+                            <h4>Basic Usage</h4>
+                            <div class="jph-code-block">
+                                <code id="recent-basic-ex">[jph_recent_practice_widget]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('recent-basic-ex')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Custom Fields</h4>
+                            <div class="jph-code-block">
+                                <code id="recent-custom">[jph_recent_practice_widget show="date,duration,sentiment" limit="3"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('recent-custom')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Detailed Style</h4>
+                            <div class="jph-code-block">
+                                <code id="recent-detailed">[jph_recent_practice_widget style="detailed" show="date,duration,items,sentiment,notes,xp"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('recent-detailed')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Specific User</h4>
+                            <div class="jph-code-block">
+                                <code id="recent-user">[jph_recent_practice_widget user_id="123" title="Student's Recent Practice"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('recent-user')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Absolute Dates</h4>
+                            <div class="jph-code-block">
+                                <code id="recent-absolute">[jph_recent_practice_widget date_format="absolute" show="date,duration,items"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('recent-absolute')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>With Practice Hub Link</h4>
+                            <div class="jph-code-block">
+                                <code id="recent-hub-link">[jph_recent_practice_widget show_practice_hub_link="true"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('recent-hub-link')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>📋 <strong>Recent Sessions:</strong> Show latest practice sessions</li>
+                            <li>🎨 <strong>Customizable Fields:</strong> Choose which details to display</li>
+                            <li>📱 <strong>Responsive Design:</strong> Adapts to different screen sizes</li>
+                            <li>👤 <strong>User Targeting:</strong> Show sessions for current user or specific user</li>
+                            <li>🎯 <strong>Two Styles:</strong> Compact and detailed layouts</li>
+                            <li>📅 <strong>Date Formats:</strong> Relative (e.g., "2 hours ago") or absolute (e.g., "Oct 9, 2024")</li>
+                            <li>😊 <strong>Sentiment Display:</strong> Visual sentiment indicators with emojis</li>
+                            <li>🔒 <strong>Secure:</strong> All output is sanitized to prevent XSS</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Leaderboard Widget -->
+                <div class="jph-widget-section">
+                    <h2>🏆 Leaderboard Widget</h2>
+                    <p>Display a leaderboard of top performers with customizable columns and sorting.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code id="leaderboard-basic">[jph_leaderboard_widget]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('leaderboard-basic')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                        
+                        <div class="jph-code-block">
+                            <code id="leaderboard-custom">[jph_leaderboard_widget limit="15" sort_by="current_level" show="rank,name,level,streak" title="Top Performers"]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('leaderboard-custom')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                        
+                        <div class="jph-code-block">
+                            <code id="leaderboard-with-link">[jph_leaderboard_widget show_practice_hub_link="true" highlight_user="true"]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('leaderboard-with-link')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>📝 Available Attributes</h3>
+                        <table class="jph-attributes-table">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>limit</code></td>
+                                    <td>10</td>
+                                    <td>Number of users to display (1-50)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>sort_by</code></td>
+                                    <td>total_xp</td>
+                                    <td>Sort by: total_xp, current_level, current_streak, badges_earned</td>
+                                </tr>
+                                <tr>
+                                    <td><code>sort_order</code></td>
+                                    <td>desc</td>
+                                    <td>Sort order: asc, desc</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show</code></td>
+                                    <td>rank,name,xp,level</td>
+                                    <td>Columns to display: rank, name, xp, level, streak, badges</td>
+                                </tr>
+                                <tr>
+                                    <td><code>style</code></td>
+                                    <td>compact</td>
+                                    <td>Widget style: compact, detailed</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td>Leaderboard</td>
+                                    <td>Widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td>true</td>
+                                    <td>Show widget title: true, false</td>
+                                </tr>
+                                <tr>
+                                    <td><code>highlight_user</code></td>
+                                    <td>true</td>
+                                    <td>Highlight current user: true, false</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_practice_hub_link</code></td>
+                                    <td>false</td>
+                                    <td>Show "Go to Practice Hub" link: true, false</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>🏅 <strong>Medal Icons:</strong> Gold, silver, bronze for top 3</li>
+                            <li>👤 <strong>User Highlighting:</strong> Highlight current user with "You" badge</li>
+                            <li>📱 <strong>Responsive Design:</strong> Mobile-friendly layout</li>
+                            <li>🎨 <strong>Customizable Style:</strong> Compact or detailed view</li>
+                            <li>🔗 <strong>Practice Hub Link:</strong> Optional link to main hub</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Progress Chart Widget -->
+                <div class="jph-widget-section">
+                    <h2>📊 Progress Chart Widget</h2>
+                    <p>Display visual progress charts for user statistics.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code id="progress-chart-basic">[jph_progress_chart_widget]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('progress-chart-basic')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                        
+                        <div class="jph-code-block">
+                            <code id="progress-chart-custom">[jph_progress_chart_widget chart_type="level" period="60" height="400" title="Level Progress"]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('progress-chart-custom')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>📝 Available Attributes</h3>
+                        <table class="jph-attributes-table">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>user_id</code></td>
+                                    <td>current</td>
+                                    <td>User ID or 'current' for logged-in user</td>
+                                </tr>
+                                <tr>
+                                    <td><code>chart_type</code></td>
+                                    <td>xp</td>
+                                    <td>Chart type: xp, level, streak, sessions</td>
+                                </tr>
+                                <tr>
+                                    <td><code>period</code></td>
+                                    <td>30</td>
+                                    <td>Number of days to display (7-365)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td>Progress Chart</td>
+                                    <td>Widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td>true</td>
+                                    <td>Show widget title: true, false</td>
+                                </tr>
+                                <tr>
+                                    <td><code>height</code></td>
+                                    <td>300</td>
+                                    <td>Chart height in pixels</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_practice_hub_link</code></td>
+                                    <td>false</td>
+                                    <td>Show "Go to Practice Hub" link: true, false</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>📈 <strong>Interactive Charts:</strong> Powered by Chart.js</li>
+                            <li>📊 <strong>Multiple Types:</strong> XP, Level, Streak, Sessions</li>
+                            <li>📅 <strong>Customizable Period:</strong> 7-365 days</li>
+                            <li>📱 <strong>Responsive Design:</strong> Mobile-friendly</li>
+                            <li>🎨 <strong>Customizable Height:</strong> Adjustable chart size</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Badges Widget -->
+                <div class="jph-widget-section">
+                    <h2>🎖️ Badges Widget</h2>
+                    <p>Display earned badges with customizable layouts.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code id="badges-basic">[jph_badges_widget]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('badges-basic')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                        
+                        <div class="jph-code-block">
+                            <code id="badges-list">[jph_badges_widget layout="list" limit="10" title="My Achievements"]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('badges-list')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>📝 Available Attributes</h3>
+                        <table class="jph-attributes-table">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>user_id</code></td>
+                                    <td>current</td>
+                                    <td>User ID or 'current' for logged-in user</td>
+                                </tr>
+                                <tr>
+                                    <td><code>limit</code></td>
+                                    <td>6</td>
+                                    <td>Number of badges to display (1-20)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>layout</code></td>
+                                    <td>grid</td>
+                                    <td>Layout style: grid, list</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td>Earned Badges</td>
+                                    <td>Widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td>true</td>
+                                    <td>Show widget title: true, false</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_practice_hub_link</code></td>
+                                    <td>false</td>
+                                    <td>Show "Go to Practice Hub" link: true, false</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>🏅 <strong>Badge Display:</strong> Shows earned badges with icons</li>
+                            <li>📅 <strong>Earned Dates:</strong> Shows when badges were earned</li>
+                            <li>🎨 <strong>Layout Options:</strong> Grid or list layout</li>
+                            <li>💡 <strong>Tooltips:</strong> Hover for badge descriptions</li>
+                            <li>📱 <strong>Responsive Design:</strong> Mobile-friendly</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Gems Widget -->
+                <div class="jph-widget-section">
+                    <h2>💎 Gems Widget</h2>
+                    <p>Display gem balance and transaction history.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code id="gems-basic">[jph_gems_widget]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('gems-basic')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                        
+                        <div class="jph-code-block">
+                            <code id="gems-no-transactions">[jph_gems_widget show_transactions="false" title="Gem Balance"]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('gems-no-transactions')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>📝 Available Attributes</h3>
+                        <table class="jph-attributes-table">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>user_id</code></td>
+                                    <td>current</td>
+                                    <td>User ID or 'current' for logged-in user</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_transactions</code></td>
+                                    <td>true</td>
+                                    <td>Show transaction history: true, false</td>
+                                </tr>
+                                <tr>
+                                    <td><code>limit</code></td>
+                                    <td>5</td>
+                                    <td>Number of transactions to show (1-10)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td>Gems Balance</td>
+                                    <td>Widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td>true</td>
+                                    <td>Show widget title: true, false</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_practice_hub_link</code></td>
+                                    <td>false</td>
+                                    <td>Show "Go to Practice Hub" link: true, false</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>💎 <strong>Balance Display:</strong> Shows current gem balance</li>
+                            <li>📊 <strong>Transaction History:</strong> Recent earned/spent gems</li>
+                            <li>🎨 <strong>Gradient Design:</strong> Beautiful gem-themed styling</li>
+                            <li>📱 <strong>Responsive Design:</strong> Mobile-friendly</li>
+                            <li>⚡ <strong>Real-time Data:</strong> Shows actual user gem balance</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        .jph-widgets-documentation {
+            max-width: 1200px;
+        }
+        
+        .jph-widget-section {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-widget-section h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #0073aa;
+            padding-bottom: 10px;
+        }
+        
+        .jph-code-block {
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .jph-code-block code {
+            background: none;
+            padding: 0;
+            color: #333;
+            flex: 1;
+            margin-right: 10px;
+        }
+        
+        .jph-copy-btn {
+            background: #0073aa;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        
+        .jph-copy-btn:hover {
+            background: #005a87;
+            transform: translateY(-1px);
+        }
+        
+        .jph-copy-btn:active {
+            transform: translateY(0);
+        }
+        
+        .jph-copy-btn.copied {
+            background: #28a745;
+        }
+        
+        .jph-copy-btn.copied::after {
+            content: " ✓";
+        }
+        
+        .jph-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .jph-stat-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #0073aa;
+        }
+        
+        .jph-stat-icon {
+            font-size: 20px;
+            margin-right: 10px;
+            min-width: 20px;
+        }
+        
+        .jph-stat-label {
+            font-weight: 600;
+            margin-right: 8px;
+            min-width: 60px;
+        }
+        
+        .jph-stat-desc {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .jph-example {
+            margin: 15px 0;
+        }
+        
+        .jph-example h4 {
+            margin: 10px 0 5px 0;
+            color: #333;
+        }
+        
+        .jph-widget-features ul,
+        .jph-troubleshooting-item ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .jph-widget-features li,
+        .jph-troubleshooting-item li {
+            margin: 5px 0;
+        }
+        
+        .jph-future-widgets {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-color: #0073aa;
+        }
+        
+        .jph-future-widgets h2 {
+            color: #0073aa;
+        }
+        
+        .jph-troubleshooting-item {
+            margin: 20px 0;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+        }
+        
+        .jph-troubleshooting-item h4 {
+            margin-top: 0;
+            color: #856404;
+        }
+        
+        table.widefat {
+            margin: 15px 0;
+        }
+        
+        table.widefat th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        
+        table.widefat code {
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .jph-page-settings {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-page-settings h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #0073aa;
+            padding-bottom: 10px;
+        }
+        
+        .jph-current-page-info {
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .jph-current-page-info h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .jph-current-page-info p {
+            margin: 8px 0;
+        }
+        
+        .jph-current-page-info a {
+            color: #0073aa;
+            text-decoration: none;
+        }
+        
+        .jph-current-page-info a:hover {
+            text-decoration: underline;
+        }
+        
+        .jph-error {
+            color: #d63384;
+            font-weight: 500;
+        }
+        </style>
+        
+        <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            const button = element.nextElementSibling;
+            
+            // Create a temporary textarea element
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            
+            // Select and copy the text
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // For mobile devices
+            
+            try {
+                document.execCommand('copy');
+                
+                // Visual feedback
+                button.classList.add('copied');
+                button.textContent = 'Copied ✓';
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    button.textContent = '📋 Copy';
+                }, 2000);
+                
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                alert('Failed to copy to clipboard');
+            }
+            
+            // Clean up
+            document.body.removeChild(textarea);
         }
         </script>
         <?php

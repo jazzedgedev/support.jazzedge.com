@@ -91,7 +91,23 @@ class JPH_Database {
             );
         }
         
+        // Invalidate cache when user stats are updated
+        if ($result !== false) {
+            $this->invalidate_user_cache($user_id);
+        }
+        
         return $result !== false;
+    }
+    
+    /**
+     * Invalidate user cache when stats change
+     */
+    private function invalidate_user_cache($user_id) {
+        // Check if cache class is available
+        if (class_exists('JPH_Cache')) {
+            $cache = JPH_Cache::get_instance();
+            $cache->invalidate_user_cache($user_id);
+        }
     }
     
     /**
@@ -239,10 +255,20 @@ class JPH_Database {
     public function get_user_badges($user_id) {
         global $wpdb;
         
-        $table_name = $wpdb->prefix . 'jph_user_badges';
+        $user_badges_table = $wpdb->prefix . 'jph_user_badges';
+        $badges_table = $wpdb->prefix . 'jph_badges';
         
         $badges = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY earned_at DESC",
+            "SELECT 
+                ub.*,
+                b.name,
+                b.description,
+                b.icon,
+                b.category
+             FROM {$user_badges_table} ub
+             LEFT JOIN {$badges_table} b ON ub.badge_key = b.badge_key
+             WHERE ub.user_id = %d 
+             ORDER BY ub.earned_at DESC",
             $user_id
         ), ARRAY_A);
         
@@ -619,6 +645,81 @@ class JPH_Database {
         ), ARRAY_A);
         
         return $favorite;
+    }
+    
+    /**
+     * Check if lesson is already favorited
+     */
+    public function is_lesson_favorited($user_id, $title) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND title = %s",
+            $user_id, $title
+        ));
+        
+        return $existing ? $existing->id : false;
+    }
+    
+    /**
+     * Add lesson favorite
+     */
+    public function add_lesson_favorite($user_id, $title, $url, $category = 'lesson', $description = '') {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        // Check if favorite already exists (unique constraint on user_id + title)
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND title = %s",
+            $user_id, $title
+        ));
+        
+        if ($existing) {
+            return new WP_Error('duplicate_favorite', 'This lesson is already in your favorites');
+        }
+        
+        $result = $wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'title' => $title,
+                'url' => $url,
+                'category' => $category,
+                'description' => $description,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ),
+            array('%d', '%s', '%s', '%s', '%s', '%s', '%s')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('insert_failed', 'Failed to add lesson favorite');
+        }
+        
+        return $wpdb->insert_id;
+    }
+    
+    /**
+     * Remove lesson favorite
+     */
+    public function remove_lesson_favorite($user_id, $title) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        $result = $wpdb->delete(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'title' => $title
+            ),
+            array('%d', '%s')
+        );
+        
+        return $result !== false;
     }
     
     /**

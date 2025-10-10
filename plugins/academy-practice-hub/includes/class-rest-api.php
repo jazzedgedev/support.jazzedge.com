@@ -160,6 +160,31 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        register_rest_route('aph/v1', '/lesson-favorites', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_add_lesson_favorite'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/lesson-favorites/remove', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_remove_lesson_favorite'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/lesson-favorites/check', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_check_lesson_favorite'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+
+        // Beta disclaimer endpoints
+        register_rest_route('aph/v1', '/beta-disclaimer/shown', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_mark_beta_disclaimer_shown'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         register_rest_route('aph/v1', '/purchase-shield', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_purchase_streak_shield'),
@@ -367,6 +392,12 @@ class JPH_REST_API {
         register_rest_route('aph/v1', '/admin/clear-test-data', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_clear_test_data'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/admin/clear-cache', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_clear_cache'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
     }
@@ -1171,6 +1202,150 @@ class JPH_REST_API {
         }
     }
     
+    /**
+     * Add lesson favorite
+     */
+    public function rest_add_lesson_favorite($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to add lesson favorites', array('status' => 401));
+            }
+            
+            $params = $request->get_params();
+            $title = sanitize_text_field($params['title']);
+            $url = esc_url_raw($params['url']);
+            $category = sanitize_text_field($params['category'] ?? 'lesson');
+            $description = sanitize_textarea_field($params['description'] ?? '');
+            
+            // Validate required fields
+            if (empty($title) || empty($url)) {
+                return new WP_Error('missing_fields', 'Title and URL are required', array('status' => 400));
+            }
+            
+            // Validate category
+            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other');
+            if (!in_array($category, $allowed_categories)) {
+                $category = 'lesson';
+            }
+            
+            $result = $this->database->add_lesson_favorite($user_id, $title, $url, $category, $description);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'favorite_id' => $result,
+                'message' => 'Lesson favorite added successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('add_lesson_favorite_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Remove lesson favorite
+     */
+    public function rest_remove_lesson_favorite($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to remove lesson favorites', array('status' => 401));
+            }
+            
+            $params = $request->get_params();
+            $title = sanitize_text_field($params['title']);
+            
+            // Validate required fields
+            if (empty($title)) {
+                return new WP_Error('missing_fields', 'Title is required', array('status' => 400));
+            }
+            
+            $result = $this->database->remove_lesson_favorite($user_id, $title);
+            
+            if (!$result) {
+                return new WP_Error('remove_failed', 'Failed to remove lesson favorite', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Lesson favorite removed successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('remove_lesson_favorite_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Check if lesson is favorited
+     */
+    public function rest_check_lesson_favorite($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to check lesson favorites', array('status' => 401));
+            }
+            
+            $params = $request->get_params();
+            $title = sanitize_text_field($params['title']);
+            
+            // Validate required fields
+            if (empty($title)) {
+                return new WP_Error('missing_fields', 'Title is required', array('status' => 400));
+            }
+            
+            $favorite_id = $this->database->is_lesson_favorited($user_id, $title);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'is_favorited' => $favorite_id !== false,
+                'favorite_id' => $favorite_id
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('check_lesson_favorite_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Mark beta disclaimer as shown for user
+     */
+    public function rest_mark_beta_disclaimer_shown($request) {
+        try {
+            $user_id = get_current_user_id();
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+            }
+
+            // Mark disclaimer as shown using user meta
+            update_user_meta($user_id, 'jph_beta_disclaimer_shown', true);
+
+            $this->logger->info('Beta disclaimer marked as shown', array(
+                'user_id' => $user_id,
+                'timestamp' => current_time('mysql')
+            ));
+
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Beta disclaimer marked as shown'
+            ));
+
+        } catch (Exception $e) {
+            $this->logger->error('Failed to mark beta disclaimer as shown', array(
+                'error' => $e->getMessage(),
+                'user_id' => get_current_user_id()
+            ));
+            return new WP_Error('mark_disclaimer_shown_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+
     /**
      * Purchase streak shield
      */
@@ -3451,6 +3626,9 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             // Clear existing test data first
             $this->clear_test_data();
             
+            // Ensure default badges exist
+            $this->ensure_default_badges();
+            
             for ($i = 0; $i < 50; $i++) {
                 // Create test user
                 $username = 'test_student_' . ($i + 1);
@@ -3564,8 +3742,9 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
                     if (!in_array($badge_type, $awarded_badges)) {
                         $wpdb->insert($user_badges_table, array(
                             'user_id' => $user_id,
-                            'badge_type' => $badge_type,
-                            'earned_date' => date('Y-m-d H:i:s', strtotime('-' . rand(0, 60) . ' days'))
+                            'badge_key' => $badge_type,
+                            'earned_at' => date('Y-m-d H:i:s', strtotime('-' . rand(0, 60) . ' days')),
+                            'earned_date' => date('Y-m-d', strtotime('-' . rand(0, 60) . ' days'))
                         ));
                         $awarded_badges[] = $badge_type;
                         $badges_awarded++;
@@ -3660,6 +3839,167 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             
         } catch (Exception $e) {
             return new WP_Error('clear_test_data_error', 'Error clearing test data: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Clear all cache
+     */
+    public function rest_clear_cache($request) {
+        try {
+            // Clear all cache
+            $this->cache->invalidate_all_cache();
+            
+            $this->logger->info('Cache cleared by admin', array(
+                'admin_id' => get_current_user_id(),
+                'timestamp' => current_time('mysql')
+            ));
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Cache cleared successfully. Leaderboard will refresh on next load.'
+            ));
+            
+        } catch (Exception $e) {
+            $this->logger->error('Failed to clear cache', array(
+                'error' => $e->getMessage(),
+                'admin_id' => get_current_user_id()
+            ));
+            
+            return new WP_Error('clear_cache_failed', 'Failed to clear cache: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Ensure default badges exist in the database
+     */
+    private function ensure_default_badges() {
+        global $wpdb;
+        
+        $badges_table = $wpdb->prefix . 'jph_badges';
+        
+        $default_badges = array(
+            'first_session' => array(
+                'name' => 'First Practice',
+                'description' => 'Completed your first practice session',
+                'category' => 'milestone',
+                'criteria_type' => 'practice_sessions',
+                'criteria_value' => 1,
+                'xp_reward' => 10,
+                'gem_reward' => 5
+            ),
+            'streak_7' => array(
+                'name' => 'Week Warrior',
+                'description' => 'Maintained a 7-day practice streak',
+                'category' => 'streak',
+                'criteria_type' => 'streak',
+                'criteria_value' => 7,
+                'xp_reward' => 50,
+                'gem_reward' => 25
+            ),
+            'streak_30' => array(
+                'name' => 'Monthly Master',
+                'description' => 'Maintained a 30-day practice streak',
+                'category' => 'streak',
+                'criteria_type' => 'streak',
+                'criteria_value' => 30,
+                'xp_reward' => 200,
+                'gem_reward' => 100
+            ),
+            'level_5' => array(
+                'name' => 'Level 5 Achiever',
+                'description' => 'Reached level 5',
+                'category' => 'level',
+                'criteria_type' => 'level_reached',
+                'criteria_value' => 5,
+                'xp_reward' => 100,
+                'gem_reward' => 50
+            ),
+            'level_10' => array(
+                'name' => 'Level 10 Master',
+                'description' => 'Reached level 10',
+                'category' => 'level',
+                'criteria_type' => 'level_reached',
+                'criteria_value' => 10,
+                'xp_reward' => 300,
+                'gem_reward' => 150
+            ),
+            'xp_1000' => array(
+                'name' => 'XP Collector',
+                'description' => 'Earned 1000 XP points',
+                'category' => 'xp',
+                'criteria_type' => 'xp',
+                'criteria_value' => 1000,
+                'xp_reward' => 50,
+                'gem_reward' => 25
+            ),
+            'xp_5000' => array(
+                'name' => 'XP Master',
+                'description' => 'Earned 5000 XP points',
+                'category' => 'xp',
+                'criteria_type' => 'xp',
+                'criteria_value' => 5000,
+                'xp_reward' => 200,
+                'gem_reward' => 100
+            ),
+            'sessions_10' => array(
+                'name' => 'Practice Regular',
+                'description' => 'Completed 10 practice sessions',
+                'category' => 'sessions',
+                'criteria_type' => 'practice_sessions',
+                'criteria_value' => 10,
+                'xp_reward' => 75,
+                'gem_reward' => 35
+            ),
+            'sessions_50' => array(
+                'name' => 'Practice Pro',
+                'description' => 'Completed 50 practice sessions',
+                'category' => 'sessions',
+                'criteria_type' => 'practice_sessions',
+                'criteria_value' => 50,
+                'xp_reward' => 250,
+                'gem_reward' => 125
+            ),
+            'minutes_100' => array(
+                'name' => 'Century Club',
+                'description' => 'Practiced for 100 minutes total',
+                'category' => 'time',
+                'criteria_type' => 'total_time',
+                'criteria_value' => 100,
+                'xp_reward' => 100,
+                'gem_reward' => 50
+            ),
+            'minutes_500' => array(
+                'name' => 'Marathon Player',
+                'description' => 'Practiced for 500 minutes total',
+                'category' => 'time',
+                'criteria_type' => 'total_time',
+                'criteria_value' => 500,
+                'xp_reward' => 400,
+                'gem_reward' => 200
+            )
+        );
+        
+        foreach ($default_badges as $badge_key => $badge_data) {
+            // Check if badge already exists
+            $existing = $wpdb->get_row($wpdb->prepare(
+                "SELECT badge_key FROM {$badges_table} WHERE badge_key = %s",
+                $badge_key
+            ));
+            
+            if (!$existing) {
+                // Insert the badge
+                $wpdb->insert($badges_table, array_merge(
+                    array('badge_key' => $badge_key),
+                    $badge_data,
+                    array(
+                        'is_active' => 1,
+                        'display_order' => 0,
+                        'created_at' => current_time('mysql'),
+                        'updated_at' => current_time('mysql')
+                    )
+                ));
+            }
         }
     }
     

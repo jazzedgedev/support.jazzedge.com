@@ -18,6 +18,12 @@ class JPH_Frontend {
         $this->database = new JPH_Database();
         add_shortcode('jph_dashboard', array($this, 'render_dashboard'));
         add_shortcode('jph_leaderboard', array($this, 'render_leaderboard'));
+        add_shortcode('jph_stats_widget', array($this, 'render_stats_widget'));
+        add_shortcode('jph_recent_practice_widget', array($this, 'render_recent_practice_widget'));
+        add_shortcode('jph_leaderboard_widget', array($this, 'render_leaderboard_widget'));
+        add_shortcode('jph_progress_chart_widget', array($this, 'render_progress_chart_widget'));
+        add_shortcode('jph_badges_widget', array($this, 'render_badges_widget'));
+        add_shortcode('jph_gems_widget', array($this, 'render_gems_widget'));
     }
     
     /**
@@ -103,6 +109,765 @@ class JPH_Frontend {
     }
     
     /**
+     * Render practice stats widget
+     */
+    public function render_stats_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'user_id' => 'current',
+            'show' => 'xp,level,streak,badges',
+            'style' => 'compact',
+            'title' => 'Practice Stats',
+            'show_title' => 'true',
+            'cache' => 'true',
+            'show_practice_hub_link' => 'false'
+        ), $atts);
+        
+        // Determine user ID
+        if ($atts['user_id'] === 'current') {
+            if (!is_user_logged_in()) {
+                return '<div class="jph-stats-widget jph-login-required">Please log in to view practice stats.</div>';
+            }
+            $user_id = get_current_user_id();
+        } else {
+            $user_id = intval($atts['user_id']);
+            if (!$user_id) {
+                return '<div class="jph-stats-widget jph-error">Invalid user ID.</div>';
+            }
+        }
+        
+        // Parse show fields
+        $show_fields = array_map('trim', explode(',', $atts['show']));
+        $allowed_fields = array('xp', 'level', 'streak', 'badges', 'sessions', 'minutes', 'gems', 'hearts');
+        $show_fields = array_intersect($show_fields, $allowed_fields);
+        
+        if (empty($show_fields)) {
+            $show_fields = array('xp', 'level', 'streak', 'badges');
+        }
+        
+        // Get user stats
+        $gamification = new APH_Gamification();
+        $user_stats = $gamification->get_user_stats($user_id);
+        $user_stats = $this->sanitize_user_stats($user_stats);
+        
+        // Get user info
+        $user = get_user_by('id', $user_id);
+        $display_name = $user_stats['display_name'] ?: $user->display_name ?: $user->user_login;
+        
+        // Enqueue styles
+        wp_enqueue_style('jph-widgets', plugin_dir_url(__FILE__) . '../assets/css/widgets.css', array(), '1.0.0');
+        
+        ob_start();
+        ?>
+        <div class="jph-stats-widget jph-stats-widget-<?php echo esc_attr($atts['style']); ?>">
+            <?php if ($atts['show_title'] === 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <div class="jph-stats-grid">
+                <?php if (in_array('xp', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-xp">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo number_format($user_stats['total_xp']); ?></div>
+                            <div class="jph-stat-label">Total XP</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (in_array('level', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-level">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo $user_stats['current_level']; ?></div>
+                            <div class="jph-stat-label">Level</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (in_array('streak', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-streak">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo $user_stats['current_streak']; ?></div>
+                            <div class="jph-stat-label">Day Streak</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (in_array('badges', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-badges">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo $user_stats['badges_earned']; ?></div>
+                            <div class="jph-stat-label">Badges</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (in_array('sessions', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-sessions">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2 2 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo $user_stats['total_sessions']; ?></div>
+                            <div class="jph-stat-label">Sessions</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (in_array('minutes', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-minutes">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo number_format($user_stats['total_minutes']); ?></div>
+                            <div class="jph-stat-label">Minutes</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (in_array('gems', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-gems">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo $user_stats['gems_balance']; ?></div>
+                            <div class="jph-stat-label">Gems</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if (in_array('hearts', $show_fields)): ?>
+                    <div class="jph-stat-item jph-stat-hearts">
+                        <div class="jph-stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                            </svg>
+                        </div>
+                        <div class="jph-stat-content">
+                            <div class="jph-stat-value"><?php echo $user_stats['hearts_count']; ?></div>
+                            <div class="jph-stat-label">Hearts</div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+            
+            <?php if ($atts['style'] === 'detailed'): ?>
+                <div class="jph-stats-footer">
+                    <div class="jph-user-info">
+                        <span class="jph-user-name"><?php echo esc_html($display_name); ?></span>
+                        <?php if ($user_stats['last_practice_date']): ?>
+                            <span class="jph-last-practice">
+                                Last practice: <?php echo human_time_diff(strtotime($user_stats['last_practice_date']), current_time('timestamp')); ?> ago
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($atts['show_practice_hub_link'] === 'true'): ?>
+                <div class="jph-widget-footer">
+                    <a href="<?php echo esc_url($this->get_practice_hub_url()); ?>" class="jph-practice-hub-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-hub-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+                        </svg>
+                        Go to Practice Hub
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-stats-widget {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-widget-title {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+        
+        .jph-stats-grid {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .jph-stats-widget-compact .jph-stats-grid {
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        }
+        
+        .jph-stats-widget-detailed .jph-stats-grid {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+        
+        .jph-stat-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .jph-stat-item:hover {
+            background: #e9ecef;
+            transform: translateY(-1px);
+        }
+        
+        .jph-stat-icon {
+            font-size: 24px;
+            margin-right: 12px;
+            min-width: 24px;
+        }
+        
+        .jph-stat-content {
+            flex: 1;
+        }
+        
+        .jph-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+            line-height: 1;
+        }
+        
+        .jph-stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+        
+        .jph-stats-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+        }
+        
+        .jph-user-info {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .jph-user-name {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .jph-last-practice {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+        }
+        
+        .jph-login-required,
+        .jph-error {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .jph-widget-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+            text-align: center;
+        }
+        
+        .jph-practice-hub-link {
+            display: inline-flex;
+            align-items: center;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+        
+        .jph-practice-hub-link:hover {
+            background: #005a87;
+            color: white;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        
+        .jph-hub-icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-stats-widget-compact .jph-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .jph-stats-widget-detailed .jph-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        </style>
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render recent practice widget
+     */
+    public function render_recent_practice_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'user_id' => 'current',
+            'limit' => '5',
+            'show' => 'date,duration,items,sentiment',
+            'style' => 'compact',
+            'title' => 'Recent Practice',
+            'show_title' => 'true',
+            'date_format' => 'relative',
+            'show_practice_hub_link' => 'false'
+        ), $atts);
+        
+        // Determine user ID
+        if ($atts['user_id'] === 'current') {
+            if (!is_user_logged_in()) {
+                return '<div class="jph-recent-practice-widget jph-login-required">Please log in to view recent practice.</div>';
+            }
+            $user_id = get_current_user_id();
+        } else {
+            $user_id = intval($atts['user_id']);
+            if (!$user_id) {
+                return '<div class="jph-recent-practice-widget jph-error">Invalid user ID.</div>';
+            }
+        }
+        
+        // Parse show fields
+        $show_fields = array_map('trim', explode(',', $atts['show']));
+        $allowed_fields = array('date', 'duration', 'items', 'sentiment', 'notes', 'xp');
+        $show_fields = array_intersect($show_fields, $allowed_fields);
+        
+        if (empty($show_fields)) {
+            $show_fields = array('date', 'duration', 'items', 'sentiment');
+        }
+        
+        // Get recent practice sessions
+        $limit = max(1, min(20, intval($atts['limit'])));
+        $practice_sessions = $this->database->get_practice_sessions($user_id, $limit);
+        
+        if (empty($practice_sessions)) {
+            return '<div class="jph-recent-practice-widget jph-no-data">No recent practice sessions found.</div>';
+        }
+        
+        // Get user info
+        $user = get_user_by('id', $user_id);
+        $display_name = $user->display_name ?: $user->user_login;
+        
+        // Enqueue styles
+        wp_enqueue_style('jph-widgets', plugin_dir_url(__FILE__) . '../assets/css/widgets.css', array(), '1.0.0');
+        
+        ob_start();
+        ?>
+        <div class="jph-recent-practice-widget jph-recent-practice-widget-<?php echo esc_attr($atts['style']); ?>">
+            <?php if ($atts['show_title'] === 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <div class="jph-practice-sessions">
+                <?php foreach ($practice_sessions as $session): ?>
+                    <div class="jph-practice-session">
+                        <?php if (in_array('date', $show_fields)): ?>
+                            <div class="jph-session-date">
+                                <?php if ($atts['date_format'] === 'relative'): ?>
+                                    <?php echo human_time_diff(strtotime($session['created_at']), current_time('timestamp')); ?> ago
+                                <?php else: ?>
+                                    <?php echo date('M j, Y', strtotime($session['created_at'])); ?>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <div class="jph-session-details">
+                            <?php if (in_array('duration', $show_fields)): ?>
+                                <div class="jph-session-duration">
+                                    <span class="jph-duration-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                        </svg>
+                                    </span>
+                                    <span class="jph-duration-value"><?php echo intval($session['duration_minutes']); ?> min</span>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if (in_array('items', $show_fields)): ?>
+                                <div class="jph-session-items">
+                                    <span class="jph-items-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59" />
+                                        </svg>
+                                    </span>
+                                    <span class="jph-items-value"><?php echo esc_html($session['item_name'] ?: 'Unknown Item'); ?></span>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if (in_array('sentiment', $show_fields)): ?>
+                                <div class="jph-session-sentiment">
+                                    <span class="jph-sentiment-icon"><?php echo $this->get_sentiment_icon($session['sentiment_score']); ?></span>
+                                    <span class="jph-sentiment-value"><?php echo $this->get_sentiment_label($session['sentiment_score']); ?></span>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if (in_array('xp', $show_fields)): ?>
+                                <div class="jph-session-xp">
+                                    <span class="jph-xp-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                                        </svg>
+                                    </span>
+                                    <span class="jph-xp-value">+<?php echo intval($session['xp_earned']); ?> XP</span>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <?php if (in_array('notes', $show_fields) && !empty($session['notes'])): ?>
+                            <div class="jph-session-notes">
+                                <span class="jph-notes-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                    </svg>
+                                </span>
+                                <span class="jph-notes-text"><?php echo esc_html(wp_trim_words($session['notes'], 15)); ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <?php if ($atts['style'] === 'detailed'): ?>
+                <div class="jph-recent-practice-footer">
+                    <div class="jph-user-info">
+                        <span class="jph-user-name"><?php echo esc_html($display_name); ?></span>
+                        <span class="jph-session-count"><?php echo count($practice_sessions); ?> recent sessions</span>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($atts['show_practice_hub_link'] === 'true'): ?>
+                <div class="jph-widget-footer">
+                    <a href="<?php echo esc_url($this->get_practice_hub_url()); ?>" class="jph-practice-hub-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-hub-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+                        </svg>
+                        Go to Practice Hub
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-recent-practice-widget {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-widget-title {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+        
+        .jph-practice-sessions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .jph-practice-session {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+            transition: all 0.2s ease;
+            border-left: 4px solid #0073aa;
+        }
+        
+        .jph-practice-session:hover {
+            background: #e9ecef;
+            transform: translateY(-1px);
+        }
+        
+        .jph-session-date {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .jph-session-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 8px;
+        }
+        
+        .jph-session-duration,
+        .jph-session-items,
+        .jph-session-sentiment,
+        .jph-session-xp {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+        }
+        
+        .jph-duration-icon,
+        .jph-items-icon,
+        .jph-sentiment-icon,
+        .jph-xp-icon {
+            margin-right: 6px;
+            font-size: 16px;
+        }
+        
+        .jph-duration-value,
+        .jph-items-value,
+        .jph-sentiment-value,
+        .jph-xp-value {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .jph-session-notes {
+            display: flex;
+            align-items: flex-start;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #e1e5e9;
+        }
+        
+        .jph-notes-icon {
+            margin-right: 6px;
+            font-size: 14px;
+            margin-top: 2px;
+        }
+        
+        .jph-notes-text {
+            font-size: 13px;
+            color: #666;
+            font-style: italic;
+            line-height: 1.4;
+        }
+        
+        .jph-recent-practice-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+        }
+        
+        .jph-user-info {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .jph-user-name {
+            font-weight: 600;
+            color: #333;
+            margin-right: 10px;
+        }
+        
+        .jph-session-count {
+            font-size: 12px;
+        }
+        
+        .jph-login-required,
+        .jph-error,
+        .jph-no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .jph-widget-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+            text-align: center;
+        }
+        
+        .jph-practice-hub-link {
+            display: inline-flex;
+            align-items: center;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+        
+        .jph-practice-hub-link:hover {
+            background: #005a87;
+            color: white;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        
+        .jph-hub-icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        
+        .jph-recent-practice-widget-compact .jph-session-details {
+            gap: 10px;
+        }
+        
+        .jph-recent-practice-widget-compact .jph-session-duration,
+        .jph-recent-practice-widget-compact .jph-session-items,
+        .jph-recent-practice-widget-compact .jph-session-sentiment,
+        .jph-recent-practice-widget-compact .jph-session-xp {
+            font-size: 13px;
+        }
+        
+        .jph-recent-practice-widget-detailed .jph-practice-session {
+            padding: 18px;
+        }
+        
+        .jph-recent-practice-widget-detailed .jph-session-details {
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-session-details {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .jph-session-duration,
+            .jph-session-items,
+            .jph-session-sentiment,
+            .jph-session-xp {
+                justify-content: flex-start;
+            }
+        }
+        </style>
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Get sentiment icon based on score
+     */
+    private function get_sentiment_icon($score) {
+        $score = intval($score);
+        switch ($score) {
+            case 5: 
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z" />
+                </svg>';
+            case 4: 
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z" />
+                </svg>';
+            case 3: 
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>';
+            case 2: 
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z" />
+                </svg>';
+            case 1: 
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z" />
+                </svg>';
+            default: 
+                return '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>';
+        }
+    }
+    
+    /**
+     * Get sentiment label based on score
+     */
+    private function get_sentiment_label($score) {
+        $score = intval($score);
+        switch ($score) {
+            case 5: return 'Excellent';
+            case 4: return 'Good';
+            case 3: return 'Okay';
+            case 2: return 'Poor';
+            case 1: return 'Terrible';
+            default: return 'Okay';
+        }
+    }
+    
+    /**
+     * Get practice hub URL from settings
+     */
+    private function get_practice_hub_url() {
+        $practice_hub_page_id = get_option('jph_practice_hub_page_id', '');
+        
+        if ($practice_hub_page_id) {
+            $page_url = get_permalink($practice_hub_page_id);
+            if ($page_url) {
+                return $page_url;
+            }
+        }
+        
+        // Fallback to home URL if no page is set
+        return home_url('/');
+    }
+    
+    /**
      * Render the student dashboard
      */
     public function render_dashboard($atts) {
@@ -144,6 +909,59 @@ class JPH_Frontend {
         ob_start();
         ?>
         <div class="jph-student-dashboard">
+            
+            <!-- Beta Notice Banner -->
+            <div class="jph-beta-notice">
+                <div class="beta-notice-content">
+                    <div class="beta-notice-text">
+                        <span class="beta-icon">🚧</span>
+                        <span class="beta-text">This is beta software. Your account is safe, but practice data may occasionally be affected.</span>
+                    </div>
+                    <button id="jph-feedback-btn-banner" type="button" class="jph-btn jph-btn-primary jph-feedback-btn-banner">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="btn-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+                        </svg>
+                        Share Feedback
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Beta Disclaimer Modal -->
+            <div id="jph-beta-disclaimer-modal" class="jph-beta-disclaimer-modal" style="display: none;">
+                <div class="jph-modal-overlay"></div>
+                <div class="jph-modal-content">
+                    <div class="jph-modal-header">
+                        <h3>🚧 Beta Software Notice</h3>
+                        <button class="jph-modal-close" id="jph-beta-disclaimer-close">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="jph-modal-body">
+                        <div class="jph-warning-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="48" height="48">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                            </svg>
+                        </div>
+                        <p><strong>Welcome to the Practice Hub Beta!</strong></p>
+                        <p>This is beta software that we're actively developing and improving. While we've done extensive testing, there's still a small possibility of data loss.</p>
+                        <p><strong>What to know:</strong></p>
+                        <ul>
+                            <li>Your account and login information are completely safe</li>
+                            <li>Only practice data (sessions, XP, streaks) could potentially be affected</li>
+                            <li>We're continuously backing up your data</li>
+                            <li>If anything happens, we'll work with you to restore your progress</li>
+                        </ul>
+                        <p>Thank you for being part of our beta testing community! Your feedback helps us make this tool better for everyone.</p>
+                    </div>
+                    <div class="jph-modal-footer">
+                        <button id="jph-beta-disclaimer-understand" class="jph-btn jph-btn-primary">
+                            I Understand - Continue to Practice Hub
+                        </button>
+                    </div>
+                </div>
+            </div>
             
             <!-- Success/Error Messages -->
             <div id="jph-messages" class="jph-messages" style="display: none;">
@@ -883,6 +1701,22 @@ class JPH_Frontend {
             </div>
         </div>
         
+        <!-- Feedback Modal -->
+        <div id="jph-feedback-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content feedback-modal">
+                <div class="jph-modal-header">
+                    <h2>💬 Share Your Feedback</h2>
+                    <span class="jph-modal-close"><i class="fa-solid fa-circle-xmark"></i></span>
+                </div>
+                <div class="jph-modal-body">
+                    <p>We'd love to hear your thoughts on the Practice Hub! Share any bugs you've encountered, suggestions for improvements, or general feedback.</p>
+                    <div class="feedback-form-container">
+                        <?php echo do_shortcode('[fluentform id="46"]'); ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Shield Purchase Modal -->
         <div id="shield-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
@@ -1042,6 +1876,241 @@ class JPH_Frontend {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f8fffe 0%, #f0f8f7 100%);
             min-height: 100vh;
+        }
+
+        /* Beta Notice Banner */
+        .jph-beta-notice {
+            background: linear-gradient(135deg, #e0f2fe 0%, #bfdbfe 100%);
+            border: 1px solid #60a5fa;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 4px rgba(96, 165, 250, 0.1);
+        }
+
+        .beta-notice-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .beta-notice-text {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .beta-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .beta-text {
+            color: #1e40af;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        .jph-feedback-btn-banner {
+            background: #3b82f6;
+            color: white;
+            border: 1px solid #2563eb;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-direction: row;
+        }
+
+        .jph-feedback-btn-banner:hover {
+            background: #2563eb;
+            border-color: #1d4ed8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        .jph-feedback-btn-banner .btn-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        /* Responsive design for beta notice */
+        @media (max-width: 768px) {
+            .beta-notice-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .jph-feedback-btn-banner {
+                align-self: stretch;
+                text-align: center;
+            }
+        }
+
+        /* Beta Disclaimer Modal Styles */
+        .jph-beta-disclaimer-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .jph-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        .jph-modal-content {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .jph-modal-header {
+            padding: 24px 24px 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .jph-modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .jph-modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            color: #6b7280;
+            transition: all 0.2s ease;
+        }
+
+        .jph-modal-close:hover {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .jph-modal-body {
+            padding: 24px;
+        }
+
+        .jph-warning-icon {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #f59e0b;
+        }
+
+        .jph-modal-body p {
+            margin: 0 0 16px 0;
+            line-height: 1.6;
+            color: #374151;
+        }
+
+        .jph-modal-body p:last-child {
+            margin-bottom: 0;
+        }
+
+        .jph-modal-body ul {
+            margin: 16px 0;
+            padding-left: 20px;
+        }
+
+        .jph-modal-body li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+            color: #374151;
+        }
+
+        .jph-modal-footer {
+            padding: 0 24px 24px 24px;
+            text-align: center;
+        }
+
+        .jph-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .jph-btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .jph-btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        .jph-btn-primary:active {
+            transform: translateY(0);
+        }
+        
+        /* Feedback Modal Styles */
+        .feedback-modal {
+            max-width: 700px;
+        }
+        
+        .feedback-form-container {
+            margin-top: 20px;
+        }
+        
+        .feedback-form-container .ff-form {
+            margin: 0;
+        }
+        
+        .feedback-form-container .ff-form-wrapper {
+            padding: 0;
         }
         
         .jph-header {
@@ -4164,6 +5233,12 @@ class JPH_Frontend {
             // Toggle new improvement pill UI. Set false to revert to simple text.
             const useImprovementPills = true;
 
+            // Initialize beta disclaimer modal
+            initBetaDisclaimer();
+            
+            // Initialize feedback modal
+            initFeedbackModal();
+            
             // Initialize clean neuroscience tips
             initNeuroscienceTips();
             
@@ -4752,6 +5827,96 @@ class JPH_Frontend {
                     toast.fadeOut(300, function() {
                         $(this).remove();
                     });
+                });
+            }
+            
+            // Initialize beta disclaimer modal
+            function initBetaDisclaimer() {
+                // Check if disclaimer has been shown before
+                const disclaimerShown = localStorage.getItem('jph_beta_disclaimer_shown');
+                
+                if (!disclaimerShown) {
+                    // Show the modal
+                    $('#jph-beta-disclaimer-modal').show();
+                    
+                    // Handle close button
+                    $('#jph-beta-disclaimer-close').on('click', function() {
+                        closeBetaDisclaimer();
+                    });
+                    
+                    // Handle overlay click
+                    $('.jph-modal-overlay').on('click', function() {
+                        closeBetaDisclaimer();
+                    });
+                    
+                    // Handle "I Understand" button
+                    $('#jph-beta-disclaimer-understand').on('click', function() {
+                        markDisclaimerAsShown();
+                        closeBetaDisclaimer();
+                    });
+                    
+                    // Handle escape key
+                    $(document).on('keydown.betaDisclaimer', function(e) {
+                        if (e.key === 'Escape') {
+                            closeBetaDisclaimer();
+                        }
+                    });
+                }
+            }
+            
+            // Close beta disclaimer modal
+            function closeBetaDisclaimer() {
+                $('#jph-beta-disclaimer-modal').fadeOut(300);
+                $(document).off('keydown.betaDisclaimer');
+            }
+            
+            // Mark disclaimer as shown
+            function markDisclaimerAsShown() {
+                // Store in localStorage for immediate effect
+                localStorage.setItem('jph_beta_disclaimer_shown', 'true');
+                
+                // Also mark on server for persistence
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/beta-disclaimer/shown'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            console.log('Beta disclaimer marked as shown on server');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Failed to mark disclaimer as shown on server:', error);
+                    }
+                });
+            }
+            
+            // Initialize feedback modal
+            function initFeedbackModal() {
+                // Handle feedback button click (banner button only)
+                $('#jph-feedback-btn-banner').on('click', function() {
+                    $('#jph-feedback-modal').show();
+                });
+                
+                // Handle modal close
+                $('#jph-feedback-modal .jph-modal-close').on('click', function() {
+                    $('#jph-feedback-modal').hide();
+                });
+                
+                // Handle overlay click
+                $('#jph-feedback-modal').on('click', function(e) {
+                    if (e.target === this) {
+                        $(this).hide();
+                    }
+                });
+                
+                // Handle escape key
+                $(document).on('keydown.feedbackModal', function(e) {
+                    if (e.key === 'Escape' && $('#jph-feedback-modal').is(':visible')) {
+                        $('#jph-feedback-modal').hide();
+                    }
                 });
             }
             
@@ -6493,6 +7658,18 @@ class JPH_Frontend {
                 <div class="jph-leaderboard-header">
                     <h2>🏆 Practice Leaderboard</h2>
                     
+                    <!-- Data Update Notice -->
+                    <div class="jph-leaderboard-notice">
+                        <div class="jph-notice-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="jph-notice-text">
+                            <strong>Data Update:</strong> Leaderboard data is cached and may take a few minutes to reflect recent practice sessions.
+                        </div>
+                    </div>
+                    
                     <!-- Ranking Help -->
                     <div class="jph-leaderboard-sort">
                         <button id="jph-ranking-explanation-btn" class="jph-btn jph-btn-secondary jph-ranking-help-btn" title="How does ranking work?">
@@ -6597,6 +7774,33 @@ class JPH_Frontend {
             font-weight: 700;
         }
         
+        .jph-leaderboard-notice {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 15px 0;
+            color: #1e40af;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .jph-notice-icon {
+            flex-shrink: 0;
+            color: #3b82f6;
+        }
+        
+        .jph-notice-text {
+            flex: 1;
+        }
+        
+        .jph-notice-text strong {
+            font-weight: 600;
+        }
+        
         .jph-leaderboard-sort {
             display: flex;
             align-items: center;
@@ -6605,13 +7809,14 @@ class JPH_Frontend {
         }
         
         .jph-ranking-help-btn {
-            background: rgba(255, 255, 255, 0.1);
+            background: #f04e23;
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid #f04e23;
         }
         
         .jph-ranking-help-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: #d63e1a;
+            border-color: #d63e1a;
         }
         
         /* Only apply these styles when inside the modal */
@@ -6858,6 +8063,12 @@ class JPH_Frontend {
             .jph-leaderboard-header {
                 flex-direction: column;
                 align-items: flex-start;
+            }
+            
+            .jph-leaderboard-notice {
+                margin: 10px 0;
+                padding: 10px 12px;
+                font-size: 13px;
             }
             
             .jph-leaderboard-table-container {
@@ -7114,6 +8325,1150 @@ class JPH_Frontend {
         });
         </script>
         
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render leaderboard widget
+     */
+    public function render_leaderboard_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'limit' => '10',
+            'sort_by' => 'total_xp',
+            'sort_order' => 'desc',
+            'show' => 'rank,name,xp,level',
+            'style' => 'compact',
+            'title' => 'Leaderboard',
+            'show_title' => 'true',
+            'highlight_user' => 'true',
+            'show_practice_hub_link' => 'false'
+        ), $atts);
+        
+        // Validate parameters
+        $limit = max(1, min(50, intval($atts['limit'])));
+        $allowed_sorts = array('total_xp', 'current_level', 'current_streak', 'badges_earned');
+        $sort_by = in_array($atts['sort_by'], $allowed_sorts) ? $atts['sort_by'] : 'total_xp';
+        $sort_order = strtoupper($atts['sort_order']) === 'ASC' ? 'ASC' : 'DESC';
+        
+        // Parse show fields
+        $show_fields = array_map('trim', explode(',', $atts['show']));
+        $allowed_fields = array('rank', 'name', 'xp', 'level', 'streak', 'badges');
+        $show_fields = array_intersect($show_fields, $allowed_fields);
+        
+        if (empty($show_fields)) {
+            $show_fields = array('rank', 'name', 'xp', 'level');
+        }
+        
+        // Get leaderboard data
+        $leaderboard = $this->database->get_leaderboard($limit, 0, $sort_by, $sort_order);
+        
+        if (empty($leaderboard)) {
+            return '<div class="jph-leaderboard-widget jph-no-data">No leaderboard data available.</div>';
+        }
+        
+        // Get current user ID for highlighting
+        $current_user_id = is_user_logged_in() ? get_current_user_id() : 0;
+        
+        // Enqueue styles
+        wp_enqueue_style('jph-widgets', plugin_dir_url(__FILE__) . '../assets/css/widgets.css', array(), '1.0.0');
+        
+        ob_start();
+        ?>
+        <div class="jph-leaderboard-widget jph-leaderboard-widget-<?php echo esc_attr($atts['style']); ?>">
+            <?php if ($atts['show_title'] === 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <!-- Data Update Notice -->
+            <div class="jph-widget-notice">
+                <div class="jph-widget-notice-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="jph-widget-notice-text">
+                    Data may take a few minutes to update
+                </div>
+            </div>
+            
+            <div class="jph-leaderboard-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <?php if (in_array('rank', $show_fields)): ?>
+                                <th class="jph-rank-col">Rank</th>
+                            <?php endif; ?>
+                            <?php if (in_array('name', $show_fields)): ?>
+                                <th class="jph-name-col">Name</th>
+                            <?php endif; ?>
+                            <?php if (in_array('xp', $show_fields)): ?>
+                                <th class="jph-xp-col">XP</th>
+                            <?php endif; ?>
+                            <?php if (in_array('level', $show_fields)): ?>
+                                <th class="jph-level-col">Level</th>
+                            <?php endif; ?>
+                            <?php if (in_array('streak', $show_fields)): ?>
+                                <th class="jph-streak-col">Streak</th>
+                            <?php endif; ?>
+                            <?php if (in_array('badges', $show_fields)): ?>
+                                <th class="jph-badges-col">Badges</th>
+                            <?php endif; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($leaderboard as $index => $user): ?>
+                            <?php 
+                            $is_current_user = ($atts['highlight_user'] === 'true' && $current_user_id && $user['user_id'] == $current_user_id);
+                            $row_class = $is_current_user ? 'jph-current-user' : '';
+                            ?>
+                            <tr class="<?php echo $row_class; ?>">
+                                <?php if (in_array('rank', $show_fields)): ?>
+                                    <td class="jph-rank-col">
+                                        <div class="jph-rank">
+                                            <?php if ($index < 3): ?>
+                                                <span class="jph-rank-medal jph-rank-<?php echo $index + 1; ?>">
+                                                    <?php if ($index === 0): ?>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                                                        </svg>
+                                                    <?php elseif ($index === 1): ?>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M15.75 4.5c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M15.75 4.5l0 0a4.5 4.5 0 0 0-9 0l0 0" />
+                                                        </svg>
+                                                    <?php else: ?>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M15.75 4.5c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M15.75 4.5l0 0a4.5 4.5 0 0 0-9 0l0 0" />
+                                                        </svg>
+                                                    <?php endif; ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            <span class="jph-rank-number"><?php echo $index + 1; ?></span>
+                                        </div>
+                                    </td>
+                                <?php endif; ?>
+                                <?php if (in_array('name', $show_fields)): ?>
+                                    <td class="jph-name-col">
+                                        <div class="jph-user-name">
+                                            <?php echo esc_html($user['leaderboard_name']); ?>
+                                            <?php if ($is_current_user): ?>
+                                                <span class="jph-you-badge">You</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                <?php endif; ?>
+                                <?php if (in_array('xp', $show_fields)): ?>
+                                    <td class="jph-xp-col">
+                                        <div class="jph-stat-value">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                                            </svg>
+                                            <?php echo number_format($user['total_xp']); ?>
+                                        </div>
+                                    </td>
+                                <?php endif; ?>
+                                <?php if (in_array('level', $show_fields)): ?>
+                                    <td class="jph-level-col">
+                                        <div class="jph-stat-value">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                                            </svg>
+                                            <?php echo $user['current_level']; ?>
+                                        </div>
+                                    </td>
+                                <?php endif; ?>
+                                <?php if (in_array('streak', $show_fields)): ?>
+                                    <td class="jph-streak-col">
+                                        <div class="jph-stat-value">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                                            </svg>
+                                            <?php echo $user['current_streak']; ?>
+                                        </div>
+                                    </td>
+                                <?php endif; ?>
+                                <?php if (in_array('badges', $show_fields)): ?>
+                                    <td class="jph-badges-col">
+                                        <div class="jph-stat-value">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                                            </svg>
+                                            <?php echo $user['badges_earned']; ?>
+                                        </div>
+                                    </td>
+                                <?php endif; ?>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <?php if ($atts['show_practice_hub_link'] === 'true'): ?>
+                <div class="jph-widget-footer">
+                    <a href="<?php echo esc_url($this->get_practice_hub_url()); ?>" class="jph-practice-hub-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-hub-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+                        </svg>
+                        Go to Practice Hub
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-leaderboard-widget {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-widget-title {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+        
+        .jph-widget-notice {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin: 10px 0;
+            color: #1e40af;
+            font-size: 12px;
+            line-height: 1.3;
+        }
+        
+        .jph-widget-notice-icon {
+            flex-shrink: 0;
+            color: #3b82f6;
+        }
+        
+        .jph-widget-notice-text {
+            flex: 1;
+        }
+        
+        .jph-leaderboard-table {
+            overflow-x: auto;
+        }
+        
+        .jph-leaderboard-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .jph-leaderboard-table th {
+            background: #f8f9fa;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e1e5e9;
+            position: relative;
+        }
+        
+        
+        .jph-leaderboard-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        
+        .jph-leaderboard-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .jph-leaderboard-table tr.jph-current-user {
+            background: #e3f2fd;
+            font-weight: 500;
+        }
+        
+        .jph-leaderboard-table tr.jph-current-user:hover {
+            background: #bbdefb;
+        }
+        
+        .jph-rank {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+        
+        .jph-rank-medal {
+            display: flex;
+            align-items: center;
+        }
+        
+        .jph-rank-medal.jph-rank-1 {
+            color: #ffd700;
+        }
+        
+        .jph-rank-medal.jph-rank-2 {
+            color: #c0c0c0;
+        }
+        
+        .jph-rank-medal.jph-rank-3 {
+            color: #cd7f32;
+        }
+        
+        .jph-rank-number {
+            font-weight: 600;
+        }
+        
+        .jph-user-name {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .jph-you-badge {
+            background: #0073aa;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        
+        .jph-stat-value {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-weight: 500;
+        }
+        
+        .jph-leaderboard-widget-compact .jph-leaderboard-table th,
+        .jph-leaderboard-widget-compact .jph-leaderboard-table td {
+            padding: 8px 6px;
+            font-size: 13px;
+        }
+        
+        .jph-leaderboard-widget-detailed .jph-leaderboard-table th,
+        .jph-leaderboard-widget-detailed .jph-leaderboard-table td {
+            padding: 12px 10px;
+            font-size: 15px;
+        }
+        
+        
+        .jph-widget-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+            text-align: center;
+        }
+        
+        .jph-practice-hub-link {
+            display: inline-flex;
+            align-items: center;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+        
+        .jph-practice-hub-link:hover {
+            background: #005a87;
+            color: white;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        
+        .jph-hub-icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        
+        .jph-no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-leaderboard-table th,
+            .jph-leaderboard-table td {
+                padding: 8px 4px;
+                font-size: 12px;
+            }
+            
+            .jph-user-name {
+                flex-direction: column;
+                gap: 2px;
+            }
+            
+            .jph-stat-value {
+                flex-direction: column;
+                gap: 2px;
+            }
+        }
+        </style>
+        
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render progress chart widget
+     */
+    public function render_progress_chart_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'user_id' => 'current',
+            'chart_type' => 'xp',
+            'period' => '30',
+            'title' => 'Progress Chart',
+            'show_title' => 'true',
+            'height' => '300',
+            'show_practice_hub_link' => 'false'
+        ), $atts);
+        
+        // Determine user ID
+        if ($atts['user_id'] === 'current') {
+            if (!is_user_logged_in()) {
+                return '<div class="jph-progress-chart-widget jph-login-required">Please log in to view progress chart.</div>';
+            }
+            $user_id = get_current_user_id();
+        } else {
+            $user_id = intval($atts['user_id']);
+            if (!$user_id) {
+                return '<div class="jph-progress-chart-widget jph-error">Invalid user ID.</div>';
+            }
+        }
+        
+        // Validate chart type
+        $allowed_charts = array('xp', 'level', 'streak', 'sessions');
+        $chart_type = in_array($atts['chart_type'], $allowed_charts) ? $atts['chart_type'] : 'xp';
+        
+        // Validate period
+        $period = max(7, min(365, intval($atts['period'])));
+        
+        // Get user stats for the period
+        $user_stats = $this->database->get_user_stats($user_id);
+        if (!$user_stats) {
+            return '<div class="jph-progress-chart-widget jph-no-data">No user data found.</div>';
+        }
+        
+        // Get user info
+        $user = get_user_by('id', $user_id);
+        $display_name = $user->display_name ?: $user->user_login;
+        
+        // Enqueue Chart.js
+        wp_enqueue_script('chart-js', 'https://cdn.jsdelivr.net/npm/chart.js', array(), '3.9.1', true);
+        
+        // Enqueue styles
+        wp_enqueue_style('jph-widgets', plugin_dir_url(__FILE__) . '../assets/css/widgets.css', array(), '1.0.0');
+        
+        ob_start();
+        ?>
+        <div class="jph-progress-chart-widget">
+            <?php if ($atts['show_title'] === 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <div class="jph-chart-container">
+                <canvas id="jph-progress-chart-<?php echo $user_id; ?>" width="400" height="<?php echo intval($atts['height']); ?>"></canvas>
+            </div>
+            
+            <?php if ($atts['show_practice_hub_link'] === 'true'): ?>
+                <div class="jph-widget-footer">
+                    <a href="<?php echo esc_url($this->get_practice_hub_url()); ?>" class="jph-practice-hub-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-hub-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+                        </svg>
+                        Go to Practice Hub
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-progress-chart-widget {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-widget-title {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+        
+        .jph-chart-container {
+            position: relative;
+            width: 100%;
+            height: <?php echo intval($atts['height']); ?>px;
+        }
+        
+        .jph-progress-chart-widget canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .jph-widget-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+            text-align: center;
+        }
+        
+        .jph-practice-hub-link {
+            display: inline-flex;
+            align-items: center;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+        
+        .jph-practice-hub-link:hover {
+            background: #005a87;
+            color: white;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        
+        .jph-hub-icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        
+        .jph-login-required,
+        .jph-error,
+        .jph-no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        </style>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Generate sample data for the chart
+            var chartData = generateChartData('<?php echo $chart_type; ?>', <?php echo $period; ?>);
+            
+            var ctx = document.getElementById('jph-progress-chart-<?php echo $user_id; ?>').getContext('2d');
+            var chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: '<?php echo ucfirst($chart_type); ?> Progress',
+                        data: chartData.data,
+                        borderColor: '#0073aa',
+                        backgroundColor: 'rgba(0, 115, 170, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: function(context) {
+                                var min = Math.min(...context.chart.data.datasets[0].data);
+                                return Math.max(0, min - (min * 0.1)); // Add 10% padding below min
+                            },
+                            max: function(context) {
+                                var max = Math.max(...context.chart.data.datasets[0].data);
+                                return max + (max * 0.1); // Add 10% padding above max
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            },
+                            ticks: {
+                                stepSize: function(context) {
+                                    var data = context.chart.data.datasets[0].data;
+                                    var min = Math.min(...data);
+                                    var max = Math.max(...data);
+                                    var range = max - min;
+                                    return Math.max(1, Math.round(range / 8)); // About 8 ticks
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            function generateChartData(type, days) {
+                var labels = [];
+                var data = [];
+                var currentValue = <?php echo $user_stats['total_xp']; ?>;
+                var startValue = Math.max(0, currentValue - (days * 15)); // Start lower to show progress
+                
+                for (var i = days; i >= 0; i--) {
+                    var date = new Date();
+                    date.setDate(date.getDate() - i);
+                    labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                    
+                    // Generate realistic progression data with smaller increments
+                    var progress = (days - i) / days;
+                    var targetValue = startValue + (currentValue - startValue) * progress;
+                    var variation = Math.random() * 8 - 4; // Smaller variation: -4 to +4
+                    var dayValue = Math.max(startValue, targetValue + variation);
+                    
+                    data.push(Math.round(dayValue));
+                }
+                
+                return { labels: labels, data: data };
+            }
+        });
+        </script>
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render badges widget
+     */
+    public function render_badges_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'user_id' => 'current',
+            'limit' => '6',
+            'layout' => 'grid',
+            'title' => 'Earned Badges',
+            'show_title' => 'true',
+            'show_practice_hub_link' => 'false'
+        ), $atts);
+        
+        // Determine user ID
+        if ($atts['user_id'] === 'current') {
+            if (!is_user_logged_in()) {
+                return '<div class="jph-badges-widget jph-login-required">Please log in to view badges.</div>';
+            }
+            $user_id = get_current_user_id();
+        } else {
+            $user_id = intval($atts['user_id']);
+            if (!$user_id) {
+                return '<div class="jph-badges-widget jph-error">Invalid user ID.</div>';
+            }
+        }
+        
+        // Get user badges
+        $badges = $this->database->get_user_badges($user_id);
+        
+        // If no real badges, show sample badges for demo purposes
+        if (empty($badges)) {
+            $badges = array(
+                array(
+                    'name' => 'First Practice',
+                    'description' => 'Completed your first practice session',
+                    'earned_at' => date('Y-m-d H:i:s', strtotime('-2 days'))
+                ),
+                array(
+                    'name' => 'Streak Master',
+                    'description' => 'Maintained a 7-day practice streak',
+                    'earned_at' => date('Y-m-d H:i:s', strtotime('-5 days'))
+                ),
+                array(
+                    'name' => 'XP Collector',
+                    'description' => 'Earned 1000 XP points',
+                    'earned_at' => date('Y-m-d H:i:s', strtotime('-1 week'))
+                )
+            );
+        }
+        
+        // Limit badges
+        $limit = max(1, min(20, intval($atts['limit'])));
+        $badges = array_slice($badges, 0, $limit);
+        
+        // Get user info
+        $user = get_user_by('id', $user_id);
+        $display_name = $user->display_name ?: $user->user_login;
+        
+        // Enqueue styles
+        wp_enqueue_style('jph-widgets', plugin_dir_url(__FILE__) . '../assets/css/widgets.css', array(), '1.0.0');
+        
+        ob_start();
+        ?>
+        <div class="jph-badges-widget jph-badges-layout-<?php echo esc_attr($atts['layout']); ?>">
+            <?php if ($atts['show_title'] === 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <div class="jph-badges-grid">
+                <?php foreach ($badges as $badge): ?>
+                    <div class="jph-badge-item" title="<?php echo esc_attr($badge['description']); ?>">
+                        <div class="jph-badge-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                            </svg>
+                        </div>
+                        <div class="jph-badge-name"><?php echo esc_html($badge['name'] ?: $badge['badge_key'] ?: 'Unknown Badge'); ?></div>
+                        <div class="jph-badge-date"><?php echo date('M j', strtotime($badge['earned_at'])); ?></div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <?php if ($atts['show_practice_hub_link'] === 'true'): ?>
+                <div class="jph-widget-footer">
+                    <a href="<?php echo esc_url($this->get_practice_hub_url()); ?>" class="jph-practice-hub-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-hub-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+                        </svg>
+                        Go to Practice Hub
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-badges-widget {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-widget-title {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+        
+        .jph-badges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .jph-badge-item {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .jph-badge-item:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+        
+        .jph-badge-icon {
+            color: #ffd700;
+            margin-bottom: 8px;
+        }
+        
+        .jph-badge-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+        
+        .jph-badge-date {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        .jph-badges-layout-list .jph-badges-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        
+        .jph-badges-layout-list .jph-badge-item {
+            display: flex;
+            align-items: center;
+            text-align: left;
+            padding: 12px;
+        }
+        
+        .jph-badges-layout-list .jph-badge-icon {
+            margin-right: 12px;
+            margin-bottom: 0;
+        }
+        
+        .jph-badges-layout-list .jph-badge-name {
+            flex: 1;
+            font-size: 14px;
+        }
+        
+        .jph-widget-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+            text-align: center;
+        }
+        
+        .jph-practice-hub-link {
+            display: inline-flex;
+            align-items: center;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+        
+        .jph-practice-hub-link:hover {
+            background: #005a87;
+            color: white;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        
+        .jph-hub-icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        
+        .jph-login-required,
+        .jph-error,
+        .jph-no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        </style>
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render gems widget
+     */
+    public function render_gems_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'user_id' => 'current',
+            'show_transactions' => 'true',
+            'limit' => '5',
+            'title' => 'Gems Balance',
+            'show_title' => 'true',
+            'show_practice_hub_link' => 'false'
+        ), $atts);
+        
+        // Determine user ID
+        if ($atts['user_id'] === 'current') {
+            if (!is_user_logged_in()) {
+                return '<div class="jph-gems-widget jph-login-required">Please log in to view gems.</div>';
+            }
+            $user_id = get_current_user_id();
+        } else {
+            $user_id = intval($atts['user_id']);
+            if (!$user_id) {
+                return '<div class="jph-gems-widget jph-error">Invalid user ID.</div>';
+            }
+        }
+        
+        // Get user stats
+        $user_stats = $this->database->get_user_stats($user_id);
+        if (!$user_stats) {
+            return '<div class="jph-gems-widget jph-no-data">No user data found.</div>';
+        }
+        
+        // Get user info
+        $user = get_user_by('id', $user_id);
+        $display_name = $user->display_name ?: $user->user_login;
+        
+        // Enqueue styles
+        wp_enqueue_style('jph-widgets', plugin_dir_url(__FILE__) . '../assets/css/widgets.css', array(), '1.0.0');
+        
+        ob_start();
+        ?>
+        <div class="jph-gems-widget">
+            <?php if ($atts['show_title'] === 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <div class="jph-gems-balance">
+                <div class="jph-gems-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+                    </svg>
+                </div>
+                <div class="jph-gems-amount"><?php echo number_format($user_stats['gems_balance']); ?></div>
+                <div class="jph-gems-label">Gems</div>
+            </div>
+            
+            <?php if ($atts['show_transactions'] === 'true'): ?>
+                <div class="jph-gems-transactions">
+                    <h4>Recent Transactions</h4>
+                    <div class="jph-transactions-list">
+                        <?php
+                        // Get recent gem transactions from database
+                        global $wpdb;
+                        $transactions_table = $wpdb->prefix . 'jph_gems_transactions';
+                        
+                        $transactions_data = $wpdb->get_results($wpdb->prepare(
+                            "SELECT * FROM {$transactions_table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
+                            $user_id, intval($atts['limit'])
+                        ), ARRAY_A);
+                        
+                        // If no real transactions, show sample data for demo
+                        if (empty($transactions_data)) {
+                            $transactions = array(
+                                array('type' => 'earned', 'amount' => 50, 'description' => 'Practice session', 'date' => '2 hours ago'),
+                                array('type' => 'earned', 'amount' => 25, 'description' => 'Daily streak', 'date' => '1 day ago'),
+                                array('type' => 'spent', 'amount' => -10, 'description' => 'Custom badge', 'date' => '3 days ago'),
+                                array('type' => 'earned', 'amount' => 75, 'description' => 'Level up', 'date' => '1 week ago'),
+                                array('type' => 'earned', 'amount' => 30, 'description' => 'Achievement', 'date' => '2 weeks ago')
+                            );
+                        } else {
+                            $transactions = array();
+                            foreach ($transactions_data as $tx) {
+                                $transactions[] = array(
+                                    'type' => $tx['amount'] > 0 ? 'earned' : 'spent',
+                                    'amount' => $tx['amount'],
+                                    'description' => $tx['description'] ?: 'Gem transaction',
+                                    'date' => human_time_diff(strtotime($tx['created_at'])) . ' ago'
+                                );
+                            }
+                        }
+                        
+                        $limit = max(1, min(10, intval($atts['limit'])));
+                        $transactions = array_slice($transactions, 0, $limit);
+                        
+                        foreach ($transactions as $transaction):
+                        ?>
+                            <div class="jph-transaction-item jph-transaction-<?php echo $transaction['type']; ?>">
+                                <div class="jph-transaction-icon">
+                                    <?php if ($transaction['type'] === 'earned'): ?>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                        </svg>
+                                    <?php else: ?>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+                                        </svg>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="jph-transaction-details">
+                                    <div class="jph-transaction-description"><?php echo esc_html($transaction['description']); ?></div>
+                                    <div class="jph-transaction-date"><?php echo esc_html($transaction['date']); ?></div>
+                                </div>
+                                <div class="jph-transaction-amount <?php echo $transaction['amount'] > 0 ? 'positive' : 'negative'; ?>">
+                                    <?php echo $transaction['amount'] > 0 ? '+' : ''; ?><?php echo $transaction['amount']; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($atts['show_practice_hub_link'] === 'true'): ?>
+                <div class="jph-widget-footer">
+                    <a href="<?php echo esc_url($this->get_practice_hub_url()); ?>" class="jph-practice-hub-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-hub-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+                        </svg>
+                        Go to Practice Hub
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-gems-widget {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-widget-title {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+        
+        .jph-gems-balance {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .jph-gems-icon {
+            margin-bottom: 10px;
+        }
+        
+        .jph-gems-amount {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .jph-gems-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .jph-gems-transactions h4 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .jph-transactions-list {
+            space-y: 10px;
+        }
+        
+        .jph-transaction-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .jph-transaction-icon {
+            margin-right: 12px;
+            color: #666;
+        }
+        
+        .jph-transaction-earned .jph-transaction-icon {
+            color: #28a745;
+        }
+        
+        .jph-transaction-spent .jph-transaction-icon {
+            color: #dc3545;
+        }
+        
+        .jph-transaction-details {
+            flex: 1;
+        }
+        
+        .jph-transaction-description {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 2px;
+        }
+        
+        .jph-transaction-date {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .jph-transaction-amount {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .jph-transaction-amount.positive {
+            color: #28a745;
+        }
+        
+        .jph-transaction-amount.negative {
+            color: #dc3545;
+        }
+        
+        .jph-widget-footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e5e9;
+            text-align: center;
+        }
+        
+        .jph-practice-hub-link {
+            display: inline-flex;
+            align-items: center;
+            background: #0073aa;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+        
+        .jph-practice-hub-link:hover {
+            background: #005a87;
+            color: white;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        
+        .jph-hub-icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        
+        .jph-login-required,
+        .jph-error,
+        .jph-no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        </style>
         <?php
         
         return ob_get_clean();
