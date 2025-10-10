@@ -263,7 +263,7 @@ class JPH_Database {
                 ub.*,
                 b.name,
                 b.description,
-                b.icon,
+                b.image_url,
                 b.category
              FROM {$user_badges_table} ub
              LEFT JOIN {$badges_table} b ON ub.badge_key = b.badge_key

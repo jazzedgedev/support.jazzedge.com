@@ -400,6 +400,12 @@ class JPH_REST_API {
             'callback' => array($this, 'rest_clear_cache'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
+        
+        register_rest_route('aph/v1', '/admin/update-badges-schema', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_update_badges_schema'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
     }
     
     /**
@@ -3867,6 +3873,36 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             ));
             
             return new WP_Error('clear_cache_failed', 'Failed to clear cache: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update badges schema
+     */
+    public function rest_update_badges_schema($request) {
+        try {
+            $result = APH_Database_Schema::update_badges_schema();
+            
+            if ($result) {
+                $this->logger->info('Badges schema updated successfully', array(
+                    'admin_id' => get_current_user_id(),
+                    'timestamp' => current_time('mysql')
+                ));
+                
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'Badges schema updated successfully'
+                ));
+            } else {
+                return new WP_Error('schema_update_error', 'Failed to update badges schema', array('status' => 500));
+            }
+            
+        } catch (Exception $e) {
+            $this->logger->error('Failed to update badges schema', array(
+                'error' => $e->getMessage(),
+                'admin_id' => get_current_user_id()
+            ));
+            return new WP_Error('schema_update_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

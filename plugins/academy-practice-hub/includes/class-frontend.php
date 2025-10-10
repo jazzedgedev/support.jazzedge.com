@@ -1312,7 +1312,11 @@ class JPH_Frontend {
                                         <?php if (!empty($badge['image_url'])): ?>
                                             <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
                                         <?php else: ?>
-                                            <span class="jph-badge-icon"><?php echo $badge['icon'] ?? '🏆'; ?></span>
+                                            <div class="jph-badge-placeholder">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                                                </svg>
+                                            </div>
                                         <?php endif; ?>
                                     </div>
                                     <div class="jph-badge-content">
@@ -2418,6 +2422,17 @@ class JPH_Frontend {
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+        
+        .jph-badge-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            border-radius: 8px;
+            color: #6c757d;
         }
         
         .jph-badge-name {
@@ -5964,7 +5979,7 @@ class JPH_Frontend {
                     
                     var badgeImage = badge.image_url && badge.image_url.startsWith('http') ? 
                         '<img src="' + badge.image_url + '" alt="' + badge.name + '">' : 
-                        '<span class="badge-emoji">' + (badge.icon || 'BADGE') + '</span>';
+                        '<div class="jph-badge-placeholder"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path></svg></div>';
                     
                     var earnedDate = badge.is_earned && badge.earned_at ? 
                         '<div class="jph-badge-earned-date">Earned: ' + formatDate(badge.earned_at) + '</div>' : '';
@@ -9039,9 +9054,13 @@ class JPH_Frontend {
                 <?php foreach ($badges as $badge): ?>
                     <div class="jph-badge-item" title="<?php echo esc_attr($badge['description']); ?>">
                         <div class="jph-badge-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
-                            </svg>
+                            <?php if (!empty($badge['image_url'])): ?>
+                                <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>" width="32" height="32">
+                            <?php else: ?>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                                </svg>
+                            <?php endif; ?>
                         </div>
                         <div class="jph-badge-name"><?php echo esc_html($badge['name'] ?: $badge['badge_key'] ?: 'Unknown Badge'); ?></div>
                         <div class="jph-badge-date"><?php echo date('M j', strtotime($badge['earned_at'])); ?></div>

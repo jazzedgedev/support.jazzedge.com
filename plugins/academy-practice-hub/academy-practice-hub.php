@@ -38,6 +38,9 @@ function aph_activate() {
     // Add leaderboard columns to existing tables
     APH_Database_Schema::add_leaderboard_columns();
     
+    // Update badges schema to use image_url instead of icon
+    APH_Database_Schema::update_badges_schema();
+    
     // Add additional performance indexes
     APH_Database_Schema::add_additional_indexes();
 }

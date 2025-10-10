@@ -389,11 +389,11 @@ class APH_Database_Schema {
                     'null' => true,
                     'description' => 'Badge description'
                 ),
-                'icon' => array(
+                'image_url' => array(
                     'type' => 'VARCHAR',
-                    'length' => 100,
+                    'length' => 500,
                     'null' => true,
-                    'description' => 'Badge icon class or identifier'
+                    'description' => 'Badge image URL'
                 ),
                 'category' => array(
                     'type' => 'VARCHAR',
@@ -829,6 +829,42 @@ class APH_Database_Schema {
                     error_log("Failed to add leaderboard indexes: " . $wpdb->last_error);
                     return false;
                 }
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Update badges table schema to use image_url instead of icon
+     */
+    public static function update_badges_schema() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_badges';
+        
+        // Check if image_url column exists
+        $columns = $wpdb->get_col("DESCRIBE {$table_name}");
+        
+        $alter_statements = array();
+        
+        // Add image_url column if it doesn't exist
+        if (!in_array('image_url', $columns)) {
+            $alter_statements[] = "ADD COLUMN `image_url` VARCHAR(500) NULL COMMENT 'Badge image URL'";
+        }
+        
+        // Remove icon column if it exists and image_url exists
+        if (in_array('icon', $columns) && in_array('image_url', $columns)) {
+            $alter_statements[] = "DROP COLUMN `icon`";
+        }
+        
+        if (!empty($alter_statements)) {
+            $sql = "ALTER TABLE `{$table_name}` " . implode(', ', $alter_statements);
+            $result = $wpdb->query($sql);
+            
+            if ($result === false) {
+                error_log("Failed to update badges schema: " . $wpdb->last_error);
+                return false;
             }
         }
         

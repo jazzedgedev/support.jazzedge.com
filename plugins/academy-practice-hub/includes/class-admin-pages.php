@@ -20,22 +20,21 @@ class JPH_Admin_Pages {
      * Add admin menu
      */
     public function add_admin_menu() {
-        // Remove the main Practice Hub menu item since it's just a placeholder
-        // Start directly with the Students submenu as the main entry point
+        // Main Practice Hub dashboard as the primary entry point
         
         
         add_menu_page(
-            __('Students', 'academy-practice-hub'),
-            __('Students', 'academy-practice-hub'),
+            __('Practice Hub', 'academy-practice-hub'),
+            __('Practice Hub', 'academy-practice-hub'),
             'manage_options',
-            'aph-students',
+            'aph-practice-hub',
             array($this, 'students_page'),
             'dashicons-format-audio',
             30
         );
         
         add_submenu_page(
-            'aph-students',
+            'aph-practice-hub',
             __('Badges', 'academy-practice-hub'),
             __('Badges', 'academy-practice-hub'),
             'manage_options',
@@ -44,7 +43,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'aph-students',
+            'aph-practice-hub',
             __('Lesson Favorites', 'academy-practice-hub'),
             __('Lesson Favorites', 'academy-practice-hub'),
             'manage_options',
@@ -53,7 +52,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'aph-students',
+            'aph-practice-hub',
             __('Event Tracking', 'academy-practice-hub'),
             __('Event Tracking', 'academy-practice-hub'),
             'manage_options',
@@ -62,7 +61,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'aph-students',
+            'aph-practice-hub',
             __('Documentation', 'academy-practice-hub'),
             __('Documentation', 'academy-practice-hub'),
             'manage_options',
@@ -71,7 +70,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'aph-students',
+            'aph-practice-hub',
             __('AI Settings', 'academy-practice-hub'),
             __('AI Settings', 'academy-practice-hub'),
             'manage_options',
@@ -80,7 +79,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'aph-students',
+            'aph-practice-hub',
             __('Widgets', 'academy-practice-hub'),
             __('Widgets', 'academy-practice-hub'),
             'manage_options',
@@ -89,7 +88,7 @@ class JPH_Admin_Pages {
         );
         
         add_submenu_page(
-            'aph-students',
+            'aph-practice-hub',
             __('Settings', 'academy-practice-hub'),
             __('Settings', 'academy-practice-hub'),
             'manage_options',
@@ -120,7 +119,7 @@ class JPH_Admin_Pages {
     }
     
     /**
-     * Students page
+     * Students page (main dashboard)
      */
     public function students_page() {
         ?>
@@ -871,7 +870,11 @@ class JPH_Admin_Pages {
                                         <?php if (!empty($badge['image_url'])): ?>
                                             <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>" style="width: 32px; height: 32px;">
                                         <?php else: ?>
-                                            <span style="font-size: 24px;"><?php echo esc_html($badge['icon'] ?: '🏆'); ?></span>
+                                            <div style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #f0f0f0; border-radius: 4px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                                                </svg>
+                                            </div>
                                         <?php endif; ?>
                                     </td>
                                     <td><strong><?php echo esc_html($badge['name']); ?></strong></td>
@@ -915,8 +918,9 @@ class JPH_Admin_Pages {
                         </div>
                         
                         <div class="jph-form-group">
-                            <label for="badge-icon">Icon:</label>
-                            <input type="text" id="badge-icon" name="icon" placeholder="🏆" value="🏆">
+                            <label for="badge-image-url">Image URL:</label>
+                            <input type="url" id="badge-image-url" name="image_url" placeholder="https://example.com/badge-image.png">
+                            <small>Enter the full URL to the badge image (PNG, JPG, or SVG recommended)</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -992,8 +996,9 @@ class JPH_Admin_Pages {
                         </div>
                         
                         <div class="jph-form-group">
-                            <label for="edit-badge-icon">Icon:</label>
-                            <input type="text" id="edit-badge-icon" name="icon" placeholder="e.g., 🏆 or icon-class">
+                            <label for="edit-badge-image-url">Image URL:</label>
+                            <input type="url" id="edit-badge-image-url" name="image_url" placeholder="https://example.com/badge-image.png">
+                            <small>Enter the full URL to the badge image (PNG, JPG, or SVG recommended)</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -1106,7 +1111,7 @@ class JPH_Admin_Pages {
             document.getElementById('edit-badge-key').value = badge.badge_key;
             document.getElementById('edit-badge-name').value = badge.name || '';
             document.getElementById('edit-badge-description').value = badge.description || '';
-            document.getElementById('edit-badge-icon').value = badge.icon || '';
+            document.getElementById('edit-badge-image-url').value = badge.image_url || '';
             document.getElementById('edit-badge-category').value = badge.category || 'achievement';
             document.getElementById('edit-badge-criteria-type').value = badge.criteria_type || 'practice_sessions';
             document.getElementById('edit-badge-criteria-value').value = badge.criteria_value || 0;
@@ -1265,6 +1270,33 @@ class JPH_Admin_Pages {
                     },
                     error: function() {
                         jQuery('#test-results').html('<p>❌ Clear failed: Network error</p>').addClass('error');
+                    }
+                });
+            }
+        }
+        
+        function updateBadgesSchema() {
+            if (confirm('Are you sure you want to update the badges schema? This will add image_url column and remove icon column.')) {
+                jQuery('#test-results').html('<p>🔄 Updating badges schema...</p>').show().removeClass('success error');
+                
+                jQuery.ajax({
+                    url: '<?php echo rest_url('aph/v1/admin/update-badges-schema'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            jQuery('#test-results').html(
+                                '<p>✅ Badges schema updated successfully!</p>' +
+                                '<p><strong>Badge images should now display correctly.</strong></p>'
+                            ).addClass('success');
+                        } else {
+                            jQuery('#test-results').html('<p>❌ Update failed: ' + response.message + '</p>').addClass('error');
+                        }
+                    },
+                    error: function() {
+                        jQuery('#test-results').html('<p>❌ Update failed: Network error</p>').addClass('error');
                     }
                 });
             }
@@ -2856,6 +2888,9 @@ Remember: Plain text only, no formatting.');
                         
                         <button type="button" class="button button-secondary jph-clear-cache-btn" onclick="clearCache()" style="margin-left: 10px;">
                             🔄 Clear Cache
+                        </button>
+                        <button type="button" class="button button-secondary" onclick="updateBadgesSchema()" style="margin-left: 10px;">
+                            🏆 Update Badges Schema
                         </button>
                     </div>
                     
