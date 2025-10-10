@@ -49,6 +49,9 @@ if (file_exists($includes_path . 'class-usage-tracker.php')) {
 if (file_exists($includes_path . 'class-admin-simple.php')) {
     require_once $includes_path . 'class-admin-simple.php';
 }
+if (file_exists($includes_path . 'class-admin.php')) {
+    require_once $includes_path . 'class-admin.php';
+}
 if (file_exists($includes_path . 'class-rest-api.php')) {
     require_once $includes_path . 'class-rest-api.php';
 }
@@ -83,6 +86,11 @@ class Katahdin_AI_Hub {
      * Admin Interface
      */
     public $admin;
+    
+    /**
+     * Debug Admin Interface
+     */
+    public $admin_debug;
     
     /**
      * REST API
@@ -143,6 +151,9 @@ class Katahdin_AI_Hub {
             }
             if (class_exists('Katahdin_AI_Hub_Admin')) {
                 $this->admin = new Katahdin_AI_Hub_Admin();
+            }
+            if (class_exists('Katahdin_AI_Hub_Admin_Debug')) {
+                $this->admin_debug = new Katahdin_AI_Hub_Admin_Debug();
             }
             // REST API is initialized in constructor to ensure routes are registered early
         } catch (Exception $e) {

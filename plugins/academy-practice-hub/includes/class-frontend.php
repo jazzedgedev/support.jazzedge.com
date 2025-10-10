@@ -1298,42 +1298,122 @@ class JPH_Frontend {
                         <!-- Badges Section -->
                         <div class="jph-badges-section">
                             <h2>🏆 Your Badges</h2>
-                            <div id="jph-badges-grid" class="jph-badges-grid">
-                                <?php
-                                $badges = $this->database->get_badges();
-                                $user_badges = $this->database->get_user_badges($user_id);
-                                $earned_badge_keys = array_column($user_badges, 'badge_key');
+                            
+                            <?php
+                            $badges = $this->database->get_badges();
+                            $user_badges = $this->database->get_user_badges($user_id);
+                            $earned_badge_keys = array_column($user_badges, 'badge_key');
+                            
+                            // Group badges by category
+                            $badge_categories = array(
+                                'first_steps' => array('name' => 'First Steps', 'icon' => '🌟', 'description' => 'Your journey begins here'),
+                                'streak_specialist' => array('name' => 'Streak Specialist', 'icon' => '🔥', 'description' => 'Consistency is key'),
+                                'xp_collector' => array('name' => 'XP Collector', 'icon' => '⭐', 'description' => 'Points and progress'),
+                                'session_warrior' => array('name' => 'Session Warrior', 'icon' => '⚔️', 'description' => 'Practice makes perfect'),
+                                'quality_quantity' => array('name' => 'Quality Over Quantity', 'icon' => '🎯', 'description' => 'Deep focus sessions'),
+                                'special_achievements' => array('name' => 'Special Achievements', 'icon' => '🎭', 'description' => 'Unique accomplishments')
+                            );
+                            
+                            $grouped_badges = array();
+                            foreach ($badges as $badge) {
+                                $category = $badge['category'] ?: 'achievement';
+                                if (!isset($grouped_badges[$category])) {
+                                    $grouped_badges[$category] = array();
+                                }
+                                $grouped_badges[$category][] = $badge;
+                            }
+                            
+                            foreach ($badge_categories as $category_key => $category_info):
+                                if (!isset($grouped_badges[$category_key])) continue;
+                                $category_badges = $grouped_badges[$category_key];
                                 
-                                foreach ($badges as $badge):
-                                    $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
-                                ?>
-                                <div class="jph-badge-card <?php echo $is_earned ? 'earned' : 'locked'; ?>">
-                                    <div class="jph-badge-image">
-                                        <?php if (!empty($badge['image_url'])): ?>
-                                            <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
-                                        <?php else: ?>
-                                            <div class="jph-badge-placeholder">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
-                                                </svg>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="jph-badge-content">
-                                        <h4><?php echo esc_html($badge['name']); ?></h4>
-                                        <p><?php echo esc_html($badge['description']); ?></p>
-                                        <div class="jph-badge-rewards">
-                                            <?php if ($badge['xp_reward'] > 0): ?>
-                                                <span class="jph-reward">+<?php echo $badge['xp_reward']; ?> XP</span>
-                                            <?php endif; ?>
-                                            <?php if ($badge['gem_reward'] > 0): ?>
-                                                <span class="jph-reward">+<?php echo $badge['gem_reward']; ?> 💎</span>
-                                            <?php endif; ?>
+                                // Count earned badges in this category
+                                $earned_in_category = 0;
+                                foreach ($category_badges as $badge) {
+                                    if (in_array($badge['badge_key'], $earned_badge_keys)) {
+                                        $earned_in_category++;
+                                    }
+                                }
+                            ?>
+                            
+                            <div class="jph-badge-category">
+                                <div class="jph-category-header">
+                                    <h3><?php echo $category_info['icon']; ?> <?php echo esc_html($category_info['name']); ?></h3>
+                                    <p><?php echo esc_html($category_info['description']); ?></p>
+                                    <div class="jph-category-progress">
+                                        <span class="jph-progress-text"><?php echo $earned_in_category; ?> / <?php echo count($category_badges); ?> earned</span>
+                                        <div class="jph-progress-bar">
+                                            <div class="jph-progress-fill" style="width: <?php echo ($earned_in_category / count($category_badges)) * 100; ?>%"></div>
                                         </div>
                                     </div>
                                 </div>
-                                <?php endforeach; ?>
+                                
+                                <div class="jph-badges-grid">
+                                    <?php foreach ($category_badges as $badge):
+                                        $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
+                                    ?>
+                                    <div class="jph-badge-card <?php echo $is_earned ? 'earned' : 'locked'; ?>">
+                                        <div class="jph-badge-image">
+                                            <?php if (!empty($badge['image_url'])): ?>
+                                                <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
+                                            <?php else: ?>
+                                                <div class="jph-badge-placeholder">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                                                    </svg>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="jph-badge-content">
+                                            <div class="jph-badge-title"><?php echo esc_html($badge['name']); ?></div>
+                                            <div class="jph-badge-description"><?php echo esc_html($badge['description']); ?></div>
+                                            <?php if (!$is_earned): ?>
+                                                <div class="jph-badge-requirements">
+                                                    <div class="jph-requirements-text">
+                                                        <?php
+                                                        $criteria_text = '';
+                                                        switch ($badge['criteria_type']) {
+                                                            case 'practice_sessions':
+                                                                $criteria_text = $badge['criteria_value'] . ' practice session' . ($badge['criteria_value'] > 1 ? 's' : '');
+                                                                break;
+                                                            case 'total_xp':
+                                                                $criteria_text = $badge['criteria_value'] . ' total XP';
+                                                                break;
+                                                            case 'streak':
+                                                                $criteria_text = $badge['criteria_value'] . '-day streak';
+                                                                break;
+                                                            case 'long_session_count':
+                                                                $criteria_text = $badge['criteria_value'] . ' session' . ($badge['criteria_value'] > 1 ? 's' : '') . ' over 30 min';
+                                                                break;
+                                                            case 'comeback':
+                                                                $criteria_text = 'Return after 7+ day break';
+                                                                break;
+                                                            case 'time_of_day':
+                                                                $criteria_text = $badge['criteria_value'] == 1 ? '10 early morning sessions' : '10 night sessions';
+                                                                break;
+                                                            default:
+                                                                $criteria_text = 'Complete requirements';
+                                                        }
+                                                        echo esc_html($criteria_text);
+                                                        ?>
+                                                    </div>
+                                                </div>
+                                            <?php endif; ?>
+                                            <div class="jph-badge-rewards">
+                                                <?php if ($badge['xp_reward'] > 0): ?>
+                                                    <span class="jph-reward">+<?php echo $badge['xp_reward']; ?> XP</span>
+                                                <?php endif; ?>
+                                                <?php if ($badge['gem_reward'] > 0): ?>
+                                                    <span class="jph-reward">+<?php echo $badge['gem_reward']; ?> 💎</span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
+                            
+                            <?php endforeach; ?>
                         </div>
                     </div>
                     
@@ -1451,9 +1531,11 @@ class JPH_Frontend {
                                     </div>
                                     <div class="ai-analysis-content">
                                         <div class="ai-analysis-text" id="ai-analysis-text">
-                                            <div class="loading-spinner">
-                                                <div class="spinner"></div>
-                                                <span>Analyzing your practice data...</span>
+                                            <div class="ai-analysis-placeholder">
+                                                <div class="ai-placeholder-icon">🤖</div>
+                                                <h5>Ready for AI Analysis</h5>
+                                                <p>Click the button below to generate personalized insights from your practice data.</p>
+                                                <p class="ai-placeholder-note">Analysis covers your last 30 days of practice sessions.</p>
                                             </div>
                                         </div>
                                         <div class="ai-analysis-footer">
@@ -1461,9 +1543,9 @@ class JPH_Frontend {
                                                 <span class="period-label">📊</span>
                                                 <span class="period-text">Last 30 days</span>
                                             </div>
-                                            <button type="button" class="ai-refresh-btn" id="ai-refresh-btn">
-                                                <span class="refresh-icon">🔄</span>
-                                                Refresh
+                                            <button type="button" class="ai-generate-btn" id="ai-generate-btn">
+                                                <span class="generate-icon">✨</span>
+                                                Generate AI Analysis
                                             </button>
                                         </div>
                                     </div>
@@ -2352,14 +2434,14 @@ class JPH_Frontend {
         
         .jph-badges-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
             margin-top: 20px;
         }
         
         @media (max-width: 1200px) {
             .jph-badges-grid {
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(2, 1fr);
             }
         }
         
@@ -2379,11 +2461,15 @@ class JPH_Frontend {
             background: linear-gradient(135deg, #f8f9fa, #ffffff);
             border: 2px solid #e8f5f4;
             border-radius: 12px;
-            padding: 20px;
+            padding: 24px 20px;
             text-align: center;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 280px;
         }
         
         .jph-badge-card:hover {
@@ -2405,13 +2491,14 @@ class JPH_Frontend {
         .jph-badge-image {
             width: 64px;
             height: 64px;
-            margin: 0 auto 15px;
+            margin: 0 auto 20px;
             background: transparent;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 32px;
             transition: all 0.3s ease;
+            flex-shrink: 0;
         }
         
         .jph-badge-card.earned .jph-badge-image {
@@ -2435,19 +2522,105 @@ class JPH_Frontend {
             color: #6c757d;
         }
         
-        .jph-badge-name {
+        .jph-badge-category {
+            margin-bottom: 40px;
+            background: #fff;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .jph-category-header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .jph-category-header h3 {
+            margin: 0 0 8px 0;
+            color: #004555;
+            font-size: 1.4em;
+            font-weight: 700;
+        }
+        
+        .jph-category-header p {
+            margin: 0 0 16px 0;
+            color: #666;
+            font-size: 0.95em;
+        }
+        
+        .jph-category-progress {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jph-progress-text {
+            font-size: 0.9em;
             font-weight: 600;
             color: #004555;
-            font-size: 0.9em;
-            margin-bottom: 5px;
+        }
+        
+        .jph-progress-bar {
+            width: 200px;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .jph-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007cba 0%, #00a0d2 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .jph-badge-requirements {
+            margin: 10px 0;
+            padding: 10px 14px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 3px solid #007cba;
+            text-align: center;
+        }
+        
+        .jph-requirements-text {
+            color: #666;
+            font-style: normal;
+            font-weight: 500;
+            font-size: 1.0em;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            line-height: 1.3;
+        }
+        
+        .jph-badge-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        .jph-badge-title {
+            font-weight: 700;
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 10px;
             line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-align: center;
         }
         
         .jph-badge-description {
-            font-size: 0.8em;
+            font-size: 0.95em;
             color: #666;
-            line-height: 1.3;
-            margin-bottom: 10px;
+            line-height: 1.4;
+            margin-bottom: 15px;
+            font-weight: 400;
+            text-align: center;
+            flex: 1;
         }
         
         .jph-badge-category {
@@ -2469,17 +2642,22 @@ class JPH_Frontend {
         .jph-badge-category-improvement { background: #fce4ec; color: #c2185b; }
         
         .jph-badge-rewards {
-            font-size: 0.8em;
-            color: #666;
-            margin-top: 8px;
-            font-weight: 500;
+            font-size: 1.0em;
+            color: #333;
+            margin-top: auto;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: center;
+            padding-top: 10px;
         }
         
         .jph-badge-earned-date {
-            font-size: 0.7em;
+            font-size: 0.85em;
             color: #28a745;
             font-weight: 600;
-            margin-top: 8px;
+            margin-top: 10px;
+            text-align: center;
         }
         
         .no-badges-message {
@@ -4642,7 +4820,7 @@ class JPH_Frontend {
             font-size: 0.9em;
         }
         
-        .ai-refresh-btn {
+        .ai-generate-btn {
             background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
             color: white;
             border: none;
@@ -4657,19 +4835,49 @@ class JPH_Frontend {
             transition: all 0.2s ease;
         }
         
-        .ai-refresh-btn:hover {
+        .ai-generate-btn:hover {
             background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
             transform: translateY(-1px);
         }
         
-        .ai-refresh-btn:disabled {
+        .ai-generate-btn:disabled {
             background: #94a3b8;
             cursor: not-allowed;
             transform: none;
         }
         
-        .refresh-icon {
+        .generate-icon {
             font-size: 0.9em;
+        }
+        
+        .ai-analysis-placeholder {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+        
+        .ai-placeholder-icon {
+            font-size: 3em;
+            margin-bottom: 16px;
+            opacity: 0.7;
+        }
+        
+        .ai-analysis-placeholder h5 {
+            margin: 0 0 12px 0;
+            color: #374151;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+        
+        .ai-analysis-placeholder p {
+            margin: 0 0 8px 0;
+            line-height: 1.5;
+        }
+        
+        .ai-placeholder-note {
+            font-size: 0.9em;
+            opacity: 0.8;
+            font-style: italic;
         }
         
         
@@ -4706,37 +4914,6 @@ class JPH_Frontend {
             font-size: 1.2em;
         }
         
-        .ai-refresh-btn {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.9em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .ai-refresh-btn:hover {
-            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
-        }
-        
-        .ai-refresh-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .ai-refresh-btn svg {
-            width: 16px;
-            height: 16px;
-        }
         
         /* Status Display */
         .ai-status-display {
@@ -5037,7 +5214,7 @@ class JPH_Frontend {
                 align-items: stretch;
             }
             
-            .ai-refresh-btn {
+            .ai-generate-btn {
                 justify-content: center;
             }
         }
@@ -5524,8 +5701,8 @@ class JPH_Frontend {
                             if (typeof loadAnalytics === 'function') {
                                 loadAnalytics();
                             }
-                            if (typeof loadAIAnalysis === 'function') {
-                                loadAIAnalysis();
+                            if (typeof initAIGenerateButton === 'function') {
+                                initAIGenerateButton();
                             }
                             break;
                         case 'history':
@@ -5553,8 +5730,8 @@ class JPH_Frontend {
             // Load analytics
             loadAnalytics();
             
-            // Load AI analysis
-            loadAIAnalysis();
+            // Initialize AI generate button
+            initAIGenerateButton();
             
             // Initialize other functionality
             initModalHandlers();
@@ -5986,9 +6163,11 @@ class JPH_Frontend {
                     
                     html += '<div class="jph-badge-card ' + earnedClass + '">';
                     html += '    <div class="jph-badge-image">' + badgeImage + '</div>';
-                    html += '    <div class="jph-badge-name">' + escapeHtml(badge.name) + '</div>';
-                    html += '    <div class="jph-badge-description">' + escapeHtml(badge.description || '') + '</div>';
-                    html += '    <div class="jph-badge-rewards">+' + (badge.xp_reward || 0) + ' XP +' + (badge.gem_reward || 0) + ' 💎</div>';
+                    html += '    <div class="jph-badge-content">';
+                    html += '        <div class="jph-badge-title">' + escapeHtml(badge.name) + '</div>';
+                    html += '        <div class="jph-badge-description">' + escapeHtml(badge.description || '') + '</div>';
+                    html += '        <div class="jph-badge-rewards">+' + (badge.xp_reward || 0) + ' XP +' + (badge.gem_reward || 0) + ' 💎</div>';
+                    html += '    </div>';
                     html += earnedDate;
                     html += '</div>';
                 });
@@ -6168,54 +6347,22 @@ class JPH_Frontend {
                 }, 16);
             }
             
-            // Load AI analysis
-            function loadAIAnalysis() {
-                console.log('Loading AI analysis...');
+            // Generate AI analysis on demand
+            function generateAIAnalysis() {
+                console.log('Generating AI analysis...');
                 
-                // Show status display
-                $('#ai-status-display').show();
-                updateStatus('Testing API connection...', 'Checking if REST endpoints are accessible');
+                // Show loading state
+                $('#ai-analysis-text').html(`
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <span>Generating AI analysis...</span>
+                    </div>
+                `);
                 
-                // First test if the endpoint is accessible
-                $.ajax({
-                    url: '<?php echo rest_url('aph/v1/test'); ?>',
-                    method: 'GET',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    success: function(testResponse) {
-                        console.log('Test endpoint works:', testResponse);
-                        updateStatus('API connection successful', 'Loading AI analysis...');
-                        // Now try the AI analysis
-                        loadAIAnalysisActual();
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Test endpoint failed:', error);
-                        console.error('XHR response:', xhr.responseText);
-                        updateStatus('API connection failed', 'Error: ' + error + ' (Status: ' + xhr.status + ')');
-                        
-                        // Try to get more info about the error
-                        if (xhr.status === 403) {
-                            displayAIAnalysisError('Permission denied (403). Are you logged in? User ID: <?php echo get_current_user_id(); ?>');
-                        } else if (xhr.status === 404) {
-                            displayAIAnalysisError('Endpoint not found (404). REST API routes may not be registered.');
-                        } else {
-                            displayAIAnalysisError('REST API error: ' + error + ' (Status: ' + xhr.status + ')');
-                        }
-                    }
-                });
-            }
-            
-            // Update status display
-            function updateStatus(status, step) {
-                $('#ai-status-text').text(status);
-                $('#ai-step-text').text(step);
-            }
-            
-            // Actual AI analysis loading
-            function loadAIAnalysisActual() {
-                updateStatus('Loading AI analysis...', 'Fetching practice data and generating insights');
+                // Disable the button during generation
+                $('#ai-generate-btn').prop('disabled', true).html('<span class="generate-icon">⏳</span> Generating...');
                 
+                // Make the API call
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/ai-analysis'); ?>',
                     method: 'GET',
@@ -6225,22 +6372,27 @@ class JPH_Frontend {
                     success: function(response) {
                         console.log('AI Analysis response:', response);
                         if (response.success && response.data) {
-                            updateStatus('Analysis complete', 'Displaying results...');
-                            displayAIAnalysis(response.data, response.cached);
+                            displayAIAnalysis(response.data, false);
+                            // Update button to allow regeneration
+                            $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon">🔄</span> Regenerate Analysis');
                         } else {
                             console.error('AI Analysis API error:', response);
-                            updateStatus('Analysis failed', 'API Error: ' + (response.message || 'Unknown error'));
                             displayAIAnalysisError('API Error: ' + (response.message || 'Unknown error'));
+                            // Reset button
+                            $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon">✨</span> Generate AI Analysis');
                         }
                     },
                     error: function(xhr, status, error) {
                         console.error('AI Analysis loading error:', error);
                         console.error('XHR response:', xhr.responseText);
-                        updateStatus('Analysis failed', 'Connection Error: ' + error + ' (Status: ' + xhr.status + ')');
                         displayAIAnalysisError('Connection Error: ' + error + ' (Status: ' + xhr.status + ')');
+                        // Reset button
+                        $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon">✨</span> Generate AI Analysis');
                     }
                 });
             }
+            
+            
             
             // Display AI analysis
             function displayAIAnalysis(data, isCached) {
@@ -6258,8 +6410,8 @@ class JPH_Frontend {
                     $dataPeriod.text(data.data_period + ' (cached)');
                 }
                 
-                // Initialize refresh button
-                initAIRefreshButton();
+                // Initialize generate button
+                initAIGenerateButton();
             }
             
             
@@ -6268,384 +6420,22 @@ class JPH_Frontend {
                 const $analysisText = $('#ai-analysis-text');
                 $analysisText.html('<p style="color: #dc2626; text-align: center;">' + message + '</p>');
                 
-                // Initialize refresh button
-                initAIRefreshButton();
+                // Initialize generate button
+                initAIGenerateButton();
             }
             
-            // Initialize AI refresh button
-            function initAIRefreshButton() {
-                $('#ai-refresh-btn').off('click').on('click', function() {
-                    const $btn = $(this);
-                    const $analysisText = $('#ai-analysis-text');
-                    
-                    // Disable button and show loading
-                    $btn.prop('disabled', true);
-                    $btn.html('<div class="spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Refreshing...');
-                    
-                    // Show loading in analysis text
-                    $analysisText.html('<div class="loading-spinner"><div class="spinner"></div><span>Generating fresh analysis...</span></div>');
-                    
-                    // Make refresh request (use regular endpoint with refresh parameter)
-                    $.ajax({
-                        url: '<?php echo rest_url('aph/v1/ai-analysis'); ?>?refresh=1',
-                        method: 'GET',
-                        headers: {
-                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                        },
-                        success: function(response) {
-                            console.log('AI Analysis refresh response:', response);
-                            if (response.success && response.data) {
-                                displayAIAnalysis(response.data, false);
-                            } else {
-                                displayAIAnalysisError('Failed to refresh AI analysis: ' + (response.message || 'Unknown error'));
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            console.error('AI Analysis refresh error:', error);
-                            console.error('XHR response:', xhr.responseText);
-                            console.error('Status:', xhr.status);
-                            displayAIAnalysisError('Failed to refresh AI analysis (Status: ' + xhr.status + ')');
-                        },
-                        complete: function() {
-                            // Re-enable button
-                            $btn.prop('disabled', false);
-                            $btn.html('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Refresh');
-                        }
-                    });
+            // Initialize AI generate button
+            function initAIGenerateButton() {
+                $('#ai-generate-btn').off('click').on('click', function() {
+                    generateAIAnalysis();
                 });
             }
             
-            // Populate debug information
-            function populateDebugInfo(data) {
-                // Show debug section
-                $('#ai-debug-section').show();
-                
-                // Populate debug data
-                if (data.data_summary) {
-                    $('#debug-sessions-count').text(data.data_summary.total_sessions || '0');
-                    $('#debug-total-minutes').text(data.data_summary.total_minutes || '0');
-                    $('#debug-avg-sentiment').text(data.data_summary.avg_sentiment || '0');
-                    $('#debug-improvement-rate').text(data.data_summary.improvement_rate + '%' || '0%');
-                    $('#debug-most-day').text(data.data_summary.most_frequent_day || 'None');
-                    $('#debug-most-item').text(data.data_summary.most_practiced_item || 'None');
-                } else {
-                    $('#debug-sessions-count').text('0');
-                    $('#debug-total-minutes').text('0');
-                    $('#debug-avg-sentiment').text('0');
-                    $('#debug-improvement-rate').text('0%');
-                    $('#debug-most-day').text('None');
-                    $('#debug-most-item').text('None');
-                }
-                
-                // Set date range
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                const now = new Date();
-                $('#debug-date-range').text(thirtyDaysAgo.toLocaleDateString() + ' to ' + now.toLocaleDateString());
-                
-                // Set AI prompt and response
-                $('#debug-prompt').text(data.debug_prompt || 'No prompt data available');
-                $('#debug-response').text(data.analysis || 'No response data available');
-                
-                // Set additional debug info
-                if (data.debug_info) {
-                    $('#debug-user-id').text(data.debug_info.user_id || 'Unknown');
-                    $('#debug-total-sessions').text(data.debug_info.total_sessions_user || '0');
-                    $('#debug-sessions-30-days').text(data.debug_info.sessions_30_days || '0');
-                    
-                    // Set date range
-                    $('#debug-date-start').text(data.debug_info.date_range_start || 'Unknown');
-                    $('#debug-date-end').text(data.debug_info.date_range_end || 'Unknown');
-                    
-                    // Set table names
-                    if (data.debug_info.table_names) {
-                        const tableNames = Object.entries(data.debug_info.table_names)
-                            .map(([key, value]) => `${key}: ${value}`)
-                            .join('\n');
-                        $('#debug-tables').text(tableNames);
-                    }
-                    
-                    // Set SQL query
-                    $('#debug-sql').text(data.debug_info.sql_query || 'No SQL query available');
-                    
-                    // Set sample sessions from database debug
-                    loadSampleSessions(data.debug_info.user_id);
-                } else {
-                    $('#debug-user-id').text('Unknown');
-                    $('#debug-total-sessions').text('0');
-                    $('#debug-sessions-30-days').text('0');
-                    $('#debug-date-start').text('Unknown');
-                    $('#debug-date-end').text('Unknown');
-                    $('#debug-tables').text('No table info available');
-                    $('#debug-sql').text('No SQL query available');
-                    $('#debug-sessions').text('No session data available');
-                }
-                
-                // Set current times
-                $('#debug-wp-time').text(new Date().toLocaleString());
-                $('#debug-server-time').text(new Date().toISOString());
-                
-                // Initialize debug toggle
-                initDebugToggle();
-                
-                // Load database debug info
-                loadDatabaseDebug();
-            }
             
-            // Initialize debug toggle
-            function initDebugToggle() {
-                $('#debug-toggle-btn').off('click').on('click', function() {
-                    const $content = $('#debug-content');
-                    const $btn = $(this);
-                    
-                    if ($content.is(':visible')) {
-                        $content.hide();
-                        $btn.text('Show Debug');
-                    } else {
-                        $content.show();
-                        $btn.text('Hide Debug');
-                    }
-                });
-                
-                // Initialize date test button
-                $('#debug-test-btn').off('click').on('click', function() {
-                    const $btn = $(this);
-                    $btn.prop('disabled', true);
-                    $btn.text('Testing...');
-                    
-                    $.ajax({
-                        url: '<?php echo rest_url('aph/v1/debug/date-test'); ?>',
-                        method: 'GET',
-                        headers: {
-                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                displayDateTestResults(response);
-                            } else {
-                                alert('Date test failed: ' + (response.message || 'Unknown error'));
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            alert('Date test error: ' + error);
-                        },
-                        complete: function() {
-                            $btn.prop('disabled', false);
-                            $btn.text('Test Date Queries');
-                        }
-                    });
-                });
-                
-                // Initialize routes test button
-                $('#debug-routes-btn').off('click').on('click', function() {
-                    const $btn = $(this);
-                    $btn.prop('disabled', true);
-                    $btn.text('Testing...');
-                    
-                    $.ajax({
-                        url: '<?php echo rest_url('aph/v1/debug/routes'); ?>',
-                        method: 'GET',
-                        headers: {
-                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                displayRoutesTestResults(response);
-                            } else {
-                                alert('Routes test failed: ' + (response.message || 'Unknown error'));
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            alert('Routes test error: ' + error + ' (Status: ' + xhr.status + ')');
-                        },
-                        complete: function() {
-                            $btn.prop('disabled', false);
-                            $btn.text('Test Routes');
-                        }
-                    });
-                });
-            }
             
-            // Display routes test results
-            function displayRoutesTestResults(data) {
-                let html = '<div class="routes-test-results">';
-                html += '<h6>REST API Routes Test:</h6>';
-                html += '<div class="debug-table-row"><strong>Total JPH Routes:</strong> ' + data.total_jph_routes + '</div>';
-                html += '<div class="debug-table-row"><strong>WP REST Server:</strong> ' + (data.wp_rest_server_exists ? 'Available' : 'Not Available') + '</div>';
-                
-                if (data.registered_routes && data.registered_routes.length > 0) {
-                    html += '<div style="margin-top: 10px;"><strong>Registered Routes:</strong></div>';
-                    data.registered_routes.forEach(route => {
-                        html += '<div class="debug-table-row">' + route + '</div>';
-                    });
-                } else {
-                    html += '<div class="debug-table-row" style="color: #dc2626;">No JPH routes found!</div>';
-                }
-                
-                html += '</div>';
-                
-                // Add to debug content
-                $('#debug-content').append(html);
-            }
             
-            // Display date test results
-            function displayDateTestResults(data) {
-                let html = '<div class="date-test-results">';
-                html += '<h6>Date Test Results:</h6>';
-                
-                // Show sample sessions
-                if (data.all_sessions_sample && data.all_sessions_sample.length > 0) {
-                    html += '<div><strong>Your Recent Sessions:</strong></div>';
-                    data.all_sessions_sample.forEach((session, index) => {
-                        html += '<div class="debug-table-row">' + (index + 1) + '. ' + session.created_at + '</div>';
-                    });
-                }
-                
-                // Show date test results
-                html += '<div style="margin-top: 15px;"><strong>Date Query Tests:</strong></div>';
-                Object.keys(data.date_tests).forEach(testName => {
-                    const test = data.date_tests[testName];
-                    html += '<div class="debug-table-row">';
-                    html += '<strong>' + testName + ':</strong> ' + test.date + ' → ' + test.sessions_found + ' sessions';
-                    html += '</div>';
-                });
-                
-                html += '</div>';
-                
-                // Add to debug content
-                $('#debug-content').append(html);
-            }
             
-            // Load database debug information
-            function loadDatabaseDebug() {
-                $.ajax({
-                        url: '<?php echo rest_url('aph/v1/debug/database'); ?>',
-                    method: 'GET',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    success: function(response) {
-                        if (response.success && response.tables) {
-                            displayDatabaseDebug(response);
-                        } else {
-                            $('#database-debug-content').html('<div class="debug-error">Failed to load database information</div>');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Database debug loading error:', error);
-                        $('#database-debug-content').html('<div class="debug-error">Error loading database information: ' + error + '</div>');
-                    }
-                });
-            }
             
-            // Display database debug information
-            function displayDatabaseDebug(data) {
-                const $content = $('#database-debug-content');
-                let html = '';
-                
-                // Add user info
-                html += '<div class="debug-table-section">';
-                html += '<div class="debug-table-header">User Information</div>';
-                html += '<div class="debug-table-content">';
-                html += '<div class="debug-table-row"><strong>User ID:</strong> ' + data.user_id + '</div>';
-                html += '<div class="debug-table-row"><strong>Generated At:</strong> ' + data.generated_at + '</div>';
-                html += '</div></div>';
-                
-                // Add each table
-                Object.keys(data.tables).forEach(tableName => {
-                    const table = data.tables[tableName];
-                    
-                    html += '<div class="debug-table-section">';
-                    html += '<div class="debug-table-header">' + tableName + ' (' + (table.exists ? 'EXISTS' : 'MISSING') + ' - ' + table.row_count + ' rows)</div>';
-                    html += '<div class="debug-table-content">';
-                    
-                    if (table.exists) {
-                        // Table structure
-                        html += '<div style="margin-bottom: 15px;"><strong>Structure:</strong></div>';
-                        table.structure.forEach(column => {
-                            html += '<div class="debug-table-row">' + column.Field + ' (' + column.Type + ') - ' + column.Null + ' - ' + column.Key + '</div>';
-                        });
-                        
-                        // User data
-                        if (table.user_data && table.user_data.length > 0) {
-                            html += '<div style="margin: 15px 0;"><strong>Your Data (Last 10):</strong></div>';
-                            table.user_data.forEach((row, index) => {
-                                html += '<div class="debug-table-row"><strong>Row ' + (index + 1) + ':</strong> ' + JSON.stringify(row, null, 2) + '</div>';
-                            });
-                        }
-                        
-                        // Recent data for non-user tables
-                        if (table.recent_data && table.recent_data.length > 0) {
-                            html += '<div style="margin: 15px 0;"><strong>Recent Data (Last 10):</strong></div>';
-                            table.recent_data.forEach((row, index) => {
-                                html += '<div class="debug-table-row"><strong>Row ' + (index + 1) + ':</strong> ' + JSON.stringify(row, null, 2) + '</div>';
-                            });
-                        }
-                    } else {
-                        html += '<div class="debug-table-row" style="color: #dc2626;">Table does not exist</div>';
-                    }
-                    
-                    html += '</div></div>';
-                });
-                
-                $content.html(html);
-                
-                // Initialize copy button
-                initCopyButton(data);
-            }
-            
-            // Initialize copy button
-            function initCopyButton(data) {
-                $('#debug-copy-btn').off('click').on('click', function() {
-                    const debugText = JSON.stringify(data, null, 2);
-                    
-                    // Copy to clipboard
-                    navigator.clipboard.writeText(debugText).then(function() {
-                        const $btn = $(this);
-                        const originalText = $btn.text();
-                        $btn.text('Copied!');
-                        $btn.css('background', '#059669');
-                        
-                        setTimeout(function() {
-                            $btn.text(originalText);
-                            $btn.css('background', '#10b981');
-                        }, 2000);
-                    }.bind(this)).catch(function(err) {
-                        console.error('Failed to copy: ', err);
-                        alert('Failed to copy to clipboard. Please select and copy manually.');
-                    });
-                });
-            }
-            
-            // Load sample sessions for debugging
-            function loadSampleSessions(userId) {
-                $.ajax({
-                        url: '<?php echo rest_url('aph/v1/debug/database'); ?>',
-                    method: 'GET',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    success: function(response) {
-                        if (response.success && response.tables && response.tables.jph_practice_sessions) {
-                            const sessions = response.tables.jph_practice_sessions.user_data;
-                            if (sessions && sessions.length > 0) {
-                                let sessionText = '';
-                                sessions.slice(0, 5).forEach((session, index) => {
-                                    sessionText += `Session ${index + 1}: ${session.created_at} (${session.duration_minutes} min)\n`;
-                                });
-                                $('#debug-sessions').text(sessionText);
-                            } else {
-                                $('#debug-sessions').text('No sessions found for this user');
-                            }
-                        } else {
-                            $('#debug-sessions').text('Failed to load session data');
-                        }
-                    },
-                    error: function() {
-                        $('#debug-sessions').text('Error loading session data');
-                    }
-                });
-            }
             
             // Helper function to format dates
             function formatDate(dateString) {
@@ -9126,10 +8916,13 @@ class JPH_Frontend {
         
         .jph-badge-name {
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 700;
             color: #333;
             margin-bottom: 4px;
             line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: center;
         }
         
         .jph-badge-date {
@@ -9157,6 +8950,10 @@ class JPH_Frontend {
         .jph-badges-layout-list .jph-badge-name {
             flex: 1;
             font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: left;
         }
         
         .jph-widget-footer {

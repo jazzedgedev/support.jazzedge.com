@@ -253,6 +253,29 @@ class APH_Gamification {
                         $should_award = true;
                     }
                     break;
+                    
+                case 'long_session_count':
+                    // Count sessions over 30 minutes
+                    $long_sessions = 0;
+                    foreach ($sessions as $session) {
+                        if ($session['duration_minutes'] >= 30) {
+                            $long_sessions++;
+                        }
+                    }
+                    if ($long_sessions >= $criteria_value) {
+                        $should_award = true;
+                    }
+                    break;
+                    
+                case 'comeback':
+                    // Check if user returned after 7+ day break and completed 3 sessions in a week
+                    $should_award = $this->check_comeback_badge($user_id, $sessions);
+                    break;
+                    
+                case 'time_of_day':
+                    // Check practice time patterns (early bird or night owl)
+                    $should_award = $this->check_time_of_day_badge($user_id, $sessions, $criteria_value);
+                    break;
             }
             
             if ($should_award) {
@@ -286,5 +309,71 @@ class APH_Gamification {
         }
         
         return $newly_awarded;
+    }
+    
+    /**
+     * Check comeback badge criteria
+     * User must have returned after 7+ day break and completed 3 sessions in a week
+     */
+    private function check_comeback_badge($user_id, $sessions) {
+        if (count($sessions) < 3) {
+            return false;
+        }
+        
+        // Sort sessions by date (newest first)
+        usort($sessions, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
+        
+        // Check if there's a gap of 7+ days in recent sessions
+        $recent_sessions = array_slice($sessions, 0, 10); // Check last 10 sessions
+        
+        for ($i = 0; $i < count($recent_sessions) - 1; $i++) {
+            $current_date = strtotime($recent_sessions[$i]['created_at']);
+            $next_date = strtotime($recent_sessions[$i + 1]['created_at']);
+            $days_diff = ($current_date - $next_date) / (24 * 60 * 60);
+            
+            if ($days_diff >= 7) {
+                // Found a 7+ day gap, check if user completed 3 sessions in the week after the gap
+                $sessions_after_gap = array_slice($recent_sessions, 0, $i + 1);
+                $week_after_gap = strtotime($recent_sessions[$i]['created_at']) + (7 * 24 * 60 * 60);
+                
+                $sessions_in_week = 0;
+                foreach ($sessions_after_gap as $session) {
+                    if (strtotime($session['created_at']) <= $week_after_gap) {
+                        $sessions_in_week++;
+                    }
+                }
+                
+                return $sessions_in_week >= 3;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check time of day badge criteria
+     * criteria_value: 1 = early bird (5 AM - 8 AM), 2 = night owl (10 PM - 6 AM)
+     */
+    private function check_time_of_day_badge($user_id, $sessions, $criteria_value) {
+        $target_sessions = 0;
+        
+        foreach ($sessions as $session) {
+            $session_time = strtotime($session['created_at']);
+            $hour = (int)date('H', $session_time);
+            
+            if ($criteria_value == 1) { // Early bird (5 AM - 8 AM)
+                if ($hour >= 5 && $hour < 8) {
+                    $target_sessions++;
+                }
+            } elseif ($criteria_value == 2) { // Night owl (10 PM - 6 AM)
+                if ($hour >= 22 || $hour < 6) {
+                    $target_sessions++;
+                }
+            }
+        }
+        
+        return $target_sessions >= 10; // Need 10 sessions in the target time period
     }
 }

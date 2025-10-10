@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class Katahdin_AI_Hub_Admin {
+class Katahdin_AI_Hub_Admin_Debug {
     
     /**
      * Initialize Admin Interface
@@ -61,6 +61,15 @@ class Katahdin_AI_Hub_Admin {
             'manage_options',
             'katahdin-ai-hub-plugins',
             array($this, 'plugins_page')
+        );
+        
+        add_submenu_page(
+            'katahdin-ai-hub',
+            __('Debug Center', 'katahdin-ai-hub'),
+            __('Debug Center', 'katahdin-ai-hub'),
+            'manage_options',
+            'katahdin-ai-hub-debug',
+            array($this, 'debug_page')
         );
     }
     
@@ -802,5 +811,317 @@ class Katahdin_AI_Hub_Admin {
         
         fclose($output);
         exit;
+    }
+    
+    /**
+     * Debug page
+     */
+    public function debug_page() {
+        ?>
+        <div class="wrap">
+            <h1>🔍 Katahdin AI Hub Debug Center</h1>
+            <p>Debug and test AI requests to diagnose issues.</p>
+            
+            <div class="katahdin-debug-sections">
+                <!-- Test AI Request Section -->
+                <div class="katahdin-debug-section">
+                    <h2>🧪 Test AI Request</h2>
+                    <p>Test a direct AI request to see exactly what's sent and received.</p>
+                    
+                    <div class="debug-controls">
+                        <div class="debug-input-group">
+                            <label for="debug-system-message">System Message:</label>
+                            <textarea id="debug-system-message" rows="3" cols="80" class="large-text">You are a helpful piano practice coach. Format responses as 3 separate paragraphs with blank lines between them. Use plain text only.</textarea>
+                        </div>
+                        
+                        <div class="debug-input-group">
+                            <label for="debug-user-message">User Message:</label>
+                            <textarea id="debug-user-message" rows="8" cols="80" class="large-text">Format your response as exactly 3 separate paragraphs with blank lines between them.
+
+1. STRENGTHS: What they are doing well and their strengths.
+
+2. IMPROVEMENT AREAS: Trends and areas for improvement.
+
+3. NEXT STEPS: Practical next steps and lesson recommendations.
+
+Practice Sessions: 54 sessions
+Total Practice Time: 1835 minutes
+Average Session Length: 34 minutes
+Average Mood/Sentiment: 3.6/5 (1=frustrating, 5=excellent)
+Improvement Rate: 68.5% of sessions showed improvement
+Most Frequent Practice Day: Friday
+Most Practiced Item: Blues Licks
+Current Level: 6
+Current Streak: 8 days
+
+When recommending lessons, use these titles naturally: Technique - Jazzedge Practice Curriculum™; Improvisation - The Confident Improviser™; Accompaniment - Piano Accompaniment Essentials™; Jazz Standards - Standards By The Dozen™; Super Easy Jazz Standards - Super Simple Standards™.
+
+FORMAT: Write 3 paragraphs separated by blank lines.</textarea>
+                        </div>
+                        
+                        <div class="debug-input-group">
+                            <label for="debug-model">Model:</label>
+                            <select id="debug-model">
+                                <option value="gpt-4">GPT-4</option>
+                                <option value="gpt-4-turbo" selected>GPT-4 Turbo</option>
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            </select>
+                        </div>
+                        
+                        <div class="debug-input-group">
+                            <label for="debug-max-tokens">Max Tokens:</label>
+                            <input type="number" id="debug-max-tokens" value="1000" min="50" max="4000">
+                        </div>
+                        
+                        <div class="debug-input-group">
+                            <label for="debug-temperature">Temperature:</label>
+                            <input type="number" id="debug-temperature" value="0.7" min="0" max="2" step="0.1">
+                        </div>
+                        
+                        <div class="debug-buttons">
+                            <button type="button" class="button button-primary" onclick="testAIDebug()">Test AI Request</button>
+                        </div>
+                    </div>
+                    
+                    <div id="debug-test-results" class="debug-test-results"></div>
+                    
+                    <!-- Copy Debug Info Button -->
+                    <div id="copy-debug-section" style="margin-top: 15px; display: none;">
+                        <button type="button" class="button button-secondary" onclick="copyDebugInfo()" id="copy-debug-btn">
+                            📋 Copy Debug Info
+                        </button>
+                        <span id="copy-status" style="margin-left: 10px; color: #666;"></span>
+                    </div>
+                </div>
+                
+                <!-- Recent Requests Log -->
+                <div class="katahdin-debug-section">
+                    <h2>📋 Recent Requests Log</h2>
+                    <p>View recent AI requests and responses for debugging.</p>
+                    
+                    <div id="recent-requests-log" class="recent-requests-log">
+                        <p>No recent requests logged. Make a test request above to see logs.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        .katahdin-debug-sections {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+            margin: 25px 0;
+        }
+        
+        .katahdin-debug-section {
+            background: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .katahdin-debug-section h2 {
+            margin: 0 0 15px 0;
+            color: #1e1e1e;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .debug-controls {
+            margin-bottom: 20px;
+        }
+        
+        .debug-input-group {
+            margin-bottom: 15px;
+        }
+        
+        .debug-input-group label {
+            font-weight: 600;
+            color: #1e1e1e;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .debug-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .debug-test-results {
+            background: #f8f9fa;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .recent-requests-log {
+            background: #f8f9fa;
+            border: 1px solid #e1e1e1;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 200px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .large-text {
+            width: 100%;
+            max-width: 800px;
+        }
+        </style>
+        
+        <script>
+        function testAIDebug() {
+            const resultsDiv = document.getElementById('debug-test-results');
+            const systemMessage = document.getElementById('debug-system-message').value;
+            const userMessage = document.getElementById('debug-user-message').value;
+            const model = document.getElementById('debug-model').value;
+            const maxTokens = document.getElementById('debug-max-tokens').value;
+            const temperature = document.getElementById('debug-temperature').value;
+            
+            resultsDiv.innerHTML = 'Testing AI request...';
+            
+            const requestData = {
+                messages: [
+                    {
+                        role: 'system',
+                        content: systemMessage
+                    },
+                    {
+                        role: 'user',
+                        content: userMessage
+                    }
+                ],
+                model: model,
+                max_tokens: parseInt(maxTokens),
+                temperature: parseFloat(temperature)
+            };
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('katahdin-ai-hub/v1/chat/completions'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                    'X-Plugin-ID': 'katahdin-ai-hub-debug'
+                },
+                data: JSON.stringify(requestData),
+                contentType: 'application/json',
+                success: function(response) {
+                    let html = '<h4>AI Request Test Results:</h4>';
+                    html += '<p><strong>Model:</strong> ' + model + '</p>';
+                    html += '<p><strong>Max Tokens:</strong> ' + maxTokens + '</p>';
+                    html += '<p><strong>Temperature:</strong> ' + temperature + '</p>';
+                    html += '<p><strong>Response Time:</strong> ' + (response.response_time || 'N/A') + 'ms</p>';
+                    
+                    html += '<h5>AI Response:</h5>';
+                    html += '<div style="background: #fff; padding: 15px; border-radius: 6px; border-left: 4px solid #007cba;">';
+                    html += response.choices[0].message.content;
+                    html += '</div>';
+                    
+                    html += '<h5>🔍 DEBUG INFORMATION:</h5>';
+                    html += '<div id="debug-content" style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6; font-family: monospace; font-size: 11px;">';
+                    
+                    html += '<strong>Request Sent:</strong><br>';
+                    html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #28a745; white-space: pre-wrap;">';
+                    html += JSON.stringify(requestData, null, 2);
+                    html += '</div>';
+                    
+                    html += '<strong>Response Received:</strong><br>';
+                    html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #007cba; white-space: pre-wrap;">';
+                    html += JSON.stringify(response, null, 2);
+                    html += '</div>';
+                    
+                    html += '<strong>Response Analysis:</strong><br>';
+                    html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #dc3545; white-space: pre-wrap;">';
+                    const responseText = response.choices[0].message.content;
+                    html += 'Response Length: ' + responseText.length + ' chars\n';
+                    html += 'Paragraph Count: ' + (responseText.split('\\n\\n').length) + '\n';
+                    html += 'Has Line Breaks: ' + (responseText.indexOf('\\n') !== -1 ? 'Yes' : 'No') + '\n';
+                    html += 'Raw Response:\n';
+                    html += '"' + responseText + '"\n';
+                    html += '</div>';
+                    
+                    html += '</div>';
+                    
+                    resultsDiv.innerHTML = html;
+                    
+                    // Show copy button
+                    document.getElementById('copy-debug-section').style.display = 'block';
+                    
+                    // Log to recent requests
+                    logRecentRequest(requestData, response);
+                },
+                error: function(xhr) {
+                    let errorMessage = 'Error testing AI request';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage += ': ' + xhr.responseJSON.message;
+                    }
+                    resultsDiv.innerHTML = '<p style="color: red;">' + errorMessage + '</p>';
+                }
+            });
+        }
+        
+        function copyDebugInfo() {
+            const debugContent = document.getElementById('debug-content');
+            const copyBtn = document.getElementById('copy-debug-btn');
+            const copyStatus = document.getElementById('copy-status');
+            
+            if (!debugContent) {
+                copyStatus.textContent = 'No debug info available';
+                return;
+            }
+            
+            // Get all the debug content
+            const resultsDiv = document.getElementById('debug-test-results');
+            const fullContent = resultsDiv.innerHTML;
+            
+            // Create a temporary textarea to copy the content
+            const textarea = document.createElement('textarea');
+            textarea.value = fullContent.replace(/<[^>]*>/g, ''); // Strip HTML tags
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                document.execCommand('copy');
+                copyStatus.textContent = '✅ Copied to clipboard!';
+                copyStatus.style.color = '#28a745';
+                
+                // Reset status after 3 seconds
+                setTimeout(() => {
+                    copyStatus.textContent = '';
+                }, 3000);
+            } catch (err) {
+                copyStatus.textContent = '❌ Copy failed';
+                copyStatus.style.color = '#dc3545';
+            }
+            
+            document.body.removeChild(textarea);
+        }
+        
+        function logRecentRequest(request, response) {
+            const logDiv = document.getElementById('recent-requests-log');
+            const timestamp = new Date().toISOString();
+            
+            let logEntry = '[' + timestamp + '] AI Request\\n';
+            logEntry += 'Model: ' + request.model + ' | Tokens: ' + request.max_tokens + ' | Temp: ' + request.temperature + '\\n';
+            logEntry += 'Response Length: ' + response.choices[0].message.content.length + ' chars\\n';
+            logEntry += 'Paragraph Count: ' + response.choices[0].message.content.split('\\n\\n').length + '\\n';
+            logEntry += '---\\n';
+            
+            if (logDiv.innerHTML.includes('No recent requests logged')) {
+                logDiv.innerHTML = logEntry;
+            } else {
+                logDiv.innerHTML = logEntry + '\\n' + logDiv.innerHTML;
+            }
+        }
+        </script>
+        <?php
     }
 }

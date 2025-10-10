@@ -448,6 +448,24 @@ class APH_Database_Schema {
                     'type' => 'DATETIME',
                     'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
                     'description' => 'When badge was last updated'
+                ),
+                'fluentcrm_enabled' => array(
+                    'type' => 'TINYINT',
+                    'length' => 1,
+                    'default' => 0,
+                    'description' => 'Whether FluentCRM event tracking is enabled (0/1)'
+                ),
+                'fluentcrm_event_key' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'null' => true,
+                    'description' => 'FluentCRM event key for this badge'
+                ),
+                'fluentcrm_event_title' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 255,
+                    'null' => true,
+                    'description' => 'FluentCRM event title for this badge'
                 )
             ),
             'indexes' => array(

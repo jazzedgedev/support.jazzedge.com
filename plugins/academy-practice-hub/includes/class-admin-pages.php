@@ -965,6 +965,25 @@ class JPH_Admin_Pages {
                             <input type="number" id="badge-gem-reward" name="gem_reward" min="0" value="10">
                         </div>
                         
+                        <div class="jph-form-group">
+                            <h4>🔗 FluentCRM Event Tracking</h4>
+                            <label>
+                                <input type="checkbox" id="badge-fluentcrm-enabled" name="fluentcrm_enabled" value="1">
+                                Enable FluentCRM Event Tracking
+                            </label>
+                            <small>When enabled, earning this badge will trigger a FluentCRM event</small>
+                        </div>
+                        
+                        <div class="jph-form-group" id="fluentcrm-fields" style="display: none;">
+                            <label for="badge-fluentcrm-event-key">Event Key:</label>
+                            <input type="text" id="badge-fluentcrm-event-key" name="fluentcrm_event_key" placeholder="e.g., badge_first_note">
+                            <small>Unique identifier for the FluentCRM event</small>
+                            
+                            <label for="badge-fluentcrm-event-title">Event Title:</label>
+                            <input type="text" id="badge-fluentcrm-event-title" name="fluentcrm_event_title" placeholder="e.g., First Note Badge Earned">
+                            <small>Display title for the FluentCRM event</small>
+                        </div>
+                        
                         <div class="jph-modal-actions">
                             <button type="button" class="button button-secondary" onclick="closeAddBadgeModal()">Cancel</button>
                             <button type="submit" class="button button-primary">Create Badge</button>
@@ -1051,6 +1070,25 @@ class JPH_Admin_Pages {
                             </label>
                         </div>
                         
+                        <div class="jph-form-group">
+                            <h4>🔗 FluentCRM Event Tracking</h4>
+                            <label>
+                                <input type="checkbox" id="edit-badge-fluentcrm-enabled" name="fluentcrm_enabled" value="1">
+                                Enable FluentCRM Event Tracking
+                            </label>
+                            <small>When enabled, earning this badge will trigger a FluentCRM event</small>
+                        </div>
+                        
+                        <div class="jph-form-group" id="edit-fluentcrm-fields" style="display: none;">
+                            <label for="edit-badge-fluentcrm-event-key">Event Key:</label>
+                            <input type="text" id="edit-badge-fluentcrm-event-key" name="fluentcrm_event_key" placeholder="e.g., badge_first_note">
+                            <small>Unique identifier for the FluentCRM event</small>
+                            
+                            <label for="edit-badge-fluentcrm-event-title">Event Title:</label>
+                            <input type="text" id="edit-badge-fluentcrm-event-title" name="fluentcrm_event_title" placeholder="e.g., First Note Badge Earned">
+                            <small>Display title for the FluentCRM event</small>
+                        </div>
+                        
                         <div class="jph-modal-actions">
                             <button type="button" class="button button-secondary" onclick="closeEditBadgeModal()">Cancel</button>
                             <button type="button" class="button button-primary" onclick="saveEditBadge()">Update Badge</button>
@@ -1076,6 +1114,36 @@ class JPH_Admin_Pages {
             document.getElementById('jph-add-badge-modal').style.display = 'none';
             document.getElementById('jph-add-badge-form').reset();
         }
+        
+        function toggleFluentCRMFields(mode) {
+            const checkboxId = mode === 'edit' ? 'edit-badge-fluentcrm-enabled' : 'badge-fluentcrm-enabled';
+            const fieldsId = mode === 'edit' ? 'edit-fluentcrm-fields' : 'fluentcrm-fields';
+            
+            const checkbox = document.getElementById(checkboxId);
+            const fields = document.getElementById(fieldsId);
+            
+            if (checkbox && fields) {
+                fields.style.display = checkbox.checked ? 'block' : 'none';
+            }
+        }
+        
+        // Add event listeners for FluentCRM checkboxes
+        document.addEventListener('DOMContentLoaded', function() {
+            const addCheckbox = document.getElementById('badge-fluentcrm-enabled');
+            const editCheckbox = document.getElementById('edit-badge-fluentcrm-enabled');
+            
+            if (addCheckbox) {
+                addCheckbox.addEventListener('change', function() {
+                    toggleFluentCRMFields('add');
+                });
+            }
+            
+            if (editCheckbox) {
+                editCheckbox.addEventListener('change', function() {
+                    toggleFluentCRMFields('edit');
+                });
+            }
+        });
         
         function editBadge(badgeKey) {
             console.log('Editing badge key:', badgeKey);
@@ -1119,6 +1187,14 @@ class JPH_Admin_Pages {
             document.getElementById('edit-badge-gem-reward').value = badge.gem_reward || 0;
             document.getElementById('edit-badge-is-active').checked = badge.is_active == 1;
             
+            // Populate FluentCRM fields
+            document.getElementById('edit-badge-fluentcrm-enabled').checked = badge.fluentcrm_enabled == 1;
+            document.getElementById('edit-badge-fluentcrm-event-key').value = badge.fluentcrm_event_key || '';
+            document.getElementById('edit-badge-fluentcrm-event-title').value = badge.fluentcrm_event_title || '';
+            
+            // Show/hide FluentCRM fields based on checkbox
+            toggleFluentCRMFields('edit');
+            
             // Show the modal
             document.getElementById('jph-edit-badge-modal').style.display = 'block';
         }
@@ -1137,13 +1213,16 @@ class JPH_Admin_Pages {
             const badgeData = {
                 name: formData.get('name'),
                 description: formData.get('description'),
-                icon: formData.get('icon'),
+                image_url: formData.get('image_url'),
                 category: formData.get('category'),
                 criteria_type: formData.get('criteria_type'),
                 criteria_value: parseInt(formData.get('criteria_value')),
                 xp_reward: parseInt(formData.get('xp_reward')),
                 gem_reward: parseInt(formData.get('gem_reward')),
-                is_active: document.getElementById('edit-badge-is-active').checked ? 1 : 0
+                is_active: document.getElementById('edit-badge-is-active').checked ? 1 : 0,
+                fluentcrm_enabled: document.getElementById('edit-badge-fluentcrm-enabled').checked ? 1 : 0,
+                fluentcrm_event_key: formData.get('fluentcrm_event_key'),
+                fluentcrm_event_title: formData.get('fluentcrm_event_title')
             };
             
             console.log('Updating badge:', badgeKey, badgeData);
@@ -1275,32 +1354,6 @@ class JPH_Admin_Pages {
             }
         }
         
-        function updateBadgesSchema() {
-            if (confirm('Are you sure you want to update the badges schema? This will add image_url column and remove icon column.')) {
-                jQuery('#test-results').html('<p>🔄 Updating badges schema...</p>').show().removeClass('success error');
-                
-                jQuery.ajax({
-                    url: '<?php echo rest_url('aph/v1/admin/update-badges-schema'); ?>',
-                    method: 'POST',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            jQuery('#test-results').html(
-                                '<p>✅ Badges schema updated successfully!</p>' +
-                                '<p><strong>Badge images should now display correctly.</strong></p>'
-                            ).addClass('success');
-                        } else {
-                            jQuery('#test-results').html('<p>❌ Update failed: ' + response.message + '</p>').addClass('error');
-                        }
-                    },
-                    error: function() {
-                        jQuery('#test-results').html('<p>❌ Update failed: Network error</p>').addClass('error');
-                    }
-                });
-            }
-        }
         </script>
         
         <style>
@@ -1891,28 +1944,6 @@ class JPH_Admin_Pages {
                         </div>
                     </div>
                     
-                    <!-- Event Tracking Testing -->
-                    <div class="jph-event-section">
-                        <h2>🧪 Event Tracking Testing</h2>
-                        <p>Test your FluentCRM event tracking to ensure it's working correctly.</p>
-                        
-                        <div class="event-test-buttons">
-                            <button type="button" class="button button-primary" onclick="testBadgeEvent('first_steps')">
-                                🏆 Test First Steps Badge
-                            </button>
-                            <button type="button" class="button button-secondary" onclick="testBadgeEvent('marathon')">
-                                🏆 Test Marathon Badge
-                            </button>
-                            <button type="button" class="button button-secondary" onclick="testBadgeEvent('streak_protector')">
-                                🏆 Test Streak Protector Badge
-                            </button>
-                            <button type="button" class="button button-secondary" onclick="testAllBadgeEvents()">
-                                🏆 Test All Badge Events
-                            </button>
-                        </div>
-                        
-                        <div id="webhook-test-results" class="webhook-test-results"></div>
-                    </div>
                     
                     <!-- Event Tracking Logs -->
                     <div class="jph-event-section">
@@ -1981,7 +2012,6 @@ class JPH_Admin_Pages {
                         
                         <div id="badge-debug-results" class="badge-debug-results"></div>
                     </div>
-                </div>
             </div>
         </div>
         
@@ -2035,13 +2065,6 @@ class JPH_Admin_Pages {
             flex-wrap: wrap;
         }
         
-        .webhook-test-results {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            min-height: 50px;
-        }
         
         .jph-debug-section {
             background: #fff;
@@ -2279,43 +2302,6 @@ class JPH_Admin_Pages {
             }
         }
         
-        function testBadgeEvent(badgeKey) {
-            jQuery('#webhook-test-results').html('<p>Testing badge event: ' + badgeKey + '...</p>');
-            
-            jQuery.ajax({
-                url: '<?php echo rest_url('aph/v1/test-badge-event'); ?>',
-                method: 'POST',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                },
-                data: {
-                    badge_key: badgeKey
-                },
-                success: function(response) {
-                    if (response.success) {
-                        jQuery('#webhook-test-results').html('<p style="color: green;">✅ ' + response.message + '</p>');
-                    } else {
-                        jQuery('#webhook-test-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
-                    }
-                },
-                error: function() {
-                    jQuery('#webhook-test-results').html('<p style="color: red;">❌ Error testing badge event</p>');
-                }
-            });
-        }
-        
-        function testAllBadgeEvents() {
-            jQuery('#webhook-test-results').html('<p>Testing all badge events...</p>');
-            
-            const badges = ['first_steps', 'marathon', 'streak_protector'];
-            let results = [];
-            
-            badges.forEach((badge, index) => {
-                setTimeout(() => {
-                    testBadgeEvent(badge);
-                }, index * 1000);
-            });
-        }
         
         function checkUserBadgeStatus() {
             const userId = jQuery('#debug-user-id').val();
@@ -2479,7 +2465,7 @@ Provide specific, motivational insights about their practice habits and suggest 
 Remember: Plain text only, no formatting.');
         
         $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns. CRITICAL: Always respond with plain text only - no emojis, no markdown formatting, no bold text, no section headers. Use only simple paragraph text.');
-        $ai_model = get_option('aph_ai_model', 'gpt-3.5-turbo');
+        $ai_model = get_option('aph_ai_model', 'gpt-4');
         $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
         $ai_temperature = get_option('aph_ai_temperature', 0.3);
         ?>
@@ -2569,6 +2555,8 @@ Remember: Plain text only, no formatting.');
                         </table>
                     </div>
                     
+                    <?php submit_button('Save AI Settings'); ?>
+                    
                     <!-- Test Section -->
                     <div class="jph-ai-settings-section">
                         <h2>🧪 Test AI Analysis</h2>
@@ -2586,10 +2574,16 @@ Remember: Plain text only, no formatting.');
                         </div>
                         
                         <div id="ai-test-results" class="ai-test-results"></div>
+                        
+                        <!-- Copy Debug Info Button -->
+                        <div id="copy-debug-section" style="margin-top: 15px; display: none;">
+                            <button type="button" class="button button-secondary" onclick="copyDebugInfo()" id="copy-debug-btn">
+                                📋 Copy Debug Info
+                            </button>
+                            <span id="copy-status" style="margin-left: 10px; color: #666;"></span>
+                        </div>
                     </div>
                 </div>
-                
-                <?php submit_button('Save AI Settings'); ?>
             </form>
         </div>
         
@@ -2700,7 +2694,7 @@ Remember: Plain text only, no formatting.');
                         
                         // Add comprehensive debug information
                         html += '<h5>🔍 DEBUG INFORMATION:</h5>';
-                        html += '<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6; font-family: monospace; font-size: 11px;">';
+                        html += '<div id="debug-content" style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6; font-family: monospace; font-size: 11px;">';
                         
                         if (response.data.debug_info) {
                             html += '<strong>System Message:</strong><br>';
@@ -2718,11 +2712,44 @@ Remember: Plain text only, no formatting.');
                                 html += JSON.stringify(response.data.debug_info.request_data, null, 2);
                                 html += '</div>';
                             }
+                            
+                            // Add additional debug info
+                            html += '<strong>WordPress Options Debug:</strong><br>';
+                            html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #ffc107; white-space: pre-wrap;">';
+                            html += 'aph_ai_prompt length: ' + (response.data.debug_info.prompt_length || 'N/A') + ' chars\n';
+                            html += 'aph_ai_system_message length: ' + (response.data.debug_info.system_message_length || 'N/A') + ' chars\n';
+                            html += 'aph_ai_max_tokens: ' + (response.data.debug_info.max_tokens || 'N/A') + '\n';
+                            html += 'aph_ai_model: ' + (response.data.debug_info.ai_model || 'N/A') + '\n';
+                            html += 'aph_ai_temperature: ' + (response.data.debug_info.temperature || 'N/A') + '\n';
+                            html += 'Cache status: ' + (response.cached ? 'Cached' : 'Fresh') + '\n';
+                            html += 'Response time: ' + (response.data.debug_info.response_time || 'N/A') + 'ms\n';
+                            html += 'User ID tested: ' + (userId || 'Current User') + '\n';
+                            html += 'Timestamp: ' + new Date().toISOString() + '\n';
+                            html += '</div>';
+                            
+                            // Add Katahdin AI Hub response analysis
+                            html += '<strong>Katahdin AI Hub Response Analysis:</strong><br>';
+                            html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #dc3545; white-space: pre-wrap;">';
+                            html += 'AI Response Length: ' + (response.data.debug_info.ai_response_length || 'N/A') + ' chars\n';
+                            html += 'Paragraph Count: ' + (response.data.debug_info.ai_response_paragraph_count || 'N/A') + '\n';
+                            html += 'Has Line Breaks: ' + (response.data.debug_info.ai_response_has_line_breaks ? 'Yes' : 'No') + '\n';
+                            html += 'Raw AI Response:\n';
+                            html += '"' + response.data.analysis + '"\n';
+                            html += '</div>';
+                            
+                            // Add raw response data
+                            html += '<strong>Raw Response Data:</strong><br>';
+                            html += '<div style="background: #fff; padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 3px solid #dc3545; white-space: pre-wrap;">';
+                            html += JSON.stringify(response, null, 2);
+                            html += '</div>';
                         }
                         
                         html += '</div>';
                         
                         resultsDiv.innerHTML = html;
+                        
+                        // Show copy button
+                        document.getElementById('copy-debug-section').style.display = 'block';
                     } else {
                         resultsDiv.innerHTML = '<p style="color: red;">Error: ' + response.message + '</p>';
                     }
@@ -2737,10 +2764,47 @@ Remember: Plain text only, no formatting.');
             if (confirm('Are you sure you want to reset all AI settings to defaults?')) {
                 document.getElementById('ai_prompt').value = 'Analyze this piano practice data from the last 30 days and provide insights in 2-3 sentences. Be encouraging and specific:\n\nPractice Sessions: {total_sessions} sessions\nTotal Practice Time: {total_minutes} minutes\nAverage Session Length: {avg_duration} minutes\nAverage Mood/Sentiment: {avg_sentiment}/5 (1=frustrating, 5=excellent)\nImprovement Rate: {improvement_rate}% of sessions showed improvement\nMost Frequent Practice Day: {most_frequent_day}\nMost Practiced Item: {most_practiced_item}\nCurrent Level: {current_level}\nCurrent Streak: {current_streak} days\n\nProvide specific, actionable insights about their practice patterns and suggestions for improvement. Keep it positive and motivating.';
                 document.getElementById('ai_system_message').value = 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns.';
-                document.getElementById('ai_model').value = 'gpt-3.5-turbo';
+                document.getElementById('ai_model').value = 'gpt-4';
                 document.getElementById('ai_max_tokens').value = '300';
                 document.getElementById('ai_temperature').value = '0.7';
             }
+        }
+        
+        function copyDebugInfo() {
+            const debugContent = document.getElementById('debug-content');
+            const copyBtn = document.getElementById('copy-debug-btn');
+            const copyStatus = document.getElementById('copy-status');
+            
+            if (!debugContent) {
+                copyStatus.textContent = 'No debug info available';
+                return;
+            }
+            
+            // Get all the debug content including the AI response
+            const resultsDiv = document.getElementById('ai-test-results');
+            const fullContent = resultsDiv.innerHTML;
+            
+            // Create a temporary textarea to copy the content
+            const textarea = document.createElement('textarea');
+            textarea.value = fullContent.replace(/<[^>]*>/g, ''); // Strip HTML tags
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                document.execCommand('copy');
+                copyStatus.textContent = '✅ Copied to clipboard!';
+                copyStatus.style.color = '#28a745';
+                
+                // Reset status after 3 seconds
+                setTimeout(() => {
+                    copyStatus.textContent = '';
+                }, 3000);
+            } catch (err) {
+                copyStatus.textContent = '❌ Copy failed';
+                copyStatus.style.color = '#dc3545';
+            }
+            
+            document.body.removeChild(textarea);
         }
         </script>
         <?php
@@ -2888,9 +2952,6 @@ Remember: Plain text only, no formatting.');
                         
                         <button type="button" class="button button-secondary jph-clear-cache-btn" onclick="clearCache()" style="margin-left: 10px;">
                             🔄 Clear Cache
-                        </button>
-                        <button type="button" class="button button-secondary" onclick="updateBadgesSchema()" style="margin-left: 10px;">
-                            🏆 Update Badges Schema
                         </button>
                     </div>
                     

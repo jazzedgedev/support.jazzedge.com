@@ -230,11 +230,6 @@ class JPH_REST_API {
         ));
         
         // Event tracking endpoints
-        register_rest_route('aph/v1', '/test-badge-event', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'rest_test_badge_event'),
-            'permission_callback' => array($this, 'check_user_permission')
-        ));
         
         register_rest_route('aph/v1', '/debug-user-badges', array(
             'methods' => 'GET',
@@ -401,11 +396,6 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
-        register_rest_route('aph/v1', '/admin/update-badges-schema', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'rest_update_badges_schema'),
-            'permission_callback' => array($this, 'check_admin_permission')
-        ));
     }
     
     /**
@@ -779,9 +769,7 @@ class JPH_REST_API {
                 'badge_key' => $badge_key,
                 'name' => sanitize_text_field($params['name']),
                 'description' => sanitize_textarea_field($params['description']),
-                'icon' => sanitize_text_field($params['icon'] ?? '🏆'),
                 'category' => sanitize_text_field($params['category']),
-                'rarity' => sanitize_text_field($params['rarity'] ?? 'common'),
                 'xp_reward' => intval($params['xp_reward'] ?? 0),
                 'gem_reward' => intval($params['gem_reward'] ?? 0),
                 'criteria_type' => sanitize_text_field($params['criteria_type']),
@@ -789,6 +777,9 @@ class JPH_REST_API {
                 'is_active' => 1,
                 'display_order' => intval($params['display_order'] ?? 999),
                 'image_url' => esc_url_raw($params['image_url'] ?? ''),
+                'fluentcrm_enabled' => intval($params['fluentcrm_enabled'] ?? 0),
+                'fluentcrm_event_key' => sanitize_text_field($params['fluentcrm_event_key'] ?? ''),
+                'fluentcrm_event_title' => sanitize_text_field($params['fluentcrm_event_title'] ?? ''),
                 'created_at' => current_time('mysql')
             )
         );
@@ -1122,8 +1113,19 @@ class JPH_REST_API {
             );
             
             // Add optional fields
-            if (isset($body['icon'])) {
-                $badge_data['icon'] = sanitize_text_field($body['icon']);
+            if (isset($body['image_url'])) {
+                $badge_data['image_url'] = esc_url_raw($body['image_url']);
+            }
+            
+            // Add FluentCRM fields
+            if (isset($body['fluentcrm_enabled'])) {
+                $badge_data['fluentcrm_enabled'] = intval($body['fluentcrm_enabled']);
+            }
+            if (isset($body['fluentcrm_event_key'])) {
+                $badge_data['fluentcrm_event_key'] = sanitize_text_field($body['fluentcrm_event_key']);
+            }
+            if (isset($body['fluentcrm_event_title'])) {
+                $badge_data['fluentcrm_event_title'] = sanitize_text_field($body['fluentcrm_event_title']);
             }
             
             // Update the badge
@@ -1594,26 +1596,6 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             return new WP_Error('clear_all_user_data_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
-     * Test badge event
-     */
-    public function rest_test_badge_event($request) {
-        try {
-            $badge_key = $request->get_param('badge_key');
-            
-            // Simulate badge event testing
-            $message = "Badge event '$badge_key' test completed successfully. This is a placeholder implementation.";
-            
-            return rest_ensure_response(array(
-                'success' => true,
-                'message' => $message
-            ));
-            
-        } catch (Exception $e) {
-            return new WP_Error('test_badge_event_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -2294,42 +2276,17 @@ class JPH_REST_API {
                 return new WP_Error('not_logged_in', 'You must be logged in to view AI analysis', array('status' => 401));
             }
             
-            // Check if refresh is requested
-            $refresh = $request->get_param('refresh');
-            $cache_key = 'jph_ai_analysis_' . $user_id;
-            
-            // If refresh is requested, clear cache
-            if ($refresh === '1' || $refresh === 'true') {
-                delete_transient($cache_key);
-            }
-            
-            // Check for cached analysis (valid for 24 hours)
-            $cached_analysis = get_transient($cache_key);
-            
-            if ($cached_analysis !== false && !$refresh) {
-                return rest_ensure_response(array(
-                    'success' => true,
-                    'data' => $cached_analysis,
-                    'cached' => true,
-                    'cache_expires' => get_option('_transient_timeout_' . $cache_key)
-                ));
-            }
-            
-            // Generate new analysis
+            // Generate new analysis (no caching)
             $analysis = $this->generate_ai_analysis($user_id);
             
             if (is_wp_error($analysis)) {
                 return $analysis;
             }
             
-            // Cache the analysis for 24 hours
-            set_transient($cache_key, $analysis, DAY_IN_SECONDS);
-            
             return rest_ensure_response(array(
                 'success' => true,
                 'data' => $analysis,
-                'cached' => false,
-                'refreshed' => $refresh ? true : false
+                'cached' => false
             ));
             
         } catch (Exception $e) {
@@ -2379,6 +2336,8 @@ class JPH_REST_API {
      */
     private function generate_ai_analysis($user_id) {
         global $wpdb;
+        
+        $start_time = microtime(true);
         
         // Get practice data for last 30 days
         $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
@@ -2529,9 +2488,13 @@ class JPH_REST_API {
         
         // Get configurable AI prompt - force update if it contains the old typo
         $current_prompt = get_option('aph_ai_prompt', '');
-        $new_prompt = 'CRITICAL FORMATTING REQUIREMENT: You MUST respond with ONLY plain text. NO emojis, NO markdown, NO bold text, NO asterisks, NO section headers, NO bullet points, NO special characters. Write as a single paragraph of normal text only.
+        $new_prompt = 'Format your response as exactly 3 separate paragraphs with blank lines between them.
 
-Analyze this piano practice data from the last 30 days and provide insights in 2–3 sentences. Be encouraging, specific, and actionable. Use the data to highlight positive progress, consistency, and areas for small improvements.
+1. STRENGTHS: What they are doing well and their strengths.
+
+2. IMPROVEMENT AREAS: Trends and areas for improvement.
+
+3. NEXT STEPS: Practical next steps and lesson recommendations.
 
 Practice Sessions: {total_sessions} sessions
 Total Practice Time: {total_minutes} minutes
@@ -2543,12 +2506,12 @@ Most Practiced Item: {most_practiced_item}
 Current Level: {current_level}
 Current Streak: {current_streak} days
 
-Provide specific, motivational insights about their practice habits and suggest 1–2 focused next steps for improvement. Keep it uplifting, practical, and concise. When recommending lessons, use these titles naturally where relevant: Technique - Jazzedge Practice Curriculum™; Improvisation - The Confident Improviser™; Accompaniment - Piano Accompaniment Essentials™; Jazz Standards - Standards By The Dozen™; Super Easy Jazz Standards - Super Simple Standards™.
+When recommending lessons, use these titles naturally: Technique - Jazzedge Practice Curriculum™; Improvisation - The Confident Improviser™; Accompaniment - Piano Accompaniment Essentials™; Jazz Standards - Standards By The Dozen™; Super Easy Jazz Standards - Super Simple Standards™.
 
-FORMATTING RULE: Write your response as one continuous paragraph using only regular letters, numbers, and basic punctuation. Do not use any symbols, emojis, or formatting characters.';
+FORMAT: Write 3 paragraphs separated by blank lines.';
 
         // Force update the prompt to ensure we have the latest formatting instructions
-        if (strpos($current_prompt, 'CRITICAL FORMATTING REQUIREMENT') === false) {
+        if (strpos($current_prompt, 'FORMAT: Write 3 paragraphs separated by blank lines') === false) {
             update_option('aph_ai_prompt', $new_prompt);
             $ai_prompt_template = $new_prompt;
         } else {
@@ -2582,10 +2545,29 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             $ai_prompt_template
         );
 
-        // Get AI settings for the call
-        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Provide encouraging, specific insights about practice patterns. CRITICAL FORMATTING RULE: You MUST respond with ONLY plain text. NO emojis, NO markdown, NO bold text, NO asterisks, NO section headers, NO bullet points, NO special characters. Write as a single paragraph using only regular letters, numbers, and basic punctuation.');
-        $ai_model = get_option('aph_ai_model', 'gpt-3.5-turbo');
-        $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
+        // Get AI settings for the call - force update to new values
+        $current_system_message = get_option('aph_ai_system_message', '');
+        $new_system_message = 'You are a helpful piano practice coach. Format responses as 3 separate paragraphs with blank lines between them. Use plain text only.';
+        
+        // Force update system message if it's the old restrictive version
+        if (strpos($current_system_message, 'Format responses as 3 separate paragraphs') === false) {
+            update_option('aph_ai_system_message', $new_system_message);
+            $ai_system_message = $new_system_message;
+        } else {
+            $ai_system_message = get_option('aph_ai_system_message', $new_system_message);
+        }
+        
+        $ai_model = get_option('aph_ai_model', 'gpt-4');
+        
+        // Force update max tokens if it's still 300
+        $current_max_tokens = get_option('aph_ai_max_tokens', 0);
+        if ($current_max_tokens <= 300) {
+            update_option('aph_ai_max_tokens', 500);
+            $ai_max_tokens = 500;
+        } else {
+            $ai_max_tokens = get_option('aph_ai_max_tokens', 500);
+        }
+        
         $ai_temperature = get_option('aph_ai_temperature', 0.3);
         
         // Call Katahdin AI Hub
@@ -2607,6 +2589,12 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
                 'ai_model' => $ai_model,
                 'temperature' => $ai_temperature,
                 'max_tokens' => $ai_max_tokens,
+                'prompt_length' => strlen($prompt),
+                'system_message_length' => strlen($ai_system_message),
+                'response_time' => microtime(true) - $start_time,
+                'ai_response_length' => strlen($ai_response),
+                'ai_response_paragraph_count' => substr_count($ai_response, "\n\n") + 1,
+                'ai_response_has_line_breaks' => strpos($ai_response, "\n") !== false,
                 'request_data' => array(
                     'messages' => array(
                         array(
@@ -2703,7 +2691,9 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
         // Debug logging
         $this->logger->debug('Katahdin AI Hub Response', array(
             'status' => $response_status,
-            'data' => $response_data
+            'data' => $response_data,
+            'request_sent' => $request_data,
+            'raw_response' => $response_data
         ));
         
         if ($response_status !== 200) {
@@ -2715,7 +2705,17 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             return new WP_Error('ai_response_invalid', 'Invalid response from AI service', array('status' => 500));
         }
         
-        return trim($response_data['choices'][0]['message']['content']);
+        $ai_response = trim($response_data['choices'][0]['message']['content']);
+        
+        // Debug: Log the exact response from Katahdin AI Hub
+        $this->logger->debug('Raw AI Response Content', array(
+            'response_length' => strlen($ai_response),
+            'response_content' => $ai_response,
+            'paragraph_count' => substr_count($ai_response, "\n\n") + 1,
+            'has_line_breaks' => strpos($ai_response, "\n") !== false
+        ));
+        
+        return $ai_response;
     }
     
     /**
@@ -3905,6 +3905,8 @@ FORMATTING RULE: Write your response as one continuous paragraph using only regu
             return new WP_Error('schema_update_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
+    
+    
     
     /**
      * Ensure default badges exist in the database
