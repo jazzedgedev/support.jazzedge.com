@@ -4770,6 +4770,35 @@ class JPH_Frontend {
             min-height: 120px;
             max-height: 300px;
             overflow-y: auto;
+            white-space: pre-wrap;
+            position: relative;
+        }
+        
+        .ai-analysis-text .ai-analysis-placeholder {
+            white-space: normal;
+            text-align: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: calc(100% - 40px);
+        }
+        
+        .ai-analysis-text .ai-placeholder-icon {
+            font-size: 2em;
+            margin-bottom: 12px;
+        }
+        
+        .ai-analysis-text .ai-analysis-placeholder h5 {
+            margin: 0 0 8px 0;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+        
+        .ai-analysis-text .ai-analysis-placeholder p {
+            margin: 4px 0;
+            font-size: 0.9em;
+            color: #64748b;
         }
         
         .ai-analysis-text .loading-spinner {
@@ -6399,8 +6428,16 @@ class JPH_Frontend {
                 const $analysisText = $('#ai-analysis-text');
                 const $dataPeriod = $('#ai-data-period .period-text');
                 
-                // Display raw AI text without formatting
-                $analysisText.html('<p>' + data.analysis + '</p>');
+                // Convert line breaks to HTML paragraphs
+                let formattedText = data.analysis
+                    .replace(/\n\n/g, '</p><p>')  // Double line breaks become paragraph breaks
+                    .replace(/\n/g, '<br>');     // Single line breaks become <br>
+                
+                // Wrap in paragraph tags
+                formattedText = '<p>' + formattedText + '</p>';
+                
+                // Display formatted AI text
+                $analysisText.html(formattedText);
                 
                 // Update data period
                 $dataPeriod.text(data.data_period);

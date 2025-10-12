@@ -2486,9 +2486,8 @@ class JPH_REST_API {
         }
         $most_practiced_item = array_keys($item_frequency, max($item_frequency))[0] ?? 'Unknown';
         
-        // Get configurable AI prompt - force update if it contains the old typo
-        $current_prompt = get_option('aph_ai_prompt', '');
-        $new_prompt = 'Format your response as exactly 3 separate paragraphs with blank lines between them.
+        // Get configurable AI prompt - use what's set in admin, don't force update
+        $ai_prompt_template = get_option('aph_ai_prompt', 'Format your response as exactly 3 separate paragraphs with blank lines between them.
 
 1. STRENGTHS: What they are doing well and their strengths.
 
@@ -2508,15 +2507,7 @@ Current Streak: {current_streak} days
 
 When recommending lessons, use these titles naturally: Technique - Jazzedge Practice Curriculum™; Improvisation - The Confident Improviser™; Accompaniment - Piano Accompaniment Essentials™; Jazz Standards - Standards By The Dozen™; Super Easy Jazz Standards - Super Simple Standards™.
 
-FORMAT: Write 3 paragraphs separated by blank lines.';
-
-        // Force update the prompt to ensure we have the latest formatting instructions
-        if (strpos($current_prompt, 'FORMAT: Write 3 paragraphs separated by blank lines') === false) {
-            update_option('aph_ai_prompt', $new_prompt);
-            $ai_prompt_template = $new_prompt;
-        } else {
-            $ai_prompt_template = get_option('aph_ai_prompt', $new_prompt);
-        }
+FORMAT: Write 3 paragraphs separated by blank lines.');
         
         // Replace placeholders in the prompt
         $prompt = str_replace(
@@ -2545,38 +2536,43 @@ FORMAT: Write 3 paragraphs separated by blank lines.';
             $ai_prompt_template
         );
 
-        // Get AI settings for the call - force update to new values
-        $current_system_message = get_option('aph_ai_system_message', '');
-        $new_system_message = 'You are a helpful piano practice coach. Format responses as 3 separate paragraphs with blank lines between them. Use plain text only.';
-        
-        // Force update system message if it's the old restrictive version
-        if (strpos($current_system_message, 'Format responses as 3 separate paragraphs') === false) {
-            update_option('aph_ai_system_message', $new_system_message);
-            $ai_system_message = $new_system_message;
-        } else {
-            $ai_system_message = get_option('aph_ai_system_message', $new_system_message);
-        }
-        
+        // Get AI settings for the call - use what's set in admin, don't force update
+        $ai_system_message = get_option('aph_ai_system_message', 'You are a helpful piano practice coach. Format responses as 3 separate paragraphs with blank lines between them. Use plain text only.');
+        $ai_max_tokens = get_option('aph_ai_max_tokens', 500);
         $ai_model = get_option('aph_ai_model', 'gpt-4');
+        $ai_temperature = get_option('aph_ai_temperature', 0.7);
         
-        // Force update max tokens if it's still 300
-        $current_max_tokens = get_option('aph_ai_max_tokens', 0);
-        if ($current_max_tokens <= 300) {
-            update_option('aph_ai_max_tokens', 500);
-            $ai_max_tokens = 500;
-        } else {
-            $ai_max_tokens = get_option('aph_ai_max_tokens', 500);
-        }
-        
-        $ai_temperature = get_option('aph_ai_temperature', 0.3);
+        // Debug: Log the exact prompt and system message being sent
+        $this->logger->debug('AI Analysis - Final Prompt and Settings', array(
+            'prompt' => $prompt,
+            'system_message' => $ai_system_message,
+            'model' => $ai_model,
+            'max_tokens' => $ai_max_tokens,
+            'temperature' => $ai_temperature,
+            'prompt_length' => strlen($prompt),
+            'system_message_length' => strlen($ai_system_message)
+        ));
         
         // Call Katahdin AI Hub
         $ai_response = $this->call_katahdin_ai($prompt, $ai_system_message, $ai_model, $ai_max_tokens, $ai_temperature);
         
+        // Debug: Log whether AI call succeeded or failed
         if (is_wp_error($ai_response)) {
-            // Fallback to basic analysis if AI service fails
-            $this->logger->warning('AI service failed, using fallback analysis', array('error' => $ai_response->get_error_message()));
+            $error_message = $ai_response->get_error_message();
+            $error_code = $ai_response->get_error_code();
+            $this->logger->warning('AI service failed, using fallback analysis', array('error' => $error_message, 'code' => $error_code));
             $ai_response = $this->generate_fallback_analysis($sessions, $user_stats, $debug_info);
+            $this->logger->debug('Using fallback analysis', array('fallback_content' => $ai_response));
+            // Add to debug info for immediate visibility
+            $debug_info['ai_call_status'] = 'FAILED - Using fallback';
+            $debug_info['ai_error_code'] = $error_code;
+            $debug_info['ai_error_message'] = $error_message;
+            $debug_info['fallback_content'] = $ai_response;
+        } else {
+            $this->logger->debug('AI service succeeded', array('ai_response_content' => $ai_response));
+            // Add to debug info for immediate visibility
+            $debug_info['ai_call_status'] = 'SUCCESS';
+            $debug_info['ai_response_content'] = $ai_response;
         }
         
         return array(
@@ -2637,11 +2633,12 @@ FORMAT: Write 3 paragraphs separated by blank lines.';
         if (class_exists('Katahdin_AI_Hub') && function_exists('katahdin_ai_hub')) {
             $hub = katahdin_ai_hub();
             if ($hub && method_exists($hub, 'register_plugin')) {
+                $quota_limit = get_option('jph_ai_quota_limit', 50000);
                 $hub->register_plugin('academy-practice-hub', array(
                     'name' => 'Academy Practice Hub',
                     'version' => '3.0',
                     'features' => array('chat', 'completions'),
-                    'quota_limit' => 5000
+                    'quota_limit' => $quota_limit
                 ));
             }
         }
@@ -2694,6 +2691,25 @@ FORMAT: Write 3 paragraphs separated by blank lines.';
             'data' => $response_data,
             'request_sent' => $request_data,
             'raw_response' => $response_data
+        ));
+        
+        // Debug: Log the exact AI response content
+        if (isset($response_data['choices'][0]['message']['content'])) {
+            $ai_response_content = $response_data['choices'][0]['message']['content'];
+            $this->logger->debug('Raw AI Response Content', array(
+                'response_length' => strlen($ai_response_content),
+                'response_content' => $ai_response_content,
+                'paragraph_count' => substr_count($ai_response_content, "\n\n") + 1,
+                'has_line_breaks' => strpos($ai_response_content, "\n") !== false
+            ));
+        }
+        
+        // Debug: Log the full response structure to see what we're getting
+        $this->logger->debug('Full Katahdin AI Hub Response Structure', array(
+            'full_response' => $response_data,
+            'response_keys' => array_keys($response_data),
+            'choices_structure' => isset($response_data['choices']) ? $response_data['choices'] : 'No choices key',
+            'first_choice' => isset($response_data['choices'][0]) ? $response_data['choices'][0] : 'No first choice'
         ));
         
         if ($response_status !== 200) {

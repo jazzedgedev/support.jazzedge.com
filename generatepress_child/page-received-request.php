@@ -189,7 +189,6 @@ get_header(); ?>
       Thank you for reaching out to us. We've successfully received your submission and our team will review it shortly.
     </p>
     
-    
     <div class="contact-info">
       <h3>Need immediate assistance?</h3>
       <p>If you have urgent questions, please don't hesitate to contact us:</p>

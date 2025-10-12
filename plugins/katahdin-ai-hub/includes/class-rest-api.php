@@ -29,6 +29,40 @@ class Katahdin_AI_Hub_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
+        // Debug chat completions (for admin debug center)
+        register_rest_route('katahdin-ai-hub/v1', '/debug/chat/completions', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'debug_chat_completions'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'messages' => array(
+                    'required' => true,
+                    'type' => 'array',
+                    'validate_callback' => array($this, 'validate_messages')
+                ),
+                'model' => array(
+                    'required' => false,
+                    'type' => 'string',
+                    'default' => 'gpt-3.5-turbo',
+                    'enum' => array('gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo')
+                ),
+                'max_tokens' => array(
+                    'required' => false,
+                    'type' => 'integer',
+                    'default' => 1000,
+                    'minimum' => 50,
+                    'maximum' => 4000
+                ),
+                'temperature' => array(
+                    'required' => false,
+                    'type' => 'number',
+                    'default' => 0.7,
+                    'minimum' => 0,
+                    'maximum' => 2
+                )
+            )
+        ));
+        
         // Chat completions
         register_rest_route('katahdin-ai-hub/v1', '/chat/completions', array(
             'methods' => 'POST',
@@ -417,5 +451,57 @@ class Katahdin_AI_Hub_REST_API {
         }
         
         return true;
+    }
+    
+    /**
+     * Debug chat completions endpoint
+     */
+    public function debug_chat_completions($request) {
+        try {
+            $data = $request->get_json_params();
+            
+            // Prepare the request data
+            $request_data = array(
+                'messages' => $data['messages'],
+                'model' => $data['model'] ?? 'gpt-3.5-turbo',
+                'max_tokens' => $data['max_tokens'] ?? 1000,
+                'temperature' => $data['temperature'] ?? 0.7
+            );
+            
+            // Make the API call directly (bypass plugin registry for debug)
+            $api_key = get_option('katahdin_ai_hub_openai_key');
+            if (!$api_key) {
+                return new WP_Error('no_api_key', 'OpenAI API key not configured', array('status' => 400));
+            }
+            
+            $response = wp_remote_post('https://api.openai.com/v1/chat/completions', array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $api_key,
+                    'Content-Type' => 'application/json'
+                ),
+                'body' => json_encode($request_data),
+                'timeout' => 30
+            ));
+            
+            if (is_wp_error($response)) {
+                return new WP_Error('api_error', $response->get_error_message(), array('status' => 500));
+            }
+            
+            $response_code = wp_remote_retrieve_response_code($response);
+            $response_body = wp_remote_retrieve_body($response);
+            $response_data = json_decode($response_body, true);
+            
+            if ($response_code !== 200) {
+                return new WP_Error('api_error', $response_data['error']['message'] ?? 'API request failed', array('status' => $response_code));
+            }
+            
+            return new WP_REST_Response(array(
+                'success' => true,
+                'data' => $response_data
+            ), 200);
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_error', $e->getMessage(), array('status' => 500));
+        }
     }
 }

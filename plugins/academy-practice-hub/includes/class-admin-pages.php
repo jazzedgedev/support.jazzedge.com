@@ -938,7 +938,8 @@ class JPH_Admin_Pages {
                         
                         <div class="jph-form-group">
                             <label for="badge-criteria-type">Criteria Type:</label>
-                            <select id="badge-criteria-type" name="criteria_type">
+                            <select id="badge-criteria-type" name="criteria_type" required>
+                                <option value="">-- Select Criteria Type --</option>
                                 <option value="total_xp">Total XP ≥ value</option>
                                 <option value="practice_sessions">Practice Sessions ≥ value</option>
                                 <option value="streak">Streak Days ≥ value</option>
@@ -1476,7 +1477,7 @@ class JPH_Admin_Pages {
             font-weight: 600;
         }
         
-        .jph-form-group input,
+        .jph-form-group input:not([type="checkbox"]),
         .jph-form-group textarea,
         .jph-form-group select {
             width: 100%;
@@ -1484,6 +1485,14 @@ class JPH_Admin_Pages {
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
+        }
+        
+        .jph-form-group input[type="checkbox"] {
+            width: auto;
+            padding: 0;
+            margin-right: 8px;
+            border: none;
+            border-radius: 0;
         }
         
         .jph-modal-actions {
@@ -2817,11 +2826,16 @@ Remember: Plain text only, no formatting.');
         // Handle form submission
         if (isset($_POST['jph_settings_submit']) && wp_verify_nonce($_POST['jph_settings_nonce'], 'jph_settings')) {
             $practice_hub_page_id = intval($_POST['jph_practice_hub_page_id']);
+            $ai_quota_limit = intval($_POST['jph_ai_quota_limit']);
+            
             update_option('jph_practice_hub_page_id', $practice_hub_page_id);
+            update_option('jph_ai_quota_limit', $ai_quota_limit);
+            
             echo '<div class="notice notice-success"><p>Settings saved successfully!</p></div>';
         }
         
         $current_page_id = get_option('jph_practice_hub_page_id', '');
+        $current_quota_limit = get_option('jph_ai_quota_limit', 50000);
         ?>
         <div class="wrap">
             <h1>⚙️ Practice Hub Settings</h1>
@@ -2866,22 +2880,38 @@ Remember: Plain text only, no formatting.');
                         
                         <?php submit_button('Save Settings', 'primary', 'jph_settings_submit'); ?>
                     </form>
-                    
-                    <?php if ($current_page_id): ?>
-                        <div class="jph-current-page-info">
-                            <h3>📄 Current Practice Hub Page</h3>
-                            <?php
-                            $current_page = get_post($current_page_id);
-                            if ($current_page): ?>
-                                <p><strong>Page:</strong> <?php echo esc_html($current_page->post_title); ?></p>
-                                <p><strong>URL:</strong> <a href="<?php echo esc_url(get_permalink($current_page_id)); ?>" target="_blank"><?php echo esc_url(get_permalink($current_page_id)); ?></a></p>
-                                <p><strong>Status:</strong> <?php echo ucfirst($current_page->post_status); ?></p>
-                            <?php else: ?>
-                                <p class="jph-error">⚠️ Selected page not found. Please select a valid page.</p>
-                            <?php endif; ?>
-                        </div>
-                    <?php endif; ?>
                 </div>
+                
+                <!-- AI Quota Settings -->
+                <div class="jph-settings-section jph-ai-settings">
+                    <h2>🤖 AI Analysis Quota Settings</h2>
+                    <p>Configure the quota limit for AI analysis requests in Katahdin AI Hub.</p>
+                    
+                    <form method="post" action="">
+                        <?php wp_nonce_field('jph_settings', 'jph_settings_nonce'); ?>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="jph_ai_quota_limit">AI Quota Limit</label>
+                                </th>
+                                <td>
+                                    <input type="number" name="jph_ai_quota_limit" id="jph_ai_quota_limit" 
+                                           value="<?php echo esc_attr($current_quota_limit); ?>" 
+                                           min="1000" max="1000000" step="1000" style="width: 150px;" />
+                                    <p class="description">
+                                        Maximum number of AI analysis requests per month. 
+                                        Current limit: <strong><?php echo number_format($current_quota_limit); ?></strong> requests.
+                                        <br><small>Note: This setting will be applied the next time the plugin registers with Katahdin AI Hub.</small>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php submit_button('Save Settings', 'primary', 'jph_settings_submit'); ?>
+                    </form>
+                </div>
+                
                 <!-- Data Backup & Restore Section -->
                 <div class="jph-settings-section jph-backup-section">
                     <h2>💾 Data Backup & Restore</h2>
@@ -4296,31 +4326,6 @@ Remember: Plain text only, no formatting.');
             padding-bottom: 10px;
         }
         
-        .jph-current-page-info {
-            background: #f8f9fa;
-            border: 1px solid #e1e5e9;
-            border-radius: 6px;
-            padding: 15px;
-            margin-top: 20px;
-        }
-        
-        .jph-current-page-info h3 {
-            margin-top: 0;
-            color: #333;
-        }
-        
-        .jph-current-page-info p {
-            margin: 8px 0;
-        }
-        
-        .jph-current-page-info a {
-            color: #0073aa;
-            text-decoration: none;
-        }
-        
-        .jph-current-page-info a:hover {
-            text-decoration: underline;
-        }
         
         .jph-error {
             color: #d63384;
