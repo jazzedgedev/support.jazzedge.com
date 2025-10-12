@@ -24,6 +24,7 @@ class JPH_Frontend {
         add_shortcode('jph_progress_chart_widget', array($this, 'render_progress_chart_widget'));
         add_shortcode('jph_badges_widget', array($this, 'render_badges_widget'));
         add_shortcode('jph_gems_widget', array($this, 'render_gems_widget'));
+        add_shortcode('jph_streak_widget', array($this, 'render_streak_widget'));
     }
     
     /**
@@ -1348,65 +1349,105 @@ class JPH_Frontend {
                                     </div>
                                 </div>
                                 
-                                <div class="jph-badges-grid">
+                                <div class="jph-badges-table">
+                                    <div class="jph-badges-header">
+                                        <div class="jph-badge-status">Status</div>
+                                        <div class="jph-badge-info">Badge</div>
+                                        <div class="jph-badge-requirement">Requirement</div>
+                                        <div class="jph-badge-rewards">Rewards</div>
+                                    </div>
                                     <?php foreach ($category_badges as $badge):
                                         $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
                                     ?>
-                                    <div class="jph-badge-card <?php echo $is_earned ? 'earned' : 'locked'; ?>">
-                                        <div class="jph-badge-image">
-                                            <?php if (!empty($badge['image_url'])): ?>
-                                                <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>">
-                                            <?php else: ?>
-                                                <div class="jph-badge-placeholder">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                                    <div class="jph-badge-row <?php echo $is_earned ? 'earned' : 'locked'; ?>">
+                                        <div class="jph-badge-status">
+                                            <?php if ($is_earned): ?>
+                                                <div class="jph-status-earned">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
+                                                    <span>Earned</span>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="jph-status-locked">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                                    </svg>
+                                                    <span>Locked</span>
                                                 </div>
                                             <?php endif; ?>
                                         </div>
-                                        <div class="jph-badge-content">
-                                            <div class="jph-badge-title"><?php echo esc_html($badge['name']); ?></div>
-                                            <div class="jph-badge-description"><?php echo esc_html($badge['description']); ?></div>
-                                            <?php if (!$is_earned): ?>
-                                                <div class="jph-badge-requirements">
-                                                    <div class="jph-requirements-text">
-                                                        <?php
-                                                        $criteria_text = '';
-                                                        switch ($badge['criteria_type']) {
-                                                            case 'practice_sessions':
-                                                                $criteria_text = $badge['criteria_value'] . ' practice session' . ($badge['criteria_value'] > 1 ? 's' : '');
-                                                                break;
-                                                            case 'total_xp':
-                                                                $criteria_text = $badge['criteria_value'] . ' total XP';
-                                                                break;
-                                                            case 'streak':
-                                                                $criteria_text = $badge['criteria_value'] . '-day streak';
-                                                                break;
-                                                            case 'long_session_count':
-                                                                $criteria_text = $badge['criteria_value'] . ' session' . ($badge['criteria_value'] > 1 ? 's' : '') . ' over 30 min';
-                                                                break;
-                                                            case 'comeback':
-                                                                $criteria_text = 'Return after 7+ day break';
-                                                                break;
-                                                            case 'time_of_day':
-                                                                $criteria_text = $badge['criteria_value'] == 1 ? '10 early morning sessions' : '10 night sessions';
-                                                                break;
-                                                            default:
-                                                                $criteria_text = 'Complete requirements';
-                                                        }
-                                                        echo esc_html($criteria_text);
-                                                        ?>
-                                                    </div>
-                                                </div>
-                                            <?php endif; ?>
-                                            <div class="jph-badge-rewards">
-                                                <?php if ($badge['xp_reward'] > 0): ?>
-                                                    <span class="jph-reward">+<?php echo $badge['xp_reward']; ?> XP</span>
-                                                <?php endif; ?>
-                                                <?php if ($badge['gem_reward'] > 0): ?>
-                                                    <span class="jph-reward">+<?php echo $badge['gem_reward']; ?> 💎</span>
+                                        <div class="jph-badge-info">
+                                            <div class="jph-badge-icon">
+                                                <?php if (!empty($badge['image_url'])): ?>
+                                                    <img src="<?php echo esc_url($badge['image_url']); ?>" alt="<?php echo esc_attr($badge['name']); ?>" width="32" height="32">
+                                                <?php else: ?>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
+                                                    </svg>
                                                 <?php endif; ?>
                                             </div>
+                                            <div class="jph-badge-details">
+                                                <div class="jph-badge-title"><?php echo esc_html($badge['name']); ?></div>
+                                                <div class="jph-badge-description"><?php echo esc_html($badge['description']); ?></div>
+                                            </div>
+                                        </div>
+                                        <div class="jph-badge-requirement">
+                                            <?php if (!$is_earned): ?>
+                                                <div class="jph-requirement-text">
+                                                    <?php
+                                                    $criteria_text = '';
+                                                    switch ($badge['criteria_type']) {
+                                                        case 'practice_sessions':
+                                                            $criteria_text = $badge['criteria_value'] . ' practice session' . ($badge['criteria_value'] > 1 ? 's' : '');
+                                                            break;
+                                                        case 'total_xp':
+                                                            $criteria_text = $badge['criteria_value'] . ' total XP';
+                                                            break;
+                                                        case 'streak':
+                                                            $criteria_text = $badge['criteria_value'] . '-day streak';
+                                                            break;
+                                                        case 'long_session_count':
+                                                            $criteria_text = $badge['criteria_value'] . ' session' . ($badge['criteria_value'] > 1 ? 's' : '') . ' over 30 min';
+                                                            break;
+                                                        case 'comeback':
+                                                            $criteria_text = 'Return after 7+ day break';
+                                                            break;
+                                                        case 'time_of_day':
+                                                            $criteria_text = $badge['criteria_value'] == 1 ? '10 early morning sessions' : '10 night sessions';
+                                                            break;
+                                                        default:
+                                                            $criteria_text = 'Complete requirements';
+                                                    }
+                                                    echo esc_html($criteria_text);
+                                                    ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="jph-requirement-complete">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                                    </svg>
+                                                    <span>Complete</span>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="jph-badge-rewards">
+                                            <?php if ($badge['xp_reward'] > 0): ?>
+                                                <div class="jph-reward-item">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                                                    </svg>
+                                                    <span><?php echo $badge['xp_reward']; ?> XP</span>
+                                                </div>
+                                            <?php endif; ?>
+                                            <?php if ($badge['gem_reward'] > 0): ?>
+                                                <div class="jph-reward-item">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                                                    </svg>
+                                                    <span><?php echo $badge['gem_reward']; ?> Gems</span>
+                                                </div>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                     <?php endforeach; ?>
@@ -2432,95 +2473,302 @@ class JPH_Frontend {
             box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
         }
         
-        .jph-badges-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
+        .jph-badges-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             margin-top: 20px;
         }
         
-        @media (max-width: 1200px) {
-            .jph-badges-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        .jph-badges-header {
+            display: grid;
+            grid-template-columns: 120px 1fr 200px 150px;
+            gap: 16px;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 700;
+            font-size: 0.9em;
+            color: #495057;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .jph-badge-row {
+            display: grid;
+            grid-template-columns: 120px 1fr 200px 150px;
+            gap: 16px;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f3f4;
+            transition: all 0.2s ease;
+            align-items: center;
+        }
+        
+        .jph-badge-row:hover {
+            background: #f8f9fa;
+        }
+        
+        .jph-badge-row.earned {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.05), rgba(255, 235, 59, 0.05));
+        }
+        
+        .jph-badge-row.earned:hover {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 235, 59, 0.1));
+        }
+        
+        .jph-badge-row.locked {
+            opacity: 0.7;
+        }
+        
+        .jph-badge-row.locked:hover {
+            opacity: 0.8;
         }
         
         @media (max-width: 768px) {
-            .jph-badges-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .jph-badges-header,
+            .jph-badge-row {
+                grid-template-columns: 100px 1fr 180px 120px;
+                gap: 12px;
+                padding: 12px 16px;
             }
         }
         
         @media (max-width: 480px) {
-            .jph-badges-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .jph-badges-header {
+                display: none;
+            }
+            
+            .jph-badge-row {
+                display: block;
+                padding: 16px;
+                border-radius: 8px;
+                margin-bottom: 8px;
+                background: white;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+            
+            .jph-badge-row.earned {
+                background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 235, 59, 0.1));
             }
         }
         
-        .jph-badge-card {
-            background: linear-gradient(135deg, #f8f9fa, #ffffff);
-            border: 2px solid #e8f5f4;
-            border-radius: 12px;
-            padding: 24px 20px;
-            text-align: center;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            min-height: 280px;
-        }
-        
-        .jph-badge-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 69, 85, 0.15);
-            border-color: #004555;
-        }
-        
-        .jph-badge-card.earned {
-            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
-            border-color: #ffd700;
-            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.2);
-        }
-        
-        .jph-badge-card.earned:hover {
-            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.3);
-        }
-        
-        .jph-badge-image {
-            width: 64px;
-            height: 64px;
-            margin: 0 auto 20px;
-            background: transparent;
+        /* Status Column Styles */
+        .jph-badge-status {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 32px;
-            transition: all 0.3s ease;
+        }
+        
+        .jph-status-earned {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #28a745;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+        
+        .jph-status-locked {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #6c757d;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+        
+        .jph-status-earned svg {
+            color: #28a745;
+        }
+        
+        .jph-status-locked svg {
+            color: #6c757d;
+        }
+        
+        /* Badge Info Column Styles */
+        .jph-badge-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .jph-badge-icon {
             flex-shrink: 0;
-        }
-        
-        .jph-badge-card.earned .jph-badge-image {
-            background: transparent;
-        }
-        
-        .jph-badge-card img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .jph-badge-placeholder {
-            width: 100%;
-            height: 100%;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
             background: #f8f9fa;
             border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .jph-badge-row.earned .jph-badge-icon {
+            background: linear-gradient(135deg, #fff8e1, #fff3cd);
+            border-color: #ffd700;
+        }
+        
+        .jph-badge-row.locked .jph-badge-icon {
+            background: #e9ecef;
+            border-color: #dee2e6;
+            opacity: 0.6;
+        }
+        
+        .jph-badge-icon img {
+            width: 32px;
+            height: 32px;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+        
+        .jph-badge-icon svg {
             color: #6c757d;
         }
+        
+        .jph-badge-row.earned .jph-badge-icon svg {
+            color: #b8860b;
+        }
+        
+        .jph-badge-details {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .jph-badge-title {
+            font-weight: 700;
+            color: #333;
+            font-size: 1em;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+        
+        .jph-badge-row.earned .jph-badge-title {
+            color: #b8860b;
+        }
+        
+        .jph-badge-row.locked .jph-badge-title {
+            color: #6c757d;
+        }
+        
+        .jph-badge-description {
+            font-size: 0.85em;
+            color: #666;
+            line-height: 1.3;
+        }
+        
+        .jph-badge-row.earned .jph-badge-description {
+            color: #8b6914;
+        }
+        
+        .jph-badge-row.locked .jph-badge-description {
+            color: #6c757d;
+        }
+        
+        /* Requirement Column Styles */
+        .jph-badge-requirement {
+            display: flex;
+            align-items: center;
+        }
+        
+        .jph-requirement-text {
+            color: #495057;
+            font-size: 0.85em;
+            font-weight: 500;
+            line-height: 1.3;
+        }
+        
+        .jph-requirement-complete {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #28a745;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .jph-requirement-complete svg {
+            color: #28a745;
+        }
+        
+        /* Rewards Column Styles */
+        .jph-badge-rewards {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .jph-reward-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .jph-badge-row.earned .jph-reward-item {
+            color: #28a745;
+        }
+        
+        .jph-badge-row.locked .jph-reward-item {
+            color: #6c757d;
+        }
+        
+        .jph-reward-item svg {
+            color: #ffc107;
+        }
+        
+        .jph-badge-row.earned .jph-reward-item svg {
+            color: #ffc107;
+        }
+        
+        .jph-badge-row.locked .jph-reward-item svg {
+            color: #6c757d;
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 480px) {
+            .jph-badge-info {
+                margin-bottom: 12px;
+            }
+            
+            .jph-badge-icon {
+                width: 48px;
+                height: 48px;
+            }
+            
+            .jph-badge-icon img {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .jph-badge-title {
+                font-size: 1.1em;
+                margin-bottom: 6px;
+            }
+            
+            .jph-badge-description {
+                font-size: 0.9em;
+                margin-bottom: 8px;
+            }
+            
+            .jph-badge-status {
+                justify-content: flex-start;
+                margin-bottom: 8px;
+            }
+            
+            .jph-badge-requirement {
+                margin-bottom: 8px;
+            }
+            
+            .jph-badge-rewards {
+                flex-direction: row;
+                gap: 12px;
+            }
+        }
+        
         
         .jph-badge-category {
             margin-bottom: 40px;
@@ -2576,88 +2824,47 @@ class JPH_Frontend {
             transition: width 0.3s ease;
         }
         
-        .jph-badge-requirements {
-            margin: 10px 0;
-            padding: 10px 14px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border-left: 3px solid #007cba;
-            text-align: center;
-        }
-        
-        .jph-requirements-text {
-            color: #666;
-            font-style: normal;
-            font-weight: 500;
-            font-size: 1.0em;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            line-height: 1.3;
-        }
-        
-        .jph-badge-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        
-        .jph-badge-title {
-            font-weight: 700;
-            color: #333;
-            font-size: 1.1em;
-            margin-bottom: 10px;
-            line-height: 1.2;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            text-align: center;
-        }
-        
-        .jph-badge-description {
-            font-size: 0.95em;
-            color: #666;
-            line-height: 1.4;
-            margin-bottom: 15px;
-            font-weight: 400;
-            text-align: center;
-            flex: 1;
-        }
-        
-        .jph-badge-category {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .jph-badge-category-achievement { background: #e3f2fd; color: #1976d2; }
-        .jph-badge-category-milestone { background: #f3e5f5; color: #7b1fa2; }
-        .jph-badge-category-special { background: #fff3e0; color: #f57c00; }
-        .jph-badge-category-streak { background: #ffebee; color: #d32f2f; }
-        .jph-badge-category-level { background: #e8f5e8; color: #388e3c; }
-        .jph-badge-category-practice { background: #e0f2f1; color: #00796b; }
-        .jph-badge-category-improvement { background: #fce4ec; color: #c2185b; }
-        
-        .jph-badge-rewards {
-            font-size: 1.0em;
-            color: #333;
-            margin-top: auto;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            text-align: center;
-            padding-top: 10px;
-        }
-        
         .jph-badge-earned-date {
             font-size: 0.85em;
             color: #28a745;
             font-weight: 600;
             margin-top: 10px;
             text-align: center;
+        }
+        
+        /* Accessibility and Focus States */
+        .jph-badge-row:focus {
+            outline: 3px solid #007cba;
+            outline-offset: 2px;
+        }
+        
+        .jph-badge-row:focus-visible {
+            outline: 3px solid #007cba;
+            outline-offset: 2px;
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            .jph-badge-row {
+                transition: none !important;
+            }
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .jph-badge-row {
+                border: 2px solid #000;
+            }
+            
+            .jph-badge-row.earned {
+                border-color: #000;
+                background: #fff;
+            }
+            
+            .jph-badge-row.locked {
+                border-color: #666;
+                background: #f0f0f0;
+            }
         }
         
         .no-badges-message {
@@ -9320,6 +9527,564 @@ class JPH_Frontend {
             color: #666;
             font-style: italic;
             padding: 20px;
+        }
+        </style>
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render practice streak widget
+     */
+    public function render_streak_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'user_id' => 'current',
+            'style' => 'compact',
+            'layout' => 'horizontal',
+            'title' => 'Practice Streak',
+            'show_title' => 'true',
+            'show_longest_streak' => 'true',
+            'show_streak_goal' => 'false',
+            'streak_goal' => '30',
+            'show_motivational_text' => 'true',
+            'show_practice_hub_link' => 'false',
+            'minimal' => 'false'
+        ), $atts);
+        
+        // Determine user ID
+        if ($atts['user_id'] === 'current') {
+            if (!is_user_logged_in()) {
+                return '<div class="jph-streak-widget jph-login-required">Please log in to view your practice streak.</div>';
+            }
+            $user_id = get_current_user_id();
+        } else {
+            $user_id = intval($atts['user_id']);
+            if (!$user_id) {
+                return '<div class="jph-streak-widget jph-error">Invalid user ID.</div>';
+            }
+        }
+        
+        // Get user stats
+        $gamification = new APH_Gamification();
+        $user_stats = $gamification->get_user_stats($user_id);
+        $user_stats = $this->sanitize_user_stats($user_stats);
+        
+        // Get user info
+        $user = get_user_by('id', $user_id);
+        $display_name = $user_stats['display_name'] ?: $user->display_name ?: $user->user_login;
+        
+        // Calculate streak status and motivational text
+        $current_streak = intval($user_stats['current_streak']);
+        $longest_streak = intval($user_stats['longest_streak']);
+        $streak_goal = intval($atts['streak_goal']);
+        
+        // Determine streak status
+        $streak_status = 'active';
+        $streak_message = '';
+        
+        if ($current_streak == 0) {
+            $streak_status = 'broken';
+            $streak_message = 'Start your practice streak today!';
+        } elseif ($current_streak >= $streak_goal) {
+            $streak_status = 'goal_achieved';
+            $streak_message = 'Amazing! You\'ve reached your streak goal!';
+        } elseif ($current_streak >= 7) {
+            $streak_status = 'strong';
+            $streak_message = 'Great consistency! Keep it up!';
+        } elseif ($current_streak >= 3) {
+            $streak_status = 'building';
+            $streak_message = 'Nice start! Keep building that streak!';
+        } else {
+            $streak_status = 'new';
+            $streak_message = 'Every streak starts with a single day!';
+        }
+        
+        // Enqueue styles
+        wp_enqueue_style('jph-widgets', plugin_dir_url(__FILE__) . '../assets/css/widgets.css', array(), '1.0.0');
+        
+        ob_start();
+        ?>
+        <div class="jph-streak-widget jph-streak-widget-<?php echo esc_attr($atts['style']); ?> jph-streak-layout-<?php echo esc_attr($atts['layout']); ?> jph-streak-status-<?php echo esc_attr($streak_status); ?> <?php echo $atts['minimal'] === 'true' ? 'jph-streak-minimal' : ''; ?>">
+            <?php if ($atts['show_title'] === 'true' && $atts['minimal'] !== 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <div class="jph-streak-content">
+                <?php if ($atts['minimal'] === 'true'): ?>
+                    <!-- Minimal Layout - Arrow, Number, and "Streak" -->
+                    <div class="jph-streak-minimal-display">
+                        <div class="jph-streak-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                            </svg>
+                        </div>
+                        <div class="jph-streak-info">
+                            <div class="jph-streak-value"><?php echo $current_streak; ?></div>
+                            <div class="jph-streak-label">Streak</div>
+                        </div>
+                    </div>
+                <?php elseif ($atts['layout'] === 'vertical'): ?>
+                    <!-- Vertical Layout -->
+                    <div class="jph-streak-main">
+                        <div class="jph-streak-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="48" height="48">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                            </svg>
+                        </div>
+                        <div class="jph-streak-value"><?php echo $current_streak; ?></div>
+                        <div class="jph-streak-label">Day Streak</div>
+                    </div>
+                    
+                    <?php if ($atts['show_longest_streak'] === 'true' && $longest_streak > $current_streak): ?>
+                        <div class="jph-streak-secondary">
+                            <div class="jph-streak-longest">
+                                <span class="jph-streak-longest-label">Best:</span>
+                                <span class="jph-streak-longest-value"><?php echo $longest_streak; ?> days</span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <?php if ($atts['show_streak_goal'] === 'true'): ?>
+                        <div class="jph-streak-progress">
+                            <div class="jph-streak-progress-bar">
+                                <div class="jph-streak-progress-fill" style="width: <?php echo min(100, ($current_streak / $streak_goal) * 100); ?>%"></div>
+                            </div>
+                            <div class="jph-streak-progress-text">
+                                <?php echo $current_streak; ?> / <?php echo $streak_goal; ?> days
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
+                <?php else: ?>
+                    <!-- Horizontal Layout -->
+                    <div class="jph-streak-main">
+                        <div class="jph-streak-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="32" height="32">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                            </svg>
+                        </div>
+                        <div class="jph-streak-info">
+                            <div class="jph-streak-value"><?php echo $current_streak; ?></div>
+                            <div class="jph-streak-label">Day Streak</div>
+                        </div>
+                        
+                        <?php if ($atts['show_longest_streak'] === 'true' && $longest_streak > $current_streak): ?>
+                            <div class="jph-streak-longest">
+                                <span class="jph-streak-longest-label">Best:</span>
+                                <span class="jph-streak-longest-value"><?php echo $longest_streak; ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <?php if ($atts['show_streak_goal'] === 'true'): ?>
+                        <div class="jph-streak-progress">
+                            <div class="jph-streak-progress-bar">
+                                <div class="jph-streak-progress-fill" style="width: <?php echo min(100, ($current_streak / $streak_goal) * 100); ?>%"></div>
+                            </div>
+                            <div class="jph-streak-progress-text">
+                                <?php echo $current_streak; ?> / <?php echo $streak_goal; ?> days
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+                
+                <?php if ($atts['show_motivational_text'] === 'true' && !empty($streak_message) && $atts['minimal'] !== 'true'): ?>
+                    <div class="jph-streak-message">
+                        <?php echo esc_html($streak_message); ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+            
+            <?php if ($atts['show_practice_hub_link'] === 'true' && $atts['minimal'] !== 'true'): ?>
+                <div class="jph-widget-footer">
+                    <a href="<?php echo esc_url($this->get_practice_hub_url()); ?>" class="jph-practice-hub-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-hub-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+                        </svg>
+                        Continue Your Streak
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-streak-widget {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .jph-streak-widget:hover {
+            box-shadow: 0 8px 15px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .jph-widget-title {
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            text-align: center;
+        }
+        
+        .jph-streak-content {
+            text-align: center;
+        }
+        
+        /* Vertical Layout */
+        .jph-streak-layout-vertical .jph-streak-main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .jph-streak-layout-vertical .jph-streak-icon {
+            color: #f97316;
+            margin-bottom: 8px;
+        }
+        
+        .jph-streak-layout-vertical .jph-streak-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: #333;
+            line-height: 1;
+        }
+        
+        .jph-streak-layout-vertical .jph-streak-label {
+            font-size: 16px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        /* Horizontal Layout */
+        .jph-streak-layout-horizontal .jph-streak-main {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .jph-streak-layout-horizontal .jph-streak-icon {
+            color: #f97316;
+            flex-shrink: 0;
+        }
+        
+        .jph-streak-layout-horizontal .jph-streak-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .jph-streak-layout-horizontal .jph-streak-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #333;
+            line-height: 1;
+        }
+        
+        .jph-streak-layout-horizontal .jph-streak-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .jph-streak-layout-horizontal .jph-streak-longest {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: 20px;
+            padding-left: 20px;
+            border-left: 1px solid #e1e5e9;
+        }
+        
+        .jph-streak-layout-horizontal .jph-streak-longest-label {
+            font-size: 12px;
+            color: #999;
+            font-weight: 500;
+        }
+        
+        .jph-streak-layout-horizontal .jph-streak-longest-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #666;
+        }
+        
+        /* Secondary Info */
+        .jph-streak-secondary {
+            margin-bottom: 20px;
+        }
+        
+        .jph-streak-longest {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .jph-streak-longest-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .jph-streak-longest-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        /* Progress Bar */
+        .jph-streak-progress {
+            margin-bottom: 16px;
+        }
+        
+        .jph-streak-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e1e5e9;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        
+        .jph-streak-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f97316, #ea580c);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .jph-streak-progress-text {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        /* Motivational Message */
+        .jph-streak-message {
+            font-size: 16px;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #f0f9ff;
+            border-radius: 8px;
+            border-left: 4px solid #0ea5e9;
+        }
+        
+        /* Status-based styling */
+        .jph-streak-status-broken .jph-streak-icon {
+            color: #dc2626;
+        }
+        
+        .jph-streak-status-broken .jph-streak-value {
+            color: #dc2626;
+        }
+        
+        .jph-streak-status-broken .jph-streak-message {
+            background: #fef2f2;
+            border-left-color: #dc2626;
+            color: #dc2626;
+        }
+        
+        .jph-streak-status-goal_achieved .jph-streak-icon {
+            color: #16a34a;
+        }
+        
+        .jph-streak-status-goal_achieved .jph-streak-value {
+            color: #16a34a;
+        }
+        
+        .jph-streak-status-goal_achieved .jph-streak-message {
+            background: #f0fdf4;
+            border-left-color: #16a34a;
+            color: #16a34a;
+        }
+        
+        .jph-streak-status-strong .jph-streak-icon {
+            color: #7c3aed;
+        }
+        
+        .jph-streak-status-strong .jph-streak-value {
+            color: #7c3aed;
+        }
+        
+        .jph-streak-status-strong .jph-streak-message {
+            background: #faf5ff;
+            border-left-color: #7c3aed;
+            color: #7c3aed;
+        }
+        
+        /* Widget Footer */
+        .jph-widget-footer {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .jph-practice-hub-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #0ea5e9;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+        
+        .jph-practice-hub-link:hover {
+            background: #0284c7;
+            color: white;
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        
+        .jph-hub-icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .jph-streak-widget {
+                padding: 20px;
+            }
+            
+            .jph-streak-layout-horizontal .jph-streak-main {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .jph-streak-layout-horizontal .jph-streak-longest {
+                margin-left: 0;
+                padding-left: 0;
+                border-left: none;
+                border-top: 1px solid #e1e5e9;
+                padding-top: 12px;
+            }
+            
+            .jph-streak-layout-vertical .jph-streak-value {
+                font-size: 40px;
+            }
+            
+            .jph-streak-layout-horizontal .jph-streak-value {
+                font-size: 32px;
+            }
+        }
+        
+        /* Compact Style */
+        .jph-streak-widget-compact {
+            padding: 16px;
+        }
+        
+        .jph-streak-widget-compact .jph-widget-title {
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .jph-streak-widget-compact .jph-streak-layout-vertical .jph-streak-value {
+            font-size: 36px;
+        }
+        
+        .jph-streak-widget-compact .jph-streak-layout-horizontal .jph-streak-value {
+            font-size: 28px;
+        }
+        
+        .jph-login-required,
+        .jph-error {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        /* Minimal Layout */
+        .jph-streak-minimal {
+            padding: 12px;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            margin: 0;
+        }
+        
+        .jph-streak-minimal:hover {
+            box-shadow: none;
+            transform: none;
+        }
+        
+        .jph-streak-minimal-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .jph-streak-minimal .jph-streak-icon {
+            color: #f97316;
+            flex-shrink: 0;
+        }
+        
+        .jph-streak-minimal .jph-streak-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .jph-streak-minimal .jph-streak-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            line-height: 1;
+        }
+        
+        .jph-streak-minimal .jph-streak-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+        
+        /* Minimal status colors */
+        .jph-streak-minimal.jph-streak-status-broken .jph-streak-icon {
+            color: #dc2626;
+        }
+        
+        .jph-streak-minimal.jph-streak-status-broken .jph-streak-value {
+            color: #dc2626;
+        }
+        
+        .jph-streak-minimal.jph-streak-status-goal_achieved .jph-streak-icon {
+            color: #16a34a;
+        }
+        
+        .jph-streak-minimal.jph-streak-status-goal_achieved .jph-streak-value {
+            color: #16a34a;
+        }
+        
+        .jph-streak-minimal.jph-streak-status-strong .jph-streak-icon {
+            color: #7c3aed;
+        }
+        
+        .jph-streak-minimal.jph-streak-status-strong .jph-streak-value {
+            color: #7c3aed;
         }
         </style>
         <?php

@@ -13,9 +13,11 @@ if (!defined('ABSPATH')) {
 class APH_Gamification {
     
     private $database;
+    private $logger;
     
     public function __construct() {
         $this->database = new JPH_Database();
+        $this->logger = JPH_Logger::get_instance();
     }
     
     /**
@@ -317,8 +319,16 @@ class APH_Gamification {
      */
     private function check_comeback_badge($user_id, $sessions) {
         if (count($sessions) < 3) {
+            $this->logger->debug('Comeback badge check - insufficient sessions', array(
+                'user_id' => $user_id,
+                'session_count' => count($sessions),
+                'required_minimum' => 3
+            ));
             return false;
         }
+        
+        // Get WordPress timezone for proper time calculation
+        $wp_timezone = wp_timezone();
         
         // Sort sessions by date (newest first)
         usort($sessions, function($a, $b) {
@@ -328,10 +338,19 @@ class APH_Gamification {
         // Check if there's a gap of 7+ days in recent sessions
         $recent_sessions = array_slice($sessions, 0, 10); // Check last 10 sessions
         
+        $debug_gaps = array();
+        
         for ($i = 0; $i < count($recent_sessions) - 1; $i++) {
             $current_date = strtotime($recent_sessions[$i]['created_at']);
             $next_date = strtotime($recent_sessions[$i + 1]['created_at']);
             $days_diff = ($current_date - $next_date) / (24 * 60 * 60);
+            
+            $debug_gaps[] = array(
+                'current_session' => $recent_sessions[$i]['created_at'],
+                'next_session' => $recent_sessions[$i + 1]['created_at'],
+                'days_diff' => $days_diff,
+                'is_gap' => $days_diff >= 7
+            );
             
             if ($days_diff >= 7) {
                 // Found a 7+ day gap, check if user completed 3 sessions in the week after the gap
@@ -339,15 +358,45 @@ class APH_Gamification {
                 $week_after_gap = strtotime($recent_sessions[$i]['created_at']) + (7 * 24 * 60 * 60);
                 
                 $sessions_in_week = 0;
+                $week_sessions_debug = array();
+                
                 foreach ($sessions_after_gap as $session) {
-                    if (strtotime($session['created_at']) <= $week_after_gap) {
+                    $session_time = strtotime($session['created_at']);
+                    $is_in_week = $session_time <= $week_after_gap;
+                    
+                    $week_sessions_debug[] = array(
+                        'session_date' => $session['created_at'],
+                        'session_time' => $session_time,
+                        'week_end' => $week_after_gap,
+                        'is_in_week' => $is_in_week
+                    );
+                    
+                    if ($is_in_week) {
                         $sessions_in_week++;
                     }
                 }
                 
-                return $sessions_in_week >= 3;
+                $result = $sessions_in_week >= 3;
+                
+                $this->logger->debug('Comeback badge check - gap found', array(
+                    'user_id' => $user_id,
+                    'gap_days' => $days_diff,
+                    'sessions_in_week' => $sessions_in_week,
+                    'required_sessions' => 3,
+                    'badge_earned' => $result,
+                    'wp_timezone' => $wp_timezone->getName(),
+                    'week_sessions' => $week_sessions_debug
+                ));
+                
+                return $result;
             }
         }
+        
+        $this->logger->debug('Comeback badge check - no qualifying gap', array(
+            'user_id' => $user_id,
+            'session_count' => count($sessions),
+            'gaps_checked' => $debug_gaps
+        ));
         
         return false;
     }
@@ -358,21 +407,53 @@ class APH_Gamification {
      */
     private function check_time_of_day_badge($user_id, $sessions, $criteria_value) {
         $target_sessions = 0;
+        $debug_sessions = array();
+        
+        // Get WordPress timezone for proper time calculation
+        $wp_timezone = wp_timezone();
+        $current_timezone = date_default_timezone_get();
         
         foreach ($sessions as $session) {
-            $session_time = strtotime($session['created_at']);
-            $hour = (int)date('H', $session_time);
+            // Parse the session time using WordPress timezone
+            $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+            $hour = (int)$session_datetime->format('H');
+            
+            $session_debug = array(
+                'created_at' => $session['created_at'],
+                'hour' => $hour,
+                'criteria_value' => $criteria_value
+            );
             
             if ($criteria_value == 1) { // Early bird (5 AM - 8 AM)
                 if ($hour >= 5 && $hour < 8) {
                     $target_sessions++;
+                    $session_debug['matches'] = true;
+                } else {
+                    $session_debug['matches'] = false;
                 }
             } elseif ($criteria_value == 2) { // Night owl (10 PM - 6 AM)
                 if ($hour >= 22 || $hour < 6) {
                     $target_sessions++;
+                    $session_debug['matches'] = true;
+                } else {
+                    $session_debug['matches'] = false;
                 }
             }
+            
+            $debug_sessions[] = $session_debug;
         }
+        
+        // Debug logging
+        $this->logger->debug('Time of day badge check', array(
+            'user_id' => $user_id,
+            'criteria_value' => $criteria_value,
+            'criteria_name' => $criteria_value == 1 ? 'Early Bird' : 'Night Owl',
+            'target_sessions' => $target_sessions,
+            'required_sessions' => 10,
+            'wp_timezone' => $wp_timezone->getName(),
+            'current_timezone' => $current_timezone,
+            'session_samples' => array_slice($debug_sessions, 0, 5)
+        ));
         
         return $target_sessions >= 10; // Need 10 sessions in the target time period
     }

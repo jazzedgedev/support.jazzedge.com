@@ -396,6 +396,12 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
+        register_rest_route('aph/v1', '/admin/debug-timezone', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_timezone'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
     }
     
     /**
@@ -3214,51 +3220,91 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
     }
     
     /**
-     * Export all user data for backup
+     * Export complete plugin data for backup (user data + admin settings + configuration)
      */
     public function rest_export_user_data($request) {
         try {
             global $wpdb;
             
-            // Get all user data
+            // Get complete plugin data
             $export_data = array(
                 'export_date' => current_time('mysql'),
-                'export_version' => '1.0',
-                'data' => array()
+                'export_version' => '2.0',
+                'export_type' => 'complete_plugin_backup',
+                'data' => array(
+                    'user_data' => array(),
+                    'admin_settings' => array(),
+                    'system_configuration' => array()
+                )
             );
             
+            // === USER DATA ===
             // Practice sessions
             $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
-            $export_data['data']['practice_sessions'] = $wpdb->get_results("SELECT * FROM $sessions_table", ARRAY_A);
+            $export_data['data']['user_data']['practice_sessions'] = $wpdb->get_results("SELECT * FROM $sessions_table", ARRAY_A);
             
             // Practice items
             $items_table = $wpdb->prefix . 'jph_practice_items';
-            $export_data['data']['practice_items'] = $wpdb->get_results("SELECT * FROM $items_table", ARRAY_A);
+            $export_data['data']['user_data']['practice_items'] = $wpdb->get_results("SELECT * FROM $items_table", ARRAY_A);
             
             // User stats
             $stats_table = $wpdb->prefix . 'jph_user_stats';
-            $export_data['data']['user_stats'] = $wpdb->get_results("SELECT * FROM $stats_table", ARRAY_A);
+            $export_data['data']['user_data']['user_stats'] = $wpdb->get_results("SELECT * FROM $stats_table", ARRAY_A);
             
             // User badges
             $badges_table = $wpdb->prefix . 'jph_user_badges';
-            $export_data['data']['user_badges'] = $wpdb->get_results("SELECT * FROM $badges_table", ARRAY_A);
+            $export_data['data']['user_data']['user_badges'] = $wpdb->get_results("SELECT * FROM $badges_table", ARRAY_A);
             
             // Gem transactions
             $gems_table = $wpdb->prefix . 'jph_gem_transactions';
-            $export_data['data']['gem_transactions'] = $wpdb->get_results("SELECT * FROM $gems_table", ARRAY_A);
+            $export_data['data']['user_data']['gem_transactions'] = $wpdb->get_results("SELECT * FROM $gems_table", ARRAY_A);
             
             // Lesson favorites
             $favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
-            $export_data['data']['lesson_favorites'] = $wpdb->get_results("SELECT * FROM $favorites_table", ARRAY_A);
+            $export_data['data']['user_data']['lesson_favorites'] = $wpdb->get_results("SELECT * FROM $favorites_table", ARRAY_A);
+            
+            // === ADMIN SETTINGS ===
+            $export_data['data']['admin_settings'] = array(
+                'practice_hub_page_id' => get_option('jph_practice_hub_page_id', ''),
+                'ai_quota_limit' => get_option('jph_ai_quota_limit', 50000),
+                'ai_prompt' => get_option('aph_ai_prompt', ''),
+                'ai_system_message' => get_option('aph_ai_system_message', ''),
+                'ai_model' => get_option('aph_ai_model', 'gpt-4'),
+                'ai_max_tokens' => get_option('aph_ai_max_tokens', 300),
+                'ai_temperature' => get_option('aph_ai_temperature', 0.3),
+                'badge_events_log' => get_option('jph_badge_events_log', array())
+            );
+            
+            // === SYSTEM CONFIGURATION ===
+            // Badge definitions
+            $badge_definitions_table = $wpdb->prefix . 'jph_badges';
+            $export_data['data']['system_configuration']['badge_definitions'] = $wpdb->get_results("SELECT * FROM $badge_definitions_table", ARRAY_A);
+            
+            // Plugin version and WordPress info
+            $export_data['data']['system_configuration']['plugin_info'] = array(
+                'plugin_version' => '1.0.0', // You might want to get this from a constant
+                'wordpress_version' => get_bloginfo('version'),
+                'site_url' => get_site_url(),
+                'export_timestamp' => time()
+            );
             
             // Add summary
             $export_data['summary'] = array(
-                'practice_sessions_count' => count($export_data['data']['practice_sessions']),
-                'practice_items_count' => count($export_data['data']['practice_items']),
-                'user_stats_count' => count($export_data['data']['user_stats']),
-                'user_badges_count' => count($export_data['data']['user_badges']),
-                'gem_transactions_count' => count($export_data['data']['gem_transactions']),
-                'lesson_favorites_count' => count($export_data['data']['lesson_favorites'])
+                'user_data' => array(
+                    'practice_sessions_count' => count($export_data['data']['user_data']['practice_sessions']),
+                    'practice_items_count' => count($export_data['data']['user_data']['practice_items']),
+                    'user_stats_count' => count($export_data['data']['user_data']['user_stats']),
+                    'user_badges_count' => count($export_data['data']['user_data']['user_badges']),
+                    'gem_transactions_count' => count($export_data['data']['user_data']['gem_transactions']),
+                    'lesson_favorites_count' => count($export_data['data']['user_data']['lesson_favorites'])
+                ),
+                'admin_settings' => array(
+                    'settings_count' => count($export_data['data']['admin_settings'])
+                ),
+                'system_configuration' => array(
+                    'badge_definitions_count' => count($export_data['data']['system_configuration']['badge_definitions']),
+                    'plugin_info' => $export_data['data']['system_configuration']['plugin_info']
+                )
             );
             
             return rest_ensure_response(array(
@@ -3273,7 +3319,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
     }
     
     /**
-     * Import user data from backup
+     * Import complete plugin data from backup (user data + admin settings + configuration)
      */
     public function rest_import_user_data($request) {
         try {
@@ -3291,82 +3337,212 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
             $imported_counts = array();
             
-            // Import practice sessions
-            if (isset($data['data']['practice_sessions']) && !empty($data['data']['practice_sessions'])) {
-                $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
-                $wpdb->query("TRUNCATE TABLE $sessions_table");
-                foreach ($data['data']['practice_sessions'] as $session) {
-                    unset($session['id']); // Remove ID to allow auto-increment
-                    $wpdb->insert($sessions_table, $session);
-                }
-                $imported_counts['practice_sessions'] = count($data['data']['practice_sessions']);
-            }
+            // Check if this is the new format (v2.0) or old format (v1.0)
+            $is_new_format = isset($data['export_version']) && $data['export_version'] === '2.0';
             
-            // Import practice items
-            if (isset($data['data']['practice_items']) && !empty($data['data']['practice_items'])) {
-                $items_table = $wpdb->prefix . 'jph_practice_items';
-                $wpdb->query("TRUNCATE TABLE $items_table");
-                foreach ($data['data']['practice_items'] as $item) {
-                    unset($item['id']); // Remove ID to allow auto-increment
-                    $wpdb->insert($items_table, $item);
+            if ($is_new_format) {
+                // === NEW FORMAT: Complete Plugin Backup ===
+                
+                // Import user data
+                if (isset($data['data']['user_data'])) {
+                    $user_data = $data['data']['user_data'];
+                    
+                    // Import practice sessions
+                    if (isset($user_data['practice_sessions']) && !empty($user_data['practice_sessions'])) {
+                        $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+                        $wpdb->query("TRUNCATE TABLE $sessions_table");
+                        foreach ($user_data['practice_sessions'] as $session) {
+                            unset($session['id']); // Remove ID to allow auto-increment
+                            $wpdb->insert($sessions_table, $session);
+                        }
+                        $imported_counts['practice_sessions'] = count($user_data['practice_sessions']);
+                    }
+                    
+                    // Import practice items
+                    if (isset($user_data['practice_items']) && !empty($user_data['practice_items'])) {
+                        $items_table = $wpdb->prefix . 'jph_practice_items';
+                        $wpdb->query("TRUNCATE TABLE $items_table");
+                        foreach ($user_data['practice_items'] as $item) {
+                            unset($item['id']); // Remove ID to allow auto-increment
+                            $wpdb->insert($items_table, $item);
+                        }
+                        $imported_counts['practice_items'] = count($user_data['practice_items']);
+                    }
+                    
+                    // Import user stats
+                    if (isset($user_data['user_stats']) && !empty($user_data['user_stats'])) {
+                        $stats_table = $wpdb->prefix . 'jph_user_stats';
+                        $wpdb->query("TRUNCATE TABLE $stats_table");
+                        foreach ($user_data['user_stats'] as $stat) {
+                            unset($stat['id']); // Remove ID to allow auto-increment
+                            $wpdb->insert($stats_table, $stat);
+                        }
+                        $imported_counts['user_stats'] = count($user_data['user_stats']);
+                    }
+                    
+                    // Import user badges
+                    if (isset($user_data['user_badges']) && !empty($user_data['user_badges'])) {
+                        $badges_table = $wpdb->prefix . 'jph_user_badges';
+                        $wpdb->query("TRUNCATE TABLE $badges_table");
+                        foreach ($user_data['user_badges'] as $badge) {
+                            unset($badge['id']); // Remove ID to allow auto-increment
+                            $wpdb->insert($badges_table, $badge);
+                        }
+                        $imported_counts['user_badges'] = count($user_data['user_badges']);
+                    }
+                    
+                    // Import gem transactions
+                    if (isset($user_data['gem_transactions']) && !empty($user_data['gem_transactions'])) {
+                        $gems_table = $wpdb->prefix . 'jph_gem_transactions';
+                        $wpdb->query("TRUNCATE TABLE $gems_table");
+                        foreach ($user_data['gem_transactions'] as $gem) {
+                            unset($gem['id']); // Remove ID to allow auto-increment
+                            $wpdb->insert($gems_table, $gem);
+                        }
+                        $imported_counts['gem_transactions'] = count($user_data['gem_transactions']);
+                    }
+                    
+                    // Import lesson favorites
+                    if (isset($user_data['lesson_favorites']) && !empty($user_data['lesson_favorites'])) {
+                        $favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
+                        $wpdb->query("TRUNCATE TABLE $favorites_table");
+                        foreach ($user_data['lesson_favorites'] as $favorite) {
+                            unset($favorite['id']); // Remove ID to allow auto-increment
+                            $wpdb->insert($favorites_table, $favorite);
+                        }
+                        $imported_counts['lesson_favorites'] = count($user_data['lesson_favorites']);
+                    }
                 }
-                $imported_counts['practice_items'] = count($data['data']['practice_items']);
-            }
-            
-            // Import user stats
-            if (isset($data['data']['user_stats']) && !empty($data['data']['user_stats'])) {
-                $stats_table = $wpdb->prefix . 'jph_user_stats';
-                $wpdb->query("TRUNCATE TABLE $stats_table");
-                foreach ($data['data']['user_stats'] as $stat) {
-                    unset($stat['id']); // Remove ID to allow auto-increment
-                    $wpdb->insert($stats_table, $stat);
+                
+                // Import admin settings
+                if (isset($data['data']['admin_settings'])) {
+                    $admin_settings = $data['data']['admin_settings'];
+                    
+                    if (isset($admin_settings['practice_hub_page_id'])) {
+                        update_option('jph_practice_hub_page_id', $admin_settings['practice_hub_page_id']);
+                    }
+                    if (isset($admin_settings['ai_quota_limit'])) {
+                        update_option('jph_ai_quota_limit', $admin_settings['ai_quota_limit']);
+                    }
+                    if (isset($admin_settings['ai_prompt'])) {
+                        update_option('aph_ai_prompt', $admin_settings['ai_prompt']);
+                    }
+                    if (isset($admin_settings['ai_system_message'])) {
+                        update_option('aph_ai_system_message', $admin_settings['ai_system_message']);
+                    }
+                    if (isset($admin_settings['ai_model'])) {
+                        update_option('aph_ai_model', $admin_settings['ai_model']);
+                    }
+                    if (isset($admin_settings['ai_max_tokens'])) {
+                        update_option('aph_ai_max_tokens', $admin_settings['ai_max_tokens']);
+                    }
+                    if (isset($admin_settings['ai_temperature'])) {
+                        update_option('aph_ai_temperature', $admin_settings['ai_temperature']);
+                    }
+                    if (isset($admin_settings['badge_events_log'])) {
+                        update_option('jph_badge_events_log', $admin_settings['badge_events_log']);
+                    }
+                    
+                    $imported_counts['admin_settings'] = count($admin_settings);
                 }
-                $imported_counts['user_stats'] = count($data['data']['user_stats']);
-            }
-            
-            // Import user badges
-            if (isset($data['data']['user_badges']) && !empty($data['data']['user_badges'])) {
-                $badges_table = $wpdb->prefix . 'jph_user_badges';
-                $wpdb->query("TRUNCATE TABLE $badges_table");
-                foreach ($data['data']['user_badges'] as $badge) {
-                    unset($badge['id']); // Remove ID to allow auto-increment
-                    $wpdb->insert($badges_table, $badge);
+                
+                // Import system configuration
+                if (isset($data['data']['system_configuration'])) {
+                    $system_config = $data['data']['system_configuration'];
+                    
+                    // Import badge definitions
+                    if (isset($system_config['badge_definitions']) && !empty($system_config['badge_definitions'])) {
+                        $badge_definitions_table = $wpdb->prefix . 'jph_badges';
+                        $wpdb->query("TRUNCATE TABLE $badge_definitions_table");
+                        foreach ($system_config['badge_definitions'] as $badge_def) {
+                            unset($badge_def['id']); // Remove ID to allow auto-increment
+                            $wpdb->insert($badge_definitions_table, $badge_def);
+                        }
+                        $imported_counts['badge_definitions'] = count($system_config['badge_definitions']);
+                    }
+                    
+                    $imported_counts['system_configuration'] = count($system_config);
                 }
-                $imported_counts['user_badges'] = count($data['data']['user_badges']);
-            }
-            
-            // Import gem transactions
-            if (isset($data['data']['gem_transactions']) && !empty($data['data']['gem_transactions'])) {
-                $gems_table = $wpdb->prefix . 'jph_gem_transactions';
-                $wpdb->query("TRUNCATE TABLE $gems_table");
-                foreach ($data['data']['gem_transactions'] as $transaction) {
-                    unset($transaction['id']); // Remove ID to allow auto-increment
-                    $wpdb->insert($gems_table, $transaction);
+                
+            } else {
+                // === OLD FORMAT: User Data Only ===
+                
+                // Import practice sessions
+                if (isset($data['data']['practice_sessions']) && !empty($data['data']['practice_sessions'])) {
+                    $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+                    $wpdb->query("TRUNCATE TABLE $sessions_table");
+                    foreach ($data['data']['practice_sessions'] as $session) {
+                        unset($session['id']); // Remove ID to allow auto-increment
+                        $wpdb->insert($sessions_table, $session);
+                    }
+                    $imported_counts['practice_sessions'] = count($data['data']['practice_sessions']);
                 }
-                $imported_counts['gem_transactions'] = count($data['data']['gem_transactions']);
-            }
-            
-            // Import lesson favorites
-            if (isset($data['data']['lesson_favorites']) && !empty($data['data']['lesson_favorites'])) {
-                $favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
-                $wpdb->query("TRUNCATE TABLE $favorites_table");
-                foreach ($data['data']['lesson_favorites'] as $favorite) {
-                    unset($favorite['id']); // Remove ID to allow auto-increment
-                    $wpdb->insert($favorites_table, $favorite);
+                
+                // Import practice items
+                if (isset($data['data']['practice_items']) && !empty($data['data']['practice_items'])) {
+                    $items_table = $wpdb->prefix . 'jph_practice_items';
+                    $wpdb->query("TRUNCATE TABLE $items_table");
+                    foreach ($data['data']['practice_items'] as $item) {
+                        unset($item['id']); // Remove ID to allow auto-increment
+                        $wpdb->insert($items_table, $item);
+                    }
+                    $imported_counts['practice_items'] = count($data['data']['practice_items']);
                 }
-                $imported_counts['lesson_favorites'] = count($data['data']['lesson_favorites']);
+                
+                // Import user stats
+                if (isset($data['data']['user_stats']) && !empty($data['data']['user_stats'])) {
+                    $stats_table = $wpdb->prefix . 'jph_user_stats';
+                    $wpdb->query("TRUNCATE TABLE $stats_table");
+                    foreach ($data['data']['user_stats'] as $stat) {
+                        unset($stat['id']); // Remove ID to allow auto-increment
+                        $wpdb->insert($stats_table, $stat);
+                    }
+                    $imported_counts['user_stats'] = count($data['data']['user_stats']);
+                }
+                
+                // Import user badges
+                if (isset($data['data']['user_badges']) && !empty($data['data']['user_badges'])) {
+                    $badges_table = $wpdb->prefix . 'jph_user_badges';
+                    $wpdb->query("TRUNCATE TABLE $badges_table");
+                    foreach ($data['data']['user_badges'] as $badge) {
+                        unset($badge['id']); // Remove ID to allow auto-increment
+                        $wpdb->insert($badges_table, $badge);
+                    }
+                    $imported_counts['user_badges'] = count($data['data']['user_badges']);
+                }
+                
+                // Import gem transactions
+                if (isset($data['data']['gem_transactions']) && !empty($data['data']['gem_transactions'])) {
+                    $gems_table = $wpdb->prefix . 'jph_gem_transactions';
+                    $wpdb->query("TRUNCATE TABLE $gems_table");
+                    foreach ($data['data']['gem_transactions'] as $gem) {
+                        unset($gem['id']); // Remove ID to allow auto-increment
+                        $wpdb->insert($gems_table, $gem);
+                    }
+                    $imported_counts['gem_transactions'] = count($data['data']['gem_transactions']);
+                }
+                
+                // Import lesson favorites
+                if (isset($data['data']['lesson_favorites']) && !empty($data['data']['lesson_favorites'])) {
+                    $favorites_table = $wpdb->prefix . 'jph_lesson_favorites';
+                    $wpdb->query("TRUNCATE TABLE $favorites_table");
+                    foreach ($data['data']['lesson_favorites'] as $favorite) {
+                        unset($favorite['id']); // Remove ID to allow auto-increment
+                        $wpdb->insert($favorites_table, $favorite);
+                    }
+                    $imported_counts['lesson_favorites'] = count($data['data']['lesson_favorites']);
+                }
             }
-            
-            $message = 'User data imported successfully. Imported: ' . implode(', ', array_map(function($k, $v) { return "$k ($v)"; }, array_keys($imported_counts), $imported_counts));
             
             return rest_ensure_response(array(
                 'success' => true,
-                'message' => $message,
-                'imported_counts' => $imported_counts
+                'message' => 'Data imported successfully',
+                'imported_counts' => $imported_counts,
+                'backup_format' => $is_new_format ? 'v2.0 (Complete Plugin Backup)' : 'v1.0 (User Data Only)'
             ));
             
         } catch (Exception $e) {
-            return new WP_Error('import_error', 'Error importing user data: ' . $e->getMessage(), array('status' => 500));
+            return new WP_Error('import_error', 'Error importing data: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -3889,6 +4065,81 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             ));
             
             return new WP_Error('clear_cache_failed', 'Failed to clear cache: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Debug timezone information
+     */
+    public function rest_debug_timezone($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = get_current_user_id();
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to debug timezone', array('status' => 401));
+            }
+            
+            // Get timezone information
+            $wp_timezone = wp_timezone();
+            $current_timezone = date_default_timezone_get();
+            $wp_timezone_string = get_option('timezone_string');
+            $gmt_offset = get_option('gmt_offset');
+            
+            // Get current times
+            $current_time_mysql = current_time('mysql');
+            $current_time_timestamp = current_time('timestamp');
+            $current_time_utc = current_time('mysql', true);
+            
+            // Get recent practice sessions for timezone analysis
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $recent_sessions = $wpdb->get_results($wpdb->prepare("
+                SELECT created_at, duration_minutes 
+                FROM $sessions_table 
+                WHERE user_id = %d 
+                ORDER BY created_at DESC 
+                LIMIT 5
+            ", $user_id), ARRAY_A);
+            
+            $session_analysis = array();
+            foreach ($recent_sessions as $session) {
+                $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+                $session_hour = (int)$session_datetime->format('H');
+                
+                $session_analysis[] = array(
+                    'created_at' => $session['created_at'],
+                    'hour' => $session_hour,
+                    'is_early_bird' => $session_hour >= 5 && $session_hour < 8,
+                    'is_night_owl' => $session_hour >= 22 || $session_hour < 6,
+                    'duration_minutes' => $session['duration_minutes']
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'timezone_info' => array(
+                    'wp_timezone_string' => $wp_timezone_string,
+                    'wp_timezone_name' => $wp_timezone->getName(),
+                    'wp_timezone_offset' => $wp_timezone->getOffset(new DateTime()),
+                    'current_timezone' => $current_timezone,
+                    'gmt_offset' => $gmt_offset
+                ),
+                'current_times' => array(
+                    'mysql_local' => $current_time_mysql,
+                    'mysql_utc' => $current_time_utc,
+                    'timestamp_local' => $current_time_timestamp,
+                    'timestamp_utc' => time()
+                ),
+                'recent_sessions' => $session_analysis,
+                'badge_criteria_analysis' => array(
+                    'early_bird_sessions' => count(array_filter($session_analysis, function($s) { return $s['is_early_bird']; })),
+                    'night_owl_sessions' => count(array_filter($session_analysis, function($s) { return $s['is_night_owl']; })),
+                    'total_sessions_analyzed' => count($session_analysis)
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('timezone_debug_error', 'Error debugging timezone: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

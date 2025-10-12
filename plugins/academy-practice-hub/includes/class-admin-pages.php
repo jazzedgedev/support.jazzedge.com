@@ -943,11 +943,10 @@ class JPH_Admin_Pages {
                                 <option value="total_xp">Total XP ≥ value</option>
                                 <option value="practice_sessions">Practice Sessions ≥ value</option>
                                 <option value="streak">Streak Days ≥ value</option>
-                                <option value="streak_7">7-day streak</option>
-                                <option value="streak_30">30-day streak</option>
-                                <option value="streak_100">100-day streak</option>
-                                <option value="long_session">Long session (≥ minutes)</option>
+                                <option value="long_session_count">Long Sessions Count ≥ value</option>
                                 <option value="improvement_count">Improvements reported ≥ value</option>
+                                <option value="comeback">Comeback Kid (return after break)</option>
+                                <option value="time_of_day">Time of Day (1=Early Bird, 2=Night Owl)</option>
                             </select>
                         </div>
                         
@@ -1037,14 +1036,14 @@ class JPH_Admin_Pages {
                         <div class="jph-form-group">
                             <label for="edit-badge-criteria-type">Criteria Type:</label>
                             <select id="edit-badge-criteria-type" name="criteria_type">
+                                <option value="">-- Select Criteria Type --</option>
                                 <option value="total_xp">Total XP ≥ value</option>
                                 <option value="practice_sessions">Practice Sessions ≥ value</option>
                                 <option value="streak">Streak Days ≥ value</option>
-                                <option value="streak_7">7-day streak</option>
-                                <option value="streak_30">30-day streak</option>
-                                <option value="streak_100">100-day streak</option>
-                                <option value="long_session">Long session (≥ minutes)</option>
+                                <option value="long_session_count">Long Sessions Count ≥ value</option>
                                 <option value="improvement_count">Improvements reported ≥ value</option>
+                                <option value="comeback">Comeback Kid (return after break)</option>
+                                <option value="time_of_day">Time of Day (1=Early Bird, 2=Night Owl)</option>
                             </select>
                         </div>
                         
@@ -2912,41 +2911,69 @@ Remember: Plain text only, no formatting.');
                     </form>
                 </div>
                 
-                <!-- Data Backup & Restore Section -->
+                <!-- Complete Plugin Backup & Restore Section -->
                 <div class="jph-settings-section jph-backup-section">
-                    <h2>💾 Data Backup & Restore</h2>
-                    <p><strong>SAFETY TOOL:</strong> Export all user data for backup before making changes to the plugin.</p>
+                    <h2>💾 Complete Plugin Backup & Restore</h2>
+                    <p><strong>SAFETY TOOL:</strong> Export complete plugin data (user data + admin settings + configuration) for backup before making changes.</p>
                     
                     <div class="backup-actions">
                         <div class="backup-export">
-                            <h3>📤 Export User Data</h3>
-                            <p>Create a backup file containing all user data:</p>
-                            <ul>
-                                <li>📝 All practice sessions and items</li>
-                                <li>👥 All user statistics (XP, levels, streaks)</li>
-                                <li>🎖️ All earned badges (user badges)</li>
-                                <li>💎 All gem transactions and balances</li>
-                                <li>❤️ All lesson favorites</li>
-                            </ul>
+                            <h3>📤 Export Complete Plugin Data</h3>
+                            <p>Create a backup file containing ALL plugin data:</p>
+                            
+                            <div class="backup-sections">
+                                <div class="backup-section">
+                                    <h4>👥 User Data</h4>
+                                    <ul>
+                                        <li>📝 All practice sessions and items</li>
+                                        <li>📊 All user statistics (XP, levels, streaks)</li>
+                                        <li>🎖️ All earned badges (user badges)</li>
+                                        <li>💎 All gem transactions and balances</li>
+                                        <li>❤️ All lesson favorites</li>
+                                    </ul>
+                                </div>
+                                
+                                <div class="backup-section">
+                                    <h4>⚙️ Admin Settings</h4>
+                                    <ul>
+                                        <li>🎯 Practice hub page configuration</li>
+                                        <li>🤖 AI analysis settings (prompt, model, tokens)</li>
+                                        <li>📈 AI quota limits</li>
+                                        <li>📋 Badge events log</li>
+                                    </ul>
+                                </div>
+                                
+                                <div class="backup-section">
+                                    <h4>🔧 System Configuration</h4>
+                                    <ul>
+                                        <li>🏆 Badge definitions and criteria</li>
+                                        <li>📦 Plugin version information</li>
+                                        <li>🌐 Site configuration details</li>
+                                    </ul>
+                                </div>
+                            </div>
                             
                             <button type="button" class="button button-primary jph-export-btn" onclick="exportUserData()">
-                                📥 Export User Data
+                                📥 Export Complete Plugin Backup
                             </button>
                         </div>
                         
                         <div class="backup-import">
-                            <h3>📥 Restore User Data</h3>
-                            <p>Restore user data from a previously exported backup file:</p>
+                            <h3>📥 Restore Complete Plugin Data</h3>
+                            <p>Restore complete plugin data from a previously exported backup file:</p>
                             
                             <div class="import-controls">
                                 <input type="file" id="backup-file" accept=".json" style="margin-bottom: 10px;">
                                 <br>
                                 <button type="button" class="button button-secondary jph-import-btn" onclick="importUserData()">
-                                    📤 Restore from Backup
+                                    📤 Restore from Complete Backup
                                 </button>
                             </div>
                             
-                            <p class="import-warning"><strong>⚠️ Warning:</strong> This will replace all existing user data with the backup data.</p>
+                            <div class="import-warnings">
+                                <p class="import-warning"><strong>⚠️ Warning:</strong> This will replace ALL existing plugin data with the backup data.</p>
+                                <p class="import-info"><strong>ℹ️ Info:</strong> Supports both v2.0 (complete) and v1.0 (user data only) backup formats.</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -3068,15 +3095,58 @@ Remember: Plain text only, no formatting.');
             color: #333;
         }
         
-        .backup-export ul, .backup-import ul {
-            margin: 10px 0;
+        .backup-sections {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .backup-section {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #007cba;
+        }
+        
+        .backup-section h4 {
+            margin: 0 0 10px 0;
+            color: #007cba;
+            font-size: 1em;
+        }
+        
+        .backup-section ul {
+            margin: 0;
             padding-left: 20px;
         }
         
-        .import-warning {
-            color: #d63384;
-            font-size: 14px;
+        .backup-section li {
+            margin-bottom: 5px;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        
+        .import-warnings {
             margin-top: 15px;
+        }
+        
+        .import-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+        
+        .import-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
         }
         
         .jph-export-btn, .jph-import-btn {
@@ -3226,13 +3296,13 @@ Remember: Plain text only, no formatting.');
                         const url = URL.createObjectURL(dataBlob);
                         const link = document.createElement('a');
                         link.href = url;
-                        link.download = 'practice-hub-backup-' + new Date().toISOString().split('T')[0] + '.json';
+                        link.download = 'practice-hub-complete-backup-' + new Date().toISOString().split('T')[0] + '.json';
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
                         URL.revokeObjectURL(url);
                         
-                        jQuery('#backup-results').html('<p>✅ User data exported successfully! Download started automatically.</p>').addClass('success');
+                        jQuery('#backup-results').html('<p>✅ Complete plugin backup exported successfully! Download started automatically.</p>').addClass('success');
                     } else {
                         jQuery('#backup-results').html('<p>❌ Export failed: ' + response.message + '</p>').addClass('error');
                     }
@@ -4140,6 +4210,166 @@ Remember: Plain text only, no formatting.');
                             <li>📱 <strong>Responsive Design:</strong> Mobile-friendly</li>
                             <li>⚡ <strong>Real-time Data:</strong> Shows actual user gem balance</li>
                         </ul>
+                    </div>
+                </div>
+                
+                <!-- Practice Streak Widget -->
+                <div class="jph-widget-section">
+                    <h2>🔥 Practice Streak Widget</h2>
+                    <p>Display current practice streak with motivational messaging and progress tracking.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code id="streak-basic">[jph_streak_widget]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('streak-basic')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                        
+                        <div class="jph-code-block">
+                            <code id="streak-vertical">[jph_streak_widget layout="vertical" show_streak_goal="true" streak_goal="30"]</code>
+                            <button type="button" class="jph-copy-btn" onclick="copyToClipboard('streak-vertical')" title="Copy to clipboard">
+                                📋 Copy
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>⚙️ Attributes</h3>
+                        <table class="widefat">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>user_id</code></td>
+                                    <td>current</td>
+                                    <td>User ID to display streak for (use 'current' for logged-in user)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>style</code></td>
+                                    <td>compact</td>
+                                    <td>Widget style: 'compact' or 'detailed'</td>
+                                </tr>
+                                <tr>
+                                    <td><code>layout</code></td>
+                                    <td>horizontal</td>
+                                    <td>Layout orientation: 'horizontal' or 'vertical'</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td>Practice Streak</td>
+                                    <td>Widget title text</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td>true</td>
+                                    <td>Show/hide widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_longest_streak</code></td>
+                                    <td>true</td>
+                                    <td>Show longest streak achieved</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_streak_goal</code></td>
+                                    <td>false</td>
+                                    <td>Show progress bar toward streak goal</td>
+                                </tr>
+                                <tr>
+                                    <td><code>streak_goal</code></td>
+                                    <td>30</td>
+                                    <td>Target streak goal for progress bar</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_motivational_text</code></td>
+                                    <td>true</td>
+                                    <td>Show motivational message based on streak status</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_practice_hub_link</code></td>
+                                    <td>false</td>
+                                    <td>Show link to practice hub</td>
+                                </tr>
+                                <tr>
+                                    <td><code>minimal</code></td>
+                                    <td>false</td>
+                                    <td>Show only arrow icon, streak number, and "Streak" label (no motivational text or other elements)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>🔥 <strong>Current Streak:</strong> Shows active practice streak</li>
+                            <li>🏆 <strong>Longest Streak:</strong> Displays personal best achievement</li>
+                            <li>📊 <strong>Progress Bar:</strong> Visual progress toward streak goal</li>
+                            <li>💬 <strong>Motivational Messages:</strong> Context-aware encouragement</li>
+                            <li>🎨 <strong>Status Colors:</strong> Visual feedback based on streak status</li>
+                            <li>📱 <strong>Responsive Design:</strong> Mobile-friendly layouts</li>
+                            <li>⚡ <strong>Real-time Data:</strong> Shows actual user streak data</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="jph-widget-examples">
+                        <h3>💡 Examples</h3>
+                        
+                        <div class="jph-example">
+                            <h4>Basic Streak Display</h4>
+                            <div class="jph-code-block">
+                                <code id="streak-example-basic">[jph_streak_widget]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('streak-example-basic')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Vertical Layout with Goal</h4>
+                            <div class="jph-code-block">
+                                <code id="streak-example-vertical">[jph_streak_widget layout="vertical" show_streak_goal="true" streak_goal="30"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('streak-example-vertical')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Compact Style with Link</h4>
+                            <div class="jph-code-block">
+                                <code id="streak-example-compact">[jph_streak_widget style="compact" show_practice_hub_link="true" title="Keep Going!"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('streak-example-compact')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Minimal Display</h4>
+                            <div class="jph-code-block">
+                                <code id="streak-example-minimal">[jph_streak_widget minimal="true"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('streak-example-minimal')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="jph-example">
+                            <h4>Detailed with All Features</h4>
+                            <div class="jph-code-block">
+                                <code id="streak-example-detailed">[jph_streak_widget style="detailed" layout="vertical" show_longest_streak="true" show_streak_goal="true" streak_goal="50" show_motivational_text="true" show_practice_hub_link="true"]</code>
+                                <button type="button" class="jph-copy-btn" onclick="copyToClipboard('streak-example-detailed')" title="Copy to clipboard">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
