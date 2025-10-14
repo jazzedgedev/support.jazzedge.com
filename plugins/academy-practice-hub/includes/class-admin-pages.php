@@ -854,6 +854,10 @@ class JPH_Admin_Pages {
                             <th>Description</th>
                             <th>Category</th>
                             <th>XP Reward</th>
+                            <th>Gem Reward</th>
+                            <th>Students Earned</th>
+                            <th>Event Key</th>
+                            <th>Community Badge</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -861,7 +865,7 @@ class JPH_Admin_Pages {
                     <tbody>
                         <?php if (empty($badges)): ?>
                             <tr>
-                                <td colspan="7">No badges found.</td>
+                                <td colspan="11">No badges found.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($badges as $badge): ?>
@@ -881,6 +885,55 @@ class JPH_Admin_Pages {
                                     <td><?php echo esc_html($badge['description']); ?></td>
                                     <td><?php echo esc_html(ucfirst($badge['category'])); ?></td>
                                     <td><?php echo esc_html($badge['xp_reward']); ?> XP</td>
+                                    <td><?php echo esc_html($badge['gem_reward']); ?> Gems</td>
+                                    <td>
+                                        <?php
+                                        // Get count of students who have earned this badge
+                                        global $wpdb;
+                                        $earned_count = $wpdb->get_var($wpdb->prepare(
+                                            "SELECT COUNT(*) FROM {$wpdb->prefix}jph_user_badges WHERE badge_key = %s",
+                                            $badge['badge_key']
+                                        ));
+                                        echo esc_html($earned_count ?: 0);
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($badge['fluentcrm_event_key'])): ?>
+                                            <div class="jph-event-key-container">
+                                                <?php 
+                                                // Display only the relevant portion (remove "badge_earned_" prefix)
+                                                $display_key = $badge['fluentcrm_event_key'];
+                                                if (strpos($display_key, 'badge_earned_') === 0) {
+                                                    $display_key = substr($display_key, 12); // Remove "badge_earned_" (12 characters)
+                                                }
+                                                ?>
+                                                <code class="jph-event-key-clickable" onclick="copyEventKey('<?php echo esc_js($badge['fluentcrm_event_key']); ?>')" title="Click to copy full event key"><?php echo esc_html($display_key); ?></code>
+                                            </div>
+                                        <?php else: ?>
+                                            <span class="jph-no-event-key">Not set</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        // Define community badge mappings
+                                        $community_badges = array(
+                                            'week_warrior' => 'Practice Pioneer',
+                                            'monthly_maestro' => 'Consistency Maestro',
+                                            'practice_champion' => 'Practice Champion',
+                                            'practice_legend' => 'Practice Legend',
+                                            'marathon_master' => 'Marathon Master',
+                                            'xp_legend' => 'XP Legend',
+                                            'practice_immortal' => 'Practice Immortal'
+                                        );
+                                        
+                                        $badge_key = $badge['badge_key'];
+                                        if (isset($community_badges[$badge_key])) {
+                                            echo '<span class="jph-community-badge">🏆 ' . esc_html($community_badges[$badge_key]) . '</span>';
+                                        } else {
+                                            echo '<span class="jph-no-community-badge">—</span>';
+                                        }
+                                        ?>
+                                    </td>
                                     <td>
                                         <span class="badge-status <?php echo $badge['is_active'] ? 'active' : 'inactive'; ?>">
                                             <?php echo $badge['is_active'] ? 'Active' : 'Inactive'; ?>
@@ -926,13 +979,12 @@ class JPH_Admin_Pages {
                         <div class="jph-form-group">
                             <label for="badge-category">Category:</label>
                             <select id="badge-category" name="category">
-                                <option value="achievement">Achievement</option>
-                                <option value="milestone">Milestone</option>
-                                <option value="special">Special</option>
-                                <option value="streak">Streak</option>
-                                <option value="level">Level</option>
-                                <option value="practice">Practice</option>
-                                <option value="improvement">Improvement</option>
+                                <option value="first_steps">First Steps</option>
+                                <option value="streak_specialist">Streak Specialist</option>
+                                <option value="session_warrior">Session Warrior</option>
+                                <option value="quality_quantity">Quality & Quantity</option>
+                                <option value="special_achievements">Special Achievements</option>
+                                <option value="xp_collector">XP Collector</option>
                             </select>
                         </div>
                         
@@ -1023,13 +1075,12 @@ class JPH_Admin_Pages {
                         <div class="jph-form-group">
                             <label for="edit-badge-category">Category:</label>
                             <select id="edit-badge-category" name="category">
-                                <option value="achievement">Achievement</option>
-                                <option value="milestone">Milestone</option>
-                                <option value="special">Special</option>
-                                <option value="streak">Streak</option>
-                                <option value="level">Level</option>
-                                <option value="practice">Practice</option>
-                                <option value="improvement">Improvement</option>
+                                <option value="first_steps">First Steps</option>
+                                <option value="streak_specialist">Streak Specialist</option>
+                                <option value="session_warrior">Session Warrior</option>
+                                <option value="quality_quantity">Quality & Quantity</option>
+                                <option value="special_achievements">Special Achievements</option>
+                                <option value="xp_collector">XP Collector</option>
                             </select>
                         </div>
                         
@@ -1285,6 +1336,16 @@ class JPH_Admin_Pages {
             }
         }
         
+        // Copy event key to clipboard
+        function copyEventKey(eventKey) {
+            navigator.clipboard.writeText(eventKey).then(function() {
+                // Silent copy - no feedback messages
+            }).catch(function(err) {
+                console.error('Failed to copy: ', err);
+                // Silent failure - no alert messages
+            });
+        }
+        
         // Handle add badge form submission
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('jph-add-badge-form');
@@ -1408,6 +1469,66 @@ class JPH_Admin_Pages {
         .badge-status.inactive {
             color: #dc3232;
             font-weight: bold;
+        }
+        
+        /* Event Key Styles */
+        .jph-event-key-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jph-event-key-clickable {
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: block;
+            width: 100%;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .jph-event-key-clickable:hover {
+            background: #e3f2fd;
+            border-color: #0073aa;
+            color: #0073aa;
+        }
+        
+        .jph-event-key-clickable:active {
+            background: #bbdefb;
+            transform: scale(0.98);
+        }
+        
+        .jph-no-event-key {
+            color: #999;
+            font-style: italic;
+            font-size: 12px;
+        }
+        
+        /* Community Badge Styles */
+        .jph-community-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+            text-align: center;
+            min-width: 80px;
+        }
+        
+        .jph-no-community-badge {
+            color: #999;
+            font-size: 12px;
+            text-align: center;
+            display: block;
         }
         
         /* Modal Styles */
