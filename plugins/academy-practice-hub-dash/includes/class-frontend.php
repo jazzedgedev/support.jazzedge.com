@@ -919,7 +919,7 @@ class JPH_Frontend {
                         <span class="beta-icon">🚧</span>
                         <span class="beta-text">This is beta software. Your account is safe, but practice data may occasionally be affected.</span>
                     </div>
-                    <button id="jph-feedback-btn-banner" type="button" class="jph-btn jph-btn-primary jph-feedback-btn-banner">
+                    <button id="jph-feedback-btn-banner" type="button" class="jph-feedback-btn-banner">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="btn-icon">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
                         </svg>
@@ -1142,7 +1142,7 @@ class JPH_Frontend {
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
                             </svg>
                         </span>
-                        <span class="tab-title">Practice Items</span>
+                        <span class="tab-title">Practice</span>
                     </button>
                     <button class="jph-tab-btn" data-tab="events">
                         <span class="tab-icon">
@@ -1158,7 +1158,7 @@ class JPH_Frontend {
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                             </svg>
                         </span>
-                        <span class="tab-title">Shield Protection</span>
+                        <span class="tab-title">Shield</span>
                     </button>
                     <button class="jph-tab-btn" data-tab="badges">
                         <span class="tab-icon">
@@ -2370,16 +2370,16 @@ class JPH_Frontend {
             background: #3b82f6;
             color: white;
             border: 1px solid #2563eb;
-            padding: 10px 20px;
-            font-size: 14px;
+            padding: 8px 16px;
+            font-size: 13px;
             font-weight: 600;
             white-space: nowrap;
             flex-shrink: 0;
-            border-radius: 8px;
+            border-radius: 6px;
             transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-direction: row;
         }
 
@@ -4711,8 +4711,18 @@ class JPH_Frontend {
         }
         
         .jph-btn-primary {
-            background: linear-gradient(135deg, #004555, #006666);
-            color: white;
+            background: linear-gradient(135deg, #004555, #006666) !important;
+            color: white !important;
+            width: 100% !important;
+            min-width: 180px !important;
+            max-width: 180px !important;
+            padding: 12px 16px !important;
+            height: 48px !important;
+            box-sizing: border-box !important;
+            line-height: 1.2 !important;
+            border-radius: 8px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
         }
         
         .jph-btn-primary:hover {
@@ -4735,15 +4745,21 @@ class JPH_Frontend {
         /* Log Practice button (orange brand style) */
         .jph-log-practice-btn {
             background: #f04e23 !important;
-            color: #ffffff;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
+            color: #ffffff !important;
+            border: none !important;
+            padding: 12px 16px !important;
+            border-radius: 8px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
             cursor: pointer;
             transition: all 0.2s ease;
-            display: inline-block;
+            display: inline-block !important;
+            width: 100% !important;
+            min-width: 180px !important;
+            max-width: 180px !important;
+            height: 48px !important;
+            box-sizing: border-box !important;
+            line-height: 1.2 !important;
         }
         .jph-log-practice-btn:hover {
             background: #e0451f !important;
