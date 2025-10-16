@@ -282,10 +282,27 @@ class APH_Gamification {
             
             if ($should_award) {
                 // Award the badge
-                $this->database->award_badge(
+                $badge_awarded = $this->database->award_badge(
                     $user_id,
                     $badge['badge_key']
                 );
+                
+                // Log badge awarding attempt
+                $this->logger->info('Badge awarding attempt', array(
+                    'user_id' => $user_id,
+                    'badge_key' => $badge['badge_key'],
+                    'badge_name' => $badge['name'],
+                    'awarded' => $badge_awarded
+                ));
+                
+                if (!$badge_awarded) {
+                    $this->logger->error('Failed to award badge', array(
+                        'user_id' => $user_id,
+                        'badge_key' => $badge['badge_key'],
+                        'badge_name' => $badge['name']
+                    ));
+                    continue; // Skip to next badge if this one failed
+                }
                 
                 // Update user stats with XP reward, gems reward, and badge count
                 $update_data = array();
@@ -306,11 +323,128 @@ class APH_Gamification {
                 $update_data['badges_earned'] = $user_stats['badges_earned'] + 1;
                 $this->database->update_user_stats($user_id, $update_data);
                 
+                // CRITICAL FIX: Update user_stats array with new values for next badge calculation
+                if ($badge['xp_reward'] > 0) {
+                    $user_stats['total_xp'] += $badge['xp_reward'];
+                }
+                if ($badge['gem_reward'] > 0) {
+                    $user_stats['gems_balance'] += $badge['gem_reward'];
+                }
+                $user_stats['badges_earned'] += 1;
+                
+                // Debug logging for gem accumulation
+                $this->logger->info('Badge awarded - updated user stats', array(
+                    'user_id' => $user_id,
+                    'badge_key' => $badge['badge_key'],
+                    'badge_name' => $badge['name'],
+                    'gem_reward' => $badge['gem_reward'],
+                    'new_gem_balance' => $user_stats['gems_balance'],
+                    'new_xp_total' => $user_stats['total_xp'],
+                    'new_badge_count' => $user_stats['badges_earned']
+                ));
+                
+                // Trigger FluentCRM event if enabled
+                if ($badge['fluentcrm_enabled'] == '1') {
+                    $this->trigger_fluentcrm_event($user_id, $badge);
+                }
+                
                 $newly_awarded[] = $badge;
             }
         }
         
         return $newly_awarded;
+    }
+    
+    /**
+     * Trigger FluentCRM event for badge earning
+     */
+    private function trigger_fluentcrm_event($user_id, $badge) {
+        try {
+            $this->logger->debug('Triggering FluentCRM event', array(
+                'user_id' => $user_id,
+                'badge_key' => $badge['badge_key'],
+                'event_key' => $badge['fluentcrm_event_key']
+            ));
+            
+            // Get user email
+            $user = get_user_by('ID', $user_id);
+            if (!$user) {
+                $this->logger->error('FluentCRM Event: User not found', array('user_id' => $user_id));
+                return false;
+            }
+            
+            $user_email = $user->user_email;
+            
+            // Keep original event key for automation triggers, but add timestamp to title for uniqueness
+            $event_key = $badge['fluentcrm_event_key'];
+            $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+            
+            // Use FluentCRM event tracking API
+            if (function_exists('FluentCrmApi')) {
+                try {
+                    // Method 1: Try event tracker API
+                    $tracker = FluentCrmApi('event_tracker');
+                    if (method_exists($tracker, 'track')) {
+                        $result = $tracker->track([
+                            'event_key' => $event_key,
+                            'title' => $unique_title,
+                            'email' => $user_email,
+                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'provider' => 'academy_practice_hub'
+                        ]);
+                        
+                        if ($result) {
+                            $this->logger->info('FluentCRM Event triggered successfully via tracker', array(
+                                'event_key' => $event_key,
+                                'user_email' => $user_email
+                            ));
+                            return true;
+                        }
+                    }
+                    
+                    // Method 2: Try direct event tracking
+                    if (function_exists('fluentCrmTrackEvent')) {
+                        $result = fluentCrmTrackEvent([
+                            'event_key' => $event_key,
+                            'title' => $unique_title,
+                            'email' => $user_email,
+                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'provider' => 'academy_practice_hub'
+                        ]);
+                        
+                        if ($result) {
+                            $this->logger->info('FluentCRM Event triggered successfully via fluentCrmTrackEvent', array(
+                                'event_key' => $event_key,
+                                'user_email' => $user_email
+                            ));
+                            return true;
+                        }
+                    }
+                    
+                } catch (Exception $e) {
+                    $this->logger->error('FluentCRM API error', array('error' => $e->getMessage()));
+                }
+            }
+            
+            // Fallback: Use WordPress action hook
+            do_action('fluent_crm/track_event_activity', [
+                'event_key' => $event_key,
+                'title' => $unique_title,
+                'email' => $user_email,
+                'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                'provider' => 'academy_practice_hub'
+            ], true);
+            
+            $this->logger->info('FluentCRM Event triggered via fallback action hook', array(
+                'event_key' => $event_key,
+                'user_email' => $user_email
+            ));
+            return true;
+            
+        } catch (Exception $e) {
+            $this->logger->error('FluentCRM Event error', array('error' => $e->getMessage()));
+            return false;
+        }
     }
     
     /**

@@ -67,6 +67,18 @@ class JPH_Database {
         
         $table_name = $wpdb->prefix . 'jph_user_stats';
         
+        // Debug logging for gem balance changes
+        if (isset($stats_data['gems_balance'])) {
+            $current_stats = $this->get_user_stats($user_id);
+            error_log("=== GEM BALANCE UPDATE DEBUG ===");
+            error_log("User ID: {$user_id}");
+            error_log("Current gems_balance: " . ($current_stats['gems_balance'] ?? 'N/A'));
+            error_log("New gems_balance: " . $stats_data['gems_balance']);
+            error_log("Update data: " . print_r($stats_data, true));
+            error_log("Stack trace: " . wp_debug_backtrace_summary());
+            error_log("=== END GEM BALANCE UPDATE DEBUG ===");
+        }
+        
         // Check if stats exist
         $existing = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE user_id = %d",
@@ -89,6 +101,18 @@ class JPH_Database {
                 $stats_data,
                 array('user_id' => $user_id)
             );
+        }
+        
+        // Debug logging for gem balance changes - after update
+        if (isset($stats_data['gems_balance'])) {
+            error_log("Update result: " . ($result !== false ? 'SUCCESS' : 'FAILED'));
+            if ($result === false) {
+                error_log("Database error: " . $wpdb->last_error);
+            }
+            
+            // Verify the update worked
+            $updated_stats = $this->get_user_stats($user_id);
+            error_log("Verification - gems_balance after update: " . ($updated_stats['gems_balance'] ?? 'N/A'));
         }
         
         // Invalidate cache when user stats are updated
@@ -283,6 +307,13 @@ class JPH_Database {
         
         $table_name = $wpdb->prefix . 'jph_user_badges';
         
+        // Check if table exists
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") == $table_name;
+        if (!$table_exists) {
+            error_log("Table does not exist: {$table_name}");
+            return false;
+        }
+        
         // Check if already awarded
         $existing = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE user_id = %d AND badge_key = %s",
@@ -290,19 +321,41 @@ class JPH_Database {
         ));
         
         if ($existing) {
+            error_log("Badge already awarded: user_id={$user_id}, badge_key={$badge_key}");
             return false; // Already awarded
         }
         
+        // Check if badge exists in badges table
+        $badge_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}jph_badges WHERE badge_key = %s",
+            $badge_key
+        ));
+        
+        if (!$badge_exists) {
+            error_log("Badge does not exist in badges table: badge_key={$badge_key}");
+            return false;
+        }
+        
+        $insert_data = array(
+            'user_id' => $user_id,
+            'badge_key' => $badge_key,
+            'earned_at' => current_time('mysql')
+        );
+        
         $result = $wpdb->insert(
             $table_name,
-            array(
-                'user_id' => $user_id,
-                'badge_key' => $badge_key,
-                'earned_at' => current_time('mysql'),
-                'earned_date' => current_time('Y-m-d H:i:s')
-            ),
-            array('%d', '%s', '%s', '%s')
+            $insert_data,
+            array('%d', '%s', '%s')
         );
+        
+        if ($result === false) {
+            error_log("Failed to insert badge: user_id={$user_id}, badge_key={$badge_key}");
+            error_log("Insert data: " . print_r($insert_data, true));
+            error_log("WP_Error: " . $wpdb->last_error);
+            error_log("Last query: " . $wpdb->last_query);
+        } else {
+            error_log("Successfully awarded badge: user_id={$user_id}, badge_key={$badge_key}, insert_id=" . $wpdb->insert_id);
+        }
         
         return $result !== false;
     }
@@ -334,9 +387,18 @@ class JPH_Database {
             array('%d', '%s', '%d', '%s', '%s', '%d', '%s')
         );
         
-        // Update user stats with new balance
+        // CRITICAL FIX: Don't update user stats here - just record the transaction
+        // The calling function should handle the gem balance update to avoid double updates
         if ($result) {
-            $this->update_user_stats($user_id, array('gems_balance' => $new_balance));
+            error_log("=== GEMS TRANSACTION DEBUG ===");
+            error_log("Recording transaction - User ID: {$user_id}, Type: {$transaction_type}, Amount: {$amount}");
+            error_log("Current balance: {$current_balance}, Calculated new balance: {$new_balance}");
+            error_log("Source: {$source}, Description: {$description}");
+            error_log("NOTE: Not updating user stats here to avoid double updates");
+            error_log("=== END GEMS TRANSACTION DEBUG ===");
+            
+            // REMOVED: $this->update_user_stats($user_id, array('gems_balance' => $new_balance));
+            // The calling function should handle the gem balance update
         }
         
         return $result !== false;

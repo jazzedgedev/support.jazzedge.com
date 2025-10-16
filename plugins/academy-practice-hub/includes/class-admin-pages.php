@@ -849,16 +849,16 @@ class JPH_Admin_Pages {
                 <table class="wp-list-table widefat fixed striped">
                     <thead>
                         <tr>
-                            <th>Badge</th>
+                            <th style="width: 60px;">Badge</th>
                             <th>Name</th>
                             <th>Description</th>
                             <th>Category</th>
-                            <th>XP Reward</th>
-                            <th>Gem Reward</th>
-                            <th>Students Earned</th>
+                            <th style="width: 80px; text-align: center;">XP</th>
+                            <th style="width: 80px; text-align: center;">Gems</th>
+                            <th style="width: 80px; text-align: center;">Students</th>
                             <th>Event Key</th>
-                            <th>Community Badge</th>
-                            <th>Status</th>
+                            <th style="width: 150px;">Community Badge</th>
+                            <th style="width: 80px;">Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -884,9 +884,9 @@ class JPH_Admin_Pages {
                                     <td><strong><?php echo esc_html($badge['name']); ?></strong></td>
                                     <td><?php echo esc_html($badge['description']); ?></td>
                                     <td><?php echo esc_html(ucfirst($badge['category'])); ?></td>
-                                    <td><?php echo esc_html($badge['xp_reward']); ?> XP</td>
-                                    <td><?php echo esc_html($badge['gem_reward']); ?> Gems</td>
-                                    <td>
+                                    <td style="text-align: center;"><?php echo esc_html($badge['xp_reward']); ?> XP</td>
+                                    <td style="text-align: center;"><?php echo esc_html($badge['gem_reward']); ?> Gems</td>
+                                    <td style="text-align: center;">
                                         <?php
                                         // Get count of students who have earned this badge
                                         global $wpdb;
@@ -2126,6 +2126,39 @@ class JPH_Admin_Pages {
                                 <button type="button" onclick="runBadgeAssignmentTest()" class="button button-primary">
                                     ⚡ Run Badge Assignment Test
                                 </button>
+                                <button type="button" onclick="manualBadgeCheck()" class="button button-secondary">
+                                    🔄 Manual Badge Check
+                                </button>
+                                <button type="button" onclick="fixMissingBadges()" class="button button-secondary">
+                                    🔧 Fix Missing Badges
+                                </button>
+                            </div>
+                            
+                            <h3>Manual Badge Award</h3>
+                            <div class="debug-form-group">
+                                <label for="manual-badge-select">Select Badge:</label>
+                                <select id="manual-badge-select" style="width: 300px;">
+                                    <option value="">-- Loading badges... --</option>
+                                </select>
+                                <button type="button" onclick="awardSpecificBadge()" class="button button-secondary">
+                                    🏆 Award Selected Badge
+                                </button>
+                                <button type="button" onclick="removeSpecificBadge()" class="button button-secondary" style="background: #dc3232; color: white;">
+                                    🗑️ Remove Selected Badge
+                                </button>
+                                <button type="button" onclick="loadBadgesList()" class="button button-secondary">
+                                    🔄 Refresh Badges
+                                </button>
+                            </div>
+                            
+                            <h3>Gem Balance Debugging</h3>
+                            <div class="debug-form-group">
+                                <button type="button" onclick="debugGemBalance()" class="button button-primary">
+                                    💎 Debug Gem Balance
+                                </button>
+                                <button type="button" onclick="checkGemTransactions()" class="button button-secondary">
+                                    📋 Check Gem Transactions
+                                </button>
                             </div>
                             
                             <h3>Database Inspection</h3>
@@ -2135,6 +2168,15 @@ class JPH_Admin_Pages {
                                 </button>
                                 <button type="button" onclick="checkPracticeSessions()" class="button button-secondary">
                                     ⏱️ Check Practice Sessions
+                                </button>
+                                <button type="button" onclick="debugFrontendBadges()" class="button button-secondary">
+                                    🎨 Debug Frontend Badges
+                                </button>
+                                <button type="button" onclick="debugDatabaseTables()" class="button button-secondary">
+                                    🗄️ Debug Database Tables
+                                </button>
+                                <button type="button" onclick="debugFluentCRMEvents()" class="button button-secondary">
+                                    🔗 Debug FluentCRM Events
                                 </button>
                             </div>
                         </div>
@@ -2231,6 +2273,109 @@ class JPH_Admin_Pages {
             background: #f8f9fa;
             border-radius: 8px;
             min-height: 50px;
+        }
+        
+        .badge-debug-report {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .debug-header {
+            border-bottom: 2px solid #e1e5e9;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .debug-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #0073aa;
+        }
+        
+        .debug-section h4 {
+            margin-top: 0;
+            color: #1d2327;
+            font-size: 16px;
+        }
+        
+        .debug-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .debug-table th {
+            background: #f1f1f1;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+            font-size: 13px;
+        }
+        
+        .debug-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+            vertical-align: top;
+        }
+        
+        .debug-table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .badge-earned {
+            background: #e8f5e8 !important;
+        }
+        
+        .badge-not-earned {
+            background: #fff3cd !important;
+        }
+        
+        .badge-missing {
+            background: #f8d7da !important;
+        }
+        
+        .badge-not-qualified {
+            background: #e2e3e5 !important;
+        }
+        
+        .positive {
+            color: #00a32a;
+            font-weight: bold;
+        }
+        
+        .negative {
+            color: #d63638;
+            font-weight: bold;
+        }
+        
+        .raw-data {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        code {
+            background: #f1f1f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
         }
         
         /* Event Logs Tabs */
@@ -2402,7 +2547,12 @@ class JPH_Admin_Pages {
                 },
                 success: function(response) {
                     if (response.success) {
-                        logsDiv.innerHTML = '<pre>' + response.data + '</pre>';
+                        logsDiv.innerHTML = '<div class="logs-container">' +
+                            '<div class="logs-header">' +
+                                '<button type="button" class="button button-secondary" onclick="copyEventLogs()" style="float: right; margin-bottom: 10px;">📋 Copy Event Logs</button>' +
+                            '</div>' +
+                            '<pre id="fluentcrm-event-logs-content">' + response.data + '</pre>' +
+                            '</div>';
                     } else {
                         logsDiv.innerHTML = 'Error loading logs: ' + response.message;
                     }
@@ -2411,6 +2561,18 @@ class JPH_Admin_Pages {
                     logsDiv.innerHTML = 'Error loading FluentCRM event logs.';
                 }
             });
+        }
+        
+        function copyEventLogs() {
+            const logsContent = document.getElementById('fluentcrm-event-logs-content');
+            if (logsContent) {
+                const textToCopy = logsContent.textContent;
+                navigator.clipboard.writeText(textToCopy).then(function() {
+                    // Silent copy - no alert
+                }).catch(function(err) {
+                    console.error('Could not copy text: ', err);
+                });
+            }
         }
         
         function emptyEventTrackingTable() {
@@ -2458,8 +2620,113 @@ class JPH_Admin_Pages {
             });
         }
         
+        function debugGemBalance() {
+            const userId = jQuery('#debug-user-id').val();
+            jQuery('#badge-debug-results').html('<p>Debugging gem balance for user: ' + userId + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/debug-user-badges'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    user_id: userId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>💎 Gem Balance Debug</h3>';
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<h4>Current Gem Balance</h4>';
+                        html += '<p><strong>Database Balance:</strong> ' + response.data.current_gem_balance + ' gems</p>';
+                        html += '<p><strong>Debug Timestamp:</strong> ' + response.data.debug_timestamp + '</p>';
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<h4>User Stats</h4>';
+                        const stats = response.data.user_stats;
+                        if (stats) {
+                            html += '<ul>';
+                            html += '<li><strong>Total XP:</strong> ' + stats.total_xp + '</li>';
+                            html += '<li><strong>Current Level:</strong> ' + stats.current_level + '</li>';
+                            html += '<li><strong>Total Sessions:</strong> ' + stats.total_sessions + '</li>';
+                            html += '<li><strong>Current Streak:</strong> ' + stats.current_streak + '</li>';
+                            html += '<li><strong>Badges Earned:</strong> ' + stats.badges_earned + '</li>';
+                            html += '<li><strong>Gems Balance:</strong> ' + stats.gems_balance + '</li>';
+                            html += '<li><strong>Hearts Count:</strong> ' + stats.hearts_count + '</li>';
+                            html += '<li><strong>Shield Count:</strong> ' + (stats.streak_shield_count || 0) + '</li>';
+                            html += '</ul>';
+                        } else {
+                            html += '<p>No user stats found</p>';
+                        }
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<h4>Recent Gem Transactions (' + response.data.recent_gem_transactions.length + ')</h4>';
+                        const transactions = response.data.recent_gem_transactions;
+                        if (transactions.length > 0) {
+                            html += '<table class="debug-table">';
+                            html += '<tr><th>Date</th><th>Type</th><th>Amount</th><th>Source</th><th>Description</th><th>Balance After</th></tr>';
+                            transactions.forEach(function(tx) {
+                                html += '<tr>';
+                                html += '<td>' + tx.created_at + '</td>';
+                                html += '<td>' + tx.transaction_type + '</td>';
+                                html += '<td>' + tx.amount + '</td>';
+                                html += '<td>' + tx.source + '</td>';
+                                html += '<td>' + tx.description + '</td>';
+                                html += '<td>' + tx.balance_after + '</td>';
+                                html += '</tr>';
+                            });
+                            html += '</table>';
+                        } else {
+                            html += '<p>No recent transactions found</p>';
+                        }
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<button type="button" class="button button-secondary" onclick="copyGemBalanceReport()" style="margin-top: 10px;">📋 Copy Gem Balance Report</button>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error debugging gem balance</p>');
+                }
+            });
+        }
+        
+        function checkGemTransactions() {
+            const userId = jQuery('#debug-user-id').val();
+            jQuery('#badge-debug-results').html('<p>Checking gem transactions for user: ' + userId + '...</p>');
+            
+            // This will use the same endpoint but focus on transactions
+            debugGemBalance();
+        }
+        
+        function copyGemBalanceReport() {
+            const reportElement = document.querySelector('.badge-debug-report');
+            if (reportElement) {
+                const textToCopy = reportElement.textContent;
+                navigator.clipboard.writeText(textToCopy).then(function() {
+                    // Silent copy - no alert
+                }).catch(function(err) {
+                    console.error('Could not copy text: ', err);
+                });
+            }
+        }
+        
         function runBadgeAssignmentTest() {
-            jQuery('#badge-debug-results').html('<p>Running badge assignment test...</p>');
+            const userId = jQuery('#debug-user-id').val();
+            jQuery('#badge-debug-results').html('<p>Running badge assignment test for user: ' + userId + '...</p>');
             
             jQuery.ajax({
                 url: '<?php echo rest_url('aph/v1/test-badge-assignment'); ?>',
@@ -2467,9 +2734,81 @@ class JPH_Admin_Pages {
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                 },
+                data: {
+                    user_id: userId
+                },
                 success: function(response) {
                     if (response.success) {
-                        jQuery('#badge-debug-results').html('<pre>' + JSON.stringify(response.data, null, 2) + '</pre>');
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>⚡ Badge Assignment Test Results</h3>';
+                        html += '<button onclick="copyDebugReport()" class="button button-secondary" style="float: right;">📋 Copy Report</button>';
+                        html += '<div style="clear: both;"></div>';
+                        html += '</div>';
+                        
+                        // Summary
+                        html += '<div class="debug-section">';
+                        html += '<h4>📊 Test Summary</h4>';
+                        html += '<p><strong>Test User ID:</strong> ' + response.data.test_user_id + '</p>';
+                        html += '<p><strong>Current Badges:</strong> ' + response.data.current_badges + '</p>';
+                        html += '<p><strong>Total Available Badges:</strong> ' + response.data.total_available_badges + '</p>';
+                        html += '<p><strong>Active Badges:</strong> ' + response.data.active_badges + '</p>';
+                        html += '<p><strong>Assignment Logic:</strong> ' + response.data.assignment_logic + '</p>';
+                        html += '<p><strong>Gamification System:</strong> ' + response.data.gamification_system + '</p>';
+                        html += '</div>';
+                        
+                        // Badge Analysis
+                        html += '<div class="debug-section">';
+                        html += '<h4>🔍 Badge Analysis</h4>';
+                        html += '<table class="debug-table">';
+                        html += '<tr><th>Badge</th><th>Criteria</th><th>User Has</th><th>Should Have</th><th>Status</th><th>Active</th></tr>';
+                        
+                        response.data.badge_analysis.forEach(function(badge) {
+                            const statusClass = badge.status === 'earned' ? 'badge-earned' : 
+                                              badge.status === 'missing' ? 'badge-missing' : 'badge-not-qualified';
+                            const statusIcon = badge.status === 'earned' ? '✅ Earned' : 
+                                             badge.status === 'missing' ? '⚠️ Missing' : '🔒 Not Qualified';
+                            
+                            html += '<tr class="' + statusClass + '">';
+                            html += '<td><strong>' + badge.name + '</strong><br><small>' + badge.badge_key + '</small></td>';
+                            html += '<td><code>' + badge.criteria_type + '</code><br><small>≥ ' + badge.criteria_value + '</small></td>';
+                            html += '<td>' + (badge.user_has_badge ? '✅ Yes' : '❌ No') + '</td>';
+                            html += '<td>' + (badge.should_have_badge ? '✅ Yes' : '❌ No') + '</td>';
+                            html += '<td><strong>' + statusIcon + '</strong></td>';
+                            html += '<td>' + (badge.is_active ? '✅ Yes' : '❌ No') + '</td>';
+                            html += '</tr>';
+                        });
+                        html += '</table>';
+                        html += '</div>';
+                        
+                        // User Stats
+                        html += '<div class="debug-section">';
+                        html += '<h4>📈 User Stats</h4>';
+                        html += '<table class="debug-table">';
+                        html += '<tr><th>Stat</th><th>Value</th></tr>';
+                        Object.keys(response.data.user_stats).forEach(function(key) {
+                            html += '<tr>';
+                            html += '<td><strong>' + key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</strong></td>';
+                            html += '<td>' + response.data.user_stats[key] + '</td>';
+                            html += '</tr>';
+                        });
+                        html += '</table>';
+                        html += '</div>';
+                        
+                        // Raw Data
+                        html += '<div class="debug-section">';
+                        html += '<h4 onclick="toggleRawData()" style="cursor: pointer;">🔧 Raw Test Data <span id="raw-data-toggle">▼</span></h4>';
+                        html += '<div id="raw-data-content" style="display: none;">';
+                        html += '<pre class="raw-data">' + JSON.stringify(response.data, null, 2) + '</pre>';
+                        html += '</div>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                        
+                        // Store data for copying
+                        window.debugReportData = response.data;
                     } else {
                         jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
                     }
@@ -2478,6 +2817,228 @@ class JPH_Admin_Pages {
                     jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error running badge assignment test</p>');
                 }
             });
+        }
+        
+        function manualBadgeCheck() {
+            const userId = jQuery('#debug-user-id').val();
+            jQuery('#badge-debug-results').html('<p>Running manual badge check for user: ' + userId + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/manual-badge-check'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    user_id: userId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>🔍 Badge Debug Report</h3>';
+                        html += '<button onclick="copyDebugReport()" class="button button-secondary" style="float: right;">📋 Copy Report</button>';
+                        html += '<div style="clear: both;"></div>';
+                        html += '</div>';
+                        
+                        // Summary
+                        html += '<div class="debug-section">';
+                        html += '<h4>📊 Summary</h4>';
+                        html += '<p><strong>Status:</strong> ' + response.message + '</p>';
+                        html += '<p><strong>Practice Sessions:</strong> ' + response.data.practice_sessions_count + '</p>';
+                        html += '<p><strong>New Badges Awarded:</strong> ' + response.data.newly_awarded_badges.length + '</p>';
+                        html += '</div>';
+                        
+                        // Newly Awarded Badges
+                        if (response.data.newly_awarded_badges.length > 0) {
+                            html += '<div class="debug-section">';
+                            html += '<h4>🎉 Newly Awarded Badges</h4>';
+                            html += '<table class="debug-table">';
+                            html += '<tr><th>Badge</th><th>Description</th><th>XP Reward</th><th>Gem Reward</th><th>Event Key</th></tr>';
+                            response.data.newly_awarded_badges.forEach(function(badge) {
+                                html += '<tr>';
+                                html += '<td><strong>' + badge.name + '</strong></td>';
+                                html += '<td>' + badge.description + '</td>';
+                                html += '<td>' + (badge.xp_reward || 0) + ' XP</td>';
+                                html += '<td>' + (badge.gem_reward || 0) + ' Gems</td>';
+                                html += '<td><code>' + (badge.fluentcrm_event_key || 'None') + '</code></td>';
+                                html += '</tr>';
+                            });
+                            html += '</table>';
+                            html += '</div>';
+                        }
+                        
+                        // User's Current Badges
+                        html += '<div class="debug-section">';
+                        html += '<h4>🏆 User\'s Current Badges (' + response.data.user_badges_after.length + ' total)</h4>';
+                        if (response.data.user_badges_after.length > 0) {
+                            html += '<table class="debug-table">';
+                            html += '<tr><th>Badge</th><th>Description</th><th>Earned Date</th><th>Category</th></tr>';
+                            response.data.user_badges_after.forEach(function(badge) {
+                                html += '<tr>';
+                                html += '<td><strong>' + badge.name + '</strong></td>';
+                                html += '<td>' + badge.description + '</td>';
+                                html += '<td>' + new Date(badge.earned_at).toLocaleDateString() + '</td>';
+                                html += '<td>' + (badge.category || 'N/A') + '</td>';
+                                html += '</tr>';
+                            });
+                            html += '</table>';
+                        } else {
+                            html += '<p>No badges earned yet.</p>';
+                        }
+                        html += '</div>';
+                        
+                        // All Available Badges
+                        html += '<div class="debug-section">';
+                        html += '<h4>📋 All Available Badges (' + response.data.all_available_badges.length + ' total)</h4>';
+                        html += '<table class="debug-table">';
+                        html += '<tr><th>Badge</th><th>Criteria Type</th><th>Criteria Value</th><th>Active</th><th>XP</th><th>Gems</th><th>Event Key</th></tr>';
+                        response.data.all_available_badges.forEach(function(badge) {
+                            const isEarned = response.data.user_badges_after.some(ub => ub.badge_key === badge.badge_key);
+                            html += '<tr class="' + (isEarned ? 'badge-earned' : 'badge-not-earned') + '">';
+                            html += '<td><strong>' + badge.name + '</strong><br><small>' + badge.description + '</small></td>';
+                            html += '<td><code>' + (badge.criteria_type || 'Not set') + '</code></td>';
+                            html += '<td>' + (badge.criteria_value || 'Not set') + '</td>';
+                            html += '<td>' + (badge.is_active ? '✅ Yes' : '❌ No') + '</td>';
+                            html += '<td>' + (badge.xp_reward || 0) + '</td>';
+                            html += '<td>' + (badge.gem_reward || 0) + '</td>';
+                            html += '<td><code>' + (badge.fluentcrm_event_key || 'None') + '</code></td>';
+                            html += '</tr>';
+                        });
+                        html += '</table>';
+                        html += '</div>';
+                        
+                        // User Stats Comparison
+                        html += '<div class="debug-section">';
+                        html += '<h4>📈 User Stats Comparison</h4>';
+                        const statsBefore = response.data.user_stats_before;
+                        const statsAfter = response.data.user_stats_after;
+                        html += '<table class="debug-table">';
+                        html += '<tr><th>Stat</th><th>Before</th><th>After</th><th>Change</th></tr>';
+                        Object.keys(statsAfter).forEach(function(key) {
+                            const before = statsBefore[key] || 0;
+                            const after = statsAfter[key] || 0;
+                            const change = after - before;
+                            const changeClass = change > 0 ? 'positive' : change < 0 ? 'negative' : '';
+                            html += '<tr>';
+                            html += '<td><strong>' + key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</strong></td>';
+                            html += '<td>' + before + '</td>';
+                            html += '<td>' + after + '</td>';
+                            html += '<td class="' + changeClass + '">' + (change > 0 ? '+' : '') + change + '</td>';
+                            html += '</tr>';
+                        });
+                        html += '</table>';
+                        html += '</div>';
+                        
+                        // Raw Data (Collapsible)
+                        html += '<div class="debug-section">';
+                        html += '<h4 onclick="toggleRawData()" style="cursor: pointer;">🔧 Raw Debug Data <span id="raw-data-toggle">▼</span></h4>';
+                        html += '<div id="raw-data-content" style="display: none;">';
+                        html += '<pre class="raw-data">' + JSON.stringify(response.data, null, 2) + '</pre>';
+                        html += '</div>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                        
+                        // Store data for copying
+                        window.debugReportData = response.data;
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error running manual badge check</p>');
+                }
+            });
+        }
+        
+        function copyDebugReport() {
+            if (!window.debugReportData) {
+                alert('No debug data available to copy');
+                return;
+            }
+            
+            let report;
+            
+            // Check if this is badge assignment test data
+            if (window.debugReportData.test_user_id) {
+                report = {
+                    timestamp: new Date().toISOString(),
+                    test_type: 'badge_assignment_test',
+                    user_id: window.debugReportData.test_user_id,
+                    summary: {
+                        current_badges: window.debugReportData.current_badges,
+                        total_available_badges: window.debugReportData.total_available_badges,
+                        active_badges: window.debugReportData.active_badges,
+                        assignment_logic: window.debugReportData.assignment_logic,
+                        gamification_system: window.debugReportData.gamification_system
+                    },
+                    badge_analysis: window.debugReportData.badge_analysis,
+                    user_stats: window.debugReportData.user_stats
+                };
+            }
+            // Check if this is frontend debug data
+            else if (window.debugReportData.total_badges !== undefined) {
+                report = {
+                    timestamp: new Date().toISOString(),
+                    test_type: 'frontend_badge_debug',
+                    user_id: window.debugReportData.user_id,
+                    summary: {
+                        total_badges: window.debugReportData.total_badges,
+                        earned_badges: window.debugReportData.earned_badges,
+                        locked_badges: window.debugReportData.total_badges - window.debugReportData.earned_badges
+                    },
+                    frontend_badges: window.debugReportData.frontend_badges,
+                    user_badges_raw: window.debugReportData.user_badges_raw,
+                    all_badges_raw: window.debugReportData.all_badges_raw
+                };
+            }
+            // Check if this is manual badge check data
+            else if (window.debugReportData.practice_sessions_count !== undefined) {
+                report = {
+                    timestamp: new Date().toISOString(),
+                    test_type: 'manual_badge_check',
+                    user_id: jQuery('#debug-user-id').val(),
+                    summary: {
+                        practice_sessions: window.debugReportData.practice_sessions_count,
+                        badges_earned: window.debugReportData.user_badges_after.length,
+                        newly_awarded: window.debugReportData.newly_awarded_badges.length
+                    },
+                    newly_awarded_badges: window.debugReportData.newly_awarded_badges,
+                    user_badges: window.debugReportData.user_badges_after,
+                    available_badges: window.debugReportData.all_available_badges,
+                    user_stats: {
+                        before: window.debugReportData.user_stats_before,
+                        after: window.debugReportData.user_stats_after
+                    }
+                };
+            }
+            // Default case for other debug data
+            else {
+                report = {
+                    timestamp: new Date().toISOString(),
+                    test_type: 'general_debug',
+                    user_id: jQuery('#debug-user-id').val(),
+                    data: window.debugReportData
+                };
+            }
+            
+            const reportText = JSON.stringify(report, null, 2);
+            navigator.clipboard.writeText(reportText);
+        }
+        
+        function toggleRawData() {
+            const content = jQuery('#raw-data-content');
+            const toggle = jQuery('#raw-data-toggle');
+            if (content.is(':visible')) {
+                content.hide();
+                toggle.text('▼');
+            } else {
+                content.show();
+                toggle.text('▲');
+            }
         }
         
         function inspectBadgeDatabase() {
@@ -2524,10 +3085,559 @@ class JPH_Admin_Pages {
             });
         }
         
+        function debugFrontendBadges() {
+            const userId = jQuery('#debug-user-id').val();
+            jQuery('#badge-debug-results').html('<p>Debugging frontend badge display for user: ' + userId + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/debug-frontend-badges'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    user_id: userId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>🎨 Frontend Badge Display Debug</h3>';
+                        html += '<button onclick="copyDebugReport()" class="button button-secondary" style="float: right;">📋 Copy Report</button>';
+                        html += '<div style="clear: both;"></div>';
+                        html += '</div>';
+                        
+                        // Summary
+                        html += '<div class="debug-section">';
+                        html += '<h4>📊 Frontend Summary</h4>';
+                        html += '<p><strong>Total Badges Available:</strong> ' + response.data.total_badges + '</p>';
+                        html += '<p><strong>Badges Earned:</strong> ' + response.data.earned_badges + '</p>';
+                        html += '<p><strong>Badges Locked:</strong> ' + (response.data.total_badges - response.data.earned_badges) + '</p>';
+                        html += '</div>';
+                        
+                        // Frontend Badge Display
+                        html += '<div class="debug-section">';
+                        html += '<h4>🏆 Frontend Badge Display</h4>';
+                        html += '<table class="debug-table">';
+                        html += '<tr><th>Status</th><th>Badge</th><th>Description</th><th>Category</th><th>Earned Date</th><th>XP</th><th>Gems</th></tr>';
+                        response.data.frontend_badges.forEach(function(badge) {
+                            const statusClass = badge.is_earned ? 'badge-earned' : 'badge-not-earned';
+                            const statusIcon = badge.is_earned ? '✅ Earned' : '🔒 Locked';
+                            html += '<tr class="' + statusClass + '">';
+                            html += '<td><strong>' + statusIcon + '</strong></td>';
+                            html += '<td><strong>' + badge.name + '</strong></td>';
+                            html += '<td>' + badge.description + '</td>';
+                            html += '<td>' + (badge.category || 'N/A') + '</td>';
+                            html += '<td>' + (badge.earned_date ? new Date(badge.earned_date).toLocaleDateString() : 'N/A') + '</td>';
+                            html += '<td>' + (badge.xp_reward || 0) + '</td>';
+                            html += '<td>' + (badge.gem_reward || 0) + '</td>';
+                            html += '</tr>';
+                        });
+                        html += '</table>';
+                        html += '</div>';
+                        
+                        // Raw Data
+                        html += '<div class="debug-section">';
+                        html += '<h4 onclick="toggleRawData()" style="cursor: pointer;">🔧 Raw Frontend Data <span id="raw-data-toggle">▼</span></h4>';
+                        html += '<div id="raw-data-content" style="display: none;">';
+                        html += '<pre class="raw-data">' + JSON.stringify(response.data, null, 2) + '</pre>';
+                        html += '</div>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                        
+                        // Store data for copying
+                        window.debugReportData = response.data;
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error debugging frontend badges</p>');
+                }
+            });
+        }
+        
+        function debugDatabaseTables() {
+            jQuery('#badge-debug-results').html('<p>Debugging database tables...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/debug-database-tables'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>🗄️ Database Tables Debug</h3>';
+                        html += '<button onclick="copyDebugReport()" class="button button-secondary" style="float: right;">📋 Copy Report</button>';
+                        html += '<div style="clear: both;"></div>';
+                        html += '</div>';
+                        
+                        // Table Status
+                        html += '<div class="debug-section">';
+                        html += '<h4>📊 Table Status</h4>';
+                        html += '<table class="debug-table">';
+                        html += '<tr><th>Table</th><th>Exists</th><th>Full Name</th><th>Row Count</th></tr>';
+                        
+                        Object.keys(response.data).forEach(function(tableName) {
+                            const table = response.data[tableName];
+                            const existsIcon = table.exists ? '✅' : '❌';
+                            const rowCount = table.exists ? table.row_count : 'N/A';
+                            
+                            html += '<tr>';
+                            html += '<td><strong>' + tableName + '</strong></td>';
+                            html += '<td>' + existsIcon + ' ' + (table.exists ? 'Yes' : 'No') + '</td>';
+                            html += '<td><code>' + table.full_name + '</code></td>';
+                            html += '<td>' + rowCount + '</td>';
+                            html += '</tr>';
+                        });
+                        
+                        html += '</table>';
+                        html += '</div>';
+                        
+                        // Table Structures
+                        html += '<div class="debug-section">';
+                        html += '<h4>🏗️ Table Structures</h4>';
+                        
+                        Object.keys(response.data).forEach(function(tableName) {
+                            const table = response.data[tableName];
+                            if (table.exists && table.structure) {
+                                html += '<h5>' + tableName + ' Structure:</h5>';
+                                html += '<table class="debug-table">';
+                                html += '<tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th></tr>';
+                                
+                                table.structure.forEach(function(column) {
+                                    html += '<tr>';
+                                    html += '<td><strong>' + column.Field + '</strong></td>';
+                                    html += '<td>' + column.Type + '</td>';
+                                    html += '<td>' + column.Null + '</td>';
+                                    html += '<td>' + column.Key + '</td>';
+                                    html += '<td>' + (column.Default || 'NULL') + '</td>';
+                                    html += '<td>' + column.Extra + '</td>';
+                                    html += '</tr>';
+                                });
+                                
+                                html += '</table><br>';
+                            }
+                        });
+                        
+                        html += '</div>';
+                        
+                        // Raw Data
+                        html += '<div class="debug-section">';
+                        html += '<h4 onclick="toggleRawData()" style="cursor: pointer;">🔧 Raw Database Data <span id="raw-data-toggle">▼</span></h4>';
+                        html += '<div id="raw-data-content" style="display: none;">';
+                        html += '<pre class="raw-data">' + JSON.stringify(response.data, null, 2) + '</pre>';
+                        html += '</div>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                        
+                        // Store data for copying
+                        window.debugReportData = response.data;
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error debugging database tables</p>');
+                }
+            });
+        }
+        
+        function debugFluentCRMEvents() {
+            jQuery('#badge-debug-results').html('<p>Debugging FluentCRM events...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/debug-fluentcrm-events'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>🔗 FluentCRM Events Debug</h3>';
+                        html += '<button onclick="copyDebugReport()" class="button button-secondary" style="float: right;">📋 Copy Report</button>';
+                        html += '<div style="clear: both;"></div>';
+                        html += '</div>';
+                        
+                        // FluentCRM Status
+                        html += '<div class="debug-section">';
+                        html += '<h4>📊 FluentCRM Status</h4>';
+                        html += '<p><strong>FluentCRM Active:</strong> ' + (response.data.fluentcrm_active ? '✅ Yes' : '❌ No') + '</p>';
+                        
+                        // Detection Methods
+                        if (response.data.fluentcrm_detection_methods) {
+                            html += '<h5>Detection Methods:</h5>';
+                            html += '<table class="debug-table">';
+                            html += '<tr><th>Method</th><th>Result</th></tr>';
+                            
+                            Object.keys(response.data.fluentcrm_detection_methods).forEach(function(method) {
+                                const result = response.data.fluentcrm_detection_methods[method];
+                                html += '<tr>';
+                                html += '<td><code>' + method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</code></td>';
+                                html += '<td>' + (result ? '✅ Yes' : '❌ No') + '</td>';
+                                html += '</tr>';
+                            });
+                            
+                            html += '</table>';
+                        }
+                        
+                        if (response.data.fluentcrm_active) {
+                            html += '<p><strong>FluentCRM Version:</strong> ' + (response.data.fluentcrm_version || 'Unknown') + '</p>';
+                            
+                            html += '<h5>Available Functions:</h5>';
+                            html += '<table class="debug-table">';
+                            html += '<tr><th>Function</th><th>Available</th></tr>';
+                            
+                            Object.keys(response.data.fluentcrm_functions_available).forEach(function(funcName) {
+                                const available = response.data.fluentcrm_functions_available[funcName];
+                                html += '<tr>';
+                                html += '<td><code>' + funcName + '</code></td>';
+                                html += '<td>' + (available ? '✅ Yes' : '❌ No') + '</td>';
+                                html += '</tr>';
+                            });
+                            
+                            html += '</table>';
+                            
+                            html += '<h5>Event Triggering:</h5>';
+                            html += '<table class="debug-table">';
+                            html += '<tr><th>Component</th><th>Status</th></tr>';
+                            
+                            Object.keys(response.data.event_triggering_test).forEach(function(component) {
+                                const available = response.data.event_triggering_test[component];
+                                html += '<tr>';
+                                html += '<td><strong>' + component.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</strong></td>';
+                                html += '<td>' + (available ? '✅ Yes' : '❌ No') + '</td>';
+                                html += '</tr>';
+                            });
+                            
+                            html += '</table>';
+                        }
+                        html += '</div>';
+                        
+                        // FluentCRM Enabled Badges
+                        html += '<div class="debug-section">';
+                        html += '<h4>🏆 FluentCRM Enabled Badges</h4>';
+                        html += '<p><strong>Total FluentCRM Badges:</strong> ' + response.data.total_fluentcrm_badges + '</p>';
+                        
+                        if (response.data.fluentcrm_enabled_badges && response.data.fluentcrm_enabled_badges.length > 0) {
+                            html += '<table class="debug-table">';
+                            html += '<tr><th>Badge</th><th>Event Key</th><th>Event Title</th></tr>';
+                            
+                            response.data.fluentcrm_enabled_badges.forEach(function(badge) {
+                                html += '<tr>';
+                                html += '<td><strong>' + badge.name + '</strong><br><small>' + badge.badge_key + '</small></td>';
+                                html += '<td><code>' + badge.event_key + '</code></td>';
+                                html += '<td>' + badge.event_title + '</td>';
+                                html += '</tr>';
+                            });
+                            
+                            html += '</table>';
+                        } else {
+                            html += '<p>No badges have FluentCRM tracking enabled.</p>';
+                        }
+                        html += '</div>';
+                        
+                        // Raw Data
+                        html += '<div class="debug-section">';
+                        html += '<h4 onclick="toggleRawData()" style="cursor: pointer;">🔧 Raw FluentCRM Data <span id="raw-data-toggle">▼</span></h4>';
+                        html += '<div id="raw-data-content" style="display: none;">';
+                        html += '<pre class="raw-data">' + JSON.stringify(response.data, null, 2) + '</pre>';
+                        html += '</div>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                        
+                        // Store data for copying
+                        window.debugReportData = response.data;
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error debugging FluentCRM events</p>');
+                }
+            });
+        }
+        
+        function fixMissingBadges() {
+            const userId = jQuery('#debug-user-id').val();
+            jQuery('#badge-debug-results').html('<p>Fixing missing badge records for user: ' + userId + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/fix-missing-badges'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    user_id: userId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>🔧 Fix Missing Badges Results</h3>';
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<h4>✅ Fix Results</h4>';
+                        html += '<p><strong>Status:</strong> ' + response.message + '</p>';
+                        html += '<p><strong>User ID:</strong> ' + response.data.user_id + '</p>';
+                        html += '<p><strong>Total Fixed:</strong> ' + response.data.total_fixed + '</p>';
+                        
+                        if (response.data.fixed_badges && response.data.fixed_badges.length > 0) {
+                            html += '<h5>Fixed Badges:</h5>';
+                            html += '<ul>';
+                            response.data.fixed_badges.forEach(function(badgeKey) {
+                                html += '<li><strong>' + badgeKey + '</strong></li>';
+                            });
+                            html += '</ul>';
+                        }
+                        html += '</div>';
+                        
+                        // Debug Information
+                        if (response.data.debug_info && response.data.debug_info.length > 0) {
+                            html += '<div class="debug-section">';
+                            html += '<h4>🔍 Debug Information</h4>';
+                            html += '<p><strong>User Stats:</strong></p>';
+                            html += '<ul>';
+                            Object.keys(response.data.user_stats).forEach(function(key) {
+                                html += '<li><strong>' + key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ':</strong> ' + response.data.user_stats[key] + '</li>';
+                            });
+                            html += '</ul>';
+                            
+                            html += '<p><strong>Already Earned Badges:</strong> ' + (response.data.earned_badge_keys.length > 0 ? response.data.earned_badge_keys.join(', ') : 'None') + '</p>';
+                            
+                            html += '<p><strong>Badge Analysis:</strong></p>';
+                            html += '<div style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">';
+                            response.data.debug_info.forEach(function(info) {
+                                html += '<div>' + info + '</div>';
+                            });
+                            html += '</div>';
+                            html += '</div>';
+                        }
+                        
+                        html += '<div class="debug-section">';
+                        html += '<p><strong>Next Steps:</strong></p>';
+                        html += '<ol>';
+                        html += '<li>Run "🔄 Manual Badge Check" to verify the fix</li>';
+                        html += '<li>Run "🎨 Debug Frontend Badges" to check frontend display</li>';
+                        html += '<li>Check the frontend to see if badges now appear</li>';
+                        html += '</ol>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error fixing missing badges</p>');
+                }
+            });
+        }
+        
+        function loadBadgesList() {
+            jQuery('#manual-badge-select').html('<option value="">-- Loading badges... --</option>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/get-badges-list'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<option value="">-- Select a badge to award --</option>';
+                        
+                        // Group badges by category
+                        const categories = {};
+                        response.data.forEach(function(badge) {
+                            if (!categories[badge.category]) {
+                                categories[badge.category] = [];
+                            }
+                            categories[badge.category].push(badge);
+                        });
+                        
+                        // Add badges grouped by category
+                        Object.keys(categories).sort().forEach(function(category) {
+                            html += '<optgroup label="' + category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '">';
+                            categories[category].forEach(function(badge) {
+                                const status = badge.is_active ? '✅' : '❌';
+                                html += '<option value="' + badge.badge_key + '" title="' + badge.description + '">';
+                                html += status + ' ' + badge.name + ' (' + badge.badge_key + ')';
+                                html += '</option>';
+                            });
+                            html += '</optgroup>';
+                        });
+                        
+                        jQuery('#manual-badge-select').html(html);
+                    } else {
+                        jQuery('#manual-badge-select').html('<option value="">-- Error loading badges --</option>');
+                    }
+                },
+                error: function() {
+                    jQuery('#manual-badge-select').html('<option value="">-- Error loading badges --</option>');
+                }
+            });
+        }
+        
+        function awardSpecificBadge() {
+            const userId = jQuery('#debug-user-id').val();
+            const badgeKey = jQuery('#manual-badge-select').val();
+            
+            if (!badgeKey) {
+                alert('Please select a badge from the dropdown');
+                return;
+            }
+            
+            const selectedOption = jQuery('#manual-badge-select option:selected');
+            const badgeName = selectedOption.text().replace(/^[✅❌]\s*/, '').replace(/\s*\([^)]*\)$/, '');
+            
+            jQuery('#badge-debug-results').html('<p>Awarding badge "' + badgeName + '" (' + badgeKey + ') to user: ' + userId + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/fix-missing-badges'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    user_id: userId,
+                    badge_key: badgeKey
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>🏆 Manual Badge Award Results</h3>';
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<h4>✅ Award Results</h4>';
+                        html += '<p><strong>Status:</strong> ' + response.message + '</p>';
+                        html += '<p><strong>User ID:</strong> ' + response.data.user_id + '</p>';
+                        html += '<p><strong>Badge:</strong> ' + badgeName + '</p>';
+                        html += '<p><strong>Badge Key:</strong> ' + response.data.badge_key + '</p>';
+                        html += '<p><strong>Awarded:</strong> ' + (response.data.awarded ? '✅ Yes' : '❌ No') + '</p>';
+                        html += '<p><strong>XP Reward:</strong> ' + (response.data.xp_reward || 0) + '</p>';
+                        html += '<p><strong>Gem Reward:</strong> ' + (response.data.gem_reward || 0) + '</p>';
+                        html += '<p><strong>Event Triggered:</strong> ' + (response.data.event_triggered ? '✅ Yes' : '❌ No') + '</p>';
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<p><strong>Next Steps:</strong></p>';
+                        html += '<ol>';
+                        html += '<li>Run "🔄 Manual Badge Check" to verify the badge was awarded</li>';
+                        html += '<li>Run "🎨 Debug Frontend Badges" to check frontend display</li>';
+                        html += '<li>Check the frontend to see if the badge now appears</li>';
+                        html += '<li>Check "Badge Events" tab for FluentCRM event logs</li>';
+                        html += '</ol>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error awarding badge</p>');
+                }
+            });
+        }
+        
+        function removeSpecificBadge() {
+            const userId = jQuery('#debug-user-id').val();
+            const badgeKey = jQuery('#manual-badge-select').val();
+            
+            if (!badgeKey) {
+                alert('Please select a badge from the dropdown');
+                return;
+            }
+            
+            const selectedOption = jQuery('#manual-badge-select option:selected');
+            const badgeName = selectedOption.text().replace(/^[✅❌]\s*/, '').replace(/\s*\([^)]*\)$/, '');
+            
+            if (!confirm('Are you sure you want to remove the badge "' + badgeName + '" from user ' + userId + '? This will also deduct the XP and gems.')) {
+                return;
+            }
+            
+            jQuery('#badge-debug-results').html('<p>Removing badge "' + badgeName + '" (' + badgeKey + ') from user: ' + userId + '...</p>');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/remove-user-badge'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: {
+                    user_id: userId,
+                    badge_key: badgeKey
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let html = '<div class="badge-debug-report">';
+                        html += '<div class="debug-header">';
+                        html += '<h3>🗑️ Manual Badge Removal Results</h3>';
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<h4>✅ Removal Results</h4>';
+                        html += '<p><strong>Status:</strong> ' + response.message + '</p>';
+                        html += '<p><strong>User ID:</strong> ' + response.data.user_id + '</p>';
+                        html += '<p><strong>Badge:</strong> ' + badgeName + '</p>';
+                        html += '<p><strong>Badge Key:</strong> ' + response.data.badge_key + '</p>';
+                        html += '<p><strong>Removed:</strong> ' + (response.data.removed ? '✅ Yes' : '❌ No') + '</p>';
+                        html += '<p><strong>XP Deducted:</strong> ' + (response.data.xp_deducted || 0) + '</p>';
+                        html += '<p><strong>Gems Deducted:</strong> ' + (response.data.gems_deducted || 0) + '</p>';
+                        html += '</div>';
+                        
+                        html += '<div class="debug-section">';
+                        html += '<p><strong>Next Steps:</strong></p>';
+                        html += '<ol>';
+                        html += '<li>Run "🔄 Manual Badge Check" to verify the badge was removed</li>';
+                        html += '<li>Run "🎨 Debug Frontend Badges" to check frontend display</li>';
+                        html += '<li>You can now re-award the badge to test the process again</li>';
+                        html += '</ol>';
+                        html += '</div>';
+                        
+                        html += '</div>';
+                        
+                        jQuery('#badge-debug-results').html(html);
+                    } else {
+                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    }
+                },
+                error: function() {
+                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error removing badge</p>');
+                }
+            });
+        }
+        
         // Initialize event tracking logs on page load
         jQuery(document).ready(function() {
             // Load badge event logs by default
             refreshBadgeEventLogs();
+            
+            // Load badges list for dropdown
+            loadBadgesList();
         });
         </script>
         <?php
@@ -4493,6 +5603,91 @@ Remember: Plain text only, no formatting.');
                         </div>
                     </div>
                 </div>
+                
+                <!-- Practice Items Widget -->
+                <div class="jph-widget-section">
+                    <h2>🎵 Practice Items Widget</h2>
+                    <p>Display user's practice items with the ability to log practice sessions directly from the widget.</p>
+                    
+                    <div class="jph-widget-demo">
+                        <h3>🎯 Shortcode Usage</h3>
+                        <div class="jph-code-block">
+                            <code>[jph_practice_items_widget]</code>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-attributes">
+                        <h3>⚙️ Attributes</h3>
+                        <table class="widefat">
+                            <thead>
+                                <tr>
+                                    <th>Attribute</th>
+                                    <th>Default</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>limit</code></td>
+                                    <td><code>5</code></td>
+                                    <td>Number of practice items to display (1-20)</td>
+                                </tr>
+                                <tr>
+                                    <td><code>title</code></td>
+                                    <td><code>Practice Items</code></td>
+                                    <td>Widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_title</code></td>
+                                    <td><code>true</code></td>
+                                    <td>Show or hide the widget title</td>
+                                </tr>
+                                <tr>
+                                    <td><code>show_log_button</code></td>
+                                    <td><code>true</code></td>
+                                    <td>Show or hide the "Log Practice" buttons</td>
+                                </tr>
+                                <tr>
+                                    <td><code>style</code></td>
+                                    <td><code>compact</code></td>
+                                    <td>Widget style (currently only <code>compact</code> available)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="jph-widget-examples">
+                        <h3>💡 Example Usage</h3>
+                        <div class="jph-code-block">
+                            <code>[jph_practice_items_widget limit="3" title="My Practice List"]</code>
+                        </div>
+                        <div class="jph-code-block">
+                            <code>[jph_practice_items_widget limit="10" show_log_button="false"]</code>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-widget-features">
+                        <h3>✨ Features</h3>
+                        <ul>
+                            <li>📝 <strong>One-click practice logging</strong> - Log practice sessions directly from the widget</li>
+                            <li>🎯 <strong>Item details</strong> - Shows name, description, and difficulty level</li>
+                            <li>📅 <strong>Last practiced tracking</strong> - Displays when each item was last practiced</li>
+                            <li>🏷️ <strong>Difficulty badges</strong> - Color-coded difficulty indicators</li>
+                            <li>🔗 <strong>View all link</strong> - Links to full Practice Hub when more items available</li>
+                            <li>📱 <strong>Responsive design</strong> - Works on all screen sizes</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="jph-widget-notes">
+                        <h3>📝 Notes</h3>
+                        <ul>
+                            <li>Only shows practice items for the currently logged-in user</li>
+                            <li>Requires users to be logged in to display content</li>
+                            <li>Integrates with the existing practice logging modal system</li>
+                            <li>Perfect for dashboard or sidebar placement</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -4720,6 +5915,7 @@ Remember: Plain text only, no formatting.');
             // Clean up
             document.body.removeChild(textarea);
         }
+        
         </script>
         <?php
     }

@@ -255,6 +255,54 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        register_rest_route('aph/v1', '/manual-badge-check', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_manual_badge_check'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/debug-frontend-badges', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_frontend_badges'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/fix-missing-badges', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_missing_badges'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/get-badges-list', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_badges_list'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/debug-database-tables', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_database_tables'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/debug-fluentcrm-events', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_fluentcrm_events'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/remove-user-badge', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_remove_user_badge'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/debug-gem-balance', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_gem_balance'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Admin students endpoints
         register_rest_route('aph/v1', '/students', array(
             'methods' => 'GET',
@@ -1388,11 +1436,16 @@ class JPH_REST_API {
             $user_stats = $gamification->get_user_stats($user_id);
             
             // Log for debugging
+            error_log('=== SHIELD PURCHASE DEBUG START ===');
             error_log('JPH: Shield purchase attempt for user ' . $user_id);
             error_log('JPH: User stats: ' . print_r($user_stats, true));
             $current_shields = $user_stats['streak_shield_count'] ?? 0;
             $gem_balance = $user_stats['gems_balance'] ?? 0;
             $shield_cost = 50;
+            
+            error_log('JPH: Current shields: ' . $current_shields);
+            error_log('JPH: Current gem balance: ' . $gem_balance);
+            error_log('JPH: Shield cost: ' . $shield_cost);
             
             // Check if user already has max shields
             if ($current_shields >= 3) {
@@ -1408,17 +1461,27 @@ class JPH_REST_API {
             $new_shield_count = $current_shields + 1;
             $new_gem_balance = $gem_balance - $shield_cost;
             
+            error_log('JPH: Calculating new values:');
+            error_log('JPH: New shield count: ' . $new_shield_count . ' (was ' . $current_shields . ')');
+            error_log('JPH: New gem balance: ' . $new_gem_balance . ' (was ' . $gem_balance . ', deducted ' . $shield_cost . ')');
+            
             // Update user stats
             $update_data = array(
                 'streak_shield_count' => $new_shield_count,
                 'gems_balance' => $new_gem_balance
             );
             
+            error_log('JPH: Update data: ' . print_r($update_data, true));
             $result = $database->update_user_stats($user_id, $update_data);
+            error_log('JPH: Update result: ' . ($result ? 'SUCCESS' : 'FAILED'));
             
             if ($result) {
                 // Record the gem transaction
                 $database->record_gems_transaction($user_id, 'debit', -$shield_cost, 'streak_shield_purchase', 'Purchased streak shield');
+                
+                error_log('JPH: Shield purchase completed successfully');
+                error_log('JPH: Final values - Shields: ' . $new_shield_count . ', Gems: ' . $new_gem_balance);
+                error_log('=== SHIELD PURCHASE DEBUG END ===');
                 
                 return rest_ensure_response(array(
                     'success' => true,
@@ -1429,6 +1492,8 @@ class JPH_REST_API {
                     )
                 ));
             } else {
+                error_log('JPH: Shield purchase FAILED - database update failed');
+                error_log('=== SHIELD PURCHASE DEBUG END ===');
                 return new WP_Error('purchase_failed', 'Failed to purchase shield', array('status' => 500));
             }
             
@@ -1639,13 +1704,24 @@ class JPH_REST_API {
                 WHERE user_id = %d
             ", $user_id));
             
+            // Get recent gem transactions for debugging
+            $recent_transactions = $wpdb->get_results($wpdb->prepare("
+                SELECT * FROM {$wpdb->prefix}jph_gems_transactions 
+                WHERE user_id = %d 
+                ORDER BY created_at DESC 
+                LIMIT 10
+            ", $user_id), ARRAY_A);
+            
             return rest_ensure_response(array(
                 'success' => true,
                 'data' => array(
                     'user_id' => $user_id,
                     'user_stats' => $user_stats,
                     'user_badges' => $user_badges,
-                    'practice_sessions_count' => (int) $practice_sessions
+                    'practice_sessions_count' => (int) $practice_sessions,
+                    'current_gem_balance' => $user_stats ? $user_stats['gems_balance'] : 'No stats record',
+                    'recent_gem_transactions' => $recent_transactions,
+                    'debug_timestamp' => current_time('mysql')
                 )
             ));
             
@@ -1659,19 +1735,74 @@ class JPH_REST_API {
      */
     public function rest_test_badge_assignment($request) {
         try {
-            // Simulate badge assignment test
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('missing_user_id', 'User ID is required', array('status' => 400));
+            }
+            
+            // Get user stats and badges
+            $user_stats = $this->database->get_user_stats($user_id);
+            $user_badges = $this->database->get_user_badges($user_id);
+            $all_badges = $this->database->get_badges(true);
+            
+            // Test badge assignment logic
+            $gamification = new APH_Gamification();
             $test_results = array(
-                'total_badges' => 8,
-                'active_badges' => 6,
-                'test_user_id' => get_current_user_id(),
+                'test_user_id' => $user_id,
+                'user_stats' => $user_stats,
+                'current_badges' => count($user_badges),
+                'total_available_badges' => count($all_badges),
+                'active_badges' => count(array_filter($all_badges, function($b) { return $b['is_active']; })),
                 'assignment_logic' => 'Working correctly',
-                'gamification_system' => 'Operational'
+                'gamification_system' => 'Operational',
+                'badge_analysis' => array()
             );
+            
+            // Analyze each badge to see if user should have it
+            foreach ($all_badges as $badge) {
+                $has_badge = in_array($badge['badge_key'], array_column($user_badges, 'badge_key'));
+                $should_have = false;
+                $criteria_type = $badge['criteria_type'] ?? '';
+                $criteria_value = intval($badge['criteria_value'] ?? 0);
+                
+                switch ($criteria_type) {
+                    case 'practice_sessions':
+                        $should_have = $user_stats['total_sessions'] >= $criteria_value;
+                        break;
+                    case 'total_xp':
+                        $should_have = $user_stats['total_xp'] >= $criteria_value;
+                        break;
+                    case 'streak':
+                        $should_have = $user_stats['current_streak'] >= $criteria_value;
+                        break;
+                    case 'long_session_count':
+                        // Would need session data to check this
+                        $should_have = false;
+                        break;
+                    case 'time_of_day':
+                    case 'comeback':
+                        // Would need session data to check this
+                        $should_have = false;
+                        break;
+                }
+                
+                $test_results['badge_analysis'][] = array(
+                    'badge_key' => $badge['badge_key'],
+                    'name' => $badge['name'],
+                    'criteria_type' => $criteria_type,
+                    'criteria_value' => $criteria_value,
+                    'user_has_badge' => $has_badge,
+                    'should_have_badge' => $should_have,
+                    'status' => $has_badge ? 'earned' : ($should_have ? 'missing' : 'not_qualified'),
+                    'is_active' => $badge['is_active']
+                );
+            }
             
             return rest_ensure_response(array(
                 'success' => true,
                 'data' => $test_results,
-                'message' => 'Badge assignment test completed successfully.'
+                'message' => 'Badge assignment test completed for user ' . $user_id
             ));
             
         } catch (Exception $e) {
@@ -1746,6 +1877,768 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             return new WP_Error('debug_practice_sessions_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Manual badge check for debugging
+     */
+    public function rest_manual_badge_check($request) {
+        try {
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('missing_user_id', 'User ID is required', array('status' => 400));
+            }
+            
+            // Initialize gamification system
+            $gamification = new APH_Gamification();
+            
+            // Get current user stats and badges before checking
+            $user_stats_before = $this->database->get_user_stats($user_id);
+            $user_badges_before = $this->database->get_user_badges($user_id);
+            
+            // Run badge check
+            $newly_awarded = $gamification->check_and_award_badges($user_id);
+            
+            // Get stats and badges after checking
+            $user_stats_after = $this->database->get_user_stats($user_id);
+            $user_badges_after = $this->database->get_user_badges($user_id);
+            
+            // Get all badges for reference
+            $all_badges = $this->database->get_badges(true);
+            
+            // Get practice sessions count
+            global $wpdb;
+            $practice_sessions_count = $wpdb->get_var($wpdb->prepare("
+                SELECT COUNT(*) FROM {$wpdb->prefix}jph_practice_sessions 
+                WHERE user_id = %d
+            ", $user_id));
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'user_id' => $user_id,
+                    'practice_sessions_count' => (int) $practice_sessions_count,
+                    'user_stats_before' => $user_stats_before,
+                    'user_stats_after' => $user_stats_after,
+                    'user_badges_before' => $user_badges_before,
+                    'user_badges_after' => $user_badges_after,
+                    'newly_awarded_badges' => $newly_awarded,
+                    'all_available_badges' => $all_badges,
+                    'badge_check_completed' => true
+                ),
+                'message' => 'Manual badge check completed. ' . count($newly_awarded) . ' new badges awarded.'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('manual_badge_check_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Debug frontend badge display
+     */
+    public function rest_debug_frontend_badges($request) {
+        try {
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('missing_user_id', 'User ID is required', array('status' => 400));
+            }
+            
+            // Get user badges as they would appear on frontend
+            $user_badges = $this->database->get_user_badges($user_id);
+            
+            // Get all badges for comparison
+            $all_badges = $this->database->get_badges(true);
+            
+            // Simulate frontend badge display logic
+            $frontend_badges = array();
+            $earned_badge_keys = array_column($user_badges, 'badge_key');
+            
+            foreach ($all_badges as $badge) {
+                $is_earned = in_array($badge['badge_key'], $earned_badge_keys);
+                $earned_badge = null;
+                
+                if ($is_earned) {
+                    $earned_badge = $user_badges[array_search($badge['badge_key'], $earned_badge_keys)];
+                }
+                
+                $frontend_badges[] = array(
+                    'badge_key' => $badge['badge_key'],
+                    'name' => $badge['name'],
+                    'description' => $badge['description'],
+                    'image_url' => $badge['image_url'],
+                    'category' => $badge['category'],
+                    'xp_reward' => $badge['xp_reward'],
+                    'gem_reward' => $badge['gem_reward'],
+                    'is_earned' => $is_earned,
+                    'earned_date' => $is_earned ? $earned_badge['earned_at'] : null,
+                    'display_status' => $is_earned ? 'earned' : 'locked'
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'user_id' => $user_id,
+                    'total_badges' => count($all_badges),
+                    'earned_badges' => count($user_badges),
+                    'frontend_badges' => $frontend_badges,
+                    'user_badges_raw' => $user_badges,
+                    'all_badges_raw' => $all_badges
+                ),
+                'message' => 'Frontend badge display debug completed'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_frontend_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Fix missing badge records
+     */
+    public function rest_fix_missing_badges($request) {
+        try {
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            $badge_key = $request->get_param('badge_key');
+            
+            if (!$user_id) {
+                return new WP_Error('missing_user_id', 'User ID is required', array('status' => 400));
+            }
+            
+            global $wpdb;
+            
+            if ($badge_key) {
+                // Fix specific badge - use full gamification process
+                $gamification = new APH_Gamification();
+                
+                // Get badge details
+                $badge = $this->database->get_badge_by_key($badge_key);
+                if (!$badge) {
+                    return new WP_Error('badge_not_found', "Badge '{$badge_key}' not found", array('status' => 404));
+                }
+                
+                // Get user stats before
+                $user_stats_before = $this->database->get_user_stats($user_id);
+                
+                // Award the badge using the full gamification process
+                $badge_awarded = $this->database->award_badge($user_id, $badge_key);
+                
+                if (!$badge_awarded) {
+                    return rest_ensure_response(array(
+                        'success' => false,
+                        'message' => "Failed to award badge '{$badge_key}' - may already be awarded",
+                        'data' => array(
+                            'user_id' => $user_id,
+                            'badge_key' => $badge_key,
+                            'awarded' => false
+                        )
+                    ));
+                }
+                
+                // Update user stats with XP reward, gems reward, and badge count
+                $update_data = array();
+                if ($badge['xp_reward'] > 0) {
+                    $update_data['total_xp'] = $user_stats_before['total_xp'] + $badge['xp_reward'];
+                }
+                if ($badge['gem_reward'] > 0) {
+                    $update_data['gems_balance'] = $user_stats_before['gems_balance'] + $badge['gem_reward'];
+                    // Record gems transaction
+                    $this->database->record_gems_transaction(
+                        $user_id,
+                        'earned',
+                        $badge['gem_reward'],
+                        'badge_' . $badge_key,
+                        'Earned ' . $badge['gem_reward'] . ' gems for earning badge: ' . $badge['name']
+                    );
+                }
+                $update_data['badges_earned'] = $user_stats_before['badges_earned'] + 1;
+                $this->database->update_user_stats($user_id, $update_data);
+                
+                // Trigger FluentCRM event if enabled
+                $event_triggered = false;
+                if ($badge['fluentcrm_enabled'] && !empty($badge['fluentcrm_event_key'])) {
+                    $event_triggered = $this->trigger_fluentcrm_event($user_id, $badge);
+                }
+                
+                // Get user stats after
+                $user_stats_after = $this->database->get_user_stats($user_id);
+                
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => "Badge '{$badge_key}' awarded successfully with full gamification",
+                    'data' => array(
+                        'user_id' => $user_id,
+                        'badge_key' => $badge_key,
+                        'badge_name' => $badge['name'],
+                        'awarded' => true,
+                        'xp_reward' => $badge['xp_reward'],
+                        'gem_reward' => $badge['gem_reward'],
+                        'event_triggered' => $event_triggered,
+                        'user_stats_before' => $user_stats_before,
+                        'user_stats_after' => $user_stats_after
+                    )
+                ));
+            } else {
+                // Fix all missing badges based on user stats
+                $user_stats = $this->database->get_user_stats($user_id);
+                $user_badges = $this->database->get_user_badges($user_id);
+                $all_badges = $this->database->get_badges(true);
+                
+                $earned_badge_keys = array_column($user_badges, 'badge_key');
+                $fixed_badges = array();
+                
+                $debug_info = array();
+                
+                foreach ($all_badges as $badge) {
+                    // Skip if already has badge record
+                    if (in_array($badge['badge_key'], $earned_badge_keys)) {
+                        $debug_info[] = "Skipping {$badge['badge_key']} - already has badge";
+                        continue;
+                    }
+                    
+                    $should_have_badge = false;
+                    $criteria_type = $badge['criteria_type'] ?? '';
+                    $criteria_value = intval($badge['criteria_value'] ?? 0);
+                    
+                    // Check if user should have this badge based on their stats
+                    switch ($criteria_type) {
+                        case 'practice_sessions':
+                            if ($user_stats['total_sessions'] >= $criteria_value) {
+                                $should_have_badge = true;
+                            }
+                            $debug_info[] = "Badge {$badge['badge_key']}: practice_sessions {$user_stats['total_sessions']} >= {$criteria_value} = " . ($should_have_badge ? 'YES' : 'NO');
+                            break;
+                        case 'total_xp':
+                            if ($user_stats['total_xp'] >= $criteria_value) {
+                                $should_have_badge = true;
+                            }
+                            $debug_info[] = "Badge {$badge['badge_key']}: total_xp {$user_stats['total_xp']} >= {$criteria_value} = " . ($should_have_badge ? 'YES' : 'NO');
+                            break;
+                        case 'streak':
+                            if ($user_stats['current_streak'] >= $criteria_value) {
+                                $should_have_badge = true;
+                            }
+                            $debug_info[] = "Badge {$badge['badge_key']}: streak {$user_stats['current_streak']} >= {$criteria_value} = " . ($should_have_badge ? 'YES' : 'NO');
+                            break;
+                        case 'long_session_count':
+                            // For now, we'll skip this as it requires session data analysis
+                            // TODO: Implement long session count logic
+                            $should_have_badge = false;
+                            $debug_info[] = "Badge {$badge['badge_key']}: long_session_count - SKIPPED (not implemented)";
+                            break;
+                        case 'time_of_day':
+                            // For now, we'll skip this as it requires session data analysis
+                            // TODO: Implement time of day logic
+                            $should_have_badge = false;
+                            $debug_info[] = "Badge {$badge['badge_key']}: time_of_day - SKIPPED (not implemented)";
+                            break;
+                        case 'comeback':
+                            // For now, we'll skip this as it requires session data analysis
+                            // TODO: Implement comeback logic
+                            $should_have_badge = false;
+                            $debug_info[] = "Badge {$badge['badge_key']}: comeback - SKIPPED (not implemented)";
+                            break;
+                        default:
+                            // Unknown criteria type
+                            $should_have_badge = false;
+                            $debug_info[] = "Badge {$badge['badge_key']}: unknown criteria_type '{$criteria_type}' - SKIPPED";
+                            break;
+                    }
+                    
+                    if ($should_have_badge) {
+                        // Award badge using full gamification process
+                        $result = $this->database->award_badge($user_id, $badge['badge_key']);
+                        if ($result) {
+                            // Update user stats with XP reward, gems reward, and badge count
+                            $update_data = array();
+                            if ($badge['xp_reward'] > 0) {
+                                $update_data['total_xp'] = $user_stats['total_xp'] + $badge['xp_reward'];
+                            }
+                            if ($badge['gem_reward'] > 0) {
+                                $update_data['gems_balance'] = $user_stats['gems_balance'] + $badge['gem_reward'];
+                                // Record gems transaction
+                                $this->database->record_gems_transaction(
+                                    $user_id,
+                                    'earned',
+                                    $badge['gem_reward'],
+                                    'badge_' . $badge['badge_key'],
+                                    'Earned ' . $badge['gem_reward'] . ' gems for earning badge: ' . $badge['name']
+                                );
+                            }
+                            $update_data['badges_earned'] = $user_stats['badges_earned'] + 1;
+                            $this->database->update_user_stats($user_id, $update_data);
+                            
+                            // Trigger FluentCRM event if enabled
+                            $event_triggered = false;
+                            if ($badge['fluentcrm_enabled'] && !empty($badge['fluentcrm_event_key'])) {
+                                $event_triggered = $this->trigger_fluentcrm_event($user_id, $badge);
+                            }
+                            
+                            $fixed_badges[] = $badge['badge_key'];
+                            $debug_info[] = "SUCCESS: Awarded badge {$badge['badge_key']} with full gamification (Event: " . ($event_triggered ? 'YES' : 'NO') . ")";
+                            
+                            // Update user stats for next iteration
+                            $user_stats = $this->database->get_user_stats($user_id);
+                        } else {
+                            $debug_info[] = "FAILED: Could not award badge {$badge['badge_key']}";
+                        }
+                    }
+                }
+                
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'Fixed ' . count($fixed_badges) . ' missing badge records',
+                    'data' => array(
+                        'user_id' => $user_id,
+                        'fixed_badges' => $fixed_badges,
+                        'total_fixed' => count($fixed_badges),
+                        'debug_info' => $debug_info,
+                        'user_stats' => $user_stats,
+                        'earned_badge_keys' => $earned_badge_keys
+                    )
+                ));
+            }
+            
+        } catch (Exception $e) {
+            return new WP_Error('fix_missing_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get badges list for dropdown
+     */
+    public function rest_get_badges_list($request) {
+        try {
+            $all_badges = $this->database->get_badges(true);
+            
+            $badges_list = array();
+            foreach ($all_badges as $badge) {
+                $badges_list[] = array(
+                    'badge_key' => $badge['badge_key'],
+                    'name' => $badge['name'],
+                    'description' => $badge['description'],
+                    'category' => $badge['category'],
+                    'is_active' => $badge['is_active']
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $badges_list,
+                'message' => 'Badges list retrieved successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('get_badges_list_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Debug database tables
+     */
+    public function rest_debug_database_tables($request) {
+        try {
+            global $wpdb;
+            
+            $debug_info = array();
+            
+            // Check if tables exist
+            $tables_to_check = array(
+                'jph_badges',
+                'jph_user_badges',
+                'jph_user_stats',
+                'jph_practice_sessions'
+            );
+            
+            foreach ($tables_to_check as $table) {
+                $full_table_name = $wpdb->prefix . $table;
+                $exists = $wpdb->get_var("SHOW TABLES LIKE '{$full_table_name}'") == $full_table_name;
+                
+                $debug_info[$table] = array(
+                    'exists' => $exists,
+                    'full_name' => $full_table_name
+                );
+                
+                if ($exists) {
+                    // Get table structure
+                    $structure = $wpdb->get_results("DESCRIBE {$full_table_name}", ARRAY_A);
+                    $debug_info[$table]['structure'] = $structure;
+                    
+                    // Get row count
+                    $count = $wpdb->get_var("SELECT COUNT(*) FROM {$full_table_name}");
+                    $debug_info[$table]['row_count'] = $count;
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $debug_info,
+                'message' => 'Database tables debug completed'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_database_tables_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Debug FluentCRM events
+     */
+    public function rest_debug_fluentcrm_events($request) {
+        try {
+            $debug_info = array();
+            
+            // Check if FluentCRM is active - multiple detection methods
+            $fluentcrm_active = false;
+            $fluentcrm_detection_methods = array();
+            
+            // Method 1: Check for FluentCRM main class
+            $method1 = class_exists('FluentCrm\App\Services\FluentCrm');
+            $fluentcrm_detection_methods['class_exists_FluentCrm'] = $method1;
+            
+            // Method 2: Check for FluentCRM functions
+            $method2 = function_exists('fluentcrm_get_contact');
+            $fluentcrm_detection_methods['function_exists_fluentcrm_get_contact'] = $method2;
+            
+            // Method 2b: Check for FluentCrmApi function
+            $method2b = function_exists('FluentCrmApi');
+            $fluentcrm_detection_methods['function_exists_FluentCrmApi'] = $method2b;
+            
+            // Method 3: Check if FluentCRM plugin is active
+            $method3 = is_plugin_active('fluent-crm/fluent-crm.php');
+            $fluentcrm_detection_methods['is_plugin_active'] = $method3;
+            
+            // Method 4: Check for FluentCRM constants
+            $method4 = defined('FLUENTCRM_VERSION');
+            $fluentcrm_detection_methods['defined_FLUENTCRM_VERSION'] = $method4;
+            
+            // Method 5: Check for FluentCRM in active plugins
+            $active_plugins = get_option('active_plugins', array());
+            $method5 = in_array('fluent-crm/fluent-crm.php', $active_plugins);
+            $fluentcrm_detection_methods['in_active_plugins'] = $method5;
+            
+            // Method 6: Check for FluentCRM in mu-plugins
+            $mu_plugins = get_mu_plugins();
+            $method6 = isset($mu_plugins['fluent-crm/fluent-crm.php']);
+            $fluentcrm_detection_methods['in_mu_plugins'] = $method6;
+            
+            // FluentCRM is active if any method returns true
+            $fluentcrm_active = $method1 || $method2 || $method2b || $method3 || $method4 || $method5 || $method6;
+            
+            $debug_info['fluentcrm_active'] = $fluentcrm_active;
+            $debug_info['fluentcrm_detection_methods'] = $fluentcrm_detection_methods;
+            
+            if ($fluentcrm_active) {
+                // Get FluentCRM version
+                $debug_info['fluentcrm_version'] = defined('FLUENTCRM_VERSION') ? FLUENTCRM_VERSION : 'Unknown';
+                
+                // Check if we can access FluentCRM functions
+                $debug_info['fluentcrm_functions_available'] = array(
+                    'fluentcrm_get_contact' => function_exists('fluentcrm_get_contact'),
+                    'fluentcrm_add_contact' => function_exists('fluentcrm_add_contact'),
+                    'fluentcrm_update_contact' => function_exists('fluentcrm_update_contact'),
+                    'fluentcrm_contact_added' => function_exists('fluentcrm_contact_added'),
+                    'fluentcrm_contact_updated' => function_exists('fluentcrm_contact_updated'),
+                    'fluentCrmTrackEvent' => function_exists('fluentCrmTrackEvent')
+                );
+                
+                // Test event triggering capability
+                $debug_info['event_triggering_test'] = array(
+                    'can_trigger_events' => method_exists($this, 'trigger_fluentcrm_event'),
+                    'webhook_handler_exists' => class_exists('JPH_Webhook_Handler'),
+                    'fluentcrm_api_available' => function_exists('FluentCrmApi'),
+                    'event_tracker_available' => function_exists('FluentCrmApi') && method_exists(FluentCrmApi('event_tracker'), 'track')
+                );
+            }
+            
+            // Get badges with FluentCRM enabled
+            $all_badges = $this->database->get_badges(true);
+            $fluentcrm_badges = array();
+            
+            foreach ($all_badges as $badge) {
+                if ($badge['fluentcrm_enabled']) {
+                    $fluentcrm_badges[] = array(
+                        'badge_key' => $badge['badge_key'],
+                        'name' => $badge['name'],
+                        'event_key' => $badge['fluentcrm_event_key'],
+                        'event_title' => $badge['fluentcrm_event_title']
+                    );
+                }
+            }
+            
+            $debug_info['fluentcrm_enabled_badges'] = $fluentcrm_badges;
+            $debug_info['total_fluentcrm_badges'] = count($fluentcrm_badges);
+            
+            // Check recent event logs if available
+            $debug_info['recent_events'] = 'Event logs would appear here if available';
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => $debug_info,
+                'message' => 'FluentCRM events debug completed'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_fluentcrm_events_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Trigger FluentCRM event for badge earning
+     */
+    private function trigger_fluentcrm_event($user_id, $badge) {
+        try {
+            error_log("=== FluentCRM Event Triggering Debug ===");
+            error_log("User ID: {$user_id}");
+            error_log("Badge Key: {$badge['badge_key']}");
+            error_log("Event Key: {$badge['fluentcrm_event_key']}");
+            error_log("Event Title: {$badge['fluentcrm_event_title']}");
+            
+            // Get user email
+            $user = get_user_by('ID', $user_id);
+            if (!$user) {
+                error_log("FluentCRM Event: User not found for ID: {$user_id}");
+                return false;
+            }
+            
+            $user_email = $user->user_email;
+            error_log("User Email: {$user_email}");
+            
+            // Use FluentCRM event tracking API
+            if (function_exists('FluentCrmApi')) {
+                error_log("FluentCrmApi function exists - attempting event trigger");
+                try {
+                    // Method 1: Try event tracker API
+                    $tracker = FluentCrmApi('event_tracker');
+                    error_log("Event tracker object created: " . (is_object($tracker) ? 'Yes' : 'No'));
+                    
+                    if (method_exists($tracker, 'track')) {
+                        error_log("track() method exists - attempting to call");
+                        
+                        // Keep original event key for automation triggers, but add timestamp to title for uniqueness
+                        $event_key = $badge['fluentcrm_event_key'];
+                        $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+                        
+                        $result = $tracker->track([
+                            'event_key' => $event_key,
+                            'title' => $unique_title,
+                            'email' => $user_email,
+                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'provider' => 'academy_practice_hub'
+                        ]);
+                        
+                        error_log("Event tracker result: " . ($result ? 'Success' : 'Failed'));
+                        if ($result) {
+                            error_log("FluentCRM Event triggered successfully via tracker: {$badge['fluentcrm_event_key']} for user {$user_email}");
+                            error_log("=== End FluentCRM Event Debug ===");
+                            return true;
+                        }
+                    } else {
+                        error_log("track() method does not exist on event tracker");
+                    }
+                    
+                    // Method 2: Try direct event tracking
+                    if (function_exists('fluentCrmTrackEvent')) {
+                        error_log("fluentCrmTrackEvent function exists - attempting to call");
+                        
+                        // Keep original event key for automation triggers, but add timestamp to title for uniqueness
+                        $event_key = $badge['fluentcrm_event_key'];
+                        $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+                        
+                        $result = fluentCrmTrackEvent([
+                            'event_key' => $event_key,
+                            'title' => $unique_title,
+                            'email' => $user_email,
+                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'provider' => 'academy_practice_hub'
+                        ]);
+                        
+                        error_log("fluentCrmTrackEvent result: " . ($result ? 'Success' : 'Failed'));
+                        if ($result) {
+                            error_log("FluentCRM Event triggered successfully via fluentCrmTrackEvent: {$badge['fluentcrm_event_key']} for user {$user_email}");
+                            error_log("=== End FluentCRM Event Debug ===");
+                            return true;
+                        }
+                    } else {
+                        error_log("fluentCrmTrackEvent function does not exist");
+                    }
+                    
+                } catch (Exception $e) {
+                    error_log("FluentCRM API error: " . $e->getMessage());
+                }
+            } else {
+                error_log("FluentCrmApi function does not exist");
+            }
+            
+            // Fallback: Use WordPress action hook
+            error_log("Using fallback WordPress action hook");
+            
+            // Keep original event key for automation triggers, but add timestamp to title for uniqueness
+            $event_key = $badge['fluentcrm_event_key'];
+            $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+            
+            error_log("Event Key: {$event_key}");
+            error_log("Unique Title: {$unique_title}");
+            
+            do_action('fluent_crm/track_event_activity', [
+                'event_key' => $event_key,
+                'title' => $unique_title,
+                'email' => $user_email,
+                'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                'provider' => 'academy_practice_hub'
+            ], true);
+            
+            error_log("FluentCRM Event triggered via fallback action hook: {$badge['fluentcrm_event_key']} for user {$user_email}");
+            error_log("=== End FluentCRM Event Debug ===");
+            return true;
+            
+        } catch (Exception $e) {
+            error_log("FluentCRM Event error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Remove user badge for testing
+     */
+    public function rest_remove_user_badge($request) {
+        try {
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            $badge_key = $request->get_param('badge_key');
+            
+            if (!$user_id || !$badge_key) {
+                return new WP_Error('missing_params', 'User ID and Badge Key are required', array('status' => 400));
+            }
+            
+            global $wpdb;
+            
+            // Check if badge exists
+            $badge = $this->database->get_badge_by_key($badge_key);
+            if (!$badge) {
+                return new WP_Error('badge_not_found', "Badge '{$badge_key}' not found", array('status' => 404));
+            }
+            
+            // Check if user has the badge
+            $user_badge = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}jph_user_badges WHERE user_id = %d AND badge_key = %s",
+                $user_id, $badge_key
+            ));
+            
+            if (!$user_badge) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => "User does not have badge '{$badge_key}'",
+                    'data' => array(
+                        'user_id' => $user_id,
+                        'badge_key' => $badge_key,
+                        'removed' => false
+                    )
+                ));
+            }
+            
+            // Remove the badge
+            $result = $wpdb->delete(
+                $wpdb->prefix . 'jph_user_badges',
+                array(
+                    'user_id' => $user_id,
+                    'badge_key' => $badge_key
+                ),
+                array('%d', '%s')
+            );
+            
+            if ($result) {
+                // Update user stats (subtract XP, gems, badge count)
+                $user_stats = $this->database->get_user_stats($user_id);
+                $update_data = array();
+                
+                if ($badge['xp_reward'] > 0) {
+                    $update_data['total_xp'] = max(0, $user_stats['total_xp'] - $badge['xp_reward']);
+                }
+                if ($badge['gem_reward'] > 0) {
+                    $update_data['gems_balance'] = max(0, $user_stats['gems_balance'] - $badge['gem_reward']);
+                }
+                $update_data['badges_earned'] = max(0, $user_stats['badges_earned'] - 1);
+                
+                $this->database->update_user_stats($user_id, $update_data);
+                
+                error_log("Badge removed: user_id={$user_id}, badge_key={$badge_key}");
+                
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => "Badge '{$badge_key}' removed successfully",
+                    'data' => array(
+                        'user_id' => $user_id,
+                        'badge_key' => $badge_key,
+                        'badge_name' => $badge['name'],
+                        'removed' => true,
+                        'xp_deducted' => $badge['xp_reward'],
+                        'gems_deducted' => $badge['gem_reward']
+                    )
+                ));
+            } else {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => "Failed to remove badge '{$badge_key}'",
+                    'data' => array(
+                        'user_id' => $user_id,
+                        'badge_key' => $badge_key,
+                        'removed' => false
+                    )
+                ));
+            }
+            
+        } catch (Exception $e) {
+            return new WP_Error('remove_user_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Debug gem balance for a user
+     */
+    public function rest_debug_gem_balance($request) {
+        try {
+            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('missing_user_id', 'User ID is required', array('status' => 400));
+            }
+            
+            global $wpdb;
+            
+            // Get user stats from database
+            $user_stats = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}jph_user_stats WHERE user_id = %d",
+                $user_id
+            ), ARRAY_A);
+            
+            // Get recent gem transactions
+            $recent_transactions = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}jph_gems_transactions WHERE user_id = %d ORDER BY created_at DESC LIMIT 10",
+                $user_id
+            ), ARRAY_A);
+            
+            // Get user info
+            $user = get_user_by('ID', $user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'user_id' => $user_id,
+                    'user_email' => $user ? $user->user_email : 'Unknown',
+                    'user_display_name' => $user ? $user->display_name : 'Unknown',
+                    'current_gem_balance' => $user_stats ? $user_stats['gems_balance'] : 'No stats record',
+                    'user_stats' => $user_stats,
+                    'recent_transactions' => $recent_transactions,
+                    'debug_timestamp' => current_time('mysql')
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_gem_balance_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

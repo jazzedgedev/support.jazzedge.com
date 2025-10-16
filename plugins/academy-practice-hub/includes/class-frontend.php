@@ -21,6 +21,7 @@ class JPH_Frontend {
         add_shortcode('jph_stats_widget', array($this, 'render_stats_widget'));
         add_shortcode('jph_recent_practice_widget', array($this, 'render_recent_practice_widget'));
         add_shortcode('jph_leaderboard_widget', array($this, 'render_leaderboard_widget'));
+        add_shortcode('jph_practice_items_widget', array($this, 'render_practice_items_widget'));
         add_shortcode('jph_progress_chart_widget', array($this, 'render_progress_chart_widget'));
         add_shortcode('jph_badges_widget', array($this, 'render_badges_widget'));
         add_shortcode('jph_gems_widget', array($this, 'render_gems_widget'));
@@ -983,8 +984,17 @@ class JPH_Frontend {
                         </button>
                     </div>
                     <div class="header-actions">
+                        <!-- Tutorial Button -->
+                        <button id="jph-tutorial-btn" type="button" class="jph-btn jph-btn-secondary jph-tutorial-btn" onclick="window.open('/help', '_blank')">
+                            <span class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                                </svg>
+                            </span>
+                            Tutorial
+                        </button>
                         <!-- Leaderboard Button -->
-                        <button id="jph-leaderboard-btn" type="button" class="jph-btn jph-btn-secondary jph-leaderboard-btn">
+                        <button id="jph-leaderboard-btn" type="button" class="jph-btn jph-btn-secondary jph-leaderboard-btn" onclick="openLeaderboard()">
                             <span class="btn-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
@@ -992,20 +1002,20 @@ class JPH_Frontend {
                             </span>
                             Leaderboard
                         </button>
-                        <!-- Stats Explanation Button -->
+                        <!-- About Stats Button -->
                         <button id="jph-stats-explanation-btn" type="button" class="jph-btn jph-btn-secondary jph-stats-help-btn">
                             <span class="btn-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                                 </svg>
                             </span>
-                            How do these stats work?
+                            About Stats
                         </button>
                     </div>
                 </div>
                 <div class="jph-stats">
                     <div class="stat">
-                        <span class="stat-value">
+                        <span class="stat-value stat-level">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffd700" width="28" height="28">
                                 <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clip-rule="evenodd" />
                             </svg>
@@ -1014,7 +1024,7 @@ class JPH_Frontend {
                         <span class="stat-label">Level</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">
+                        <span class="stat-value stat-xp">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6" width="28" height="28">
                                 <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71L10.018 14.25H2.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd" />
                             </svg>
@@ -1023,7 +1033,7 @@ class JPH_Frontend {
                         <span class="stat-label">XP</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">
+                        <span class="stat-value stat-streak">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f97316" width="28" height="28">
                                 <path fill-rule="evenodd" d="M15.22 6.268a.75.75 0 01.968-.432l5.942 2.28a.75.75 0 01.431.97l-2.28 5.941a.75.75 0 11-1.4-.537l1.63-4.251-1.086.483a11.2 11.2 0 00-5.45 5.174.75.75 0 01-1.199.12L9 12.31l-6.22 6.22a.75.75 0 11-1.06-1.06l6.75-6.75a.75.75 0 011.06 0l3.606 3.605a12.694 12.694 0 015.68-4.973l1.086-.484-4.251-1.631a.75.75 0 01-.432-.97z" clip-rule="evenodd" />
                             </svg>
@@ -1032,7 +1042,7 @@ class JPH_Frontend {
                         <span class="stat-label">Streak</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">
+                        <span class="stat-value stat-gems">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#8b5cf6" width="28" height="28">
                                 <path fill-rule="evenodd" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" clip-rule="evenodd" />
                             </svg>
@@ -1237,7 +1247,7 @@ class JPH_Frontend {
                                     <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
                                 </div>
                                 <div class="protection-actions">
-                                    <button type="button" class="jph-btn jph-btn-primary" id="purchase-shield-btn">
+                                    <button type="button" class="jph-btn jph-btn-primary" id="purchase-shield-btn-main" data-cost="50" data-nonce="<?php echo wp_create_nonce('purchase_shield'); ?>">
                                         <span class="btn-icon">🛡️</span>
                                         Purchase Shield (50 💎)
                                     </button>
@@ -1661,7 +1671,7 @@ class JPH_Frontend {
                         
                         <div class="jph-form-group">
                             <label for="jph-welcome-display-name-input">Your Leaderboard Name:</label>
-                            <input type="text" id="jph-welcome-display-name-input" class="jph-input" placeholder="Enter your leaderboard name" maxlength="100">
+                            <input type="text" id="jph-welcome-display-name-input" name="display_name" class="jph-input" placeholder="Enter your leaderboard name" maxlength="100">
                             <small class="jph-help-text">This will be visible to other students on the leaderboard</small>
                         </div>
                         
@@ -1686,7 +1696,7 @@ class JPH_Frontend {
                         
                         <div class="jph-form-group">
                             <label for="jph-display-name-input">Display Name:</label>
-                            <input type="text" id="jph-display-name-input" class="jph-input" placeholder="Enter your leaderboard name" maxlength="100">
+                            <input type="text" id="jph-display-name-input" name="display_name" class="jph-input" placeholder="Enter your leaderboard name" maxlength="100">
                             <small class="jph-help-text">Leave empty to use your WordPress display name</small>
                         </div>
                         
@@ -1807,7 +1817,7 @@ class JPH_Frontend {
                     
                     <!-- Improvement Section -->
                     <div class="form-group">
-                        <label>IMPROVE Did you notice improvement?</label>
+                        <label>Did you notice improvement?</label>
                         <div class="improvement-toggle">
                             <input type="checkbox" name="improvement_detected" value="1" id="improvement-toggle">
                             <label for="improvement-toggle" class="toggle-slider">
@@ -1854,11 +1864,11 @@ class JPH_Frontend {
                 <div class="jph-modal-body">
                     <p>A Streak Shield protects your current streak from being broken if you miss a day of practice.</p>
                     <p><strong>Cost:</strong> 50 💎</p>
-                    <p><strong>Current Shields:</strong> <span id="shield-count"><?php echo $user_stats['streak_shield_count'] ?? 0; ?></span></p>
+                    <p><strong>Current Shields:</strong> <span id="shield-count-modal"><?php echo $user_stats['streak_shield_count'] ?? 0; ?></span></p>
                     <p><strong>Maximum:</strong> 3 shields</p>
                     
                     <div class="jph-modal-footer">
-                        <button id="purchase-shield-btn" class="jph-btn jph-btn-primary">Purchase Shield (50 💎)</button>
+                        <button id="purchase-shield-btn" class="jph-btn jph-btn-primary" data-cost="50" data-nonce="<?php echo wp_create_nonce('purchase_shield'); ?>">Purchase Shield (50 💎)</button>
                         <button type="button" class="jph-btn jph-btn-secondary jph-modal-close">Cancel</button>
                     </div>
                 </div>
@@ -2295,25 +2305,17 @@ class JPH_Frontend {
             gap: 15px;
         }
         
-        .jph-leaderboard-btn {
-            width: 200px;
-            justify-content: flex-start;
-            padding: 8px 24px;
-        }
-        
+        .jph-tutorial-btn,
+        .jph-leaderboard-btn,
         .jph-stats-help-btn {
-            background: rgba(255, 255, 255, 0.15) !important;
-            color: white !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
-            backdrop-filter: blur(10px);
-            padding: 14px 16px !important;
-            font-size: 14px !important;
+            min-width: 120px;
+            max-width: 140px;
+            justify-content: center;
+            padding: 10px 12px;
             white-space: nowrap;
-        }
-        
-        .jph-stats-help-btn:hover {
-            background: rgba(255, 255, 255, 0.25) !important;
-            transform: translateY(-1px);
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.2;
         }
         
         /* Modern Pro Tip Styling */
@@ -3504,6 +3506,30 @@ class JPH_Frontend {
         
         #jph-display-name-modal .jph-modal-body {
             padding: 30px 0;
+        }
+        
+        /* Welcome Modal Styling */
+        #jph-welcome-modal .jph-modal-content {
+            max-width: 500px;
+            padding: 30px;
+        }
+        
+        #jph-welcome-modal .jph-modal-header {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: -30px -30px 0 -30px;
+        }
+        
+        #jph-welcome-modal .jph-modal-header h3 {
+            margin: 0;
+            color: white;
+            font-size: 1.4em;
+            text-align: center;
         }
         
         .jph-display-name-form p {
@@ -7187,10 +7213,17 @@ class JPH_Frontend {
                     }
                 });
                 
-                // Purchase shield button
-                jQuery(document).on('click', '#purchase-shield-btn', function() {
-                    const cost = jQuery(this).data('cost');
-                    const nonce = jQuery(this).data('nonce');
+                // Purchase shield button (handle both main and modal buttons)
+                jQuery(document).on('click', '#purchase-shield-btn, #purchase-shield-btn-main', function() {
+                    const $btn = jQuery(this);
+                    const cost = $btn.data('cost');
+                    const nonce = $btn.data('nonce');
+                    
+                    // Prevent multiple rapid clicks
+                    if ($btn.hasClass('processing')) {
+                        console.log('Purchase already in progress, ignoring click');
+                        return;
+                    }
                     
                     // Check current shield count from the display
                     const shieldCountText = jQuery('#shield-count').text();
@@ -7209,6 +7242,9 @@ class JPH_Frontend {
                         return;
                     }
                     
+                    // Mark button as processing
+                    $btn.addClass('processing').prop('disabled', true).text('Processing...');
+                    
                     jQuery.ajax({
                         url: '<?php echo rest_url('aph/v1/purchase-shield'); ?>',
                         method: 'POST',
@@ -7220,28 +7256,55 @@ class JPH_Frontend {
                             nonce: nonce
                         },
                         success: function(response) {
+                            // Reset button state
+                            $btn.removeClass('processing').prop('disabled', false);
+                            
                             if (response.success) {
-                                // Update shield count display
-                                jQuery('#shield-count').text(response.data.new_shield_count);
+                                // Update shield count display (both main and modal)
+                                jQuery('#shield-count, #shield-count-modal').text(response.data.new_shield_count);
                                 
-                                // Update gem balance in stats
-                                jQuery('.stat-value').each(function() {
-                                    if (jQuery(this).text().includes('💎')) {
-                                        jQuery(this).text(response.data.new_gem_balance + ' 💎');
-                                    }
-                                });
+                                // Update gem balance in all displays
+                                console.log('Updating gem balance to:', response.data.new_gem_balance);
+                                
+                                // Update main dashboard gems stat (target only the gems stat specifically)
+                                const gemsStatElement = jQuery('.stat-gems');
+                                if (gemsStatElement.length > 0) {
+                                    console.log('Found gems stat element with class');
+                                    // Update only the text content, not the SVG
+                                    gemsStatElement.contents().filter(function() {
+                                        return this.nodeType === 3; // Text node
+                                    }).each(function() {
+                                        if (this.textContent.trim() !== '') {
+                                            console.log('Updating gem balance from', this.textContent.trim(), 'to', response.data.new_gem_balance);
+                                            this.textContent = response.data.new_gem_balance;
+                                        }
+                                    });
+                                } else {
+                                    console.log('Gems stat element not found');
+                                }
+                                
+                                // Update gems widget
+                                const gemsWidget = jQuery('.jph-gems-amount');
+                                console.log('Found gems widget element:', gemsWidget.length);
+                                gemsWidget.text(response.data.new_gem_balance);
                                 
                                 // Update button state if at max shields
                                 if (response.data.new_shield_count >= 3) {
-                                    jQuery('#purchase-shield-btn').prop('disabled', true).text('Max Shields (3)');
+                                    $btn.prop('disabled', true).text('Max Shields (3)');
+                                } else {
+                                    $btn.text('Purchase Shield (50 💎)');
                                 }
                                 
-                                alert('Shield purchased successfully!');
+                                alert('Shield purchased successfully! Your gem balance has been updated.');
                             } else {
+                                $btn.text('Purchase Shield (50 💎)');
                                 alert('Error purchasing shield: ' + (response.message || 'Unknown error'));
                             }
                         },
                         error: function(xhr, status, error) {
+                            // Reset button state
+                            $btn.removeClass('processing').prop('disabled', false).text('Purchase Shield (50 💎)');
+                            
                             console.error('JPH: Purchase Shield error:', error);
                             console.error('JPH: XHR response:', xhr.responseText);
                             console.error('JPH: Status:', status);
@@ -7280,6 +7343,31 @@ class JPH_Frontend {
                 });
             }
             
+            // Debug gem balance on page load
+            jQuery(document).ready(function() {
+                console.log('=== PAGE LOAD GEM BALANCE DEBUG ===');
+                const gemsStat = jQuery('.jph-stat-gems .jph-stat-value');
+                const gemsWidget = jQuery('.jph-gems-amount');
+                console.log('Gems stat element found:', gemsStat.length, 'Value:', gemsStat.text());
+                console.log('Gems widget element found:', gemsWidget.length, 'Value:', gemsWidget.text());
+                console.log('=== END PAGE LOAD DEBUG ===');
+            });
+            
+            // Leaderboard tab management
+            window.openLeaderboard = function() {
+                // Calculate center position
+                const width = 1200;
+                const height = 800;
+                const left = (screen.width - width) / 2;
+                const top = (screen.height - height) / 2;
+                
+                const leaderboardWindow = window.open('/leaderboard', 'jph-leaderboard', 
+                    `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+                if (leaderboardWindow) {
+                    leaderboardWindow.focus();
+                }
+            };
+            
             // Initialize stats handlers
             function initStatsHandlers() {
                 // Stats explanation button
@@ -7310,10 +7398,7 @@ class JPH_Frontend {
                     openDisplayNameModal();
                 });
                 
-                // Leaderboard button
-                $('#jph-leaderboard-btn').on('click', function() {
-                    window.location.href = '/leaderboard';
-                });
+                // Leaderboard button - handled by onclick in HTML
                 
                 // Close modal when clicking the X
                 $('#jph-display-name-modal .jph-close').on('click', function() {
@@ -7705,7 +7790,27 @@ class JPH_Frontend {
                 
                 <!-- Header -->
                 <div class="jph-leaderboard-header">
-                    <h2>🏆 Practice Leaderboard</h2>
+                    <div class="jph-leaderboard-title-section">
+                        <h2>🏆 Practice Leaderboard</h2>
+                        <div class="jph-leaderboard-actions">
+                            <button id="jph-ranking-help-btn" type="button" class="jph-btn jph-btn-secondary jph-ranking-help-btn" onclick="showRankingHelp()">
+                                <span class="btn-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                                    </svg>
+                                </span>
+                                How does ranking work?
+                            </button>
+                            <button id="jph-back-to-hub-btn" type="button" class="jph-btn jph-btn-primary jph-back-to-hub-btn" onclick="goBackToHub()">
+                                <span class="btn-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                                    </svg>
+                                </span>
+                                Back To Practice Hub
+                            </button>
+                        </div>
+                    </div>
                     
                     <!-- Data Update Notice -->
                     <div class="jph-leaderboard-notice">
@@ -7721,14 +7826,7 @@ class JPH_Frontend {
                     
                     <!-- Ranking Help -->
                     <div class="jph-leaderboard-sort">
-                        <button id="jph-ranking-explanation-btn" class="jph-btn jph-btn-secondary jph-ranking-help-btn" title="How does ranking work?">
-                            <span class="btn-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-                                </svg>
-                            </span>
-                            How does ranking work?
-                        </button>
+                        <!-- Sort controls will be added here -->
                     </div>
                 </div>
                 
@@ -7808,12 +7906,23 @@ class JPH_Frontend {
         }
         
         .jph-leaderboard-header {
+            margin-bottom: 30px;
+        }
+        
+        .jph-leaderboard-title-section {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             flex-wrap: wrap;
             gap: 15px;
+        }
+        
+        .jph-leaderboard-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
         
         .jph-leaderboard-header h2 {
@@ -7821,6 +7930,48 @@ class JPH_Frontend {
             color: #1f2937;
             font-size: 28px;
             font-weight: 700;
+        }
+        
+        .jph-back-to-hub-btn {
+            background: #059669;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        
+        .jph-back-to-hub-btn:hover {
+            background: #047857;
+            transform: translateY(-1px);
+        }
+        
+        .jph-ranking-help-btn {
+            background: #6b7280;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        
+        .jph-ranking-help-btn:hover {
+            background: #4b5563;
+            transform: translateY(-1px);
         }
         
         .jph-leaderboard-notice {
@@ -8151,17 +8302,29 @@ class JPH_Frontend {
             loadLeaderboardStats();
             updateSortIndicators();
             
-            // Ranking explanation button
-            $('#jph-ranking-explanation-btn').on('click', function(e) {
-                e.preventDefault();
+            // Back to Practice Hub function
+            window.goBackToHub = function() {
+                // Try to find and focus the parent window (Practice Hub)
+                if (window.opener && !window.opener.closed) {
+                    window.opener.focus();
+                    window.close();
+                } else {
+                    // Fallback: open Practice Hub in current window
+                    window.location.href = '/practice-hub';
+                }
+            };
+            
+            // Ranking help function
+            window.showRankingHelp = function() {
                 alert('How Does Ranking Work?\n\n' +
                     '• Users are ranked by their Total XP in descending order\n' +
                     '• Higher XP = Better rank (lower number)\n' +
-                    '• Click any column header to sort by that metric\n' +
-                    '• Click again to reverse the order\n' +
-                    '• Your row is highlighted so you can easily find yourself\n' +
-                    '• Only users who choose to appear on the leaderboard are included');
-            });
+                    '• Ties are broken by earliest achievement date\n' +
+                    '• Only users who choose to appear on the leaderboard are included\n' +
+                    '• Rankings update automatically as you earn more XP\n\n' +
+                    '💡 Tip: Practice regularly and complete challenges to climb the ranks!');
+            };
+            
             
             // Header click sorting
             $('.jph-leaderboard-table th.sortable').on('click', function() {
@@ -8771,6 +8934,250 @@ class JPH_Frontend {
             }
         }
         </style>
+        
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Render practice items widget
+     */
+    public function render_practice_items_widget($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'limit' => '5',
+            'title' => 'Practice Items',
+            'show_title' => 'true',
+            'show_log_button' => 'true',
+            'style' => 'compact'
+        ), $atts);
+        
+        // Validate parameters
+        $limit = max(1, min(20, intval($atts['limit'])));
+        
+        // Get current user ID
+        $current_user_id = is_user_logged_in() ? get_current_user_id() : 0;
+        
+        if (!$current_user_id) {
+            return '<div class="jph-practice-items-widget jph-no-data">Please log in to view your practice items.</div>';
+        }
+        
+        // Get user's practice items
+        $practice_items = $this->database->get_user_practice_items($current_user_id, $limit);
+        
+        if (empty($practice_items)) {
+            return '<div class="jph-practice-items-widget jph-no-data">No practice items found. Add some items to your practice list!</div>';
+        }
+        
+        // Get Practice Hub page URL from settings
+        $practice_hub_page_id = get_option('jph_practice_hub_page_id', '');
+        $practice_hub_url = '';
+        if ($practice_hub_page_id) {
+            $practice_hub_url = get_permalink($practice_hub_page_id);
+        }
+        if (!$practice_hub_url) {
+            $practice_hub_url = home_url('/practice-hub/'); // Fallback
+        }
+        
+        // Styles are included inline in the widget
+        
+        ob_start();
+        ?>
+        <div class="jph-practice-items-widget jph-practice-items-widget-<?php echo esc_attr($atts['style']); ?>">
+            <?php if ($atts['show_title'] === 'true'): ?>
+                <h3 class="jph-widget-title"><?php echo esc_html($atts['title']); ?></h3>
+            <?php endif; ?>
+            
+            <div class="jph-practice-items-list">
+                <?php foreach ($practice_items as $item): ?>
+                    <div class="jph-practice-item" data-item-id="<?php echo esc_attr($item['id']); ?>">
+                        <div class="jph-practice-item-content">
+                            <div class="jph-practice-item-name">
+                                <span class="jph-item-icon">🎵</span>
+                                <span class="jph-item-title"><?php echo esc_html($item['name']); ?></span>
+                            </div>
+                            <?php if (!empty($item['description'])): ?>
+                                <div class="jph-practice-item-description">
+                                    <?php echo esc_html($item['description']); ?>
+                                </div>
+                            <?php endif; ?>
+                            <div class="jph-practice-item-meta">
+                                <span class="jph-item-difficulty"><?php echo esc_html(ucfirst($item['difficulty'])); ?></span>
+                                <?php if ($item['last_practiced']): ?>
+                                    <span class="jph-item-last-practiced">Last: <?php echo esc_html(date('M j', strtotime($item['last_practiced']))); ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($atts['show_log_button'] === 'true'): ?>
+                            <button class="jph-log-practice-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-item-name="<?php echo esc_attr($item['name']); ?>">
+                                <span class="btn-icon">📝</span>
+                                Log Practice
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <?php if (count($practice_items) >= $limit): ?>
+                <div class="jph-widget-footer">
+                    <a href="/practice-hub" class="jph-view-all-link">View All Practice Items →</a>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <style>
+        .jph-practice-items-widget {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .jph-practice-items-widget .jph-widget-title {
+            margin: 0 0 16px 0;
+            color: #1f2937;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .jph-practice-items-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .jph-practice-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.2s ease;
+        }
+        
+        .jph-practice-item:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+        
+        .jph-practice-item-content {
+            flex: 1;
+        }
+        
+        .jph-practice-item-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        
+        .jph-item-icon {
+            font-size: 16px;
+        }
+        
+        .jph-item-title {
+            font-weight: 500;
+            color: #1f2937;
+            font-size: 14px;
+        }
+        
+        .jph-practice-item-description {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+        
+        .jph-practice-item-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            color: #9ca3af;
+        }
+        
+        .jph-item-difficulty {
+            background: #e5e7eb;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .jph-item-difficulty.beginner {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .jph-item-difficulty.intermediate {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .jph-item-difficulty.advanced {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .jph-log-practice-btn {
+            background: #059669;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        
+        .jph-log-practice-btn:hover {
+            background: #047857;
+            transform: translateY(-1px);
+        }
+        
+        .jph-widget-footer {
+            margin-top: 16px;
+            text-align: center;
+        }
+        
+        .jph-view-all-link {
+            color: #059669;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .jph-view-all-link:hover {
+            color: #047857;
+            text-decoration: underline;
+        }
+        
+        .jph-practice-items-widget.jph-no-data {
+            text-align: center;
+            color: #6b7280;
+            padding: 40px 20px;
+        }
+        </style>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Log practice button handler
+            $('.jph-log-practice-btn').on('click', function() {
+                const itemId = $(this).data('item-id');
+                const practiceHubUrl = '<?php echo esc_js($practice_hub_url); ?>';
+                
+                // Always redirect to Practice Hub
+                window.location.href = practiceHubUrl + '?log_item=' + itemId;
+            });
+        });
+        </script>
         
         <?php
         
