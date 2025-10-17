@@ -1160,6 +1160,14 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Events</span>
                     </button>
+                    <button class="jph-tab-btn" data-tab="community">
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zM7.5 21a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                            </svg>
+                        </span>
+                        <span class="tab-title">Community</span>
+                    </button>
                     <button class="jph-tab-btn" data-tab="shield-protection">
                         <span class="tab-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
@@ -1184,14 +1192,6 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Analytics</span>
                     </button>
-                    <button class="jph-tab-btn" data-tab="history">
-                        <span class="tab-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </span>
-                        <span class="tab-title">History</span>
-                    </button>
                 </div>
                 
                 <!-- Tab Content -->
@@ -1201,9 +1201,17 @@ class JPH_Frontend {
                     <div class="jph-tab-pane active" id="practice-items-tab">
                         <!-- Practice Items Section -->
                         <div class="jph-practice-items">
-                            <h3>Your Practice Items 
-                                <span class="item-count">(<?php echo count($practice_items); ?>/6)</span>
-                            </h3>
+                            <div class="practice-items-header">
+                                <h3>Your Practice Items 
+                                    <span class="item-count">(<?php echo count($practice_items); ?>/6)</span>
+                                </h3>
+                                <button type="button" class="jph-practice-history-btn" id="jph-practice-history-btn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                    </svg>
+                                    Practice History
+                                </button>
+                            </div>
                             <div class="jph-items-grid" id="sortable-practice-items">
                                 <?php 
                                 // Always show 6 cards
@@ -1926,11 +1934,6 @@ class JPH_Frontend {
                                                     <p><strong>Key:</strong> <span id="jpc-modal-key"></span></p>
                                                 </div>
                                             </div>
-                                            <div class="jpc-modal-footer">
-                                                <button type="button" class="jpc-btn jpc-btn-primary" id="jpc-mark-complete" style="display: none;">
-                                                    Mark as Complete
-                                                </button>
-                                            </div>
                                         </div>
                                     </div>
                                     
@@ -1998,6 +2001,47 @@ class JPH_Frontend {
                                 <?php
                             }
                             ?>
+                        </div>
+                    </div>
+                    
+                    <!-- Community Tab -->
+                    <div class="jph-tab-pane" id="community-tab">
+                        <!-- Community Section -->
+                        <div class="jph-community-section">
+                            <div class="community-header">
+                                <h3>Community</h3>
+                                <p>Connect with fellow musicians and share your progress!</p>
+                            </div>
+                            
+                            <div class="community-content">
+                                <div class="community-placeholder">
+                                    <div class="placeholder-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="48" height="48">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zM7.5 21a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                                        </svg>
+                                    </div>
+                                    <h4>Community Features Coming Soon!</h4>
+                                    <p>We're working on exciting community features to help you connect with other musicians, share your progress, and learn together.</p>
+                                    <div class="coming-soon-features">
+                                        <div class="feature-item">
+                                            <span class="feature-icon">💬</span>
+                                            <span>Discussion Forums</span>
+                                        </div>
+                                        <div class="feature-item">
+                                            <span class="feature-icon">🎵</span>
+                                            <span>Progress Sharing</span>
+                                        </div>
+                                        <div class="feature-item">
+                                            <span class="feature-icon">🏆</span>
+                                            <span>Community Challenges</span>
+                                        </div>
+                                        <div class="feature-item">
+                                            <span class="feature-icon">👥</span>
+                                            <span>Study Groups</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -2378,10 +2422,27 @@ class JPH_Frontend {
                         <!-- Full Width Practice History -->
                         <div class="jph-practice-history-full">
                             <div class="practice-history-header-section">
-                                <h3>📊 Your Practice History</h3>
+                                <div class="practice-history-title-section">
+                                    <h3>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24" style="margin-right: 8px; vertical-align: middle;">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                        Your Practice History
+                                    </h3>
+                                    <button type="button" class="jph-back-to-practice-btn" id="jph-back-to-practice-btn">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                                        </svg>
+                                        See Practice Items
+                                    </button>
+                                </div>
                                 <div class="practice-history-controls">
                                     <button id="export-history-btn" class="jph-btn jph-btn-secondary">
-                                        <span class="btn-icon">📥</span>
+                                        <span class="btn-icon">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                            </svg>
+                                        </span>
                                         Export CSV
                                     </button>
                                 </div>
@@ -2988,12 +3049,12 @@ class JPH_Frontend {
         }
 
         .jph-btn-primary {
-            background: #3b82f6;
-            color: white;
+            background: #F04E23 !important;
+            color: white !important;
         }
 
         .jph-btn-primary:hover {
-            background: #2563eb;
+            background: #e0451f !important;
             transform: translateY(-1px);
         }
 
@@ -3259,9 +3320,9 @@ class JPH_Frontend {
         }
         
         .jph-btn-secondary {
-            background: linear-gradient(135deg, #f8fffe 0%, #e8f5f4 100%);
-            color: #004555;
-            border: 1px solid #00A8A8;
+            background: #459E90 !important;
+            color: white !important;
+            border: none !important;
             padding: 12px 24px;
             border-radius: 8px;
             font-size: 16px;
@@ -3274,10 +3335,10 @@ class JPH_Frontend {
         }
         
         .jph-btn-secondary:hover {
-            background: linear-gradient(135deg, #e8f5f4 0%, #d1e7e4 100%);
-            color: #004555;
+            background: #3a8a7c !important;
+            color: white !important;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,168,168,0.2);
+            box-shadow: 0 4px 12px rgba(69, 158, 144, 0.3);
         }
         
         .btn-icon {
@@ -3728,6 +3789,358 @@ class JPH_Frontend {
             margin-bottom: 10px;
         }
         
+        /* Community Tab Styles */
+        .jph-community-section {
+            background: white;
+            border-radius: 16px;
+            border: 2px solid #e8f5f4;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 69, 85, 0.08);
+        }
+        
+        .community-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .community-header h3 {
+            color: #004555;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+        }
+        
+        .community-header p {
+            color: #666;
+            font-size: 16px;
+            margin: 0;
+        }
+        
+        .community-placeholder {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .placeholder-icon {
+            margin-bottom: 20px;
+            color: #459E90;
+        }
+        
+        .community-placeholder h4 {
+            color: #004555;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0 0 15px 0;
+        }
+        
+        .community-placeholder p {
+            color: #666;
+            font-size: 16px;
+            line-height: 1.6;
+            margin: 0 0 30px 0;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .coming-soon-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+        
+        .feature-item:hover {
+            background: #e8f5f4;
+            border-color: #459E90;
+            transform: translateY(-2px);
+        }
+        
+        .feature-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .feature-item span:last-child {
+            color: #004555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        /* Mobile Responsive Adjustments */
+        @media (max-width: 768px) {
+            /* Shield Tab - Mobile Layout */
+            .jph-protection-stats {
+                flex-direction: column !important;
+                gap: 15px !important;
+                align-items: stretch !important;
+            }
+            
+            .protection-item {
+                justify-content: center !important;
+                padding: 15px !important;
+                background: #f8fafc !important;
+                border-radius: 8px !important;
+                border: 1px solid #e2e8f0 !important;
+            }
+            
+            .protection-actions {
+                width: 100% !important;
+            }
+            
+            #purchase-shield-btn-main {
+                width: 100% !important;
+                min-width: auto !important;
+                font-size: 14px !important;
+                padding: 12px 16px !important;
+            }
+            
+            /* History Tab - Mobile Table */
+            .jph-practice-history-table {
+                font-size: 14px !important;
+            }
+            
+            .jph-practice-history-table th,
+            .jph-practice-history-table td {
+                padding: 8px 4px !important;
+            }
+            
+            /* Hide columns on mobile - only show Date, Item, Duration, Actions */
+            .jph-practice-history-table th:nth-child(4),
+            .jph-practice-history-table th:nth-child(5),
+            .jph-practice-history-table td:nth-child(4),
+            .jph-practice-history-table td:nth-child(5) {
+                display: none !important;
+            }
+            
+            /* Also hide these columns in the header div structure */
+            .practice-history-header .practice-history-header-item:nth-child(4),
+            .practice-history-header .practice-history-header-item:nth-child(5) {
+                display: none !important;
+            }
+            
+            /* Adjust column widths for mobile - only 4 columns visible */
+            .jph-practice-history-table th:nth-child(1),
+            .jph-practice-history-table td:nth-child(1) {
+                width: 20% !important;
+            }
+            
+            .jph-practice-history-table th:nth-child(2),
+            .jph-practice-history-table td:nth-child(2) {
+                width: 40% !important;
+            }
+            
+            .jph-practice-history-table th:nth-child(3),
+            .jph-practice-history-table td:nth-child(3) {
+                width: 25% !important;
+            }
+            
+            .jph-practice-history-table th:nth-child(6),
+            .jph-practice-history-table td:nth-child(6) {
+                width: 15% !important;
+                text-align: center !important;
+            }
+            
+            /* Welcome Message - Mobile Layout */
+            .header-top {
+                flex-direction: column !important;
+                align-items: center !important;
+                text-align: center !important;
+                gap: 15px !important;
+            }
+            
+            .welcome-section {
+                order: 1 !important;
+                width: 100% !important;
+            }
+            
+            .header-actions {
+                order: 2 !important;
+                width: 100% !important;
+                justify-content: center !important;
+                flex-wrap: wrap !important;
+                gap: 10px !important;
+            }
+            
+            .jph-tutorial-btn,
+            .jph-leaderboard-btn,
+            .jph-stats-help-btn {
+                flex: 1 !important;
+                min-width: 120px !important;
+                font-size: 13px !important;
+                padding: 10px 12px !important;
+            }
+            
+            /* Foundational Tab - Mobile Video Layout */
+            .jpc-current-focus {
+                padding: 15px !important;
+                margin-bottom: 15px !important;
+            }
+            
+            .jpc-main-layout {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 15px !important;
+            }
+            
+            .jpc-left-column,
+            .jpc-right-column {
+                width: 100% !important;
+                max-width: none !important;
+            }
+            
+            .jpc-focus-header {
+                margin-bottom: 15px !important;
+            }
+            
+            .jpc-focus-header h3 {
+                font-size: 18px !important;
+                margin-bottom: 10px !important;
+            }
+            
+            .jpc-focus-details {
+                padding: 12px !important;
+                margin-bottom: 15px !important;
+            }
+            
+            .jpc-focus-details p {
+                font-size: 14px !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .jpc-video-container {
+                height: 180px !important;
+                margin-bottom: 15px !important;
+            }
+            
+            .jpc-video-container iframe {
+                height: 180px !important;
+            }
+            
+            .jpc-mark-complete {
+                width: 100% !important;
+                padding: 12px 16px !important;
+                font-size: 14px !important;
+                margin-top: 10px !important;
+            }
+            
+            /* Focus Details Mobile Layout */
+            .jpc-focus-details {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 8px !important;
+            }
+            
+            .jpc-focus-details .focus-detail-item {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 4px !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .jpc-focus-details .focus-detail-label {
+                font-size: 12px !important;
+                font-weight: 600 !important;
+                color: #6b7280 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.5px !important;
+            }
+            
+            .jpc-focus-details .focus-detail-value {
+                font-size: 14px !important;
+                color: #1f2937 !important;
+                font-weight: 500 !important;
+            }
+            
+            .tempo-info-icon {
+                margin-left: 4px !important;
+            }
+            
+            /* Practice History Button - Mobile */
+            .practice-items-header {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                text-align: center !important;
+            }
+            
+            .practice-items-header h3 {
+                min-width: auto !important;
+                margin-bottom: 10px !important;
+            }
+            
+            .jph-practice-history-btn {
+                width: 100% !important;
+                justify-content: center !important;
+                font-size: 16px !important;
+                padding: 12px 20px !important;
+            }
+            
+            /* Practice History - Mobile Layout */
+            .practice-history-header-section {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 15px !important;
+            }
+            
+            .practice-history-title-section {
+                flex-direction: column !important;
+                align-items: center !important;
+                gap: 15px !important;
+            }
+            
+            .practice-history-title-section h3 {
+                font-size: 20px !important;
+                text-align: center !important;
+            }
+            
+            .jph-back-to-practice-btn {
+                width: 100% !important;
+                justify-content: center !important;
+                font-size: 16px !important;
+                padding: 12px 20px !important;
+            }
+            
+            .practice-history-controls {
+                width: 100% !important;
+                justify-content: center !important;
+            }
+            
+            /* Tab Navigation - Mobile */
+            .jph-tabs-nav {
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+            }
+            
+            .jph-tab-btn {
+                flex: 1 !important;
+                min-width: calc(50% - 4px) !important;
+                font-size: 13px !important;
+                padding: 12px 8px !important;
+            }
+            
+            .jph-tab-btn .tab-title {
+                font-size: 12px !important;
+            }
+            
+            .jph-tab-btn .tab-icon svg {
+                width: 20px !important;
+                height: 20px !important;
+            }
+        }
+        
         /* Events Tab Styles */
         .jph-events-section {
             padding: 20px 0;
@@ -3752,20 +4165,20 @@ class JPH_Frontend {
             align-items: center;
             gap: 8px;
             padding: 10px 16px;
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            background: #F04E23;
             color: white;
             text-decoration: none;
             border-radius: 8px;
             font-size: 0.9rem;
             font-weight: 600;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+            box-shadow: 0 2px 4px rgba(240, 78, 35, 0.2);
         }
 
         .view-calendar-btn:hover {
-            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+            background: #e0451f;
             transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 4px 8px rgba(240, 78, 35, 0.3);
             color: white;
             text-decoration: none;
         }
@@ -4215,6 +4628,48 @@ class JPH_Frontend {
             box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
         }
         
+        /* Practice Items Header Layout */
+        .practice-items-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .practice-items-header h3 {
+            margin: 0;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .jph-practice-history-btn {
+            background: #F04E23;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        
+        .jph-practice-history-btn:hover {
+            background: #e0451f;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(240, 78, 35, 0.3);
+        }
+        
+        .jph-practice-history-btn svg {
+            flex-shrink: 0;
+        }
+        
         /* Practice Items Styles */
         .jph-practice-items {
             background: white;
@@ -4273,7 +4728,7 @@ class JPH_Frontend {
         }
         
         .log-practice-btn {
-            background: linear-gradient(135deg, #004555, #006666);
+            background: #F04E23;
             color: white;
             border: none;
             padding: 12px 24px;
@@ -4285,9 +4740,9 @@ class JPH_Frontend {
         }
         
         .log-practice-btn:hover {
-            background: linear-gradient(135deg, #006666, #008888);
+            background: #e0451f;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 69, 85, 0.3);
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3);
         }
         
         /* Practice History Styles */
@@ -4304,13 +4759,62 @@ class JPH_Frontend {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e8f5f4;
         }
         
-        .practice-history-header-section h3 {
+        .practice-history-title-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .practice-history-title-section h3 {
             margin: 0;
+            display: flex;
+            align-items: center;
             color: #004555;
-            font-size: 1.4em;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .jph-back-to-practice-btn {
+            background: #F04E23;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        
+        .jph-back-to-practice-btn:hover {
+            background: #e0451f;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(240, 78, 35, 0.3);
+        }
+        
+        .jph-back-to-practice-btn svg {
+            flex-shrink: 0;
+        }
+        
+        /* Practice History Button Uniform Heights */
+        .practice-history-controls .jph-btn,
+        .jph-back-to-practice-btn {
+            height: 40px !important;
+            min-height: 40px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 10px 16px !important;
+            box-sizing: border-box !important;
         }
         
         .practice-history-controls {
@@ -5164,7 +5668,7 @@ class JPH_Frontend {
         }
         
         .jph-btn-primary {
-            background: linear-gradient(135deg, #004555, #006666) !important;
+            background: #F04E23 !important;
             color: white !important;
             padding: 12px 16px !important;
             height: auto !important;
@@ -5191,20 +5695,21 @@ class JPH_Frontend {
         }
         
         .jph-btn-primary:hover {
-            background: linear-gradient(135deg, #006666, #008888);
+            background: #e0451f !important;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 69, 85, 0.3);
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3);
         }
         
         .jph-btn-secondary {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            color: #004555;
-            border: 2px solid #e8f5f4;
+            background: #459E90 !important;
+            color: white !important;
+            border: none !important;
         }
         
         .jph-btn-secondary:hover {
-            background: linear-gradient(135deg, #e9ecef, #dee2e6);
+            background: #3a8a7c !important;
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(69, 158, 144, 0.3);
         }
         
         /* Log Practice button (orange brand style) */
@@ -5504,7 +6009,7 @@ class JPH_Frontend {
         }
         
         .jpc-mark-complete {
-            background: linear-gradient(135deg, #10b981, #059669) !important;
+            background: #239B90 !important;
             color: white !important;
             border: none !important;
             padding: 12px 24px !important;
@@ -5520,9 +6025,9 @@ class JPH_Frontend {
         }
         
         .jpc-mark-complete:hover {
-            background: linear-gradient(135deg, #059669, #047857) !important;
+            background: #1e8a7a !important;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
         }
         
         .jpc-progress-overview {
@@ -5778,7 +6283,7 @@ class JPH_Frontend {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            background: #10b981;
+            background: #F04E23;
             color: white;
             text-decoration: none;
             padding: 6px 12px;
@@ -5789,7 +6294,7 @@ class JPH_Frontend {
         }
         
         .jpc-focuses-table .get-graded-btn:hover {
-            background: #059669;
+            background: #e0451f;
         }
         
         .jpc-focuses-table .get-graded-btn svg {
@@ -5895,21 +6400,23 @@ class JPH_Frontend {
         }
         
         .jpc-btn-primary {
-            background: #3b82f6;
+            background: #F04E23;
             color: white;
         }
         
         .jpc-btn-primary:hover {
-            background: #2563eb;
+            background: #e0451f;
+            color: white;
         }
         
         .jpc-btn-secondary {
-            background: #6b7280;
+            background: #459E90;
             color: white;
         }
         
         .jpc-btn-secondary:hover {
-            background: #4b5563;
+            background: #3a8a7c;
+            color: white;
         }
         
         #jpc-video-container {
@@ -6136,7 +6643,7 @@ class JPH_Frontend {
             align-items: center;
             gap: 8px;
             padding: 8px 16px;
-            background: #ef4444;
+            background: #002A34;
             color: white;
             border: none;
             border-radius: 6px;
@@ -6147,7 +6654,7 @@ class JPH_Frontend {
         }
         
         .jpc-submit-redo-btn:hover {
-            background: #dc2626;
+            background: #001f28;
         }
         
         .jpc-submit-redo-btn svg {
@@ -6256,7 +6763,7 @@ class JPH_Frontend {
         }
         
         .get-graded-btn {
-            background: linear-gradient(135deg, #10b981, #059669);
+            background: #F04E23;
             color: white;
             text-decoration: none;
             padding: 6px 12px;
@@ -6271,9 +6778,9 @@ class JPH_Frontend {
         }
         
         .get-graded-btn:hover {
-            background: linear-gradient(135deg, #059669, #047857);
+            background: #e0451f;
             transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 4px 8px rgba(240, 78, 35, 0.3);
             color: white;
             text-decoration: none;
         }
@@ -6836,7 +7343,7 @@ class JPH_Frontend {
         .endpoint-test-btn,
         .db-test-btn,
         .ai-test-btn {
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            background: #459E90;
             color: white;
             border: none;
             padding: 8px 16px;
@@ -6845,14 +7352,15 @@ class JPH_Frontend {
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 2px 4px rgba(69, 158, 144, 0.3);
         }
         
         .endpoint-test-btn:hover,
         .db-test-btn:hover,
         .ai-test-btn:hover {
+            background: #3a8a7c;
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+            box-shadow: 0 4px 8px rgba(69, 158, 144, 0.4);
         }
         
         .endpoint-test-btn:disabled,
@@ -7217,7 +7725,7 @@ class JPH_Frontend {
         }
         
         .ai-generate-btn {
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            background: #F04E23;
             color: white;
             border: none;
             padding: 8px 16px;
@@ -7232,7 +7740,7 @@ class JPH_Frontend {
         }
         
         .ai-generate-btn:hover {
-            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            background: #e0451f;
             transform: translateY(-1px);
         }
         
@@ -8074,6 +8582,42 @@ class JPH_Frontend {
                     });
                 });
             }
+            
+            // Practice History Button functionality
+            $('#jph-practice-history-btn').on('click', function(e) {
+                e.preventDefault();
+                
+                // Switch to history tab content without showing history tab as active
+                $('.jph-tab-pane').removeClass('active');
+                $('#history-tab').addClass('active');
+                
+                // Keep Practice tab visually active
+                $('.jph-tab-btn').removeClass('active');
+                $('.jph-tab-btn[data-tab="practice-items"]').addClass('active');
+                
+                // Scroll to top of content
+                $('html, body').animate({
+                    scrollTop: $('.jph-tabs-content').offset().top - 100
+                }, 500);
+            });
+            
+            // Back to Practice Items Button functionality
+            $('#jph-back-to-practice-btn').on('click', function(e) {
+                e.preventDefault();
+                
+                // Switch back to practice items tab
+                $('.jph-tab-pane').removeClass('active');
+                $('#practice-items-tab').addClass('active');
+                
+                // Keep Practice tab visually active
+                $('.jph-tab-btn').removeClass('active');
+                $('.jph-tab-btn[data-tab="practice-items"]').addClass('active');
+                
+                // Scroll to top of content
+                $('html, body').animate({
+                    scrollTop: $('.jph-tabs-content').offset().top - 100
+                }, 500);
+            });
             
             // Initialize tab functionality
             function initTabs() {
@@ -11367,7 +11911,7 @@ class JPH_Frontend {
         }
         
         .jph-log-practice-btn {
-            background: #059669;
+            background: #F04E23;
             color: white;
             border: none;
             padding: 8px 12px;
@@ -11383,7 +11927,7 @@ class JPH_Frontend {
         }
         
         .jph-log-practice-btn:hover {
-            background: #047857;
+            background: #e0451f;
             transform: translateY(-1px);
         }
         
