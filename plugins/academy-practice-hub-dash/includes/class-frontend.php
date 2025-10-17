@@ -1144,6 +1144,14 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Practice</span>
                     </button>
+                    <button class="jph-tab-btn" data-tab="technique">
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443a55.381 55.381 0 015.25 2.882V15" />
+                            </svg>
+                        </span>
+                        <span class="tab-title">Foundational</span>
+                    </button>
                     <button class="jph-tab-btn" data-tab="events">
                         <span class="tab-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
@@ -1545,6 +1553,451 @@ class JPH_Frontend {
                                 }
                                 ?>
                             </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Technique Tab -->
+                    <div class="jph-tab-pane" id="technique-tab">
+                        <!-- JPC Current Focus Section -->
+                        <div class="jpc-current-focus">
+                            <?php
+                            // Get current JPC assignment
+                                if ($user_id > 0 && class_exists('JPH_JPC_Handler')) {
+                                    $current_assignment = null;
+                                    try {
+                                        $current_assignment = JPH_JPC_Handler::get_user_current_assignment($user_id);
+                                    } catch (Exception $e) {
+                                        error_log('JPC Assignment query error: ' . $e->getMessage());
+                                        $current_assignment = null;
+                                    }
+                                
+                                if ($current_assignment) {
+                                    // Get progress to determine which key to show
+                                    $progress = array();
+                                    try {
+                                        $progress = JPH_JPC_Handler::get_user_progress($user_id, $current_assignment['curriculum_id']);
+                                    } catch (Exception $e) {
+                                        error_log('JPC Progress query error: ' . $e->getMessage());
+                                        $progress = array();
+                                    }
+                                    
+                                    // Use the current assignment as-is (don't override with "next" logic)
+                                    // The assignment is already the correct next step from the backend
+                                    $focus_title = $current_assignment['focus_title'];
+                                    $focus_order = $current_assignment['focus_order'];
+                                    $key_name = $current_assignment['key_sig_name'];
+                                    
+                                    // Convert key names to proper musical symbols
+                                    $key_name = str_replace(array('B flat', 'E flat', 'A flat', 'D flat', 'F sharp'), array('B♭', 'E♭', 'A♭', 'D♭', 'F♯'), $key_name);
+                                    $tempo = $current_assignment['tempo'];
+                                    $instructions = $current_assignment['instructions'];
+                                    $vimeo_id = $current_assignment['vimeo_id'];
+                                    $step_id = $current_assignment['step_id'];
+                                    $curriculum_id = $current_assignment['curriculum_id'];
+                                    $resource_pdf = $current_assignment['resource_pdf'];
+                                    $resource_ireal = $current_assignment['resource_ireal'];
+                                    $resource_mp3 = $current_assignment['resource_mp3'];
+                                    
+                                    // Get progress for this curriculum
+                                    $progress = JPH_JPC_Handler::get_user_progress($user_id, $curriculum_id);
+                                    $completed_keys = 0;
+                                    for ($i = 1; $i <= 12; $i++) {
+                                        if (!empty($progress['step_' . $i])) {
+                                            $completed_keys++;
+                                        }
+                                    }
+                                    ?>
+                                    <!-- 2-Column Layout: Focus Details Left, Video Right -->
+                                    <div class="jpc-main-layout">
+                                        <!-- Left Column: Focus Details -->
+                                        <div class="jpc-focus-column">
+                                            <div class="jpc-focus-header">
+                                                <h3>FOCUS: <?php echo esc_html($focus_order); ?></h3>
+                                            </div>
+                                            <div class="jpc-focus-details">
+                                                <p><strong>KEY OF:</strong> <?php echo esc_html($key_name); ?></p>
+                                                <p><strong>SUGGESTED TEMPO:</strong> <?php echo esc_html($tempo); ?> BPM 
+                                                    <span class="tempo-info-icon" title="Tempo is only a suggestion. Focus on playing steady and accurately - you can go slower if needed!">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                                        </svg>
+                                                    </span>
+                                                </p>
+                                                
+                                                <?php if (!empty($resource_pdf)): ?>
+                                                    <p><strong>SHEET MUSIC:</strong> <a href="/jpc_resources/<?php echo esc_attr($resource_pdf); ?>" target="_blank">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
+                                                        </svg>
+                                                        Download
+                                                    </a></p>
+                                                <?php endif; ?>
+                                                
+                                                <?php if (!empty($resource_ireal)): ?>
+                                                    <p><strong>iRealPro:</strong> <a href="/jpc_resources/<?php echo esc_attr($resource_ireal); ?>" target="_blank">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
+                                                        </svg>
+                                                        Download
+                                                    </a></p>
+                                                <?php endif; ?>
+                                                
+                                                <?php if (!empty($resource_mp3)): ?>
+                                                    <p><strong>MP3 Backing Track:</strong> <a href="/jpc_resources/<?php echo esc_attr($resource_mp3); ?>" target="_blank">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
+                                                        </svg>
+                                                        Download
+                                                    </a></p>
+                                                <?php endif; ?>
+                                                
+                                                <p><strong>INSTRUCTIONS:</strong></p>
+                                                <div class="jpc-instructions">
+                                                    <p><?php echo esc_html($focus_title); ?></p>
+                                                </div>
+                                                
+                                                <!-- Mark Complete Button -->
+                                                <div class="jpc-actions">
+                                                    <button class="jph-btn-primary jpc-mark-complete" 
+                                                            data-step-id="<?php echo esc_attr($step_id); ?>" 
+                                                            data-curriculum-id="<?php echo esc_attr($curriculum_id); ?>">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                                        </svg>
+                                                        Mark Complete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Right Column: Video -->
+                                        <div class="jpc-video-column">
+                                            <div class="jpc-video-container">
+                                                <?php
+                                                if (function_exists('do_shortcode')) {
+                                                    echo do_shortcode("[fvplayer src='https://vimeo.com/{$vimeo_id}']");
+                                                } else {
+                                                    echo '<p>Video player not available. <a href="/jpc" target="_blank">View on JPC page</a></p>';
+                                                }
+                                                ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- All Focuses Progress Table -->
+                                    <div class="jpc-all-focuses-table">
+                                        <h4>All Focuses Progress</h4>
+                                        <div class="jpc-table-container">
+                                            <table class="jpc-focuses-table">
+                                                <thead class="jpc-sticky-header">
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Focus</th>
+                                                        <th>C</th>
+                                                        <th>F</th>
+                                                        <th>G</th>
+                                                        <th>D</th>
+                                                        <th>B♭</th>
+                                                        <th>A</th>
+                                                        <th>E♭</th>
+                                                        <th>E</th>
+                                                        <th>A♭</th>
+                                                        <th>D♭</th>
+                                                        <th>F♯</th>
+                                                        <th>B</th>
+                                                        <th>Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php
+                                                    // Get all curriculum focuses
+                                                    global $wpdb;
+                                                    
+                                                    if (!$wpdb) {
+                                                        echo '<tr><td colspan="15" style="text-align: center; padding: 20px; color: #666;">Database connection error. Please refresh the page.</td></tr>';
+                                                    } else {
+                                                        $all_curriculum = $wpdb->get_results(
+                                                        "SELECT * FROM {$wpdb->prefix}jph_jpc_curriculum ORDER BY focus_order ASC",
+                                                        ARRAY_A
+                                                    );
+                                                    
+                                                    if (empty($all_curriculum)) {
+                                                        echo '<tr><td colspan="15" style="text-align: center; padding: 20px; color: #666;">No JPC curriculum data available. Please contact support.</td></tr>';
+                                                    } else {
+                                                        foreach ($all_curriculum as $curriculum) {
+                                                        $cur_id = $curriculum['id'];
+                                                        $focus_order = $curriculum['focus_order'];
+                                                        $focus_title = $curriculum['focus_title'];
+                                                        $resource_pdf = $curriculum['resource_pdf'];
+                                                        $resource_ireal = $curriculum['resource_ireal'];
+                                                        $resource_mp3 = $curriculum['resource_mp3'];
+                                                        
+                                                        // Get progress for this curriculum
+                                                        $cur_progress = array();
+                                                        if (class_exists('JPH_JPC_Handler')) {
+                                                            try {
+                                                                $cur_progress = JPH_JPC_Handler::get_user_progress($user_id, $cur_id);
+                                                            } catch (Exception $e) {
+                                                                error_log('JPC Progress query error: ' . $e->getMessage());
+                                                                $cur_progress = array();
+                                                            }
+                                                        }
+                                                        $is_current_focus = ($cur_id == $curriculum_id);
+                                                        
+                                                        // Check if user has started this focus (has any progress)
+                                                        $has_started = false;
+                                                        for ($i = 1; $i <= 12; $i++) {
+                                                            if (!empty($cur_progress['step_' . $i])) {
+                                                                $has_started = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        
+                                                        echo '<tr' . ($is_current_focus ? ' class="current-focus"' : '') . '>';
+                                                        echo '<td class="focus-id">' . $focus_order . '</td>';
+                                                        echo '<td class="focus-content">';
+                                                        echo '<div class="focus-title">' . $focus_title . '</div>';
+                                                        
+                                                        // Only show resource download links if user has started this focus
+                                                        if ($has_started && !empty($resource_pdf)) {
+                                                            echo '<div class="focus-resources">';
+                                                            echo '<a href="/jpc_resources/' . $resource_pdf . '" target="_blank" class="resource-link">';
+                                                            echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">';
+                                                            echo '<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />';
+                                                            echo '</svg> Download PDF</a> ';
+                                                            if (!empty($resource_ireal)) {
+                                                                echo '<a href="/jpc_resources/' . $resource_ireal . '" target="_blank" class="resource-link">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />';
+                                                                echo '</svg> Download iRealPro</a> ';
+                                                            }
+                                                            if (!empty($resource_mp3)) {
+                                                                echo '<a href="/jpc_resources/' . $resource_mp3 . '" target="_blank" class="resource-link">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />';
+                                                                echo '</svg> Download MP3</a>';
+                                                            }
+                                                            echo '</div>';
+                                                        }
+                                                        
+                                                        // Check if this focus has been graded and show grade info below
+                                                        $submission = $wpdb->get_row($wpdb->prepare(
+                                                            "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+                                                             WHERE user_id = %d AND curriculum_id = %d",
+                                                            $user_id, $cur_id
+                                                        ));
+                                                        
+                                                        if ($submission && !empty($submission->grade)) {
+                                                            $grade_class = ($submission->grade === 'pass') ? 'grade-pass' : 'grade-redo';
+                                                            $grade_text = strtoupper($submission->grade);
+                                                            
+                                                            echo '<div class="jpc-grade-summary">';
+                                                            echo '<div class="jpc-grade-badge ' . $grade_class . '">' . $grade_text . '</div>';
+                                                            
+                                                            if ($submission->graded_on) {
+                                                                echo '<span class="jpc-grade-date">' . date('M j, Y', strtotime($submission->graded_on)) . '</span>';
+                                                            }
+                                                            
+                                                            if (!empty($submission->teacher_notes)) {
+                                                                echo '<div class="jpc-teacher-notes-compact">';
+                                                                echo '<strong>Notes:</strong> ' . esc_html($submission->teacher_notes);
+                                                                echo '</div>';
+                                                            }
+                                                            
+                                                            // Add "Submit Redo" button for redo grades
+                                                            if ($submission->grade === 'redo') {
+                                                                echo '<div class="jpc-submit-redo-compact">';
+                                                                echo '<button class="jpc-submit-redo-btn jpc-submission-modal-trigger" 
+                                                                        data-curriculum-id="' . $cur_id . '" 
+                                                                        data-focus-title="' . esc_attr($focus_title) . '">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />';
+                                                                echo '</svg> Submit Redo';
+                                                                echo '</button>';
+                                                                echo '</div>';
+                                                            }
+                                                            
+                                                            echo '</div>';
+                                                        }
+                                                        
+                                                        echo '</td>';
+                                                        
+                                                        // Display progress for each key (C, F, G, D, B♭, A, E♭, E, A♭, D♭, F♯, B)
+                                                        $key_order = array('C', 'F', 'G', 'D', 'B♭', 'A', 'E♭', 'E', 'A♭', 'D♭', 'F♯', 'B');
+                                                        $completed_keys_count = 0;
+                                                        for ($i = 1; $i <= 12; $i++) {
+                                                            $is_completed = !empty($cur_progress['step_' . $i]);
+                                                            if ($is_completed) $completed_keys_count++;
+                                                            $key_name = $key_order[$i - 1];
+                                                            $status_class = $is_completed ? 'completed' : 'incomplete';
+                                                            
+                                                            echo '<td class="center">';
+                                                            if ($is_completed) {
+                                                                // Get the step_id for this completed key to create video link
+                                                                $step_id_for_key = $cur_progress['step_' . $i];
+                                                                echo '<span class="play-link jpc-video-modal-trigger" 
+                                                                        data-step-id="' . $step_id_for_key . '" 
+                                                                        data-curriculum-id="' . $cur_id . '" 
+                                                                        data-key-name="' . $key_name . '"
+                                                                        data-focus-title="' . esc_attr($focus_title) . '"
+                                                                        title="' . $key_name . ' - Click to watch video">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#10b981" width="16" height="16" class="play-icon ' . $status_class . '">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />';
+                                                                echo '</svg>';
+                                                                echo '</span>';
+                                                            } else {
+                                                                echo '<span title="' . $key_name . ' - Not completed yet">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#d1d5db" width="16" height="16" class="play-icon ' . $status_class . '">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />';
+                                                                echo '</svg>';
+                                                                echo '</span>';
+                                                            }
+                                                            echo '</td>';
+                                                        }
+                                                        
+                                                        // Add "Get Graded" column if all 12 keys completed
+                                                        if ($completed_keys_count === 12) {
+                                                            echo '<td class="center">';
+                                                            
+                                                            // Check if this focus has been graded
+                                                            $submission = $wpdb->get_row($wpdb->prepare(
+                                                                "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+                                                                 WHERE user_id = %d AND curriculum_id = %d",
+                                                                $user_id, $cur_id
+                                                            ));
+                                                            
+                                                            if ($submission && !empty($submission->grade)) {
+                                                                // Already graded - show dash
+                                                                echo '-';
+                                                            } elseif ($submission && empty($submission->grade)) {
+                                                                // Submitted but not graded yet - show "Waiting..." button
+                                                                echo '<span class="waiting-btn">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />';
+                                                                echo '</svg> Waiting...';
+                                                                echo '</span>';
+                                                            } else {
+                                                                // Not submitted yet - show "Get Graded" link (modal trigger)
+                                                                echo '<a href="#" class="get-graded-btn jpc-submission-modal-trigger" 
+                                                                        data-curriculum-id="' . $cur_id . '" 
+                                                                        data-focus-title="' . esc_attr($focus_title) . '">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />';
+                                                                echo '</svg> Get Graded';
+                                                                echo '</a>';
+                                                            }
+                                                            
+                                                            echo '</td>';
+                                                        } else {
+                                                            // Not all keys completed - show dash
+                                                            echo '<td class="center">-</td>';
+                                                        }
+                                                        echo '</tr>';
+                                                        }
+                                                    }
+                                                    ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- JPC Video Modal -->
+                                    <div id="jpc-video-modal" class="jpc-modal" style="display: none;">
+                                        <div class="jpc-modal-overlay"></div>
+                                        <div class="jpc-modal-content">
+                                            <div class="jpc-modal-header">
+                                                <h3 id="jpc-modal-title">JPC Lesson Video</h3>
+                                                <button type="button" class="jpc-modal-close" aria-label="Close modal">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <div class="jpc-modal-body">
+                                                <div id="jpc-video-container">
+                                                    <div class="jpc-loading">Loading video...</div>
+                                                </div>
+                                                <div class="jpc-modal-info">
+                                                    <p><strong>Focus:</strong> <span id="jpc-modal-focus"></span></p>
+                                                    <p><strong>Key:</strong> <span id="jpc-modal-key"></span></p>
+                                                </div>
+                                            </div>
+                                            <div class="jpc-modal-footer">
+                                                <button type="button" class="jpc-btn jpc-btn-primary" id="jpc-mark-complete" style="display: none;">
+                                                    Mark as Complete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- JPC Submission Modal -->
+                                    <div id="jpc-submission-modal" class="jpc-modal" style="display: none;">
+                                        <div class="jpc-modal-overlay"></div>
+                                        <div class="jpc-modal-content">
+                                            <div class="jpc-modal-header">
+                                                <h3 id="jpc-submission-title">Submit for Grading</h3>
+                                                <button type="button" class="jpc-modal-close" aria-label="Close modal">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <div class="jpc-modal-body">
+                                                <div id="jpc-submission-form">
+                                                    <div class="jpc-submission-info">
+                                                        <h4 id="jpc-submission-focus">Focus Title</h4>
+                                                        <p>Please submit your YouTube video for grading. Make sure your video clearly shows you performing the focus requirements.</p>
+                                                    </div>
+                                                    
+                                                    <form id="jpc-milestone-form">
+                                                        <div class="jpc-form-group">
+                                                            <label for="jpc-youtube-url">YouTube Video URL:</label>
+                                                            <input type="url" id="jpc-youtube-url" name="youtube_url" required 
+                                                                   placeholder="https://www.youtube.com/watch?v=..." />
+                                                        </div>
+                                                        
+                                                        <div class="jpc-form-help">
+                                                            <p><strong>Need help uploading to YouTube?</strong> 
+                                                            <a href="https://jazzedge.academy/docs/uploading-to-youtube/" target="_blank">Click here for step-by-step instructions</a></p>
+                                                        </div>
+                                                        
+                                                        <input type="hidden" id="jpc-curriculum-id" name="curriculum_id" value="" />
+                                                    </form>
+                                                </div>
+                                                
+                                                <div id="jpc-submission-success" style="display: none;">
+                                                    <div class="jpc-success-message">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; color: #10b981; margin-bottom: 16px;">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                                        </svg>
+                                                        <h4>Submission Successful!</h4>
+                                                        <p>Your video has been submitted for grading. It may take a couple of weeks for your teacher to review and grade your submission.</p>
+                                                        <p>You'll be notified when your grade is ready.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="jpc-modal-footer">
+                                                <button type="button" class="jpc-btn jpc-btn-secondary jpc-modal-close">Cancel</button>
+                                                <button type="button" class="jpc-btn jpc-btn-primary" id="jpc-submit-milestone">Submit for Grading</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php
+                                }
+                            }
+                            } else {
+                                ?>
+                                <div class="jpc-login-required">
+                                    <h3>Login Required</h3>
+                                    <p>Please log in to access the Jazzedge Practice Curriculum™.</p>
+                                </div>
+                                <?php
+                            }
+                            ?>
                         </div>
                     </div>
                     
@@ -4713,16 +5166,28 @@ class JPH_Frontend {
         .jph-btn-primary {
             background: linear-gradient(135deg, #004555, #006666) !important;
             color: white !important;
-            width: 100% !important;
-            min-width: 180px !important;
-            max-width: 180px !important;
             padding: 12px 16px !important;
-            height: 48px !important;
+            height: auto !important;
+            min-height: 48px !important;
             box-sizing: border-box !important;
             line-height: 1.2 !important;
             border-radius: 8px !important;
             font-size: 14px !important;
             font-weight: 600 !important;
+            white-space: nowrap !important;
+        }
+        
+        /* Shield purchase button specific styling */
+        #purchase-shield-btn-main,
+        #purchase-shield-btn {
+            width: auto !important;
+            min-width: 200px !important;
+            max-width: none !important;
+            padding: 12px 20px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
         }
         
         .jph-btn-primary:hover {
@@ -4929,6 +5394,988 @@ class JPH_Frontend {
         
         .jph-delete-session-btn i {
             font-size: 16px;
+        }
+        
+        /* JPC Foundational Tab Styles */
+        .jpc-current-focus {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e7eb;
+        }
+        
+        /* 2-Column Layout */
+        .jpc-main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: stretch;
+        }
+        
+        .jpc-focus-column {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .jpc-video-column {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .jpc-focus-header {
+            background: #374151;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px 8px 0 0;
+            margin: 0 0 0 0;
+        }
+        
+        .jpc-focus-header h3 {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin: 0;
+            text-align: center;
+        }
+        
+        .jpc-focus-details {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            padding: 20px;
+            flex: 1;
+        }
+        
+        .jpc-focus-details p {
+            margin: 8px 0;
+            color: #4b5563;
+            font-size: 14px;
+        }
+        
+        .jpc-focus-details a {
+            color: #3b82f6;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
+        
+        .jpc-focus-details a:hover {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+        
+        .jpc-instructions {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .jpc-instructions p {
+            margin: 0;
+            color: #374151;
+            line-height: 1.6;
+        }
+        
+        .jpc-video-container {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            width: 100%;
+            height: auto;
+        }
+        
+        .jpc-video-container iframe,
+        .jpc-video-container video {
+            width: 100%;
+            height: auto;
+            min-height: 300px;
+        }
+        
+        .jpc-actions {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .jpc-mark-complete {
+            background: linear-gradient(135deg, #10b981, #059669) !important;
+            color: white !important;
+            border: none !important;
+            padding: 12px 24px !important;
+            border-radius: 8px !important;
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            min-width: 180px !important;
+        }
+        
+        .jpc-mark-complete:hover {
+            background: linear-gradient(135deg, #059669, #047857) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        
+        .jpc-progress-overview {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .jpc-progress-overview h4 {
+            color: #1f2937;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0 0 15px 0;
+        }
+        
+        .jpc-key-progress {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .key-circle {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin: 0 6px;
+            position: relative;
+            border: 2px solid transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .key-circle.completed {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border-color: #10b981;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        }
+        
+        .key-circle.current {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        .key-circle.incomplete {
+            background: #f8fafc;
+            color: #64748b;
+            border-color: #e2e8f0;
+        }
+        
+        .key-circle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+            }
+            50% {
+                box-shadow: 0 2px 12px rgba(59, 130, 246, 0.5);
+            }
+        }
+        
+        .jpc-all-focuses-table {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            width: 100%;
+        }
+        
+        .jpc-all-focuses-table h4 {
+            color: #1f2937;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0 0 15px 0;
+        }
+        
+        .jpc-table-container {
+            overflow-x: auto;
+        }
+        
+        .jpc-focuses-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .jpc-focuses-table th {
+            background: #f8f9fa;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e1e5e9;
+            white-space: nowrap;
+        }
+        
+        /* Sticky header styling */
+        .jpc-sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .jpc-sticky-header th {
+            background: #f8f9fa !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Key column headers - make them more prominent */
+        .jpc-sticky-header th:nth-child(n+3):nth-child(-n+14) {
+            background: #e3f2fd !important;
+            color: #1976d2;
+            font-weight: bold;
+            font-size: 15px;
+        }
+        
+        .jpc-focuses-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f3f4;
+            vertical-align: middle;
+        }
+        
+        .jpc-focuses-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .jpc-focuses-table tr.current-focus {
+            background: #e3f2fd;
+            font-weight: 500;
+        }
+        
+        .jpc-focuses-table tr.current-focus:hover {
+            background: #bbdefb;
+        }
+        
+        .jpc-focuses-table .center {
+            text-align: center;
+        }
+        
+        /* Focus content styling */
+        .jpc-focuses-table .focus-content {
+            text-align: left !important;
+            min-width: 300px;
+        }
+        
+        .jpc-focuses-table .focus-title {
+            font-weight: 500;
+            color: #1f2937;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+        
+        .jpc-focuses-table .focus-resources {
+            margin-top: 8px;
+        }
+        
+        .jpc-focuses-table .resource-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #3b82f6;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+            margin-right: 12px;
+        }
+        
+        .jpc-focuses-table .resource-link:hover {
+            color: #1d4ed8;
+        }
+        
+        .jpc-focuses-table .resource-link svg {
+            width: 14px;
+            height: 14px;
+        }
+        
+        /* Key progress icons */
+        .jpc-focuses-table .play-icon {
+            transition: all 0.2s ease;
+        }
+        
+        .jpc-focuses-table .play-link {
+            cursor: pointer;
+            display: inline-block;
+        }
+        
+        .jpc-focuses-table .play-link:hover .play-icon.completed {
+            color: #059669;
+            transform: scale(1.1);
+        }
+        
+        .jpc-focuses-table .play-icon.completed {
+            color: #10b981;
+        }
+        
+        .jpc-focuses-table .play-icon.incomplete {
+            color: #d1d5db;
+        }
+        
+        /* Enhanced tooltip styling */
+        .jpc-focuses-table [title] {
+            position: relative;
+        }
+        
+        .jpc-focuses-table [title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+        
+        .jpc-focuses-table [title]:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: #1f2937;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        
+        /* Action column styling */
+        .jpc-focuses-table .get-graded-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #10b981;
+            color: white;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+        
+        .jpc-focuses-table .get-graded-btn:hover {
+            background: #059669;
+        }
+        
+        .jpc-focuses-table .get-graded-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+        
+        /* JPC Video Modal Styles */
+        .jpc-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+        }
+        
+        .jpc-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+        
+        .jpc-modal-content {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            max-width: 900px;
+            max-height: 90vh;
+            margin: 5vh auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .jpc-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f8fafc;
+        }
+        
+        .jpc-modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .jpc-modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            color: #6b7280;
+            transition: all 0.2s ease;
+        }
+        
+        .jpc-modal-close:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        .jpc-modal-close svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .jpc-modal-body {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+        
+        .jpc-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 20px 24px;
+            border-top: 1px solid #e5e7eb;
+            background: #f8fafc;
+        }
+        
+        .jpc-btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jpc-btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .jpc-btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .jpc-btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .jpc-btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        #jpc-video-container {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        #jpc-video-container iframe,
+        #jpc-video-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        #jpc-video-container .fvplayer,
+        #jpc-video-container .fvplayer-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* JPC Submission Modal Styles */
+        .jpc-submission-info {
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            margin-bottom: 20px;
+        }
+        
+        .jpc-submission-info h4 {
+            margin: 0 0 8px 0;
+            color: #1f2937;
+            font-size: 1.1rem;
+        }
+        
+        .jpc-submission-info p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .jpc-form-group {
+            margin-bottom: 20px;
+        }
+        
+        .jpc-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .jpc-form-group input[type="url"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+        
+        .jpc-form-group input[type="url"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .jpc-form-help {
+            background: #eff6ff;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #dbeafe;
+            margin-bottom: 20px;
+        }
+        
+        .jpc-form-help p {
+            margin: 0;
+            font-size: 13px;
+            color: #1e40af;
+        }
+        
+        .jpc-form-help a {
+            color: #1d4ed8;
+            text-decoration: underline;
+        }
+        
+        .jpc-form-help a:hover {
+            color: #1e3a8a;
+        }
+        
+        .jpc-success-message {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .jpc-success-message h4 {
+            margin: 0 0 12px 0;
+            color: #1f2937;
+            font-size: 1.25rem;
+        }
+        
+        .jpc-success-message p {
+            margin: 0 0 8px 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        /* JPC Grade Display Styles */
+        .jpc-grade-display {
+            text-align: center;
+            padding: 8px;
+        }
+        
+        .jpc-grade-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        
+        .jpc-grade-badge.grade-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .jpc-grade-badge.grade-redo {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .jpc-grade-date {
+            font-size: 11px;
+            color: #6b7280;
+            margin-bottom: 6px;
+        }
+        
+        .jpc-teacher-notes {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+            margin-top: 6px;
+        }
+        
+        .jpc-teacher-notes strong {
+            font-size: 11px;
+            color: #374151;
+        }
+        
+        .jpc-notes-text {
+            font-size: 11px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+        
+        /* Grade display below focus title */
+        .jpc-grade-summary {
+            margin-top: 8px;
+            padding: 8px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 3px solid #e5e7eb;
+        }
+        
+        .jpc-grade-summary .jpc-grade-badge {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        
+        .jpc-grade-summary .jpc-grade-date {
+            display: inline-block;
+            font-size: 10px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .jpc-teacher-notes-compact {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #374151;
+            line-height: 1.3;
+        }
+        
+        .jpc-teacher-notes-compact strong {
+            color: #1f2937;
+        }
+        
+        .jpc-submit-redo-compact {
+            margin-top: 8px;
+        }
+        
+        .jpc-teacher-notes-below strong {
+            color: #1f2937;
+        }
+        
+        /* Submit Redo button styling */
+        .jpc-submit-redo-section {
+            margin-top: 12px;
+        }
+        
+        .jpc-submit-redo-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .jpc-submit-redo-btn:hover {
+            background: #dc2626;
+        }
+        
+        .jpc-submit-redo-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        /* Waiting button styling */
+        .waiting-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #fbbf24;
+            color: #92400e;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: default;
+            border: 1px solid #f59e0b;
+        }
+        
+        .waiting-btn svg {
+            color: #92400e;
+        }
+        
+        /* Tempo info icon styling */
+        .tempo-info-icon {
+            display: inline-block;
+            margin-left: 3px;
+            cursor: help;
+            color: #6b7280;
+            transition: color 0.2s ease;
+        }
+        
+        .tempo-info-icon:hover {
+            color: #3b82f6;
+        }
+        
+        .tempo-info-icon svg {
+            vertical-align: middle;
+        }
+        
+        .jpc-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+        }
+        
+        .jpc-modal-info {
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .jpc-modal-info p {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+        }
+        
+        .jpc-modal-info p:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* Responsive modal */
+        @media (max-width: 768px) {
+            .jpc-modal-content {
+                margin: 2vh auto;
+                max-height: 96vh;
+            }
+            
+            .jpc-modal-header,
+            .jpc-modal-body,
+            .jpc-modal-footer {
+                padding: 16px;
+            }
+            
+            .jpc-modal-footer {
+                flex-direction: column;
+            }
+            
+            .jpc-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        
+        
+        .resource-link {
+            color: #3b82f6;
+            text-decoration: none;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-right: 8px;
+        }
+        
+        .resource-link:hover {
+            color: #1d4ed8;
+            text-decoration: underline;
+        }
+        
+        .get-graded-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .get-graded-btn:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+            color: white;
+            text-decoration: none;
+        }
+        
+        .jpc-progress-overview p {
+            margin: 0;
+            color: #4b5563;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .jpc-no-assignment,
+        .jpc-login-required {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7280;
+        }
+        
+        .jpc-no-assignment h3,
+        .jpc-login-required h3 {
+            color: #374151;
+            margin-bottom: 10px;
+        }
+        
+        .jpc-no-assignment a,
+        .jpc-login-required a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        
+        .jpc-no-assignment a:hover,
+        .jpc-login-required a:hover {
+            text-decoration: underline;
+        }
+        
+        /* JPC Notification Styles */
+        .jpc-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 10000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .jpc-notification-show {
+            transform: translateX(0);
+        }
+        
+        .jpc-notification-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        
+        .jpc-notification-error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+        
+        /* Responsive JPC styles */
+        @media (max-width: 768px) {
+            .jpc-current-focus {
+                padding: 20px 15px;
+            }
+            
+            .jpc-main-layout {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .jpc-focus-header h3 {
+                font-size: 1.1rem;
+            }
+            
+            .jpc-focus-details {
+                padding: 15px;
+            }
+            
+            .jpc-video-container iframe,
+            .jpc-video-container video {
+                min-height: 250px;
+            }
+            
+            .jpc-key-progress {
+                justify-content: center;
+            }
+            
+            .key-circle {
+                width: 35px;
+                height: 35px;
+                font-size: 11px;
+            }
+            
+            .jpc-notification {
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
         }
         </style>
         <style>
@@ -8429,6 +9876,117 @@ class JPH_Frontend {
             // Initialize all functionality
             initDragAndDrop();
             initDeleteSessionHandlers();
+            
+            // JPC Mark Complete button handler
+            $('.jpc-mark-complete').on('click', function() {
+                const button = $(this);
+                const stepId = button.data('step-id');
+                const curriculumId = button.data('curriculum-id');
+                
+                // Disable button to prevent double-clicks
+                button.prop('disabled', true);
+                button.html('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Processing...');
+                
+                // Make AJAX request
+                $.ajax({
+                    url: '/wp-json/aph/v1/jpc/complete',
+                    method: 'POST',
+                    beforeSend: function(xhr, settings) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                        console.log('Sending JPC completion request:', settings.data);
+                    },
+                    data: {
+                        step_id: stepId,
+                        curriculum_id: curriculumId,
+                        user_id: <?php echo get_current_user_id(); ?>
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Show success message
+                            const message = response.data.all_keys_complete ? 
+                                '🎉 Congratulations! You completed all 12 keys for this focus!' : 
+                                '✅ Step completed successfully!';
+                            
+                            // Show notification
+                            showNotification(message, 'success');
+                            
+                            // Update XP and gems display
+                            if (response.data.xp_earned > 0) {
+                                updateStatsDisplay('xp', response.data.xp_earned);
+                            }
+                            if (response.data.gems_earned > 0) {
+                                updateStatsDisplay('gems', response.data.gems_earned);
+                            }
+                            
+                            // Reload the page to show updated progress
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 2000);
+                            
+                        } else {
+                            // Show error message
+                            showNotification(response.message || 'An error occurred', 'error');
+                            
+                            // Re-enable button
+                            button.prop('disabled', false);
+                            button.html('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg> Mark Complete');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('JPC completion error:', error);
+                        console.error('XHR response:', xhr.responseText);
+                        console.error('Status:', xhr.status);
+                        
+                        let errorMessage = 'An error occurred while processing your request';
+                        if (xhr.responseText) {
+                            try {
+                                const errorData = JSON.parse(xhr.responseText);
+                                if (errorData.message) {
+                                    errorMessage = errorData.message;
+                                }
+                            } catch (e) {
+                                // If not JSON, use the raw response
+                                errorMessage = xhr.responseText;
+                            }
+                        }
+                        
+                        showNotification(errorMessage, 'error');
+                        
+                        // Re-enable button
+                        button.prop('disabled', false);
+                        button.html('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg> Mark Complete');
+                    }
+                });
+            });
+            
+            // Helper function to show notifications
+            function showNotification(message, type) {
+                const notification = $('<div class="jpc-notification jpc-notification-' + type + '">' + message + '</div>');
+                $('body').append(notification);
+                
+                // Animate in
+                setTimeout(function() {
+                    notification.addClass('jpc-notification-show');
+                }, 100);
+                
+                // Remove after 5 seconds
+                setTimeout(function() {
+                    notification.removeClass('jpc-notification-show');
+                    setTimeout(function() {
+                        notification.remove();
+                    }, 300);
+                }, 5000);
+            }
+            
+            // Helper function to update stats display
+            function updateStatsDisplay(type, amount) {
+                const statElement = $('.jph-stat-' + type + ' .jph-stat-value');
+                if (statElement.length) {
+                    const currentValue = parseInt(statElement.text().replace(/,/g, '')) || 0;
+                    const newValue = currentValue + amount;
+                    statElement.text(newValue.toLocaleString());
+                }
+            }
             
         });
         

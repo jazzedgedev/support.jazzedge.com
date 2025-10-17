@@ -30,7 +30,12 @@ class APH_Database_Schema {
             'badges' => self::get_badges_schema(),
             'user_badges' => self::get_user_badges_schema(),
             'lesson_favorites' => self::get_lesson_favorites_schema(),
-            'gems_transactions' => self::get_gems_transactions_schema()
+            'gems_transactions' => self::get_gems_transactions_schema(),
+            'jpc_curriculum' => self::get_jpc_curriculum_schema(),
+            'jpc_steps' => self::get_jpc_steps_schema(),
+            'jpc_user_assignments' => self::get_jpc_user_assignments_schema(),
+            'jpc_user_progress' => self::get_jpc_user_progress_schema(),
+            'jpc_milestone_submissions' => self::get_jpc_milestone_submissions_schema()
         );
     }
     
@@ -516,7 +521,7 @@ class APH_Database_Schema {
                 ),
                 'earned_date' => array(
                     'type' => 'DATE',
-                    'default' => 'CURRENT_DATE',
+                    'null' => true,
                     'description' => 'Date badge was earned (for easier querying)'
                 )
             ),
@@ -917,6 +922,429 @@ class APH_Database_Schema {
         $wpdb->query("CREATE INDEX IF NOT EXISTS idx_favorites_title ON {$favorites_table} (title)");
         
         return true;
+    }
+    
+    /**
+     * JPC Curriculum Table Schema
+     * 
+     * Mirror of je_practice_curriculum table for Practice Hub use:
+     * - 41 curriculum focuses with metadata
+     * - Read-only reference to original curriculum data
+     */
+    private static function get_jpc_curriculum_schema() {
+        return array(
+            'table_name' => 'jph_jpc_curriculum',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'primary_key' => true,
+                    'description' => 'Curriculum focus ID (matches je_practice_curriculum.ID)'
+                ),
+                'focus_order' => array(
+                    'type' => 'DECIMAL',
+                    'length' => '5,2',
+                    'not_null' => true,
+                    'description' => 'Focus order (1.10, 1.20, etc.)'
+                ),
+                'focus_title' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'not_null' => true,
+                    'description' => 'Focus title/description'
+                ),
+                'focus_pillar' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'not_null' => true,
+                    'description' => 'Focus pillar (foundational, etc.)'
+                ),
+                'focus_element' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'not_null' => true,
+                    'description' => 'Focus element (technique, etc.)'
+                ),
+                'tempo' => array(
+                    'type' => 'SMALLINT',
+                    'length' => 6,
+                    'not_null' => true,
+                    'description' => 'Suggested tempo in BPM'
+                ),
+                'resource_pdf' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 70,
+                    'null' => true,
+                    'description' => 'PDF resource filename'
+                ),
+                'resource_ireal' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'null' => true,
+                    'description' => 'iRealPro resource filename'
+                ),
+                'resource_mp3' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 50,
+                    'null' => true,
+                    'description' => 'MP3 backing track filename'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When record was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When record was last updated'
+                )
+            ),
+            'indexes' => array(
+                'focus_order' => array('focus_order'),
+                'focus_pillar' => array('focus_pillar'),
+                'focus_element' => array('focus_element')
+            )
+        );
+    }
+    
+    /**
+     * JPC Steps Table Schema
+     * 
+     * Mirror of je_practice_curriculum_steps table for Practice Hub use:
+     * - 12 keys per focus (step_id, curriculum_id, key_sig, vimeo_id)
+     * - Read-only reference to original step data
+     */
+    private static function get_jpc_steps_schema() {
+        return array(
+            'table_name' => 'jph_jpc_steps',
+            'columns' => array(
+                'step_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'primary_key' => true,
+                    'description' => 'Step ID (matches je_practice_curriculum_steps.step_id)'
+                ),
+                'curriculum_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'Curriculum focus ID'
+                ),
+                'key_sig' => array(
+                    'type' => 'TINYINT',
+                    'length' => 4,
+                    'not_null' => true,
+                    'description' => 'Key signature number (1-12)'
+                ),
+                'key_sig_name' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 10,
+                    'null' => true,
+                    'description' => 'Key signature name (C, F, G, etc.)'
+                ),
+                'vimeo_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'Vimeo video ID for this step'
+                ),
+                'resource' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Additional resource information'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When record was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When record was last updated'
+                )
+            ),
+            'indexes' => array(
+                'curriculum_id' => array('curriculum_id'),
+                'key_sig' => array('key_sig'),
+                'curriculum_key' => array('curriculum_id', 'key_sig')
+            )
+        );
+    }
+    
+    /**
+     * JPC User Assignments Table Schema
+     * 
+     * User's current JPC assignment:
+     * - Tracks which step/key the user is currently working on
+     * - Mirrors jpc_student_assignments functionality
+     */
+    private static function get_jpc_user_assignments_schema() {
+        return array(
+            'table_name' => 'jph_jpc_user_assignments',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique assignment ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'step_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'Current step ID the user is working on'
+                ),
+                'curriculum_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'Current curriculum focus ID'
+                ),
+                'assigned_date' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When assignment was given'
+                ),
+                'completed_on' => array(
+                    'type' => 'DATETIME',
+                    'null' => true,
+                    'description' => 'When assignment was completed'
+                ),
+                'deleted_at' => array(
+                    'type' => 'DATETIME',
+                    'null' => true,
+                    'description' => 'When assignment was deleted'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'step_id' => array('step_id'),
+                'curriculum_id' => array('curriculum_id'),
+                'user_active' => array('user_id', 'deleted_at')
+            ),
+            'constraints' => array(
+                'unique_user_active' => 'UNIQUE KEY unique_user_active (user_id, deleted_at)'
+            )
+        );
+    }
+    
+    /**
+     * JPC User Progress Table Schema
+     * 
+     * User progress tracking for JPC:
+     * - Tracks completion of all 12 keys for each curriculum focus
+     * - Mirrors jpc_student_progress functionality
+     */
+    private static function get_jpc_user_progress_schema() {
+        return array(
+            'table_name' => 'jph_jpc_user_progress',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique progress record ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'curriculum_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'Curriculum focus ID'
+                ),
+                'step_1' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 1 (C) completed'
+                ),
+                'step_2' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 2 (F) completed'
+                ),
+                'step_3' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 3 (G) completed'
+                ),
+                'step_4' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 4 (D) completed'
+                ),
+                'step_5' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 5 (Bb) completed'
+                ),
+                'step_6' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 6 (A) completed'
+                ),
+                'step_7' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 7 (Eb) completed'
+                ),
+                'step_8' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 8 (E) completed'
+                ),
+                'step_9' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 9 (Ab) completed'
+                ),
+                'step_10' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 10 (Db) completed'
+                ),
+                'step_11' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 11 (F#) completed'
+                ),
+                'step_12' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'null' => true,
+                    'description' => 'Step ID when key 12 (B) completed'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When progress record was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When progress was last updated'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'curriculum_id' => array('curriculum_id'),
+                'user_curriculum' => array('user_id', 'curriculum_id')
+            ),
+            'constraints' => array(
+                'unique_user_curriculum' => 'UNIQUE KEY unique_user_curriculum (user_id, curriculum_id)'
+            )
+        );
+    }
+    
+    /**
+     * JPC Milestone Submissions Table Schema
+     * 
+     * Stores milestone video submissions for grading:
+     * - Student video submissions for completed focuses
+     * - Teacher grading and feedback
+     * - Mirrors je_practice_milestone_submissions functionality
+     */
+    private static function get_jpc_milestone_submissions_schema() {
+        return array(
+            'table_name' => 'jph_jpc_milestone_submissions',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique submission ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'curriculum_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'Curriculum focus ID'
+                ),
+                'video_url' => array(
+                    'type' => 'TEXT',
+                    'not_null' => true,
+                    'description' => 'YouTube video URL submitted by student'
+                ),
+                'submission_date' => array(
+                    'type' => 'DATETIME',
+                    'not_null' => true,
+                    'description' => 'When student submitted the video'
+                ),
+                'grade' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 10,
+                    'null' => true,
+                    'description' => 'Grade: pass, redo, or HIDE'
+                ),
+                'graded_on' => array(
+                    'type' => 'DATE',
+                    'null' => true,
+                    'description' => 'Date when graded'
+                ),
+                'teacher_notes' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'Teacher feedback and notes'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When record was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When record was last updated'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'curriculum_id' => array('curriculum_id'),
+                'submission_date' => array('submission_date'),
+                'grade' => array('grade'),
+                'graded_on' => array('graded_on')
+            )
+        );
     }
 }
 

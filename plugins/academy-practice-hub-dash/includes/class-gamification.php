@@ -591,4 +591,352 @@ class APH_Gamification {
         
         return $target_sessions >= 10; // Need 10 sessions in the target time period
     }
+    
+    /**
+     * Award JPC completion rewards
+     * 
+     * @param int $user_id User ID
+     * @param int $step_id Step ID that was completed
+     * @param int $curriculum_id Curriculum focus ID
+     * @param int $keys_completed Number of keys completed for this focus
+     * @param int $xp_earned XP earned for this completion
+     * @param int $gems_earned Gems earned for this completion
+     * @return array Result with rewards awarded
+     */
+    public static function award_jpc_completion($user_id, $step_id, $curriculum_id, $keys_completed, $xp_earned, $gems_earned) {
+        global $wpdb;
+        
+        $result = array(
+            'xp_awarded' => 0,
+            'gems_awarded' => 0,
+            'badges_earned' => array(),
+            'level_up' => false
+        );
+        
+        // Award XP
+        if ($xp_earned > 0) {
+            $user_stats = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}jph_user_stats WHERE user_id = %d",
+                $user_id
+            ), ARRAY_A);
+            
+            if (!$user_stats) {
+                // Create user stats record if it doesn't exist
+                $wpdb->insert(
+                    $wpdb->prefix . 'jph_user_stats',
+                    array(
+                        'user_id' => $user_id,
+                        'total_xp' => $xp_earned,
+                        'current_level' => 1,
+                        'current_streak' => 0,
+                        'longest_streak' => 0,
+                        'total_sessions' => 0,
+                        'total_minutes' => 0,
+                        'badges_earned' => 0,
+                        'gems_balance' => 0,
+                        'hearts_count' => 5,
+                        'streak_shield_count' => 0,
+                        'show_on_leaderboard' => 1,
+                        'created_at' => current_time('mysql'),
+                        'updated_at' => current_time('mysql')
+                    ),
+                    array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s')
+                );
+                $result['xp_awarded'] = $xp_earned;
+                error_log("JPCXP: Created new user stats record for user $user_id with $xp_earned XP");
+            } else {
+                $new_total_xp = $user_stats['total_xp'] + $xp_earned;
+                $wpdb->update(
+                    $wpdb->prefix . 'jph_user_stats',
+                    array('total_xp' => $new_total_xp),
+                    array('user_id' => $user_id),
+                    array('%d'),
+                    array('%d')
+                );
+                $result['xp_awarded'] = $xp_earned;
+                error_log("JPCXP: Updated user $user_id XP from {$user_stats['total_xp']} to $new_total_xp");
+                
+                // Check for level up
+                $old_level = $user_stats['current_level'];
+                $new_level = floor(sqrt($new_total_xp / 100)) + 1;
+                if ($new_level > $old_level) {
+                    $wpdb->update(
+                        $wpdb->prefix . 'jph_user_stats',
+                        array('current_level' => $new_level),
+                        array('user_id' => $user_id),
+                        array('%d'),
+                        array('%d')
+                    );
+                    $result['level_up'] = true;
+                    error_log("JPCXP: User $user_id leveled up from $old_level to $new_level");
+                }
+            }
+        }
+        
+        // Award gems
+        if ($gems_earned > 0) {
+            $user_stats = $wpdb->get_row($wpdb->prepare(
+                "SELECT gems_balance FROM {$wpdb->prefix}jph_user_stats WHERE user_id = %d",
+                $user_id
+            ), ARRAY_A);
+            
+            if (!$user_stats) {
+                // Create user stats record if it doesn't exist
+                $wpdb->insert(
+                    $wpdb->prefix . 'jph_user_stats',
+                    array(
+                        'user_id' => $user_id,
+                        'total_xp' => 0,
+                        'current_level' => 1,
+                        'current_streak' => 0,
+                        'longest_streak' => 0,
+                        'total_sessions' => 0,
+                        'total_minutes' => 0,
+                        'badges_earned' => 0,
+                        'gems_balance' => $gems_earned,
+                        'hearts_count' => 5,
+                        'streak_shield_count' => 0,
+                        'show_on_leaderboard' => 1,
+                        'created_at' => current_time('mysql'),
+                        'updated_at' => current_time('mysql')
+                    ),
+                    array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s')
+                );
+                
+                // Log gem transaction
+                $wpdb->insert(
+                    $wpdb->prefix . 'jph_gems_transactions',
+                    array(
+                        'user_id' => $user_id,
+                        'transaction_type' => 'earned',
+                        'amount' => $gems_earned,
+                        'source' => 'jpc_focus_completion',
+                        'description' => "Completed all 12 keys for JPC focus #{$curriculum_id}",
+                        'balance_after' => $gems_earned,
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%d', '%s', '%d', '%s', '%s', '%d', '%s')
+                );
+                
+                $result['gems_awarded'] = $gems_earned;
+                error_log("JPCXP: Created new user stats record for user $user_id with $gems_earned gems");
+            } else {
+                $new_balance = $user_stats['gems_balance'] + $gems_earned;
+                $wpdb->update(
+                    $wpdb->prefix . 'jph_user_stats',
+                    array('gems_balance' => $new_balance),
+                    array('user_id' => $user_id),
+                    array('%d'),
+                    array('%d')
+                );
+                
+                // Log gem transaction
+                $wpdb->insert(
+                    $wpdb->prefix . 'jph_gems_transactions',
+                    array(
+                        'user_id' => $user_id,
+                        'transaction_type' => 'earned',
+                        'amount' => $gems_earned,
+                        'source' => 'jpc_focus_completion',
+                        'description' => "Completed all 12 keys for JPC focus #{$curriculum_id}",
+                        'balance_after' => $new_balance,
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%d', '%s', '%d', '%s', '%s', '%d', '%s')
+                );
+                
+                $result['gems_awarded'] = $gems_earned;
+                error_log("JPCXP: Updated user $user_id gems balance to $new_balance (+$gems_earned)");
+            }
+        }
+        
+        // Check for JPC-specific badges
+        $badges_earned = self::check_jpc_badges($user_id, $step_id, $curriculum_id, $keys_completed);
+        $result['badges_earned'] = $badges_earned;
+        
+        return $result;
+    }
+    
+    /**
+     * Check for JPC-specific badges
+     * 
+     * @param int $user_id User ID
+     * @param int $step_id Step ID
+     * @param int $curriculum_id Curriculum focus ID
+     * @param int $keys_completed Number of keys completed
+     * @return array Badges earned
+     */
+    private static function check_jpc_badges($user_id, $step_id, $curriculum_id, $keys_completed) {
+        global $wpdb;
+        
+        $badges_earned = array();
+        
+        // First Scale badge - Complete first key of first focus
+        if ($curriculum_id == 1 && $keys_completed == 1) {
+            $badge_key = 'jpc_first_scale';
+            if (!self::user_has_badge($user_id, $badge_key)) {
+                self::award_badge($user_id, $badge_key);
+                $badges_earned[] = $badge_key;
+            }
+        }
+        
+        // Key Master badge - Complete all 12 keys in any focus
+        if ($keys_completed == 12) {
+            $badge_key = 'jpc_key_master';
+            if (!self::user_has_badge($user_id, $badge_key)) {
+                self::award_badge($user_id, $badge_key);
+                $badges_earned[] = $badge_key;
+            }
+        }
+        
+        // Technique Expert badge - Complete 10 full focuses (120 keys)
+        $total_completed_focuses = self::count_completed_focuses($user_id);
+        if ($total_completed_focuses >= 10) {
+            $badge_key = 'jpc_technique_expert';
+            if (!self::user_has_badge($user_id, $badge_key)) {
+                self::award_badge($user_id, $badge_key);
+                $badges_earned[] = $badge_key;
+            }
+        }
+        
+        // JPC Graduate badge - Complete all 41 focuses
+        if ($total_completed_focuses >= 41) {
+            $badge_key = 'jpc_graduate';
+            if (!self::user_has_badge($user_id, $badge_key)) {
+                self::award_badge($user_id, $badge_key);
+                $badges_earned[] = $badge_key;
+            }
+        }
+        
+        return $badges_earned;
+    }
+    
+    /**
+     * Check if user has a specific badge
+     */
+    private static function user_has_badge($user_id, $badge_key) {
+        global $wpdb;
+        
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}jph_user_badges 
+             WHERE user_id = %d AND badge_key = %s",
+            $user_id, $badge_key
+        ));
+        
+        return $count > 0;
+    }
+    
+    /**
+     * Award a badge to a user
+     */
+    private static function award_badge($user_id, $badge_key) {
+        global $wpdb;
+        
+        // Get badge details
+        $badge = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}jph_badges WHERE badge_key = %s",
+            $badge_key
+        ), ARRAY_A);
+        
+        if ($badge) {
+            // Award the badge
+            $wpdb->insert(
+                $wpdb->prefix . 'jph_user_badges',
+                array(
+                    'user_id' => $user_id,
+                    'badge_key' => $badge_key,
+                    'earned_at' => current_time('mysql'),
+                    'earned_date' => current_time('Y-m-d')
+                ),
+                array('%d', '%s', '%s', '%s')
+            );
+            
+            // Award badge rewards
+            if ($badge['xp_reward'] > 0) {
+                $user_stats = $wpdb->get_row($wpdb->prepare(
+                    "SELECT total_xp FROM {$wpdb->prefix}jph_user_stats WHERE user_id = %d",
+                    $user_id
+                ), ARRAY_A);
+                
+                if ($user_stats) {
+                    $new_total_xp = $user_stats['total_xp'] + $badge['xp_reward'];
+                    $wpdb->update(
+                        $wpdb->prefix . 'jph_user_stats',
+                        array('total_xp' => $new_total_xp),
+                        array('user_id' => $user_id),
+                        array('%d'),
+                        array('%d')
+                    );
+                }
+            }
+            
+            if ($badge['gem_reward'] > 0) {
+                $user_stats = $wpdb->get_row($wpdb->prepare(
+                    "SELECT gems_balance FROM {$wpdb->prefix}jph_user_stats WHERE user_id = %d",
+                    $user_id
+                ), ARRAY_A);
+                
+                if ($user_stats) {
+                    $new_balance = $user_stats['gems_balance'] + $badge['gem_reward'];
+                    $wpdb->update(
+                        $wpdb->prefix . 'jph_user_stats',
+                        array('gems_balance' => $new_balance),
+                        array('user_id' => $user_id),
+                        array('%d'),
+                        array('%d')
+                    );
+                    
+                    // Log gem transaction
+                    $wpdb->insert(
+                        $wpdb->prefix . 'jph_gems_transactions',
+                        array(
+                            'user_id' => $user_id,
+                            'transaction_type' => 'earned',
+                            'amount' => $badge['gem_reward'],
+                            'source' => 'badge_reward',
+                            'description' => "Badge reward: {$badge['name']}",
+                            'balance_after' => $new_balance,
+                            'created_at' => current_time('mysql')
+                        ),
+                        array('%d', '%s', '%d', '%s', '%s', '%d', '%s')
+                    );
+                }
+            }
+            
+            // Update badges_earned count
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->prefix}jph_user_stats 
+                 SET badges_earned = badges_earned + 1 
+                 WHERE user_id = %d",
+                $user_id
+            ));
+        }
+    }
+    
+    /**
+     * Count completed focuses for a user
+     */
+    private static function count_completed_focuses($user_id) {
+        global $wpdb;
+        
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_user_progress 
+             WHERE user_id = %d 
+             AND step_1 IS NOT NULL 
+             AND step_2 IS NOT NULL 
+             AND step_3 IS NOT NULL 
+             AND step_4 IS NOT NULL 
+             AND step_5 IS NOT NULL 
+             AND step_6 IS NOT NULL 
+             AND step_7 IS NOT NULL 
+             AND step_8 IS NOT NULL 
+             AND step_9 IS NOT NULL 
+             AND step_10 IS NOT NULL 
+             AND step_11 IS NOT NULL 
+             AND step_12 IS NOT NULL",
+            $user_id
+        ));
+        
+        return intval($count);
+    }
 }

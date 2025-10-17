@@ -27,6 +27,13 @@ class JPH_REST_API {
         $this->validator = JPH_Validator::get_instance();
         $this->audit_logger = JPH_Audit_Logger::get_instance();
         add_action('rest_api_init', array($this, 'register_rest_routes'));
+        
+        // Register AJAX handlers for JPC modal functionality
+        add_action('wp_ajax_jpc_verify_step_completion', array($this, 'ajax_verify_step_completion'));
+        add_action('wp_ajax_jpc_mark_step_complete', array($this, 'ajax_mark_step_complete'));
+        add_action('wp_ajax_jpc_get_fvplayer', array($this, 'ajax_get_fvplayer'));
+        add_action('wp_ajax_jpc_submit_milestone', array($this, 'ajax_submit_milestone'));
+        add_action('wp_ajax_ai_cleanup_feedback', array($this, 'ajax_ai_cleanup_feedback'));
     }
     
     /**
@@ -101,6 +108,43 @@ class JPH_REST_API {
             'methods' => 'DELETE',
             'callback' => array($this, 'rest_delete_practice_session'),
             'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // JPC endpoints
+        register_rest_route('aph/v1', '/jpc/test', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_jpc_test'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('aph/v1', '/jpc/debug', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_jpc_debug'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('aph/v1', '/jpc/complete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_mark_jpc_complete'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('aph/v1', '/jpc/reset', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_jpc_reset'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('aph/v1', '/jpc/debug-complete', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_jpc_debug_complete'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('aph/v1', '/jpc/progress/(?P<user_id>\d+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_jpc_progress'),
+            'permission_callback' => '__return_true'
         ));
         
         // Export endpoint
@@ -455,8 +499,23 @@ class JPH_REST_API {
     /**
      * Check user permission
      */
-    public function check_user_permission() {
-        return is_user_logged_in();
+    public function check_user_permission($request = null) {
+        // For WP Engine, we need to handle authentication differently
+        // Check if we have a valid nonce first
+        if ($request) {
+            $nonce = $request->get_header('X-WP-Nonce');
+            if ($nonce && wp_verify_nonce($nonce, 'wp_rest')) {
+                // If nonce is valid, we can trust the user is authenticated
+                return true;
+            }
+        }
+        
+        // Fallback: check if user is logged in normally
+        if (is_user_logged_in()) {
+            return true;
+        }
+        
+        return false;
     }
     
     /**
@@ -5369,6 +5428,711 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
         
         // Clear lesson favorites
         $wpdb->query("DELETE FROM {$wpdb->prefix}jph_lesson_favorites WHERE user_id IN ($user_ids_str)");
+    }
+    
+    /**
+     * Test JPC endpoint (no permissions required)
+     * 
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public function rest_jpc_test($request) {
+        // Check nonce for WP Engine compatibility
+        $nonce = $request->get_header('X-WP-Nonce');
+        $nonce_valid = $nonce ? wp_verify_nonce($nonce, 'wp_rest') : false;
+        
+        return new WP_REST_Response(array(
+            'success' => true,
+            'message' => 'JPC test endpoint working',
+            'user_id' => get_current_user_id(),
+            'is_logged_in' => is_user_logged_in(),
+            'nonce_provided' => !empty($nonce),
+            'nonce_valid' => $nonce_valid,
+            'current_user_login' => wp_get_current_user()->user_login ?? 'none',
+            'wp_engine_note' => 'Using nonce-based auth for WP Engine compatibility',
+            'timestamp' => current_time('mysql')
+        ), 200);
+    }
+    
+    /**
+     * Debug JPC system
+     * 
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public function rest_jpc_debug($request) {
+        global $wpdb;
+        
+        $debug_info = array(
+            'user_id' => get_current_user_id(),
+            'is_user_logged_in' => is_user_logged_in(),
+            'current_user' => wp_get_current_user()->user_login ?? 'none',
+            'jpc_handler_exists' => class_exists('JPH_JPC_Handler'),
+            'tables_exist' => array(),
+            'rest_routes' => array(),
+            'errors' => array(),
+            'nonce_check' => array()
+        );
+        
+        // Check nonce if provided
+        if ($request) {
+            $nonce = $request->get_header('X-WP-Nonce');
+            $debug_info['nonce_check']['provided'] = !empty($nonce);
+            $debug_info['nonce_check']['valid'] = $nonce ? wp_verify_nonce($nonce, 'wp_rest') : false;
+        }
+        
+        // Check if JPC tables exist
+        $jpc_tables = array(
+            'jph_jpc_curriculum',
+            'jph_jpc_steps',
+            'jph_jpc_user_assignments', 
+            'jph_jpc_user_progress'
+        );
+        
+        foreach ($jpc_tables as $table) {
+            $full_table_name = $wpdb->prefix . $table;
+            $exists = $wpdb->get_var("SHOW TABLES LIKE '$full_table_name'");
+            $debug_info['tables_exist'][$table] = !empty($exists);
+        }
+        
+        // Check REST routes
+        $rest_routes = rest_get_server()->get_routes();
+        $debug_info['rest_routes']['jpc_complete'] = isset($rest_routes['/aph/v1/jpc/complete']);
+        $debug_info['rest_routes']['jpc_debug'] = isset($rest_routes['/aph/v1/jpc/debug']);
+        
+        // Try to create JPC tables manually (bypass schema system for now)
+        try {
+            $debug_info['manual_table_creation'] = array();
+            
+            // Create jph_jpc_curriculum table
+            $sql1 = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_jpc_curriculum` (
+                `id` INT(11) NOT NULL PRIMARY KEY,
+                `focus_order` DECIMAL(5,2) NOT NULL,
+                `focus_title` VARCHAR(100) NOT NULL,
+                `focus_pillar` VARCHAR(50) NOT NULL,
+                `focus_element` VARCHAR(50) NOT NULL,
+                `tempo` SMALLINT(6) NOT NULL,
+                `resource_pdf` VARCHAR(70) NULL,
+                `resource_ireal` VARCHAR(50) NULL,
+                `resource_mp3` VARCHAR(50) NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+            $result1 = $wpdb->query($sql1);
+            $debug_info['manual_table_creation']['jpc_curriculum'] = $result1 !== false;
+            
+            // Create jph_jpc_steps table
+            $sql2 = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_jpc_steps` (
+                `step_id` INT(11) NOT NULL PRIMARY KEY,
+                `curriculum_id` INT(11) NOT NULL,
+                `key_sig` TINYINT(4) NOT NULL,
+                `key_sig_name` VARCHAR(10) NULL,
+                `vimeo_id` INT(11) NOT NULL,
+                `resource` TEXT NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+            $result2 = $wpdb->query($sql2);
+            $debug_info['manual_table_creation']['jpc_steps'] = $result2 !== false;
+            
+            // Create jph_jpc_user_assignments table
+            $sql3 = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_jpc_user_assignments` (
+                `id` BIGINT(20) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `step_id` INT(11) NOT NULL,
+                `curriculum_id` INT(11) NOT NULL,
+                `assigned_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `completed_on` DATETIME NULL,
+                `deleted_at` DATETIME NULL,
+                KEY `user_id` (`user_id`),
+                KEY `step_id` (`step_id`),
+                KEY `curriculum_id` (`curriculum_id`),
+                UNIQUE KEY `unique_user_active` (`user_id`, `deleted_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+            $result3 = $wpdb->query($sql3);
+            $debug_info['manual_table_creation']['jpc_user_assignments'] = $result3 !== false;
+            
+            // Create jph_jpc_user_progress table
+            $sql4 = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}jph_jpc_user_progress` (
+                `id` BIGINT(20) UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `user_id` BIGINT(20) UNSIGNED NOT NULL,
+                `curriculum_id` INT(11) NOT NULL,
+                `step_1` INT(11) NULL,
+                `step_2` INT(11) NULL,
+                `step_3` INT(11) NULL,
+                `step_4` INT(11) NULL,
+                `step_5` INT(11) NULL,
+                `step_6` INT(11) NULL,
+                `step_7` INT(11) NULL,
+                `step_8` INT(11) NULL,
+                `step_9` INT(11) NULL,
+                `step_10` INT(11) NULL,
+                `step_11` INT(11) NULL,
+                `step_12` INT(11) NULL,
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY `user_id` (`user_id`),
+                KEY `curriculum_id` (`curriculum_id`),
+                UNIQUE KEY `unique_user_curriculum` (`user_id`, `curriculum_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+            $result4 = $wpdb->query($sql4);
+            $debug_info['manual_table_creation']['jpc_user_progress'] = $result4 !== false;
+            
+            $debug_info['last_error'] = $wpdb->last_error;
+            
+            // Check tables again after creation attempt
+            foreach ($jpc_tables as $table) {
+                $full_table_name = $wpdb->prefix . $table;
+                $exists = $wpdb->get_var("SHOW TABLES LIKE '$full_table_name'");
+                $debug_info['tables_after_creation'][$table] = !empty($exists);
+            }
+            
+        } catch (Exception $e) {
+            $debug_info['errors'][] = 'Manual table creation error: ' . $e->getMessage();
+        }
+        
+        // Test JPC Handler if it exists
+        if (class_exists('JPH_JPC_Handler')) {
+            try {
+                $user_id = get_current_user_id();
+                if ($user_id > 0) {
+                    $assignment = JPH_JPC_Handler::get_user_current_assignment($user_id);
+                    $debug_info['user_assignment'] = $assignment ? 'Found' : 'Not found';
+                } else {
+                    $debug_info['user_assignment'] = 'No user logged in';
+                }
+            } catch (Exception $e) {
+                $debug_info['errors'][] = 'JPC Handler error: ' . $e->getMessage();
+            }
+        }
+        
+        return new WP_REST_Response($debug_info, 200);
+    }
+    
+    /**
+     * REST endpoint to debug JPC completion
+     */
+    public function rest_jpc_debug_complete($request) {
+        $user_id = intval($request->get_param('user_id'));
+        $step_id = intval($request->get_param('step_id'));
+        $curriculum_id = intval($request->get_param('curriculum_id'));
+        
+        $debug_info = array(
+            'timestamp' => current_time('mysql'),
+            'user_id' => $user_id,
+            'step_id' => $step_id,
+            'curriculum_id' => $curriculum_id,
+            'jpc_handler_exists' => class_exists('JPH_JPC_Handler'),
+            'current_user_id' => get_current_user_id(),
+            'is_user_logged_in' => is_user_logged_in(),
+            'nonce_check' => wp_verify_nonce($request->get_header('X-WP-Nonce'), 'wp_rest')
+        );
+        
+        // Test database connection
+        global $wpdb;
+        $debug_info['database_connection'] = !empty($wpdb);
+        
+        // Test if tables exist
+        $tables_to_check = array(
+            'jph_jpc_user_assignments' => $wpdb->prefix . 'jph_jpc_user_assignments',
+            'jph_jpc_user_progress' => $wpdb->prefix . 'jph_jpc_user_progress',
+            'je_practice_curriculum_steps' => 'je_practice_curriculum_steps',  // No prefix
+            'je_practice_curriculum' => 'je_practice_curriculum'  // No prefix
+        );
+        
+        foreach ($tables_to_check as $key => $table_name) {
+            $debug_info['table_exists_' . $key] = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name;
+        }
+        
+        // Test getting current assignment
+        if (class_exists('JPH_JPC_Handler')) {
+            $assignment = JPH_JPC_Handler::get_user_current_assignment($user_id);
+            $debug_info['current_assignment'] = $assignment;
+            
+            $progress = JPH_JPC_Handler::get_user_progress($user_id, $curriculum_id);
+            $debug_info['current_progress'] = $progress;
+        }
+        
+        return new WP_REST_Response($debug_info, 200);
+    }
+    
+    /**
+     * REST endpoint to reset all JPC Practice Hub data
+     */
+    public function rest_jpc_reset($request) {
+        global $wpdb;
+        
+        error_log("JPC Reset: Starting complete reset of Practice Hub JPC tables");
+        
+        // Clear all Practice Hub JPC tables
+        $tables_to_clear = array(
+            'jph_jpc_user_assignments',
+            'jph_jpc_user_progress'
+        );
+        
+        $results = array();
+        
+        foreach ($tables_to_clear as $table) {
+            $deleted = $wpdb->query("DELETE FROM {$wpdb->prefix}{$table}");
+            $results[$table] = $deleted;
+            error_log("JPC Reset: Cleared {$deleted} rows from {$table}");
+        }
+        
+        return new WP_REST_Response(array(
+            'success' => true,
+            'message' => 'All Practice Hub JPC data cleared',
+            'tables_cleared' => $results,
+            'note' => 'Curriculum and steps tables preserved (read-only reference data)'
+        ));
+    }
+    
+    /**
+     * Get JPC progress for a user
+     * 
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public function rest_get_jpc_progress($request) {
+        $user_id = intval($request->get_param('user_id'));
+        
+        if (!$user_id) {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'Invalid user ID'
+            ), 400);
+        }
+        
+        if (class_exists('JPH_JPC_Handler')) {
+            // Get current assignment
+            $assignment = JPH_JPC_Handler::get_user_current_assignment($user_id);
+            
+            // Get progress for current curriculum
+            $progress = null;
+            if ($assignment) {
+                $progress = JPH_JPC_Handler::get_user_progress($user_id, $assignment['curriculum_id']);
+            }
+            
+            return new WP_REST_Response(array(
+                'success' => true,
+                'data' => array(
+                    'assignment' => $assignment,
+                    'progress' => $progress
+                )
+            ), 200);
+        }
+        
+        return new WP_REST_Response(array(
+            'success' => false,
+            'message' => 'JPC Handler not available'
+        ), 500);
+    }
+    
+    /**
+     * Mark JPC step as complete
+     * 
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public function rest_mark_jpc_complete($request) {
+        // Get user ID from request (we'll pass it from the frontend)
+        $user_id = intval($request->get_param('user_id'));
+        
+        // Validate user ID
+        if (!$user_id || $user_id <= 0) {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'Invalid user ID. Please refresh the page and try again.'
+            ), 400);
+        }
+        
+        // Verify user exists
+        $user = get_user_by('ID', $user_id);
+        if (!$user) {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'User not found.'
+            ), 400);
+        }
+        
+        $step_id = intval($request->get_param('step_id'));
+        $curriculum_id = intval($request->get_param('curriculum_id'));
+        
+        if (!$step_id || !$curriculum_id) {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'Missing required parameters'
+            ), 400);
+        }
+        
+        // Validate parameters
+        if ($step_id <= 0 || $curriculum_id <= 0) {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'Invalid parameters'
+            ), 400);
+        }
+        
+        try {
+            // Debug logging
+            error_log("JPC Completion Request: user_id=$user_id, step_id=$step_id, curriculum_id=$curriculum_id");
+            
+            // Mark step complete using JPC handler
+            if (class_exists('JPH_JPC_Handler')) {
+                error_log("JPH_JPC_Handler class exists, calling mark_step_complete");
+                $result = JPH_JPC_Handler::mark_step_complete($user_id, $step_id, $curriculum_id);
+                error_log("JPC Handler result: " . print_r($result, true));
+                
+                if ($result['success']) {
+                    // Log the action (simplified for now)
+                    error_log("JPC Step Completed: user_id=$user_id, step_id=$step_id, curriculum_id=$curriculum_id, xp_earned={$result['xp_earned']}, gems_earned={$result['gems_earned']}");
+                    
+                    return new WP_REST_Response(array(
+                        'success' => true,
+                        'message' => $result['message'],
+                        'data' => array(
+                            'xp_earned' => $result['xp_earned'],
+                            'gems_earned' => $result['gems_earned'],
+                            'keys_completed' => $result['keys_completed'],
+                            'all_keys_complete' => $result['all_keys_complete'],
+                            'next_assignment' => $result['next_assignment']
+                        )
+                    ), 200);
+                } else {
+                    error_log("JPC Handler returned failure: " . $result['message']);
+                    return new WP_REST_Response(array(
+                        'success' => false,
+                        'message' => $result['message']
+                    ), 400);
+                }
+            } else {
+                error_log("JPH_JPC_Handler class not found");
+                return new WP_REST_Response(array(
+                    'success' => false,
+                    'message' => 'JPC handler not available. Please check if the plugin is properly activated.'
+                ), 500);
+            }
+            
+        } catch (Exception $e) {
+            $this->logger->log_error('JPC completion error', array(
+                'user_id' => $user_id,
+                'step_id' => $step_id,
+                'curriculum_id' => $curriculum_id,
+                'error' => $e->getMessage()
+            ));
+            
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'An error occurred while processing your request'
+            ), 500);
+        }
+    }
+    
+    /**
+     * AJAX handler to verify step completion for modal security
+     */
+    public function ajax_verify_step_completion() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'jpc_verify_step')) {
+            wp_die('Security check failed');
+        }
+        
+        // Check if user is logged in
+        if (!is_user_logged_in()) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $user_id = get_current_user_id();
+        $step_id = intval($_POST['step_id']);
+        $curriculum_id = intval($_POST['curriculum_id']);
+        
+        if (!$step_id || !$curriculum_id) {
+            wp_send_json_error('Invalid parameters');
+        }
+        
+        // Get user's progress for this curriculum
+        $progress = JPH_JPC_Handler::get_user_progress($user_id, $curriculum_id);
+        
+        // Check if user has completed this step
+        $completed = false;
+        $is_current_step = false;
+        $video_url = null;
+        
+        for ($i = 1; $i <= 12; $i++) {
+            if (!empty($progress['step_' . $i]) && $progress['step_' . $i] == $step_id) {
+                $completed = true;
+                break;
+            }
+        }
+        
+        // Check if this is the current step (not yet completed)
+        if (!$completed) {
+            $current_assignment = JPH_JPC_Handler::get_user_current_assignment($user_id);
+            if ($current_assignment && $current_assignment['step_id'] == $step_id) {
+                $is_current_step = true;
+            }
+        }
+        
+        // Get the Vimeo ID from the step data
+        $vimeo_id = null;
+        if ($completed || $is_current_step) {
+            $step_details = JPH_JPC_Handler::get_step_details($step_id);
+            if ($step_details && !empty($step_details['vimeo_id'])) {
+                $vimeo_id = $step_details['vimeo_id'];
+            }
+        }
+        
+        wp_send_json_success(array(
+            'completed' => $completed,
+            'is_current_step' => $is_current_step,
+            'vimeo_id' => $vimeo_id
+        ));
+    }
+    
+    /**
+     * AJAX handler to mark step as complete
+     */
+    public function ajax_mark_step_complete() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'jpc_mark_complete')) {
+            wp_die('Security check failed');
+        }
+        
+        // Check if user is logged in
+        if (!is_user_logged_in()) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $user_id = get_current_user_id();
+        $step_id = intval($_POST['step_id']);
+        $curriculum_id = intval($_POST['curriculum_id']);
+        
+        if (!$step_id || !$curriculum_id) {
+            wp_send_json_error('Invalid parameters');
+        }
+        
+        // Mark step as complete using the JPC handler
+        $result = JPH_JPC_Handler::mark_step_complete($user_id, $step_id, $curriculum_id);
+        
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result['message']);
+        }
+    }
+    
+    /**
+     * AJAX handler to get FVPlayer HTML for modal
+     */
+    public function ajax_get_fvplayer() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'jpc_fvplayer')) {
+            wp_die('Security check failed');
+        }
+        
+        // Check if user is logged in
+        if (!is_user_logged_in()) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $vimeo_id = intval($_POST['vimeo_id']);
+        
+        if (!$vimeo_id) {
+            wp_send_json_error('Invalid Vimeo ID');
+        }
+        
+        // Generate FVPlayer shortcode
+        $shortcode = "[fvplayer src='https://vimeo.com/{$vimeo_id}']";
+        $player_html = do_shortcode($shortcode);
+        
+        // If shortcode didn't process, try alternative approach
+        if (empty($player_html) || $player_html === $shortcode) {
+            // Fallback: create a simple video element
+            $player_html = '<video controls width="100%" height="100%">';
+            $player_html .= '<source src="https://vimeo.com/' . $vimeo_id . '" type="video/mp4">';
+            $player_html .= 'Your browser does not support the video tag.';
+            $player_html .= '</video>';
+        }
+        
+        error_log("JPCXP: FVPlayer HTML generated for Vimeo ID $vimeo_id: " . substr($player_html, 0, 200) . "...");
+        
+        wp_send_json_success(array(
+            'player_html' => $player_html,
+            'vimeo_id' => $vimeo_id
+        ));
+    }
+    
+    /**
+     * AJAX handler to submit milestone for grading
+     */
+    public function ajax_submit_milestone() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'jpc_submit_milestone')) {
+            wp_die('Security check failed');
+        }
+        
+        // Check if user is logged in
+        if (!is_user_logged_in()) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $user_id = get_current_user_id();
+        $curriculum_id = intval($_POST['curriculum_id']);
+        $youtube_url = sanitize_text_field($_POST['youtube_url']);
+        
+        if (!$curriculum_id || !$youtube_url) {
+            wp_send_json_error('Invalid parameters');
+        }
+        
+        // Validate YouTube URL
+        if (!preg_match('/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/', $youtube_url)) {
+            wp_send_json_error('Please enter a valid YouTube URL');
+        }
+        
+        // Check if user has already submitted for this curriculum
+        global $wpdb;
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, grade FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+             WHERE user_id = %d AND curriculum_id = %d",
+            $user_id, $curriculum_id
+        ));
+        
+        if ($existing) {
+            // Allow resubmission only if grade is 'redo'
+            if ($existing->grade !== 'redo') {
+                wp_send_json_error('You have already submitted a video for this focus');
+            }
+        }
+        
+        // Check if table exists, create if it doesn't
+        $table_name = $wpdb->prefix . 'jph_jpc_milestone_submissions';
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+        
+        if (!$table_exists) {
+            error_log("JPCXP: Table $table_name does not exist, creating it...");
+            aph_create_milestone_submissions_table();
+            
+            // Check again after creation
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+            if (!$table_exists) {
+                error_log("JPCXP: Failed to create table $table_name");
+                wp_send_json_error('Database table could not be created. Please contact support.');
+            }
+        }
+        
+        // Insert or update submission
+        if ($existing && $existing->grade === 'redo') {
+            // Update existing redo submission
+            $result = $wpdb->update(
+                $table_name,
+                array(
+                    'video_url' => $youtube_url,
+                    'submission_date' => current_time('mysql'),
+                    'grade' => null, // Reset grade for new submission
+                    'graded_on' => null,
+                    'teacher_notes' => null,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('id' => $existing->id),
+                array('%s', '%s', '%s', '%s', '%s', '%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                error_log("JPCXP: Redo submission updated - user_id=$user_id, curriculum_id=$curriculum_id, video_url=$youtube_url");
+                wp_send_json_success(array(
+                    'message' => 'Redo video submitted successfully for grading'
+                ));
+            } else {
+                error_log("JPCXP: Database update failed - Error: " . $wpdb->last_error);
+                wp_send_json_error('Failed to submit redo video: ' . $wpdb->last_error);
+            }
+        } else {
+            // Insert new submission
+            $result = $wpdb->insert(
+                $table_name,
+                array(
+                    'user_id' => $user_id,
+                    'curriculum_id' => $curriculum_id,
+                    'video_url' => $youtube_url,
+                    'submission_date' => current_time('mysql')
+                ),
+                array('%d', '%d', '%s', '%s')
+            );
+            
+            if ($result) {
+                error_log("JPCXP: Milestone submitted - user_id=$user_id, curriculum_id=$curriculum_id, video_url=$youtube_url");
+                wp_send_json_success(array(
+                    'message' => 'Video submitted successfully for grading'
+                ));
+            } else {
+                error_log("JPCXP: Database insert failed - Error: " . $wpdb->last_error);
+                wp_send_json_error('Failed to submit video: ' . $wpdb->last_error);
+            }
+        }
+    }
+    
+    /**
+     * AJAX handler for AI cleanup of teacher feedback
+     */
+    public function ajax_ai_cleanup_feedback() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'ai_cleanup_feedback')) {
+            wp_die('Security check failed');
+        }
+        
+        // Check if user has admin capabilities
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $text = sanitize_textarea_field($_POST['text']);
+        
+        if (empty($text)) {
+            wp_send_json_error('No text provided');
+        }
+        
+        // Get AI prompt from settings
+        $ai_prompt = get_option('jpc_ai_milestone_prompt', $this->get_default_ai_prompt());
+        
+        // Call AI service (using OpenAI API)
+        $cleaned_text = $this->call_ai_cleanup_service($text, $ai_prompt);
+        
+        if ($cleaned_text) {
+            wp_send_json_success(array(
+                'cleaned_text' => $cleaned_text,
+                'original_text' => $text
+            ));
+        } else {
+            wp_send_json_error('AI cleanup failed');
+        }
+    }
+    
+    /**
+     * Call AI service to clean up feedback text using Katahdin AI Hub
+     */
+    private function call_ai_cleanup_service($text, $prompt) {
+        // Use Katahdin AI Hub for consistency with existing practice analysis
+        return $this->call_katahdin_ai($text, $prompt, 'gpt-3.5-turbo', 500, 0.7);
+    }
+    
+    /**
+     * Get default AI prompt for milestone grading
+     */
+    private function get_default_ai_prompt() {
+        return "You are an AI assistant helping music teachers provide constructive feedback to students. 
+
+Your task is to clean up and improve teacher feedback for music milestone submissions while maintaining the teacher's voice and intent.
+
+Guidelines:
+- Keep the teacher's original meaning and tone
+- Fix grammar, spelling, and punctuation errors
+- Make the feedback more clear and constructive
+- Ensure feedback is encouraging but honest
+- Keep it concise but comprehensive
+- Maintain professional but friendly tone
+- Don't change the core message or criticism
+
+Return only the cleaned feedback text, no explanations or additional commentary.";
     }
     
 }

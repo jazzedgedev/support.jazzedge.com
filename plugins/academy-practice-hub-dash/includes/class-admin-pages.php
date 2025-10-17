@@ -95,6 +95,33 @@ class JPH_Admin_Pages {
             'aph-settings',
             array($this, 'settings_page')
         );
+        
+        add_submenu_page(
+            'aph-practice-hub',
+            __('JPC Management', 'academy-practice-hub'),
+            __('JPC Management', 'academy-practice-hub'),
+            'manage_options',
+            'aph-jpc-management',
+            array($this, 'jpc_management_page')
+        );
+        
+        add_submenu_page(
+            'aph-practice-hub',
+            __('Grade JPC', 'academy-practice-hub'),
+            __('Grade JPC', 'academy-practice-hub'),
+            'manage_options',
+            'aph-grade-jpc',
+            array($this, 'grade_jpc_page')
+        );
+        
+        add_submenu_page(
+            'aph-practice-hub',
+            __('AI Settings', 'academy-practice-hub'),
+            __('AI Settings', 'academy-practice-hub'),
+            'manage_options',
+            'aph-ai-settings',
+            array($this, 'ai_settings_page')
+        );
     }
     
     /**
@@ -3675,11 +3702,17 @@ class JPH_Admin_Pages {
             $ai_max_tokens = intval($_POST['ai_max_tokens']);
             $ai_temperature = floatval($_POST['ai_temperature']);
             
+            // Handle milestone grading settings
+            $milestone_prompt = sanitize_textarea_field($_POST['ai_milestone_prompt']);
+            
             update_option('aph_ai_prompt', $ai_prompt);
             update_option('aph_ai_system_message', $ai_system_message);
             update_option('aph_ai_model', $ai_model);
             update_option('aph_ai_max_tokens', $ai_max_tokens);
             update_option('aph_ai_temperature', $ai_temperature);
+            
+            // Save milestone grading settings
+            update_option('jpc_ai_milestone_prompt', $milestone_prompt);
             
             echo '<div class="notice notice-success"><p>AI settings saved successfully!</p></div>';
         }
@@ -3707,6 +3740,9 @@ Remember: Plain text only, no formatting.');
         $ai_model = get_option('aph_ai_model', 'gpt-4');
         $ai_max_tokens = get_option('aph_ai_max_tokens', 300);
         $ai_temperature = get_option('aph_ai_temperature', 0.3);
+        
+        // Get milestone grading settings
+        $milestone_prompt = get_option('jpc_ai_milestone_prompt', $this->get_default_milestone_prompt());
         ?>
         <div class="wrap">
             <h1>🤖 AI Practice Analysis Settings</h1>
@@ -3792,6 +3828,39 @@ Remember: Plain text only, no formatting.');
                                 </td>
                             </tr>
                         </table>
+                    </div>
+                    
+                    <!-- Milestone Grading Settings -->
+                    <div class="jph-ai-settings-section">
+                        <h2>🎓 Milestone Grading AI Settings</h2>
+                        <p>Configure AI settings for cleaning up teacher feedback in milestone grading.</p>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="ai_milestone_prompt">Milestone Grading Prompt</label>
+                                </th>
+                                <td>
+                                    <textarea id="ai_milestone_prompt" 
+                                              name="ai_milestone_prompt" 
+                                              rows="8" 
+                                              style="width: 100%; font-family: monospace; font-size: 13px; line-height: 1.4;"
+                                              placeholder="Enter your custom AI prompt..."><?php echo esc_textarea($milestone_prompt); ?></textarea>
+                                    <p class="description">
+                                        Customize the AI prompt used to clean up teacher feedback. Uses the same Katahdin AI Hub as practice analysis.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #007cba; margin-top: 15px;">
+                            <h4 style="margin-top: 0;">How Milestone AI Cleanup Works:</h4>
+                            <ol style="margin-bottom: 0;">
+                                <li><strong>Write Feedback:</strong> Write your initial feedback in the grading form</li>
+                                <li><strong>AI Cleanup:</strong> Click "AI Cleanup" button to enhance your feedback</li>
+                                <li><strong>Review & Submit:</strong> Review the cleaned feedback and submit the grade</li>
+                            </ol>
+                        </div>
                     </div>
                     
                     <?php submit_button('Save AI Settings'); ?>
@@ -5918,5 +5987,785 @@ Remember: Plain text only, no formatting.');
         
         </script>
         <?php
+    }
+    
+    /**
+     * JPC Management page
+     */
+    public function jpc_management_page() {
+        // Handle form submissions
+        if (isset($_POST['action']) && wp_verify_nonce($_POST['jpc_management_nonce'], 'jpc_management_action')) {
+            if ($_POST['action'] === 'clear_all_jpc_data') {
+                $this->clear_all_jpc_data();
+            }
+        }
+        
+        // Get JPC data statistics
+        global $wpdb;
+        $stats = $this->get_jpc_statistics();
+        ?>
+        <div class="wrap">
+            <h1>JPC Management</h1>
+            <p>Manage Jazzedge Practice Curriculum™ data in the Practice Hub. <strong>⚠️ This only affects Practice Hub tables, NOT the original JPC system.</strong></p>
+            
+            <div class="jpc-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">
+                <div class="jpc-stat-card" style="background: #f8f9fa; border: 1px solid #e1e5e9; border-radius: 8px; padding: 20px; text-align: center;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">Total Users</h3>
+                    <div style="font-size: 2em; font-weight: bold; color: #0073aa;"><?php echo $stats['total_users']; ?></div>
+                </div>
+                <div class="jpc-stat-card" style="background: #f8f9fa; border: 1px solid #e1e5e9; border-radius: 8px; padding: 20px; text-align: center;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">Active Assignments</h3>
+                    <div style="font-size: 2em; font-weight: bold; color: #0073aa;"><?php echo $stats['active_assignments']; ?></div>
+                </div>
+                <div class="jpc-stat-card" style="background: #f8f9fa; border: 1px solid #e1e5e9; border-radius: 8px; padding: 20px; text-align: center;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">Progress Records</h3>
+                    <div style="font-size: 2em; font-weight: bold; color: #0073aa;"><?php echo $stats['progress_records']; ?></div>
+                </div>
+                <div class="jpc-stat-card" style="background: #f8f9fa; border: 1px solid #e1e5e9; border-radius: 8px; padding: 20px; text-align: center;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">Reference Data</h3>
+                    <div style="font-size: 2em; font-weight: bold; color: #0073aa;"><?php echo $stats['reference_data']; ?></div>
+                </div>
+            </div>
+            
+            <div class="jpc-management-actions" style="background: #fff; border: 1px solid #e1e5e9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h2>Danger Zone</h2>
+                <p><strong>⚠️ WARNING:</strong> These actions will permanently delete Practice Hub JPC data. This cannot be undone!</p>
+                
+                <form method="post" onsubmit="return confirm('Are you sure you want to clear ALL Practice Hub JPC data? This will delete all user assignments and progress. This action cannot be undone!');">
+                    <?php wp_nonce_field('jpc_management_action', 'jpc_management_nonce'); ?>
+                    <input type="hidden" name="action" value="clear_all_jpc_data">
+                    <button type="submit" class="button button-primary" style="background: #dc3545; border-color: #dc3545; color: white;">
+                        🗑️ Clear All Practice Hub JPC Data
+                    </button>
+                </form>
+                
+                <p><small>This will clear data from: <code>wp_jph_jpc_user_assignments</code> and <code>wp_jph_jpc_user_progress</code> tables only. Reference data (curriculum and steps) will remain intact.</small></p>
+            </div>
+            
+            <div class="jpc-reference-info" style="background: #e7f3ff; border: 1px solid #b3d9ff; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h3>Reference Data Status</h3>
+                <p>The following tables contain reference data and are safe from deletion:</p>
+                <ul>
+                    <li><code>wp_jph_jpc_curriculum</code> - <?php echo $stats['curriculum_count']; ?> curriculum focuses</li>
+                    <li><code>wp_jph_jpc_steps</code> - <?php echo $stats['steps_count']; ?> step definitions</li>
+                </ul>
+                <p><strong>Original JPC tables are completely untouched:</strong></p>
+                <ul>
+                    <li><code>je_practice_curriculum</code> - Original curriculum data</li>
+                    <li><code>je_practice_curriculum_steps</code> - Original step definitions</li>
+                    <li><code>je_practice_curriculum_assignments</code> - Original user assignments</li>
+                    <li><code>je_practice_curriculum_progress</code> - Original user progress</li>
+                </ul>
+            </div>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Get JPC statistics
+     */
+    private function get_jpc_statistics() {
+        global $wpdb;
+        
+        $stats = array(
+            'total_users' => $wpdb->get_var("SELECT COUNT(DISTINCT user_id) FROM {$wpdb->prefix}jph_jpc_user_assignments"),
+            'active_assignments' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_user_assignments WHERE deleted_at IS NULL"),
+            'progress_records' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_user_progress"),
+            'curriculum_count' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_curriculum"),
+            'steps_count' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_steps"),
+            'reference_data' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_curriculum") + $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_steps")
+        );
+        
+        return $stats;
+    }
+    
+    /**
+     * Clear all Practice Hub JPC data
+     */
+    private function clear_all_jpc_data() {
+        global $wpdb;
+        
+        // Clear user-specific data only (NOT reference data)
+        $tables_to_clear = array(
+            'jph_jpc_user_assignments',
+            'jph_jpc_user_progress'
+        );
+        
+        $results = array();
+        
+        foreach ($tables_to_clear as $table) {
+            $deleted = $wpdb->query("DELETE FROM {$wpdb->prefix}{$table}");
+            $results[$table] = $deleted;
+        }
+        
+        // Show success message
+        echo '<div class="notice notice-success is-dismissible"><p><strong>Success!</strong> Cleared Practice Hub JPC data:</p><ul>';
+        foreach ($results as $table => $count) {
+            echo '<li>' . $table . ': ' . $count . ' records deleted</li>';
+        }
+        echo '</ul></div>';
+        
+        // Log the action
+        error_log("JPC Management: Admin cleared all Practice Hub JPC data. Tables affected: " . implode(', ', array_keys($results)));
+    }
+    
+    /**
+     * Grade JPC page - Modern milestone grading interface
+     */
+    public function grade_jpc_page() {
+        global $wpdb;
+        
+        // Handle form submissions
+        $action = $_POST['action'] ?? $_GET['action'] ?? null;
+        $message = '';
+        
+        if ($action === 'grade' && wp_verify_nonce($_POST['grade_nonce'], 'grade_milestone')) {
+            $id = intval($_POST['id']);
+            $grade = sanitize_text_field($_POST['grade']);
+            $teacher_notes = sanitize_textarea_field($_POST['teacher_notes']);
+            
+            if (!empty($grade)) {
+                // Get submission details before updating
+                $submission = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions WHERE id = %d",
+                    $id
+                ));
+                
+                $wpdb->update(
+                    $wpdb->prefix . 'jph_jpc_milestone_submissions',
+                    array(
+                        'grade' => $grade,
+                        'graded_on' => current_time('Y-m-d'),
+                        'teacher_notes' => $teacher_notes,
+                        'updated_at' => current_time('mysql')
+                    ),
+                    array('id' => $id),
+                    array('%s', '%s', '%s', '%s'),
+                    array('%d')
+                );
+                
+                // Send email notification to student
+                if ($submission) {
+                    $this->send_grade_notification_email($submission, $grade, $teacher_notes);
+                }
+                
+                // Award 50 gems for passing milestone
+                if ($grade === 'pass') {
+                    $this->award_milestone_pass_bonus($submission->user_id, $submission->curriculum_id);
+                }
+                
+                $message = '<div class="notice notice-success"><p>Milestone graded successfully! Email notification sent to student.</p></div>';
+            } else {
+                $message = '<div class="notice notice-error"><p>Please select a grade.</p></div>';
+            }
+        }
+        
+        if ($action === 'hide' && wp_verify_nonce($_GET['hide_nonce'], 'hide_milestone')) {
+            $id = intval($_GET['id']);
+            $wpdb->update(
+                $wpdb->prefix . 'jph_jpc_milestone_submissions',
+                array('grade' => 'HIDE', 'updated_at' => current_time('mysql')),
+                array('id' => $id),
+                array('%s', '%s'),
+                array('%d')
+            );
+            $message = '<div class="notice notice-success"><p>Milestone hidden successfully!</p></div>';
+        }
+        
+        if ($action === 'delete' && wp_verify_nonce($_POST['delete_nonce'], 'delete_milestone')) {
+            $id = intval($_POST['id']);
+            $wpdb->delete(
+                $wpdb->prefix . 'jph_jpc_milestone_submissions',
+                array('id' => $id),
+                array('%d')
+            );
+            $message = '<div class="notice notice-success"><p>Milestone deleted successfully!</p></div>';
+        }
+        
+        // Get submissions based on current view
+        $current_view = $_GET['view'] ?? 'pending';
+        $submissions = array();
+        
+        switch ($current_view) {
+            case 'graded':
+                $submissions = $wpdb->get_results(
+                    "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+                     WHERE grade IS NOT NULL AND grade != 'HIDE' 
+                     ORDER BY graded_on DESC LIMIT 100"
+                );
+                break;
+            case 'redo':
+                $submissions = $wpdb->get_results(
+                    "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+                     WHERE grade = 'redo' 
+                     ORDER BY submission_date DESC"
+                );
+                break;
+            default: // pending
+                $submissions = $wpdb->get_results(
+                    "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+                     WHERE grade IS NULL AND video_url != '' 
+                     ORDER BY submission_date ASC"
+                );
+        }
+        
+        ?>
+        <div class="wrap">
+            <h1>Grade JPC Milestones</h1>
+            <?php echo $message; ?>
+            
+            <!-- Navigation Tabs -->
+            <div class="jph-grade-nav" style="margin: 20px 0;">
+                <a href="?page=aph-grade-jpc&view=pending" 
+                   class="button <?php echo $current_view === 'pending' ? 'button-primary' : ''; ?>">
+                    To Be Graded (<?php echo $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_milestone_submissions WHERE grade IS NULL AND video_url != ''"); ?>)
+                </a>
+                <a href="?page=aph-grade-jpc&view=graded" 
+                   class="button <?php echo $current_view === 'graded' ? 'button-primary' : ''; ?>">
+                    Recently Graded
+                </a>
+                <a href="?page=aph-grade-jpc&view=redo" 
+                   class="button <?php echo $current_view === 'redo' ? 'button-primary' : ''; ?>">
+                    Redo Requests (<?php echo $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_milestone_submissions WHERE grade = 'redo'"); ?>)
+                </a>
+            </div>
+            
+            <!-- Submissions List -->
+            <div class="jph-grade-submissions-container">
+                <?php if (empty($submissions)): ?>
+                    <div class="jph-no-submissions" style="text-align: center; padding: 60px 20px; background: #fff; border: 1px solid #e1e5e9; border-radius: 8px;">
+                        <div style="font-size: 48px; color: #ddd; margin-bottom: 20px;">📝</div>
+                        <h3 style="color: #666; margin-bottom: 10px;">No submissions found</h3>
+                        <p style="color: #999;">No submissions match the current view criteria.</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($submissions as $submission): ?>
+                        <?php
+                        $user = get_userdata($submission->user_id);
+                        $curriculum = $wpdb->get_row($wpdb->prepare(
+                            "SELECT * FROM {$wpdb->prefix}jph_jpc_curriculum WHERE id = %d",
+                            $submission->curriculum_id
+                        ));
+                        $grade_display = $submission->grade ?: 'TBG';
+                        ?>
+                        <div class="jph-submission-card" style="background: #fff; border: 1px solid #e1e5e9; border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <!-- Submission Header -->
+                            <div class="jph-submission-header" style="background: #f8f9fa; padding: 20px; border-bottom: 1px solid #e1e5e9;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                                    <div style="display: flex; align-items: center; gap: 15px;">
+                                        <div class="jph-submission-id" style="background: #007cba; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 14px;">
+                                            #<?php echo $submission->id; ?>
+                                        </div>
+                                        <div>
+                                            <h3 style="margin: 0; font-size: 18px; color: #1d2327;">
+                                                <?php echo esc_html($user->first_name . ' ' . $user->last_name); ?>
+                                            </h3>
+                                            <p style="margin: 4px 0 0 0; color: #666; font-size: 14px;">
+                                                <?php echo esc_html($user->user_email); ?> • ID: <?php echo $submission->user_id; ?>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 15px;">
+                                        <div class="jph-submission-date" style="color: #666; font-size: 14px;">
+                                            Submitted: <?php echo date('M j, Y', strtotime($submission->submission_date)); ?>
+                                        </div>
+                                        <span class="jph-grade-badge jph-grade-<?php echo strtolower($grade_display); ?>">
+                                            <?php echo $grade_display; ?>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Submission Content -->
+                            <div class="jph-submission-content" style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start;">
+                                    <!-- Left Column: Video -->
+                                    <div class="jph-video-section">
+                                        <h4 style="margin: 0 0 15px 0; color: #1d2327; font-size: 16px;">📹 Student Video</h4>
+                                        <div class="jpc-video-container" style="width: 100%; max-width: 500px; height: 300px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                                            <?php 
+                                            // Convert YouTube URL to embed format
+                                            $video_id = '';
+                                            if (preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/', $submission->video_url, $matches)) {
+                                                $video_id = $matches[1];
+                                            }
+                                            ?>
+                                            <?php if ($video_id): ?>
+                                                <iframe width="100%" height="300" 
+                                                        src="https://www.youtube.com/embed/<?php echo esc_attr($video_id); ?>" 
+                                                        frameborder="0" 
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                                        allowfullscreen
+                                                        style="border-radius: 8px;">
+                                                </iframe>
+                                            <?php else: ?>
+                                                <div style="width: 100%; height: 300px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; border-radius: 8px;">
+                                                    <a href="<?php echo esc_url($submission->video_url); ?>" target="_blank" class="button button-primary">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 8px;">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                                                        </svg>
+                                                        Watch on YouTube
+                                                    </a>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Right Column: Grading Form -->
+                                    <div class="jph-grading-section">
+                                        <h4 style="margin: 0 0 15px 0; color: #1d2327; font-size: 16px;">🎯 Milestone Details</h4>
+                                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                                            <strong style="color: #1d2327;"><?php echo esc_html($curriculum->focus_title); ?></strong><br>
+                                            <span style="color: #666; font-size: 14px;">Tempo: <?php echo esc_html($curriculum->tempo); ?> BPM</span>
+                                        </div>
+                                        
+                                        <?php if ($current_view === 'pending' || $submission->grade === 'redo'): ?>
+                                            <form method="post" class="jph-grading-form">
+                                                <?php wp_nonce_field('grade_milestone', 'grade_nonce'); ?>
+                                                <input type="hidden" name="action" value="grade">
+                                                <input type="hidden" name="id" value="<?php echo $submission->id; ?>">
+                                                
+                                                <div style="margin-bottom: 20px;">
+                                                    <label for="grade_<?php echo $submission->id; ?>" style="display: block; margin-bottom: 8px; font-weight: bold; color: #1d2327;">Grade:</label>
+                                                    <select id="grade_<?php echo $submission->id; ?>" name="grade" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                                                        <option value="">Select Grade...</option>
+                                                        <option value="pass" <?php selected($submission->grade, 'pass'); ?>>✅ PASS</option>
+                                                        <option value="redo" <?php selected($submission->grade, 'redo'); ?>>🔄 REDO</option>
+                                                    </select>
+                                                </div>
+                                                
+                                                <div style="margin-bottom: 20px;">
+                                                    <label for="teacher_notes_<?php echo $submission->id; ?>" style="display: block; margin-bottom: 8px; font-weight: bold; color: #1d2327;">Teacher Notes:</label>
+                                                    <textarea id="teacher_notes_<?php echo $submission->id; ?>" 
+                                                              name="teacher_notes" 
+                                                              rows="6" 
+                                                              style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical;" 
+                                                              placeholder="Write your feedback here..."><?php echo esc_textarea($submission->teacher_notes); ?></textarea>
+                                                    
+                                                    <div style="margin-top: 10px;">
+                                                        <button type="button" class="button button-secondary ai-cleanup-btn" 
+                                                                data-textarea-id="teacher_notes_<?php echo $submission->id; ?>"
+                                                                style="font-size: 13px;">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px;">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                                                            </svg>
+                                                            AI Cleanup
+                                                        </button>
+                                                        <span class="ai-status" style="margin-left: 10px; font-size: 13px; color: #666;"></span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                                                    <button type="submit" class="button button-primary" style="flex: 1;">
+                                                        Submit Grade
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        <?php else: ?>
+                                            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                                                <div style="margin-bottom: 10px;">
+                                                    <strong style="color: #1d2327;">Grade:</strong> 
+                                                    <span class="jph-grade-badge jph-grade-<?php echo strtolower($submission->grade); ?>" style="margin-left: 8px;">
+                                                        <?php echo strtoupper($submission->grade); ?>
+                                                    </span>
+                                                </div>
+                                                <?php if ($submission->graded_on): ?>
+                                                    <div style="margin-bottom: 10px; color: #666; font-size: 14px;">
+                                                        Graded: <?php echo date('M j, Y', strtotime($submission->graded_on)); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if ($submission->teacher_notes): ?>
+                                                    <div>
+                                                        <strong style="color: #1d2327;">Notes:</strong>
+                                                        <div style="background: #fff; padding: 12px; border-radius: 6px; margin-top: 8px; font-size: 14px; line-height: 1.5;">
+                                                            <?php echo nl2br(esc_html($submission->teacher_notes)); ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        
+                                        <!-- Action Buttons -->
+                                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                            <?php if ($submission->grade !== 'HIDE'): ?>
+                                                <a href="?page=aph-grade-jpc&action=hide&id=<?php echo $submission->id; ?>&hide_nonce=<?php echo wp_create_nonce('hide_milestone'); ?>" 
+                                                   class="button button-secondary" 
+                                                   onclick="return confirm('Hide this submission?')">
+                                                    Hide
+                                                </a>
+                                            <?php endif; ?>
+                                            
+                                            <form method="post" style="display: inline;">
+                                                <?php wp_nonce_field('delete_milestone', 'delete_nonce'); ?>
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="id" value="<?php echo $submission->id; ?>">
+                                                <button type="submit" class="button" 
+                                                        style="background: #dc3545; border-color: #dc3545; color: white;"
+                                                        onclick="return confirm('Delete this submission permanently?')">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <style>
+        .jph-grade-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .jph-grade-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .jph-grade-redo {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .jph-grade-tbg {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .jph-grade-nav .button {
+            margin-right: 10px;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .jph-submission-content > div {
+                grid-template-columns: 1fr !important;
+                gap: 20px !important;
+            }
+            .jpc-video-container {
+                max-width: 100% !important;
+            }
+        }
+        
+        /* Card Hover Effects */
+        .jph-submission-card {
+            transition: box-shadow 0.2s ease;
+        }
+        .jph-submission-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+        }
+        
+        /* Form Improvements */
+        .jph-grading-form select:focus,
+        .jph-grading-form textarea:focus {
+            border-color: #007cba;
+            box-shadow: 0 0 0 2px rgba(0, 124, 186, 0.2);
+            outline: none;
+        }
+        
+        .ai-cleanup-btn {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .ai-cleanup-btn:hover {
+            background: #f0f0f0;
+            transform: translateY(-1px);
+        }
+        
+        .ai-cleanup-btn.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        
+        .ai-cleanup-btn.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            margin: -6px 0 0 -6px;
+            border: 2px solid #ccc;
+            border-top: 2px solid #0073aa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        </style>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // AI Cleanup functionality
+            $('.ai-cleanup-btn').on('click', function() {
+                const button = $(this);
+                const textareaId = button.data('textarea-id');
+                const textarea = $('#' + textareaId);
+                const statusSpan = button.siblings('.ai-status');
+                const originalText = textarea.val();
+                
+                if (!originalText.trim()) {
+                    statusSpan.text('Please write some feedback first').css('color', '#d63384');
+                    setTimeout(() => statusSpan.text(''), 3000);
+                    return;
+                }
+                
+                // Show loading state
+                button.addClass('loading').prop('disabled', true);
+                statusSpan.text('Processing...').css('color', '#0073aa');
+                
+                // Send to AI cleanup
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'ai_cleanup_feedback',
+                        text: originalText,
+                        nonce: '<?php echo wp_create_nonce('ai_cleanup_feedback'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.data.cleaned_text) {
+                            textarea.val(response.data.cleaned_text);
+                            statusSpan.text('✓ Cleaned up!').css('color', '#28a745');
+                        } else {
+                            statusSpan.text('✗ Error: ' + (response.data || 'Unknown error')).css('color', '#d63384');
+                        }
+                    },
+                    error: function() {
+                        statusSpan.text('✗ Network error').css('color', '#d63384');
+                    },
+                    complete: function() {
+                        button.removeClass('loading').prop('disabled', false);
+                        setTimeout(() => statusSpan.text(''), 5000);
+                    }
+                });
+            });
+        });
+        </script>
+        <?php
+    }
+    
+    /**
+     * Send grade notification email to student
+     */
+    private function send_grade_notification_email($submission, $grade, $teacher_notes) {
+        global $wpdb;
+        
+        // Get user details
+        $user = get_userdata($submission->user_id);
+        if (!$user) {
+            error_log("JPCXP: Could not find user for submission ID {$submission->id}");
+            return false;
+        }
+        
+        // Get curriculum details
+        $curriculum = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}jph_jpc_curriculum WHERE id = %d",
+            $submission->curriculum_id
+        ));
+        
+        if (!$curriculum) {
+            error_log("JPCXP: Could not find curriculum for submission ID {$submission->id}");
+            return false;
+        }
+        
+        // Prepare email content
+        $subject = "Your JPC Milestone Has Been Graded - " . $curriculum->focus_title;
+        
+        $grade_text = strtoupper($grade);
+        $grade_color = ($grade === 'pass') ? '#10b981' : '#ef4444';
+        
+        $message = "
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #1f2937; color: white; padding: 20px; text-align: center; }
+                .content { padding: 20px; background: #f9fafb; }
+                .grade-badge { 
+                    display: inline-block; 
+                    padding: 8px 16px; 
+                    border-radius: 6px; 
+                    font-weight: bold; 
+                    color: white;
+                    background-color: {$grade_color};
+                }
+                .teacher-notes { 
+                    background: white; 
+                    padding: 15px; 
+                    border-radius: 6px; 
+                    border-left: 4px solid #3b82f6;
+                    margin: 15px 0;
+                }
+                .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h1>JPC Milestone Graded</h1>
+                </div>
+                
+                <div class='content'>
+                    <p>Hello " . esc_html($user->first_name) . ",</p>
+                    
+                    <p>Your milestone submission for <strong>" . esc_html($curriculum->focus_title) . "</strong> has been graded!</p>
+                    
+                    <p><strong>Grade:</strong> <span class='grade-badge'>{$grade_text}</span></p>
+                    
+                    <p><strong>Focus:</strong> " . esc_html($curriculum->focus_title) . "</p>
+                    <p><strong>Tempo:</strong> " . esc_html($curriculum->tempo) . " BPM</p>
+                    <p><strong>Submitted:</strong> " . date('F j, Y', strtotime($submission->submission_date)) . "</p>
+                    <p><strong>Graded:</strong> " . date('F j, Y') . "</p>";
+        
+        if (!empty($teacher_notes)) {
+            $message .= "
+                    <div class='teacher-notes'>
+                        <h3>Teacher Feedback:</h3>
+                        <p>" . nl2br(esc_html($teacher_notes)) . "</p>
+                    </div>";
+        }
+        
+        if ($grade === 'redo') {
+            $message .= "
+                    <p><strong>Next Steps:</strong> Please review the feedback above and resubmit your video when you're ready. You can access your JPC dashboard to submit a new video for this focus.</p>";
+        } else {
+            $message .= "
+                    <p><strong>Congratulations!</strong> You've successfully completed this focus. Keep up the great work!</p>
+                    <p><strong>🎉 Bonus Reward:</strong> You've earned 50 gems for passing this milestone! Check your gem balance in your dashboard.</p>";
+        }
+        
+        $message .= "
+                    
+                    <p>You can view your progress and submit new milestones in your <a href='" . home_url('/jpc-dashboard') . "'>JPC Dashboard</a>.</p>
+                    
+                    <p>Keep practicing!</p>
+                    
+                    <p>The JazzEdge Team</p>
+                </div>
+                
+                <div class='footer'>
+                    <p>This email was sent regarding your Jazzedge Practice Curriculum™ milestone submission.</p>
+                </div>
+            </div>
+        </body>
+        </html>";
+        
+        // Set headers for HTML email
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            'From: JazzEdge Academy <noreply@jazzedge.academy>'
+        );
+        
+        // Send email
+        $sent = wp_mail($user->user_email, $subject, $message, $headers);
+        
+        if ($sent) {
+            error_log("JPCXP: Grade notification email sent to {$user->user_email} for submission ID {$submission->id}");
+        } else {
+            error_log("JPCXP: Failed to send grade notification email to {$user->user_email} for submission ID {$submission->id}");
+        }
+        
+        return $sent;
+    }
+    
+    /**
+     * Award 50 gems bonus for passing a milestone
+     */
+    private function award_milestone_pass_bonus($user_id, $curriculum_id) {
+        global $wpdb;
+        
+        // Award 50 gems for passing milestone
+        $gems_earned = 50;
+        
+        // Get current user stats
+        $user_stats = $wpdb->get_row($wpdb->prepare(
+            "SELECT gems_balance FROM {$wpdb->prefix}jph_user_stats WHERE user_id = %d",
+            $user_id
+        ), ARRAY_A);
+        
+        if (!$user_stats) {
+            // Create user stats record if it doesn't exist
+            $wpdb->insert(
+                $wpdb->prefix . 'jph_user_stats',
+                array(
+                    'user_id' => $user_id,
+                    'total_xp' => 0,
+                    'current_level' => 1,
+                    'current_streak' => 0,
+                    'longest_streak' => 0,
+                    'total_sessions' => 0,
+                    'total_minutes' => 0,
+                    'badges_earned' => 0,
+                    'gems_balance' => $gems_earned,
+                    'hearts_count' => 5,
+                    'streak_shield_count' => 0,
+                    'show_on_leaderboard' => 1,
+                    'created_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql')
+                ),
+                array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s')
+            );
+            
+            error_log("JPCXP: Created user stats for milestone pass bonus - user_id=$user_id, gems=$gems_earned");
+        } else {
+            // Update existing gems balance
+            $new_balance = $user_stats['gems_balance'] + $gems_earned;
+            $wpdb->update(
+                $wpdb->prefix . 'jph_user_stats',
+                array('gems_balance' => $new_balance),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+            
+            error_log("JPCXP: Awarded milestone pass bonus - user_id=$user_id, gems=$gems_earned, new_balance=$new_balance");
+        }
+        
+        // Log gem transaction
+        $wpdb->insert(
+            $wpdb->prefix . 'jph_gems_transactions',
+            array(
+                'user_id' => $user_id,
+                'transaction_type' => 'milestone_pass_bonus',
+                'amount' => $gems_earned,
+                'description' => 'Milestone Pass Bonus - Curriculum ID: ' . $curriculum_id,
+                'created_at' => current_time('mysql')
+            ),
+            array('%d', '%s', '%d', '%s', '%s')
+        );
+        
+        return true;
+    }
+    
+    /**
+     * Get default AI prompt for milestone grading
+     */
+    private function get_default_milestone_prompt() {
+        return "You are an AI assistant helping music teachers provide constructive feedback to students. 
+
+Your task is to clean up and improve teacher feedback for music milestone submissions while maintaining the teacher's voice and intent.
+
+Guidelines:
+- Keep the teacher's original meaning and tone
+- Fix grammar, spelling, and punctuation errors
+- Make the feedback more clear and constructive
+- Ensure feedback is encouraging but honest
+- Keep it concise but comprehensive
+- Maintain professional but friendly tone
+- Don't change the core message or criticism
+
+Return only the cleaned feedback text, no explanations or additional commentary.";
     }
 }
