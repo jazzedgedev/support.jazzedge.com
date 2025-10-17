@@ -880,6 +880,9 @@ class JPH_Frontend {
         
         $user_id = get_current_user_id();
         
+        // Automatically add user to all community spaces on first load
+        $this->auto_add_user_to_spaces($user_id);
+        
         // Get user's practice items
         $practice_items = $this->database->get_user_practice_items($user_id);
         $practice_items = $this->sanitize_practice_items($practice_items);
@@ -2014,33 +2017,332 @@ class JPH_Frontend {
                             </div>
                             
                             <div class="community-content">
-                                <div class="community-placeholder">
-                                    <div class="placeholder-icon">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="48" height="48">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zM7.5 21a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                                        </svg>
+                                <?php
+                                // Get current user profile data using Fluent Community ProfileHelper
+                                $current_user_id = get_current_user_id();
+                                $profile = null;
+                                $profileSpaces = array();
+                                
+                                if ($current_user_id > 0 && class_exists('\FluentCommunity\App\Services\ProfileHelper')) {
+                                    try {
+                                        $profile = \FluentCommunity\App\Services\ProfileHelper::getProfile($current_user_id);
+                                        if ($profile) {
+                                            $profileSpaces = $profile->spaces;
+                                        }
+                                    } catch (Exception $e) {
+                                        error_log('Fluent Community Profile Error: ' . $e->getMessage());
+                                    }
+                                }
+                                
+                                // Get basic user data
+                                $user_data = get_userdata($current_user_id);
+                                $user_display_name = $user_data ? $user_data->display_name : 'User';
+                                $user_email = $user_data ? $user_data->user_email : '';
+                                $user_login = $user_data ? $user_data->user_login : '';
+                                
+                                // Clean username for community URL (remove @domain.com if present)
+                                $clean_username = preg_replace('/@.*$/', '', $user_login);
+                                
+                                // Get extended profile data from wp_fcom_xprofile
+                                $xprofile_data = $wpdb->get_row($wpdb->prepare("
+                                    SELECT short_description, last_activity, is_verified, total_points
+                                    FROM {$wpdb->prefix}fcom_xprofile 
+                                    WHERE user_id = %d
+                                ", $current_user_id));
+                                
+                                $has_description = !empty($xprofile_data->short_description);
+                                $has_recent_activity = false;
+                                $last_activity_days = 0;
+                                
+                                if (!empty($xprofile_data->last_activity)) {
+                                    $last_activity_timestamp = strtotime($xprofile_data->last_activity);
+                                    $last_activity_days = floor((time() - $last_activity_timestamp) / (24 * 60 * 60));
+                                    $has_recent_activity = ($last_activity_days <= 7); // Active within last 7 days
+                                }
+                                ?>
+                                
+                                <!-- User Profile Section -->
+                                <div class="user-profile-section">
+                                    <div class="profile-header">
+                                        <div class="profile-avatar">
+                                            <?php echo get_avatar($current_user_id, 80, '', $user_display_name, array('class' => 'profile-avatar-img')); ?>
+                                        </div>
+                                        <div class="profile-info">
+                                            <h4><?php echo esc_html($user_display_name); ?></h4>
+                                            <p class="profile-email"><?php echo esc_html($user_email); ?></p>
+                                            <div class="profile-status">
+                                                <?php if ($profile): ?>
+                                                    <span class="status-badge status-active">Active Member</span>
+                                                <?php else: ?>
+                                                    <span class="status-badge status-pending">Profile Setup Required</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="profile-actions">
+                                                <a href="https://jazzedge.academy/community/u/<?php echo esc_attr($clean_username); ?>" target="_blank" class="jph-btn jph-btn-secondary profile-update-btn">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                    </svg>
+                                                    Complete Profile
+                                                </a>
+                                                <a href="https://jazzedge.academy/community/u/<?php echo esc_attr($clean_username); ?>" target="_blank" class="jph-btn jph-btn-primary profile-update-btn">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                                                    </svg>
+                                                    Video Profile
+                                                </a>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <h4>Community Features Coming Soon!</h4>
-                                    <p>We're working on exciting community features to help you connect with other musicians, share your progress, and learn together.</p>
-                                    <div class="coming-soon-features">
-                                        <div class="feature-item">
-                                            <span class="feature-icon">💬</span>
-                                            <span>Discussion Forums</span>
+                                    
+                                    <!-- Profile Details -->
+                                    <?php if ($profile): ?>
+                                        <div class="profile-details">
+                                            <div class="detail-grid">
+                                                <?php if (!empty($profileSpaces)): ?>
+                                                    <div class="detail-item">
+                                                        <h6>Community Spaces</h6>
+                                                        <div class="spaces-grid">
+                                                            <?php foreach ($profileSpaces as $space): ?>
+                                                                <a href="<?php echo esc_url('https://jazzedge.academy/community/space/' . ($space->slug ?? 'space-' . $space->id) . '/home'); ?>" target="_blank" class="space-card">
+                                                                    <div class="space-icon">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                                                                        </svg>
+                                                                    </div>
+                                                                    <div class="space-info">
+                                                                        <span class="space-title"><?php echo esc_html($space->title ?? 'Untitled Space'); ?></span>
+                                                                        <span class="space-visit">Visit Space</span>
+                                                                    </div>
+                                                                </a>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <div class="detail-item">
+                                                        <h6>Community Spaces</h6>
+                                                        <div class="no-spaces-card">
+                                                            <div class="no-spaces-icon">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                                                                </svg>
+                                                            </div>
+                                                            <p>No spaces joined yet</p>
+                                                            <a href="https://jazzedge.academy/community/" target="_blank" class="jph-btn jph-btn-secondary">Explore Spaces</a>
+                                                        </div>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
-                                        <div class="feature-item">
-                                            <span class="feature-icon">🎵</span>
-                                            <span>Progress Sharing</span>
+                                    <?php else: ?>
+                                        <div class="profile-setup-prompt">
+                                            <h5>Complete Your Community Profile</h5>
+                                            <p>Set up your community profile to connect with other musicians and access exclusive features.</p>
+                                            <a href="https://jazzedge.academy/community/u/<?php echo esc_attr($clean_username); ?>" target="_blank" class="jph-btn jph-btn-primary">Set Up Profile</a>
                                         </div>
-                                        <div class="feature-item">
-                                            <span class="feature-icon">🏆</span>
-                                            <span>Community Challenges</span>
-                                        </div>
-                                        <div class="feature-item">
-                                            <span class="feature-icon">👥</span>
-                                            <span>Study Groups</span>
-                                        </div>
-                                    </div>
+                                    <?php endif; ?>
                                 </div>
+                                
+                                <!-- Profile Completion Encouragements -->
+                                <div class="profile-encouragements">
+                                    <?php if (!$has_recent_activity): ?>
+                                        <div class="encouragement-card encouragement-activity">
+                                            <div class="encouragement-icon">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </div>
+                                            <div class="encouragement-content">
+                                                <h4>Get Active in the Community</h4>
+                                                <?php if ($last_activity_days > 0): ?>
+                                                    <p>You haven't been active in the community for <?php echo $last_activity_days; ?> days. Join the conversation!</p>
+                                                <?php else: ?>
+                                                    <p>Welcome to the community! Start engaging with fellow musicians by posting, commenting, or reacting to posts.</p>
+                                                <?php endif; ?>
+                                                <a href="https://jazzedge.academy/community/" target="_blank" class="jph-btn jph-btn-secondary encouragement-btn">
+                                                    Visit Community
+                                                </a>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <!-- Recent Community Posts Section -->
+                                <?php
+                                // Get recent community posts with videos from wp_fcom_posts table
+                                global $wpdb;
+                                $recent_posts = $wpdb->get_results($wpdb->prepare("
+                                    SELECT p.id, p.user_id, p.title, p.slug, p.message, p.message_rendered, p.type, p.content_type, p.meta, p.created_at, p.updated_at, u.display_name, u.user_login
+                                    FROM {$wpdb->prefix}fcom_posts p
+                                    LEFT JOIN {$wpdb->users} u ON p.user_id = u.ID
+                                    WHERE p.parent_id IS NULL 
+                                    AND p.status = 'published'
+                                    AND p.meta LIKE '%media_preview%'
+                                    AND p.meta LIKE '%content_type%video%'
+                                    ORDER BY p.created_at DESC
+                                    LIMIT 8
+                                "));
+                                ?>
+                                
+                                <?php if (!empty($recent_posts)): ?>
+                                    <div class="recent-posts-section">
+                                        <div class="recent-posts-header">
+                                            <h5>Recent Community Posts</h5>
+                                            <a href="https://jazzedge.academy/community/" target="_blank" class="jph-btn jph-btn-secondary view-all-posts-btn">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                                </svg>
+                                                View All Posts
+                                            </a>
+                                        </div>
+                                        <div class="posts-list">
+                                            <?php foreach ($recent_posts as $post): ?>
+                                                <?php
+                                                // Determine post type and content
+                                                $post_type = $post->type ?? 'text';
+                                                $post_title = !empty($post->title) ? $post->title : '';
+                                                $post_content = $post->message_rendered ?: $post->message;
+                                                $post_excerpt = wp_trim_words(strip_tags($post_content), 25, '...');
+                                                $post_date = date('M j, Y', strtotime($post->created_at));
+                                                $post_time = date('g:i A', strtotime($post->created_at));
+                                                $author_name = $post->display_name ?: $post->user_login;
+                                                
+                                                // Extract video data from meta field
+                                                $video_embed_html = '';
+                                                $video_title = '';
+                                                $video_thumbnail = '';
+                                                
+                                                if (!empty($post->meta)) {
+                                                    $meta_data = maybe_unserialize($post->meta);
+                                                    if (isset($meta_data['media_preview']) && is_array($meta_data['media_preview'])) {
+                                                        $media_preview = $meta_data['media_preview'];
+                                                        
+                                                        // Check if it's a video
+                                                        if (isset($media_preview['content_type']) && $media_preview['content_type'] === 'video') {
+                                                            $post_type = 'video';
+                                                            
+                                                            // Extract video information
+                                                            $video_title = $media_preview['title'] ?? '';
+                                                            $video_thumbnail = $media_preview['image'] ?? '';
+                                                            
+                                                            // Use the HTML embed if available, otherwise construct from URL
+                                                            if (isset($media_preview['html'])) {
+                                                                $video_embed_html = $media_preview['html'];
+                                                            } elseif (isset($media_preview['url'])) {
+                                                                $video_url = $media_preview['url'];
+                                                                if (strpos($video_url, 'youtube.com') !== false || strpos($video_url, 'youtu.be') !== false) {
+                                                                    // Extract YouTube video ID
+                                                                    preg_match('/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/', $video_url, $matches);
+                                                                    if (isset($matches[1])) {
+                                                                        $video_id = $matches[1];
+                                                                        $video_embed_html = '<iframe width="100%" height="200" src="https://www.youtube.com/embed/' . $video_id . '" frameborder="0" allowfullscreen></iframe>';
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                // Get post reactions/comments count (simplified for now)
+                                                $reactions_count = 0; // TODO: Fix when we know the correct column name
+                                                $comments_count = 0;   // TODO: Fix when we know the correct column name
+                                                ?>
+                                                <div class="post-item post-type-<?php echo esc_attr($post_type); ?>">
+                                                    <div class="post-header">
+                                                        <div class="post-type-badge">
+                                                            <?php if ($post_type === 'video'): ?>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                                                                </svg>
+                                                                Video
+                                                            <?php elseif ($post_type === 'image'): ?>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                                                </svg>
+                                                                Image
+                                                            <?php else: ?>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                                                </svg>
+                                                                Post
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <h6 class="post-title">
+                                                            <?php if (!empty($post_title)): ?>
+                                                                <?php echo esc_html($post_title); ?>
+                                                            <?php endif; ?>
+                                                        </h6>
+                                                    </div>
+                                                    
+                                                    <div class="post-content">
+                                                        <?php if (!empty($post_excerpt)): ?>
+                                                            <div class="post-excerpt">
+                                                                <?php echo wp_kses_post($post_excerpt); ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                        
+                                                        <?php if ($post_type === 'video' && !empty($video_embed_html)): ?>
+                                                            <div class="post-media">
+                                                                <div class="video-container">
+                                                                    <div class="video-embed"><?php echo wp_kses_post($video_embed_html); ?></div>
+                                                                    <?php if (!empty($video_title)): ?>
+                                                                        <div class="video-title"><?php echo esc_html($video_title); ?></div>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                        
+                                                        <!-- Community Link -->
+                                                        <div class="post-community-link">
+                                                            <a href="https://jazzedge.academy/community/" target="_blank" class="community-link">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                                                </svg>
+                                                                View All Posts
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="post-footer">
+                                                        <div class="post-meta">
+                                                            <div class="post-author">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                                                </svg>
+                                                                <span><?php echo esc_html($author_name); ?></span>
+                                                            </div>
+                                                            <div class="post-date">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                                                                </svg>
+                                                                <span><?php echo esc_html($post_date); ?> at <?php echo esc_html($post_time); ?></span>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div class="post-stats">
+                                                            <?php if ($reactions_count > 0): ?>
+                                                                <div class="post-stat">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558-.107 1.282.725 1.282m0 0 3.108.001a9.483 9.483 0 0 1-1.5 2.16c-.533.66-1.337 1.052-2.267 1.052H17.25M4.633 10.25a2.25 2.25 0 0 0-2.25 2.25c0 1.152.26 2.243.723 3.218.266.558.107 1.282-.725 1.282m0 0-3.108.001A9.483 9.483 0 0 1 3 13.75c.533-.66 1.337-1.052 2.267-1.052H6.75" />
+                                                                    </svg>
+                                                                    <span><?php echo intval($reactions_count); ?></span>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                            
+                                                            <?php if ($comments_count > 0): ?>
+                                                                <div class="post-stat">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                                                                    </svg>
+                                                                    <span><?php echo intval($comments_count); ?></span>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -2049,18 +2351,31 @@ class JPH_Frontend {
                     <div class="jph-tab-pane" id="shield-protection-tab">
                         <!-- Shield Protection Section -->
                         <div class="jph-shield-protection">
-                            <h3>🛡️ Shield Protection</h3>
+                            <h3>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                </svg>
+                                Shield Protection
+                            </h3>
                             
                             <!-- Shield Stats and Actions -->
                             <div class="jph-protection-stats">
                                 <div class="protection-item">
-                                    <span class="protection-icon">🛡️</span>
+                                    <span class="protection-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                        </svg>
+                                    </span>
                                     <span class="protection-label">Shields:</span>
                                     <span class="protection-value" id="shield-count"><?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></span>
                                 </div>
                                 <div class="protection-actions">
                                     <button type="button" class="jph-btn jph-btn-primary" id="purchase-shield-btn-main" data-cost="50" data-nonce="<?php echo wp_create_nonce('purchase_shield'); ?>">
-                                        <span class="btn-icon">🛡️</span>
+                                        <span class="btn-icon">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                            </svg>
+                                        </span>
                                         Purchase Shield (50 💎)
                                     </button>
                                 </div>
@@ -2070,7 +2385,12 @@ class JPH_Frontend {
                             <div class="shield-info-section">
                                 <div class="shield-info-grid">
                                     <div class="shield-info-item">
-                                        <h5>🛡️ What are Shields?</h5>
+                                        <h5>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 6px; vertical-align: middle;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                            </svg>
+                                            What are Shields?
+                                        </h5>
                                         <p>Shield Protection prevents your streak from breaking if you miss a day of practice. Each shield protects you for one missed day.</p>
                                     </div>
                                     
@@ -2132,8 +2452,8 @@ class JPH_Frontend {
                                 'first_steps' => array('name' => 'First Steps', 'icon' => '🌟', 'description' => 'Your journey begins here'),
                                 'streak_specialist' => array('name' => 'Streak Specialist', 'icon' => '🔥', 'description' => 'Consistency is key'),
                                 'xp_collector' => array('name' => 'XP Collector', 'icon' => '⭐', 'description' => 'Points and progress'),
-                                'session_warrior' => array('name' => 'Session Warrior', 'icon' => '⚔️', 'description' => 'Practice makes perfect'),
-                                'quality_quantity' => array('name' => 'Quality Over Quantity', 'icon' => '🎯', 'description' => 'Deep focus sessions'),
+                                'session_warrior' => array('name' => 'Session Warrior', 'icon' => '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" /></svg>', 'description' => 'Practice makes perfect'),
+                                'quality_quantity' => array('name' => 'Quality Over Quantity', 'icon' => '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" /></svg>', 'description' => 'Deep focus sessions'),
                                 'special_achievements' => array('name' => 'Special Achievements', 'icon' => '🎭', 'description' => 'Unique accomplishments')
                             );
                             
@@ -2284,16 +2604,16 @@ class JPH_Frontend {
                     <div class="jph-tab-pane" id="analytics-tab">
                         <!-- Analytics Section -->
                         <div class="jph-analytics-section">
-                            <div class="analytics-header">
-                                <h3><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="analytics-icon"><!--!Font Awesome Pro v7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2025 Fonticons, Inc.--><path d="M500 89c13.8-11 16-31.2 5-45s-31.2-16-45-5L319.4 151.5 211.2 70.4c-11.7-8.8-27.8-8.5-39.2 .6L12 199c-13.8 11-16 31.2-5 45s31.2 16 45 5l140.6-112.5 108.2 81.1c11.7 8.8 27.8 8.5 39.2-.6L500 89zM160 256l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32zM32 352l0 96c0 17.7 14.3 32 32 32s32-14.3 32-32l0-96c0-17.7-14.3-32-32-32s-32 14.3-32 32zm288-64c-17.7 0-32 14.3-32 32l0 128c0 17.7 14.3 32 32 32s32-14.3 32-32l0-128c0-17.7-14.3-32-32-32zm96-32l0 192c0 17.7 14.3 32 32 32s32-14.3 32-32l0-192c0-17.7-14.3-32-32-32s-32 14.3-32 32z"/></svg> Your Practice Analytics</h3>
-                                <p>Track your progress and discover insights about your practice habits</p>
-                            </div>
-                            
                             <div class="analytics-grid">
                                 <!-- Practice Time Overview -->
                                 <div class="analytics-card practice-time-card">
                                     <div class="card-header">
-                                        <h4>⏱️ Practice Time</h4>
+                                        <h4>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Practice Time
+                                        </h4>
                                         <span class="card-subtitle">Minutes practiced</span>
                                     </div>
                                     <div class="time-periods">
@@ -2302,7 +2622,12 @@ class JPH_Frontend {
                                             <span class="period-value count-up" id="analytics-7-days-minutes" data-target="0" data-start="0">0</span>
                                         </div>
                                         <div class="time-period">
-                                            <span class="period-label">Last 30 days</span>
+                                            <span class="period-label">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14" style="display: inline-block; margin-right: 6px; vertical-align: middle;">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Last 30 days
+                                            </span>
                                             <span class="period-value count-up" id="analytics-30-days-minutes" data-target="0" data-start="0">0</span>
                                         </div>
                                         <div class="time-period">
@@ -2319,7 +2644,12 @@ class JPH_Frontend {
                                 <!-- Practice Sessions -->
                                 <div class="analytics-card practice-sessions-card">
                                     <div class="card-header">
-                                        <h4>🎯 Practice Sessions</h4>
+                                        <h4>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 15.75l-2.489-2.489m0 0a3.375 3.375 0 10-4.773-4.773 3.375 3.375 0 004.773 4.773zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Practice Sessions
+                                        </h4>
                                         <span class="card-subtitle">Number of sessions</span>
                                     </div>
                                     <div class="sessions-grid">
@@ -2345,26 +2675,43 @@ class JPH_Frontend {
                                 <!-- Insights Card -->
                                 <div class="analytics-card insights-card">
                                     <div class="card-header">
-                                        <h4>🧠 Practice Insights</h4>
+                                        <h4>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                            </svg>
+                                            Practice Insights
+                                        </h4>
                                         <span class="card-subtitle">Your practice patterns</span>
                                     </div>
                                     <div class="insights-list">
                                         <div class="insight-item">
-                                            <span class="insight-icon">🎯</span>
+                                            <span class="insight-icon">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 15.75l-2.489-2.489m0 0a3.375 3.375 0 10-4.773-4.773 3.375 3.375 0 004.773 4.773zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </span>
                                             <div class="insight-content">
                                                 <span class="insight-label">Consistency Score</span>
                                                 <span class="insight-value" id="analytics-consistency">-</span>
                                             </div>
                                         </div>
                                         <div class="insight-item">
-                                            <span class="insight-icon">📈</span>
+                                            <span class="insight-icon">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                                                </svg>
+                                            </span>
                                             <div class="insight-content">
                                                 <span class="insight-label">Improvement Rate</span>
                                                 <span class="insight-value" id="analytics-improvement-rate">-</span>
                                             </div>
                                         </div>
                                         <div class="insight-item">
-                                            <span class="insight-icon">😊</span>
+                                            <span class="insight-icon">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                                                </svg>
+                                            </span>
                                             <div class="insight-content">
                                                 <span class="insight-label">Mood Rating</span>
                                                 <span class="insight-value" id="analytics-sentiment">-</span>
@@ -2375,7 +2722,12 @@ class JPH_Frontend {
                                     <!-- Practice Chart -->
                                     <div class="practice-chart-container">
                                         <div class="chart-header">
-                                            <h5>📊 Practice Trends</h5>
+                                            <h5>
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 6px; vertical-align: middle;">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                                </svg>
+                                                Practice Trends
+                                            </h5>
                                             <div class="chart-period-links">
                                                 <a href="#" class="period-link" data-days="7">7 days</a>
                                                 <a href="#" class="period-link active" data-days="30">30 days</a>
@@ -2389,13 +2741,17 @@ class JPH_Frontend {
                                 <!-- AI Analysis Card -->
                                 <div class="analytics-card ai-analysis-card">
                                     <div class="card-header">
-                                        <h4>🤖 AI Practice Analysis</h4>
+                                        <h4>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                            </svg>
+                                            AI Practice Analysis
+                                        </h4>
                                         <span class="card-subtitle">Personalized insights from your practice data</span>
                                     </div>
                                     <div class="ai-analysis-content">
                                         <div class="ai-analysis-text" id="ai-analysis-text">
                                             <div class="ai-analysis-placeholder">
-                                                <div class="ai-placeholder-icon">🤖</div>
                                                 <h5>Ready for AI Analysis</h5>
                                                 <p>Click the button below to generate personalized insights from your practice data.</p>
                                                 <p class="ai-placeholder-note">Analysis covers your last 30 days of practice sessions.</p>
@@ -2403,13 +2759,25 @@ class JPH_Frontend {
                                         </div>
                                         <div class="ai-analysis-footer">
                                             <div class="ai-data-period" id="ai-data-period">
-                                                <span class="period-label">📊</span>
+                                                <span class="period-label">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                                    </svg>
+                                                </span>
                                                 <span class="period-text">Last 30 days</span>
                                             </div>
-                                            <button type="button" class="ai-generate-btn" id="ai-generate-btn">
-                                                <span class="generate-icon">✨</span>
-                                                Generate AI Analysis
-                                            </button>
+                                            <div class="ai-analysis-actions">
+                                                <button type="button" class="ai-generate-btn" id="ai-generate-btn">
+                                                    <span class="generate-icon">✨</span>
+                                                    Generate AI Analysis
+                                                </button>
+                                                <button type="button" class="ai-print-btn" id="ai-print-btn" style="display: none;">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m-10.56 0L5.34 5.19m8.92 8.64L18.66 5.19M9.88 8.625h4.24m-4.24 0a3 3 0 00-3 3v6a3 3 0 003 3h4.24a3 3 0 003-3v-6a3 3 0 00-3-3m-4.24 0V6.75a2.25 2.25 0 012.25-2.25h2.25a2.25 2.25 0 012.25 2.25v1.875" />
+                                                    </svg>
+                                                    Print Analysis
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -2451,16 +2819,20 @@ class JPH_Frontend {
                                 <div class="practice-history-header-item">Date</div>
                                 <div class="practice-history-header-item">Item</div>
                                 <div class="practice-history-header-item center">Duration</div>
-                                <div class="practice-history-header-item center">How it felt</div>
-                                <div class="practice-history-header-item center">Improvement</div>
-                                <div class="practice-history-header-item center">Actions</div>
+                                <div class="practice-history-header-item center mobile-hidden">How it felt</div>
+                                <div class="practice-history-header-item center mobile-hidden">Improvement</div>
+                                <div class="practice-history-header-item center mobile-hidden">Actions</div>
                             </div>
                             <div class="practice-history-list" id="practice-history-list">
                                 <div class="loading-message">Loading practice history...</div>
                             </div>
                             <div id="load-more-container" style="text-align: center; margin-top: 20px; display: none;">
                                 <button id="load-more-sessions-bottom" class="jph-btn jph-btn-secondary">
-                                    <span class="btn-icon">📈</span>
+                                    <span class="btn-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                    </span>
                                     Load More Sessions
                                 </button>
                             </div>
@@ -2600,7 +2972,12 @@ class JPH_Frontend {
                     
                     <!-- Duration Section -->
                     <div class="form-group">
-                        <label>⏱️ Duration:</label>
+                        <label>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 6px; vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Duration:
+                        </label>
                         <div class="duration-options">
                             <div class="duration-quick-buttons">
                                 <button type="button" class="duration-btn" data-minutes="5">5 min</button>
@@ -2618,7 +2995,12 @@ class JPH_Frontend {
                     
                     <!-- Sentiment Section -->
                     <div class="form-group">
-                        <label>😊 How did it go?</label>
+                        <label>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 6px; vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                            </svg>
+                            How did it go?
+                        </label>
                         <div class="sentiment-options">
                             <div class="sentiment-option" data-score="1">
                                 <div class="sentiment-emoji">😞</div>
@@ -2633,7 +3015,11 @@ class JPH_Frontend {
                                 <div class="sentiment-label">Okay</div>
                             </div>
                             <div class="sentiment-option" data-score="4">
-                                <div class="sentiment-emoji">😊</div>
+                                <div class="sentiment-emoji">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                                    </svg>
+                                </div>
                                 <div class="sentiment-label">Good</div>
                             </div>
                             <div class="sentiment-option" data-score="5">
@@ -2658,7 +3044,12 @@ class JPH_Frontend {
                     
                     <!-- Notes Section -->
                     <div class="form-group">
-                        <label>📝 Notes (optional):</label>
+                        <label>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 6px; vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                            </svg>
+                            Notes (optional):
+                        </label>
                         <textarea name="notes" placeholder="Any notes about your practice session..."></textarea>
                     </div>
                     
@@ -2687,7 +3078,12 @@ class JPH_Frontend {
         <div id="shield-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
                 <div class="jph-modal-header">
-                    <h2>🛡️ Purchase Streak Shield</h2>
+                    <h2>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                        Purchase Streak Shield
+                    </h2>
                     <span class="jph-modal-close"><i class="fa-solid fa-circle-xmark"></i></span>
                 </div>
                 <div class="jph-modal-body">
@@ -2717,7 +3113,11 @@ class JPH_Frontend {
                             <h4>Choose how to add your practice item:</h4>
                             <div class="practice-type-cards">
                                 <div class="practice-type-card" data-type="custom">
-                                    <div class="card-icon">✏️</div>
+                                    <div class="card-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                        </svg>
+                                    </div>
                                     <div class="card-content">
                                         <h4>Custom</h4>
                                         <p>Create your own practice item</p>
@@ -2802,7 +3202,12 @@ class JPH_Frontend {
         <div id="stats-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
                 <div class="jph-modal-header">
-                    <h2>📊 Stats Explanation</h2>
+                    <h2>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                        </svg>
+                        Stats Explanation
+                    </h2>
                     <span class="jph-modal-close"><i class="fa-solid fa-circle-xmark"></i></span>
                 </div>
                 <div class="jph-modal-body">
@@ -3880,6 +4285,684 @@ class JPH_Frontend {
             font-size: 14px;
         }
         
+        /* User Profile Section Styles */
+        .user-profile-section {
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .profile-avatar {
+            flex-shrink: 0;
+        }
+        
+        .profile-avatar-img {
+            border-radius: 50%;
+            border: 3px solid #459E90;
+        }
+        
+        .profile-info h4 {
+            margin: 0 0 5px 0;
+            color: #004555;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .profile-email {
+            margin: 0 0 10px 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .profile-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .profile-update-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            padding: 8px 16px;
+            flex: 1;
+            min-width: 140px;
+        }
+        
+        .spaces-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        
+        .space-card {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        
+        .space-card:hover {
+            background: #e8f5f4;
+            border-color: #459E90;
+            transform: translateY(-1px);
+        }
+        
+        .space-icon {
+            margin-right: 12px;
+            color: #459E90;
+        }
+        
+        .space-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        
+        .space-title {
+            font-weight: 500;
+            color: #004555;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        
+        .space-visit {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .no-spaces-card {
+            text-align: center;
+            padding: 30px 20px;
+            background: #f8fafc;
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+        }
+        
+        .no-spaces-icon {
+            margin-bottom: 15px;
+            color: #9ca3af;
+        }
+        
+        .no-spaces-card p {
+            margin: 0 0 15px 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .no-spaces-card .jph-btn {
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+        
+        .detail-item h6 {
+            margin: 0 0 15px 0;
+            color: #004555;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 2px 8px rgba(0, 69, 85, 0.1);
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #F04E23;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .profile-details {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 2px 8px rgba(0, 69, 85, 0.1);
+        }
+        
+        .profile-details h5 {
+            margin: 0 0 20px 0;
+            color: #004555;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .profile-details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .profile-details-header h5 {
+            margin: 0;
+        }
+        
+        .profile-update-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+        
+        .spaces-list {
+            margin: 0;
+            padding-left: 0;
+            list-style: none;
+        }
+        
+        .spaces-list li {
+            margin-bottom: 8px;
+        }
+        
+        .space-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #459E90;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        
+        .space-link:hover {
+            color: #3a8a7c;
+            text-decoration: underline;
+        }
+        
+        .space-link svg {
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+        
+        .no-spaces {
+            color: #6b7280;
+            font-style: italic;
+            margin: 0;
+        }
+        
+        .no-spaces a {
+            color: #459E90;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .no-spaces a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Profile Encouragements */
+        .profile-encouragements {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .encouragement-card {
+            background: #fff;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .encouragement-card:hover {
+            border-color: #3498db;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+        }
+        
+        .encouragement-profile {
+            border-left: 4px solid #F04E23;
+        }
+        
+        .encouragement-activity {
+            border-left: 4px solid #2ECC71;
+        }
+        
+        .encouragement-icon {
+            flex-shrink: 0;
+            width: 48px;
+            height: 48px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+        }
+        
+        .encouragement-profile .encouragement-icon {
+            background: rgba(240, 78, 35, 0.1);
+            color: #F04E23;
+        }
+        
+        .encouragement-activity .encouragement-icon {
+            background: rgba(46, 204, 113, 0.1);
+            color: #2ECC71;
+        }
+        
+        .encouragement-content {
+            flex: 1;
+        }
+        
+        .encouragement-content h4 {
+            color: #2c3e50;
+            margin: 0 0 0.5rem 0;
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        
+        .encouragement-content p {
+            color: #5a6c7d;
+            margin: 0 0 1rem 0;
+            font-size: 0.875rem;
+            line-height: 1.4;
+        }
+        
+        .encouragement-btn {
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+        }
+
+        /* Recent Posts Section Styles */
+        .recent-posts-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            border: 2px solid #e8f5f4;
+            box-shadow: 0 2px 8px rgba(0, 69, 85, 0.1);
+            margin-top: 30px;
+        }
+        
+        .recent-posts-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .recent-posts-header h5 {
+            margin: 0;
+            color: #004555;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .view-all-posts-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+        
+        .posts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .post-item {
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+        
+        .post-item:hover {
+            background: #e8f5f4;
+            border-color: #459E90;
+            transform: translateY(-1px);
+        }
+        
+        .post-header {
+            margin-bottom: 10px;
+        }
+        
+        .post-title {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .post-title a {
+            color: #004555;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        
+        .post-title a:hover {
+            color: #459E90;
+            text-decoration: underline;
+        }
+        
+        .post-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .post-author {
+            font-weight: 500;
+        }
+        
+        .post-date {
+            font-style: italic;
+        }
+        
+        .post-excerpt {
+            color: #374151;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        /* Enhanced Post Styles */
+        .post-type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #e8f5f4;
+            color: #004555;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .post-type-badge svg {
+            width: 12px;
+            height: 12px;
+        }
+        
+        .post-content {
+            margin: 12px 0;
+        }
+        
+        .post-excerpt {
+            color: #374151;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        
+        .post-media {
+            margin-top: 12px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .post-media iframe,
+        .post-media video {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+        
+        .post-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 12px;
+        }
+        
+        .post-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .post-author,
+        .post-date {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .post-author svg,
+        .post-date svg {
+            color: #9ca3af;
+        }
+        
+        .post-stats {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .post-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .post-stat svg {
+            color: #9ca3af;
+        }
+        
+        .post-type-video .post-type-badge {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .post-type-image .post-type-badge {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        /* Video Embed Styles */
+        .video-container {
+            margin: 12px 0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            background: #000;
+            position: relative;
+        }
+        
+        .video-embed {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            overflow: hidden;
+        }
+        
+        .video-embed iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .video-title {
+            padding: 0.75rem 1rem;
+            background: #fff;
+            font-size: 0.875rem;
+            color: #2c3e50;
+            font-weight: 600;
+            border-top: 1px solid #e1e8ed;
+        }
+        
+        /* Community Link Styles */
+        .post-community-link {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #e1e8ed;
+        }
+        
+        .community-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            color: #3498db;
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .community-link:hover {
+            color: #2980b9;
+            text-decoration: underline;
+        }
+        
+        .community-link svg {
+            flex-shrink: 0;
+        }
+        
+        /* Responsive video embeds */
+        @media (max-width: 768px) {
+            .video-container {
+                margin: 8px 0;
+                border-radius: 8px;
+            }
+            
+            .video-title {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.8125rem;
+            }
+            
+            .post-community-link {
+                margin-top: 0.5rem;
+                padding-top: 0.5rem;
+            }
+            
+            .community-link {
+                font-size: 0.6875rem;
+            }
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .detail-item {
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .detail-item strong {
+            color: #004555;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .detail-item ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .detail-item li {
+            color: #374151;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .profile-setup-prompt {
+            text-align: center;
+            padding: 40px 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 2px dashed #d1d5db;
+        }
+        
+        .profile-setup-prompt h5 {
+            margin: 0 0 15px 0;
+            color: #004555;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .profile-setup-prompt p {
+            margin: 0 0 25px 0;
+            color: #6b7280;
+            font-size: 16px;
+        }
+        
         /* Mobile Responsive Adjustments */
         @media (max-width: 768px) {
             /* Shield Tab - Mobile Layout */
@@ -3918,7 +5001,7 @@ class JPH_Frontend {
                 padding: 8px 4px !important;
             }
             
-            /* Hide columns on mobile - only show Date, Item, Duration, Actions */
+            /* Hide columns on mobile - only show Date, Item, Duration (hide Actions and other columns) */
             .jph-practice-history-table th:nth-child(4),
             .jph-practice-history-table th:nth-child(5),
             .jph-practice-history-table td:nth-child(4),
@@ -3926,32 +5009,46 @@ class JPH_Frontend {
                 display: none !important;
             }
             
-            /* Also hide these columns in the header div structure */
+            /* Make remaining columns full width on mobile */
+            .jph-practice-history-table {
+                width: 100% !important;
+            }
+            
+            .jph-practice-history-table th:nth-child(1),
+            .jph-practice-history-table td:nth-child(1) {
+                width: 25% !important;
+            }
+            
+            .jph-practice-history-table th:nth-child(2),
+            .jph-practice-history-table td:nth-child(2) {
+                width: 35% !important;
+            }
+            
+            .jph-practice-history-table th:nth-child(3),
+            .jph-practice-history-table td:nth-child(3) {
+                width: 40% !important;
+            }
+            
+            /* Additional mobile-specific adjustments for practice history */
+            .practice-history-item .practice-history-item-content:nth-child(4),
+            .practice-history-item .practice-history-item-content:nth-child(5) {
+                display: none !important;
+            }
+            
             .practice-history-header .practice-history-header-item:nth-child(4),
             .practice-history-header .practice-history-header-item:nth-child(5) {
                 display: none !important;
             }
             
-            /* Adjust column widths for mobile - only 4 columns visible */
-            .jph-practice-history-table th:nth-child(1),
-            .jph-practice-history-table td:nth-child(1) {
-                width: 20% !important;
+            /* Hide mobile-hidden elements on mobile */
+            .mobile-hidden {
+                display: none !important;
             }
             
-            .jph-practice-history-table th:nth-child(2),
-            .jph-practice-history-table td:nth-child(2) {
-                width: 40% !important;
-            }
-            
-            .jph-practice-history-table th:nth-child(3),
-            .jph-practice-history-table td:nth-child(3) {
-                width: 25% !important;
-            }
-            
-            .jph-practice-history-table th:nth-child(6),
-            .jph-practice-history-table td:nth-child(6) {
-                width: 15% !important;
-                text-align: center !important;
+            /* Adjust grid layout for practice history items - mobile only shows 3 columns */
+            .practice-history-item {
+                grid-template-columns: 1fr 2fr 1fr !important;
+                gap: 10px !important;
             }
             
             /* Welcome Message - Mobile Layout */
@@ -4148,9 +5245,10 @@ class JPH_Frontend {
 
         .events-header {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
             margin-bottom: 20px;
+            position: relative;
         }
 
         .events-header h3 {
@@ -4158,9 +5256,12 @@ class JPH_Frontend {
             font-weight: 700;
             color: #1f2937;
             margin: 0;
+            text-align: center;
         }
-
+        
         .view-calendar-btn {
+            position: absolute;
+            right: 0;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -7754,6 +8855,37 @@ class JPH_Frontend {
             font-size: 0.9em;
         }
         
+        /* AI Analysis Actions */
+        .ai-analysis-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .ai-print-btn {
+            background: #6b7280;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .ai-print-btn:hover {
+            background: #4b5563;
+            transform: translateY(-1px);
+        }
+        
+        .ai-print-btn svg {
+            flex-shrink: 0;
+        }
+        
         .ai-analysis-placeholder {
             text-align: center;
             padding: 40px 20px;
@@ -8774,16 +9906,19 @@ class JPH_Frontend {
                             improvement = improvementDetected ? 'Yes' : 'No';
                         }
                         
+                    // Check if mobile (screen width <= 768px)
+                    const isMobile = window.innerWidth <= 768;
+                    
                     html += `
                             <div class="practice-history-item">
                                 <div class="practice-history-item-content">${date}</div>
                                 <div class="practice-history-item-content">${session.item_name}</div>
                                 <div class="practice-history-item-content center">${session.duration_minutes} min</div>
-                                <div class="practice-history-item-content center">${sentiment}</div>
-                                <div class="practice-history-item-content center">${improvement}</div>
-                                <div class="practice-history-item-content center">
+                                ${!isMobile ? `<div class="practice-history-item-content center">${sentiment}</div>` : ''}
+                                ${!isMobile ? `<div class="practice-history-item-content center">${improvement}</div>` : ''}
+                                ${!isMobile ? `<div class="practice-history-item-content center">
                                     <button type="button" class="jph-delete-session-btn" data-session-id="${session.id}" data-item-name="${session.item_name || 'Unknown Item'}" title="Delete this practice session"><i class="fa-solid fa-circle-xmark"></i></button>
-                                </div>
+                                </div>` : ''}
                                 ${session.notes ? `<div class="practice-history-notes">${truncateNotes(session.notes)}</div>` : ''}
                             </div>
                         `;
@@ -8895,16 +10030,19 @@ class JPH_Frontend {
                                     improvement = improvementDetected ? 'Yes' : 'No';
                                 }
                                 
-                    html += `
+                            // Check if mobile (screen width <= 768px)
+                            const isMobile = window.innerWidth <= 768;
+                                
+                            html += `
                             <div class="practice-history-item">
                                 <div class="practice-history-item-content">${date}</div>
                                 <div class="practice-history-item-content">${session.item_name}</div>
                                 <div class="practice-history-item-content center">${session.duration_minutes} min</div>
-                                <div class="practice-history-item-content center">${sentiment}</div>
-                                <div class="practice-history-item-content center">${improvement}</div>
-                                <div class="practice-history-item-content center">
+                                ${!isMobile ? `<div class="practice-history-item-content center">${sentiment}</div>` : ''}
+                                ${!isMobile ? `<div class="practice-history-item-content center">${improvement}</div>` : ''}
+                                ${!isMobile ? `<div class="practice-history-item-content center">
                                     <button type="button" class="jph-delete-session-btn" data-session-id="${session.id}" data-item-name="${session.item_name || 'Unknown Item'}" title="Delete this practice session"><i class="fa-solid fa-circle-xmark"></i></button>
-                                </div>
+                                </div>` : ''}
                                 ${session.notes ? `<div class="practice-history-notes">${truncateNotes(session.notes)}</div>` : ''}
                             </div>
                         `;
@@ -9358,6 +10496,9 @@ class JPH_Frontend {
                     $dataPeriod.text(data.data_period + ' (cached)');
                 }
                 
+                // Show print button when analysis is displayed
+                $('#ai-print-btn').show();
+                
                 // Initialize generate button
                 initAIGenerateButton();
             }
@@ -9377,6 +10518,62 @@ class JPH_Frontend {
                 $('#ai-generate-btn').off('click').on('click', function() {
                     generateAIAnalysis();
                 });
+                
+                // Initialize print button
+                $('#ai-print-btn').off('click').on('click', function() {
+                    printAIAnalysis();
+                });
+            }
+            
+            // Print AI Analysis function
+            function printAIAnalysis() {
+                var analysisContent = $('#ai-analysis-text').html();
+                if (!analysisContent || analysisContent.includes('Ready for AI Analysis')) {
+                    alert('No analysis to print. Please generate an analysis first.');
+                    return;
+                }
+                
+                // Create a new window for printing
+                var printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>AI Practice Analysis - Jazzedge Academy</title>
+                        <style>
+                            body { 
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                line-height: 1.6;
+                                color: #333;
+                                max-width: 800px;
+                                margin: 0 auto;
+                                padding: 20px;
+                            }
+                            h1 { color: #F04E23; border-bottom: 2px solid #F04E23; padding-bottom: 10px; }
+                            h2 { color: #2c3e50; margin-top: 30px; }
+                            h3 { color: #34495e; }
+                            p { margin-bottom: 15px; }
+                            .analysis-date { color: #666; font-style: italic; margin-bottom: 20px; }
+                            .insight-item { margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 5px; }
+                            .insight-label { font-weight: bold; color: #2c3e50; }
+                            .insight-value { color: #F04E23; font-weight: bold; }
+                            @media print {
+                                body { margin: 0; padding: 15px; }
+                                .no-print { display: none; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>AI Practice Analysis</h1>
+                        <div class="analysis-date">Generated on ${new Date().toLocaleDateString()}</div>
+                        ${analysisContent}
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
+                printWindow.close();
             }
             
             
@@ -13286,5 +14483,99 @@ class JPH_Frontend {
         <?php
         
         return ob_get_clean();
+    }
+    
+    /**
+     * Convert video URLs to embeddable iframes
+     */
+    private function convert_video_urls_to_embeds($content) {
+        // YouTube URL patterns
+        $youtube_patterns = [
+            '/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/',
+            '/(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]+)/',
+            '/(?:https?:\/\/)?(?:www\.)?youtube\.com\/v\/([a-zA-Z0-9_-]+)/'
+        ];
+        
+        // Vimeo URL patterns
+        $vimeo_patterns = [
+            '/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/([0-9]+)/',
+            '/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/embed\/([0-9]+)/'
+        ];
+        
+        // Convert YouTube URLs
+        foreach ($youtube_patterns as $pattern) {
+            $content = preg_replace_callback($pattern, function($matches) {
+                $video_id = $matches[1];
+                return '<div class="video-embed"><iframe width="100%" height="200" src="https://www.youtube.com/embed/' . $video_id . '" frameborder="0" allowfullscreen></iframe></div>';
+            }, $content);
+        }
+        
+        // Convert Vimeo URLs
+        foreach ($vimeo_patterns as $pattern) {
+            $content = preg_replace_callback($pattern, function($matches) {
+                $video_id = $matches[1];
+                return '<div class="video-embed"><iframe width="100%" height="200" src="https://player.vimeo.com/video/' . $video_id . '" frameborder="0" allowfullscreen></iframe></div>';
+            }, $content);
+        }
+        
+        return $content;
+    }
+
+    /**
+     * Automatically add user to all community spaces on first load
+     * Uses user meta to track if spaces were already added
+     */
+    private function auto_add_user_to_spaces($user_id) {
+        // Check if user has already been added to spaces
+        $spaces_added = get_user_meta($user_id, 'jph_spaces_added', true);
+        if ($spaces_added) {
+            return; // Already added, skip
+        }
+        
+        // Check if Fluent Community is available
+        if (!class_exists('\\FluentCommunity\\App\\Services\\Helper')) {
+            error_log('JPH: Fluent Community plugin not available for auto space addition');
+            return;
+        }
+        
+        global $wpdb;
+        
+        // Get all community spaces (excluding space_group and sidebar_link types)
+        $spaces = $wpdb->get_results("
+            SELECT id, title, type 
+            FROM {$wpdb->prefix}fcom_spaces 
+            WHERE type IN ('community') 
+            AND status = 'published'
+            ORDER BY id ASC
+        ");
+        
+        if (empty($spaces)) {
+            error_log('JPH: No community spaces found for auto addition');
+            return;
+        }
+        
+        $added_count = 0;
+        $errors = array();
+        
+        foreach ($spaces as $space) {
+            try {
+                // Add user to space
+                \FluentCommunity\App\Services\Helper::addToSpace($space->id, $user_id, 'member', 'by_admin');
+                $added_count++;
+                
+                // Log the addition
+                error_log("JPH: Auto-added user {$user_id} to space '{$space->title}' (ID: {$space->id})");
+                
+            } catch (Exception $e) {
+                $errors[] = "Failed to add to space '{$space->title}': " . $e->getMessage();
+                error_log("JPH: Error auto-adding user {$user_id} to space {$space->id}: " . $e->getMessage());
+            }
+        }
+        
+        // Mark that spaces have been added for this user
+        update_user_meta($user_id, 'jph_spaces_added', true);
+        
+        // Log summary
+        error_log("JPH: Auto space addition completed for user {$user_id}. Added to {$added_count} spaces. Errors: " . count($errors));
     }
 }
