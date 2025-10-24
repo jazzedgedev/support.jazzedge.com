@@ -35,6 +35,15 @@ class JPH_Admin_Pages {
         
         add_submenu_page(
             'aph-practice-hub',
+            __('Student Analytics', 'academy-practice-hub'),
+            __('Student Analytics', 'academy-practice-hub'),
+            'manage_options',
+            'jph-students-analytics',
+            array($this, 'students_analytics_page')
+        );
+        
+        add_submenu_page(
+            'aph-practice-hub',
             __('Badges', 'academy-practice-hub'),
             __('Badges', 'academy-practice-hub'),
             'manage_options',
@@ -821,7 +830,8 @@ class JPH_Admin_Pages {
         }
         
         function showStudentAnalytics() {
-            alert('Student analytics - Coming Soon');
+            // Redirect to analytics page instead of showing modal
+            window.location.href = '<?php echo admin_url('admin.php?page=jph-students-analytics'); ?>';
         }
         
         // Close modals when clicking outside
@@ -6088,7 +6098,8 @@ Remember: Plain text only, no formatting.');
         // Clear user-specific data only (NOT reference data)
         $tables_to_clear = array(
             'jph_jpc_user_assignments',
-            'jph_jpc_user_progress'
+            'jph_jpc_user_progress',
+            'jph_jpc_milestone_submissions'
         );
         
         $results = array();
@@ -6767,5 +6778,420 @@ Guidelines:
 - Don't change the core message or criticism
 
 Return only the cleaned feedback text, no explanations or additional commentary.";
+    }
+    
+    /**
+     * Student Analytics Page
+     */
+    public function students_analytics_page() {
+        ?>
+        <div class="wrap">
+            <h1>Student Analytics</h1>
+            <p>Track student engagement and identify at-risk students for proactive outreach.</p>
+            
+            <!-- Analytics Overview Cards -->
+            <div class="jph-analytics-overview">
+                <div class="jph-analytics-card">
+                    <div class="jph-analytics-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                        </svg>
+                    </div>
+                    <div class="jph-analytics-content">
+                        <h3 id="total-students-analytics">Loading...</h3>
+                        <p>Total Students</p>
+                    </div>
+                </div>
+                
+                <div class="jph-analytics-card">
+                    <div class="jph-analytics-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div class="jph-analytics-content">
+                        <h3 id="active-students-analytics">Loading...</h3>
+                        <p>Active This Week</p>
+                    </div>
+                </div>
+                
+                <div class="jph-analytics-card">
+                    <div class="jph-analytics-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    <div class="jph-analytics-content">
+                        <h3 id="at-risk-students">Loading...</h3>
+                        <p>At Risk (30+ days)</p>
+                    </div>
+                </div>
+                
+                <div class="jph-analytics-card">
+                    <div class="jph-analytics-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+                        </svg>
+                    </div>
+                    <div class="jph-analytics-content">
+                        <h3 id="avg-practice-time">Loading...</h3>
+                        <p>Avg Practice Time</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Filters -->
+            <div class="jph-analytics-filters">
+                <div class="jph-filter-group">
+                    <label for="risk-filter">Risk Level:</label>
+                    <select id="risk-filter">
+                        <option value="all">All Students</option>
+                        <option value="low">Low Risk (Active)</option>
+                        <option value="medium">Medium Risk (7-30 days)</option>
+                        <option value="high">High Risk (30+ days)</option>
+                    </select>
+                </div>
+                
+                <div class="jph-filter-group">
+                    <label for="level-filter">Level:</label>
+                    <select id="level-filter">
+                        <option value="all">All Levels</option>
+                        <option value="1">Level 1</option>
+                        <option value="2">Level 2</option>
+                        <option value="3">Level 3</option>
+                        <option value="4">Level 4</option>
+                        <option value="5">Level 5+</option>
+                    </select>
+                </div>
+                
+                <div class="jph-filter-group">
+                    <label for="search-students-analytics">Search:</label>
+                    <input type="text" id="search-students-analytics" placeholder="Search by name or email">
+                </div>
+                
+                <button type="button" class="button button-primary" id="apply-filters-btn">Apply Filters</button>
+                <button type="button" class="button button-secondary" id="export-at-risk-btn">Export At-Risk Students</button>
+            </div>
+            
+            <!-- Students Table -->
+            <div class="jph-analytics-table-container">
+                <table class="jph-analytics-table">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Level</th>
+                            <th>Last Practice</th>
+                            <th>Days Since</th>
+                            <th>Risk Level</th>
+                            <th>Total Sessions</th>
+                            <th>Current Streak</th>
+                            <th>Last Email Sent</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analytics-table-body">
+                        <tr>
+                            <td colspan="9" class="jph-loading">Loading analytics...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <style>
+        .jph-analytics-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .jph-analytics-card {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .jph-analytics-icon {
+            background: #459E90;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .jph-analytics-content h3 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+            color: #004555;
+        }
+        
+        .jph-analytics-content p {
+            margin: 5px 0 0 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .jph-analytics-filters {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            display: flex;
+            gap: 20px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+        
+        .jph-filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .jph-filter-group label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+        }
+        
+        .jph-filter-group select,
+        .jph-filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        
+        .jph-analytics-table-container {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .jph-analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .jph-analytics-table th {
+            background: #f8fafc;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .jph-analytics-table td {
+            padding: 15px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .jph-analytics-table tr:hover {
+            background: #f8fafc;
+        }
+        
+        .risk-low {
+            background: #dcfce7;
+            color: #166534;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .risk-medium {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .risk-high {
+            background: #fecaca;
+            color: #991b1b;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .jph-loading {
+            text-align: center;
+            color: #6b7280;
+            font-style: italic;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .action-buttons .button {
+            padding: 4px 8px;
+            font-size: 12px;
+            height: auto;
+        }
+        </style>
+        
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAnalyticsData();
+            
+            document.getElementById('apply-filters-btn').addEventListener('click', function() {
+                loadAnalyticsData();
+            });
+            
+            document.getElementById('export-at-risk-btn').addEventListener('click', function() {
+                exportAtRiskStudents();
+            });
+        });
+        
+        function loadAnalyticsData() {
+            const riskFilter = document.getElementById('risk-filter').value;
+            const levelFilter = document.getElementById('level-filter').value;
+            const searchTerm = document.getElementById('search-students-analytics').value;
+            
+            const params = new URLSearchParams();
+            if (riskFilter !== 'all') params.append('risk', riskFilter);
+            if (levelFilter !== 'all') params.append('level', levelFilter);
+            if (searchTerm) params.append('search', searchTerm);
+            
+            // Load overview stats
+            fetch('<?php echo rest_url('aph/v1/analytics/overview'); ?>', {
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('total-students-analytics').textContent = data.data.total_students;
+                        document.getElementById('active-students-analytics').textContent = data.data.active_students;
+                        document.getElementById('at-risk-students').textContent = data.data.at_risk_students;
+                        document.getElementById('avg-practice-time').textContent = data.data.avg_practice_time;
+                    }
+                })
+                .catch(error => console.error('Error loading analytics overview:', error));
+            
+            // Load students data
+            const url = '<?php echo rest_url('aph/v1/analytics/students'); ?>' + (params.toString() ? '?' + params.toString() : '');
+            
+            fetch(url, {
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayAnalyticsStudents(data.data.students);
+                    } else {
+                        document.getElementById('analytics-table-body').innerHTML = '<tr><td colspan="9">Error loading analytics data</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading analytics data:', error);
+                    document.getElementById('analytics-table-body').innerHTML = '<tr><td colspan="9">Error loading analytics data</td></tr>';
+                });
+        }
+        
+        function displayAnalyticsStudents(students) {
+            const tbody = document.getElementById('analytics-table-body');
+            
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9">No students found matching criteria</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = students.map(student => {
+                const daysSince = student.days_since_last_practice || 0;
+                let riskClass = 'risk-low';
+                let riskText = 'Low';
+                
+                if (daysSince > 30) {
+                    riskClass = 'risk-high';
+                    riskText = 'High';
+                } else if (daysSince > 7) {
+                    riskClass = 'risk-medium';
+                    riskText = 'Medium';
+                }
+                
+                return `
+                    <tr>
+                        <td>
+                            <strong>${student.display_name}</strong><br>
+                            <small style="color: #6b7280;">${student.user_email}</small>
+                        </td>
+                        <td>${student.level || 'N/A'}</td>
+                        <td>${student.last_practice_date ? new Date(student.last_practice_date).toLocaleDateString() : 'Never'}</td>
+                        <td>${daysSince} days</td>
+                        <td><span class="${riskClass}">${riskText}</span></td>
+                        <td>${student.total_sessions || 0}</td>
+                        <td>${student.current_streak || 0}</td>
+                        <td>${student.last_email_sent ? new Date(student.last_email_sent).toLocaleDateString() : 'Never'}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="button button-secondary" onclick="viewStudentDetails(${student.user_id})">View</button>
+                                <button class="button button-primary" onclick="sendOutreachEmail(${student.user_id})">Reach Out</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function viewStudentDetails(userId) {
+            // Open student details modal or redirect to student page
+            window.open('<?php echo admin_url('admin.php?page=aph-practice-hub'); ?>&student_id=' + userId, '_blank');
+        }
+        
+        function sendOutreachEmail(userId) {
+            if (confirm('Send outreach email to this student?')) {
+                fetch('<?php echo rest_url('aph/v1/analytics/send-outreach'); ?>', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Outreach email sent successfully!');
+                    } else {
+                        alert('Error sending email: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error sending outreach email:', error);
+                    alert('Error sending outreach email');
+                });
+            }
+        }
+        
+        function exportAtRiskStudents() {
+            window.location.href = '<?php echo rest_url('aph/v1/analytics/export-at-risk'); ?>';
+        }
+        </script>
+        <?php
     }
 }

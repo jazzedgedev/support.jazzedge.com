@@ -1,0 +1,614 @@
+<?php
+/**
+ * Chapters Admin Class
+ * 
+ * Handles the chapters admin page functionality
+ * 
+ * @package Academy_Lesson_Manager
+ */
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+class ALM_Admin_Chapters {
+    
+    /**
+     * WordPress database instance
+     */
+    private $wpdb;
+    
+    /**
+     * Database instance
+     */
+    private $database;
+    
+    /**
+     * Table name
+     */
+    private $table_name;
+    
+    /**
+     * Constructor
+     */
+    public function __construct() {
+        global $wpdb;
+        $this->wpdb = $wpdb;
+        $this->database = new ALM_Database();
+        $this->table_name = $this->database->get_table_name('chapters');
+    }
+    
+    /**
+     * Render the chapters admin page
+     */
+    public function render_page() {
+        $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : 'list';
+        $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        
+        // Handle form submissions
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handle_form_submission();
+            return;
+        }
+        
+        echo '<div class="wrap">';
+        $this->render_navigation_buttons('chapters');
+        echo '<h1>' . __('Chapters', 'academy-lesson-manager') . ' <a href="?page=academy-manager-chapters&action=add" class="page-title-action">' . __('Add New', 'academy-lesson-manager') . '</a></h1>';
+        
+        switch ($action) {
+            case 'add':
+                $this->render_add_page();
+                break;
+            case 'edit':
+                $this->render_edit_page($id);
+                break;
+            case 'delete':
+                $this->handle_delete($id);
+                break;
+            default:
+                $this->render_list_page();
+                break;
+        }
+        
+        echo '</div>';
+    }
+    
+    /**
+     * Render navigation buttons
+     */
+    private function render_navigation_buttons($current_page) {
+        echo '<div class="alm-navigation-buttons" style="margin-bottom: 20px;">';
+        echo '<a href="?page=academy-manager" class="button ' . ($current_page === 'collections' ? 'button-primary' : '') . '">' . __('Collections', 'academy-lesson-manager') . '</a> ';
+        echo '<a href="?page=academy-manager-lessons" class="button ' . ($current_page === 'lessons' ? 'button-primary' : '') . '">' . __('Lessons', 'academy-lesson-manager') . '</a> ';
+        echo '<a href="?page=academy-manager-chapters" class="button ' . ($current_page === 'chapters' ? 'button-primary' : '') . '">' . __('Chapters', 'academy-lesson-manager') . '</a>';
+        echo '</div>';
+    }
+    
+    /**
+     * Render the chapters list page
+     */
+    private function render_list_page() {
+        // Show success messages
+        if (isset($_GET['message'])) {
+            $message = sanitize_text_field($_GET['message']);
+            switch ($message) {
+                case 'created':
+                    echo '<div class="notice notice-success"><p>' . __('Chapter created successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'updated':
+                    echo '<div class="notice notice-success"><p>' . __('Chapter updated successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'deleted':
+                    echo '<div class="notice notice-success"><p>' . __('Chapter deleted successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+            }
+        }
+        
+        // Handle search
+        $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
+        $order_by = isset($_GET['order_by']) ? sanitize_text_field($_GET['order_by']) : 'ID';
+        $order = isset($_GET['order']) ? sanitize_text_field($_GET['order']) : 'DESC';
+        
+        // Build query with lesson join
+        $lessons_table = $this->database->get_table_name('lessons');
+        $where = '';
+        if (!empty($search)) {
+            $where = $this->wpdb->prepare("WHERE c.chapter_title LIKE %s OR l.lesson_title LIKE %s", 
+                '%' . $search . '%', '%' . $search . '%');
+        }
+        
+        // Validate order by
+        $allowed_order_by = array('ID', 'chapter_title', 'menu_order', 'vimeo_id', 'duration');
+        if (!in_array($order_by, $allowed_order_by)) {
+            $order_by = 'ID';
+        }
+        
+        $allowed_order = array('ASC', 'DESC');
+        if (!in_array($order, $allowed_order)) {
+            $order = 'DESC';
+        }
+        
+        $sql = "SELECT c.*, l.lesson_title, l.collection_id 
+                FROM {$this->table_name} c 
+                LEFT JOIN {$lessons_table} l ON c.lesson_id = l.ID 
+                {$where} 
+                ORDER BY c.{$order_by} {$order}";
+        
+        $chapters = $this->wpdb->get_results($sql);
+        
+        // Render search form
+        $this->render_search_form($search);
+        
+        // Render chapters table
+        $this->render_chapters_table($chapters, $order_by, $order);
+    }
+    
+    /**
+     * Render search form
+     */
+    private function render_search_form($search) {
+        echo '<div class="alm-search-form">';
+        echo '<form method="post" action="">';
+        echo '<p class="search-box">';
+        echo '<label class="screen-reader-text" for="chapter-search-input">' . __('Search Chapters:', 'academy-lesson-manager') . '</label>';
+        echo '<input type="search" id="chapter-search-input" name="search" value="' . esc_attr($search) . '" placeholder="' . __('Search chapters...', 'academy-lesson-manager') . '" />';
+        echo '<input type="submit" id="search-submit" class="button" value="' . __('Search Chapters', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        echo '</form>';
+        echo '</div>';
+    }
+    
+    /**
+     * Render chapters table
+     */
+    private function render_chapters_table($chapters, $order_by, $order) {
+        echo '<table class="wp-list-table widefat fixed striped">';
+        echo '<thead>';
+        echo '<tr>';
+        echo '<th scope="col" class="manage-column column-cb check-column"><input type="checkbox" /></th>';
+        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('ID', 'ID', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column">' . __('Lesson', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Order', 'menu_order', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Chapter Title', 'chapter_title', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Vimeo ID', 'vimeo_id', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column">' . __('YouTube ID', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Duration', 'duration', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column">' . __('Free', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column">' . __('Actions', 'academy-lesson-manager') . '</th>';
+        echo '</tr>';
+        echo '</thead>';
+        echo '<tbody>';
+        
+        if (empty($chapters)) {
+            echo '<tr><td colspan="10" class="no-items">' . __('No chapters found.', 'academy-lesson-manager') . '</td></tr>';
+        } else {
+            foreach ($chapters as $chapter) {
+                $this->render_chapter_row($chapter);
+            }
+        }
+        
+        echo '</tbody>';
+        echo '</table>';
+    }
+    
+    /**
+     * Render the add chapter page
+     */
+    private function render_add_page() {
+        $lesson_id = isset($_GET['lesson_id']) ? intval($_GET['lesson_id']) : 0;
+        
+        echo '<div class="alm-chapter-details">';
+        echo '<h2>' . __('Add New Chapter', 'academy-lesson-manager') . '</h2>';
+        
+        echo '<form method="post" action="">';
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="lesson_id">' . __('Lesson', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="lesson_id" name="lesson_id" required>';
+        echo '<option value="">' . __('Select a lesson...', 'academy-lesson-manager') . '</option>';
+        $lessons_table = $this->database->get_table_name('lessons');
+        $lessons = $this->wpdb->get_results("SELECT ID, lesson_title FROM $lessons_table ORDER BY lesson_title ASC");
+        foreach ($lessons as $lesson) {
+            $selected = ($lesson->ID == $lesson_id) ? 'selected' : '';
+            echo '<option value="' . esc_attr($lesson->ID) . '" ' . $selected . '>' . esc_html(stripslashes($lesson->lesson_title)) . '</option>';
+        }
+        echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="chapter_title">' . __('Chapter Title', 'academy-lesson-manager') . ' <span class="description">(required)</span></label></th>';
+        echo '<td><input type="text" id="chapter_title" name="chapter_title" value="" class="regular-text" required /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="menu_order">' . __('Order', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="menu_order" name="menu_order" value="1" class="small-text" min="1" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="vimeo_id">' . __('Vimeo ID', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="vimeo_id" name="vimeo_id" value="" class="small-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="youtube_id">' . __('YouTube ID', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="text" id="youtube_id" name="youtube_id" value="" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="bunny_url">' . __('Bunny URL', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="url" id="bunny_url" name="bunny_url" value="" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="duration">' . __('Duration (seconds)', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="number" id="duration" name="duration" value="0" class="small-text" />';
+        echo '<span class="description" style="margin-left: 10px;">(00:00:00)</span>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="free">' . __('Free Chapter', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="free" name="free">';
+        $free_options = ALM_Helpers::get_yes_no_options();
+        foreach ($free_options as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="slug">' . __('Slug', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="text" id="slug" name="slug" value="" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="post_date">' . __('Release Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="date" id="post_date" name="post_date" value="" class="regular-text" /></td>';
+        echo '</tr>';
+        echo '</tbody>';
+        echo '</table>';
+        
+        echo '<p class="submit">';
+        echo '<input type="hidden" name="form_action" value="create" />';
+        echo '<input type="submit" class="button-primary" value="' . __('Add Chapter', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        echo '</form>';
+        echo '</div>';
+    }
+    
+    /**
+     * Render a single chapter row
+     */
+    private function render_chapter_row($chapter) {
+        $lesson_title = $chapter->lesson_title ? $chapter->lesson_title : 'Unknown Lesson';
+        $background = ($chapter->vimeo_id == 0 && empty($chapter->youtube_id) && empty($chapter->bunny_url)) ? 'background-color: #ffebee;' : '';
+        
+        echo '<tr style="' . $background . '">';
+        echo '<th scope="row" class="check-column"><input type="checkbox" name="chapter[]" value="' . $chapter->ID . '" /></th>';
+        echo '<td class="column-id">' . $chapter->ID . '</td>';
+        echo '<td class="column-lesson">';
+        if ($chapter->lesson_id) {
+            echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $chapter->lesson_id . '">' . esc_html(stripslashes($lesson_title)) . '</a>';
+        } else {
+            echo esc_html(stripslashes($lesson_title));
+        }
+        echo '</td>';
+        echo '<td class="column-order">' . $chapter->menu_order . '</td>';
+        echo '<td class="column-title"><strong>' . esc_html(stripslashes($chapter->chapter_title)) . '</strong></td>';
+        echo '<td class="column-vimeo">';
+        if ($chapter->vimeo_id) {
+            echo '<a href="https://vimeo.com/' . $chapter->vimeo_id . '" target="_blank">' . $chapter->vimeo_id . '</a>';
+        } else {
+            echo '—';
+        }
+        echo '</td>';
+        echo '<td class="column-youtube">';
+        if ($chapter->youtube_id) {
+            echo '<a href="https://youtube.com/watch?v=' . $chapter->youtube_id . '" target="_blank">' . esc_html($chapter->youtube_id) . '</a>';
+        } else {
+            echo '—';
+        }
+        echo '</td>';
+        echo '<td class="column-duration">' . ALM_Helpers::format_duration($chapter->duration) . '</td>';
+        echo '<td class="column-free">' . ($chapter->free === 'y' ? __('Yes', 'academy-lesson-manager') : __('No', 'academy-lesson-manager')) . '</td>';
+        echo '<td class="column-actions">';
+        echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small">' . __('Edit', 'academy-lesson-manager') . '</a> ';
+        echo '<a href="?page=academy-manager-chapters&action=delete&id=' . $chapter->ID . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')">' . __('Delete', 'academy-lesson-manager') . '</a>';
+        echo '</td>';
+        echo '</tr>';
+    }
+    
+    /**
+     * Get sortable header HTML
+     */
+    private function get_sortable_header($title, $column, $current_order_by, $current_order) {
+        $new_order = ($current_order_by === $column && $current_order === 'ASC') ? 'DESC' : 'ASC';
+        $url = add_query_arg(array('order_by' => $column, 'order' => $new_order));
+        
+        $class = '';
+        if ($current_order_by === $column) {
+            $class = ' sorted ' . strtolower($current_order);
+        }
+        
+        return '<a href="' . esc_url($url) . '" class="sortable' . $class . '">' . $title . '</a>';
+    }
+    
+    /**
+     * Render the edit page (editable form)
+     */
+    private function render_edit_page($id) {
+        if (empty($id)) {
+            echo '<div class="notice notice-error"><p>' . __('Invalid chapter ID.', 'academy-lesson-manager') . '</p></div>';
+            return;
+        }
+        
+        // Get chapter with lesson info
+        $lessons_table = $this->database->get_table_name('lessons');
+        $chapter = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT c.*, l.lesson_title, l.collection_id  
+             FROM {$this->table_name} c 
+             LEFT JOIN {$lessons_table} l ON c.lesson_id = l.ID 
+             WHERE c.ID = %d",
+            $id
+        ));
+        
+        if (!$chapter) {
+            echo '<div class="notice notice-error"><p>' . __('Chapter not found.', 'academy-lesson-manager') . '</p></div>';
+            return;
+        }
+        
+        // Show success messages
+        if (isset($_GET['message'])) {
+            $message = sanitize_text_field($_GET['message']);
+            switch ($message) {
+                case 'updated':
+                    echo '<div class="notice notice-success"><p>' . __('Chapter updated successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+            }
+        }
+        
+        // Back button and actions
+        echo '<p>';
+        echo '<a href="?page=academy-manager-chapters" class="button">&larr; ' . __('Back to Chapters', 'academy-lesson-manager') . '</a> ';
+        echo '<a href="?page=academy-manager-chapters&action=delete&id=' . $chapter->ID . '" class="button" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')">' . __('Delete', 'academy-lesson-manager') . '</a>';
+        echo '</p>';
+        
+        // Chapter details
+        echo '<div class="alm-chapter-details">';
+        echo '<h2>' . __('Edit Chapter', 'academy-lesson-manager') . '</h2>';
+        
+        echo '<form method="post" action="">';
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row">' . __('Chapter ID', 'academy-lesson-manager') . '</th>';
+        echo '<td>' . $chapter->ID . '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="lesson_id">' . __('Lesson', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="lesson_id" name="lesson_id" required>';
+        echo '<option value="">' . __('Select a lesson...', 'academy-lesson-manager') . '</option>';
+        $lessons = $this->wpdb->get_results("SELECT ID, lesson_title FROM $lessons_table ORDER BY lesson_title ASC");
+        foreach ($lessons as $lesson) {
+            $selected = ($lesson->ID == $chapter->lesson_id) ? 'selected' : '';
+            echo '<option value="' . esc_attr($lesson->ID) . '" ' . $selected . '>' . esc_html(stripslashes($lesson->lesson_title)) . '</option>';
+        }
+        echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="chapter_title">' . __('Chapter Title', 'academy-lesson-manager') . ' <span class="description">(required)</span></label></th>';
+        echo '<td><input type="text" id="chapter_title" name="chapter_title" value="' . esc_attr(stripslashes($chapter->chapter_title)) . '" class="regular-text" required /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="menu_order">' . __('Order', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="menu_order" name="menu_order" value="' . esc_attr($chapter->menu_order) . '" class="small-text" min="1" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="vimeo_id">' . __('Vimeo ID', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="vimeo_id" name="vimeo_id" value="' . esc_attr($chapter->vimeo_id) . '" class="small-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="youtube_id">' . __('YouTube ID', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="text" id="youtube_id" name="youtube_id" value="' . esc_attr($chapter->youtube_id) . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="bunny_url">' . __('Bunny URL', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="url" id="bunny_url" name="bunny_url" value="' . esc_attr($chapter->bunny_url) . '" class="regular-text" />';
+        echo '<button type="button" class="button fetch-bunny-metadata" style="margin-left: 10px;">' . __('Fetch Metadata', 'academy-lesson-manager') . '</button>';
+        echo '<p class="description">' . __('Enter a Bunny.net URL and click "Fetch Metadata" to automatically get video duration and other information.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="duration">' . __('Duration (seconds)', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="number" id="duration" name="duration" value="' . esc_attr($chapter->duration) . '" class="small-text" />';
+        echo '<span class="description" style="margin-left: 10px;">(' . ALM_Helpers::format_duration($chapter->duration) . ')</span>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="free">' . __('Free Chapter', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="free" name="free">';
+        $free_options = ALM_Helpers::get_yes_no_options();
+        foreach ($free_options as $value => $label) {
+            $selected = ($value === $chapter->free) ? 'selected' : '';
+            echo '<option value="' . esc_attr($value) . '" ' . $selected . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="slug">' . __('Slug', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="text" id="slug" name="slug" value="' . esc_attr($chapter->slug) . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="post_date">' . __('Release Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="date" id="post_date" name="post_date" value="' . esc_attr($chapter->post_date) . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row">' . __('Created', 'academy-lesson-manager') . '</th>';
+        echo '<td>' . ALM_Helpers::format_date($chapter->created_at) . '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row">' . __('Updated', 'academy-lesson-manager') . '</th>';
+        echo '<td>' . ALM_Helpers::format_date($chapter->updated_at) . '</td>';
+        echo '</tr>';
+        echo '</tbody>';
+        echo '</table>';
+        
+        echo '<p class="submit">';
+        echo '<input type="hidden" name="chapter_id" value="' . $chapter->ID . '" />';
+        echo '<input type="hidden" name="form_action" value="update" />';
+        echo '<input type="submit" class="button-primary" value="' . __('Update Chapter', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        echo '</form>';
+        echo '</div>';
+        
+        // Warning if no video source
+        if ($chapter->vimeo_id == 0 && empty($chapter->youtube_id) && empty($chapter->bunny_url)) {
+            echo '<div class="notice notice-warning"><p><strong>' . __('Warning:', 'academy-lesson-manager') . '</strong> ' . __('This chapter has no video source (Vimeo ID, YouTube ID, or Bunny URL).', 'academy-lesson-manager') . '</p></div>';
+        }
+    }
+    
+    /**
+     * Handle form submission (create/update)
+     */
+    private function handle_form_submission() {
+        $action = isset($_POST['form_action']) ? sanitize_text_field($_POST['form_action']) : '';
+        
+        if ($action === 'create') {
+            $this->create_chapter();
+        } elseif ($action === 'update') {
+            $this->update_chapter();
+        }
+    }
+    
+    /**
+     * Create a new chapter
+     */
+    private function create_chapter() {
+        $chapter_title = sanitize_text_field($_POST['chapter_title']);
+        $lesson_id = intval($_POST['lesson_id']);
+        
+        if (empty($chapter_title) || empty($lesson_id)) {
+            wp_die(__('Chapter title and lesson are required.', 'academy-lesson-manager'));
+        }
+        
+        $data = array(
+            'lesson_id' => $lesson_id,
+            'chapter_title' => $chapter_title,
+            'menu_order' => intval($_POST['menu_order']),
+            'vimeo_id' => intval($_POST['vimeo_id']),
+            'youtube_id' => sanitize_text_field($_POST['youtube_id']),
+            'bunny_url' => esc_url_raw($_POST['bunny_url']),
+            'duration' => intval($_POST['duration']),
+            'free' => sanitize_text_field($_POST['free']),
+            'slug' => sanitize_text_field($_POST['slug']),
+            'post_date' => sanitize_text_field($_POST['post_date']),
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql')
+        );
+        
+        $result = $this->wpdb->insert($this->table_name, $data);
+        
+        if ($result) {
+            $chapter_id = $this->wpdb->insert_id;
+            // Check if we came from a lesson page
+            $lesson_id_param = isset($_GET['lesson_id']) ? intval($_GET['lesson_id']) : 0;
+            if ($lesson_id_param) {
+                wp_redirect(add_query_arg(array('page' => 'academy-manager-lessons', 'action' => 'edit', 'id' => $lesson_id_param, 'message' => 'chapter_added')));
+            } else {
+                wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'action' => 'edit', 'id' => $chapter_id, 'message' => 'created')));
+            }
+            exit;
+        } else {
+            wp_die(__('Error creating chapter.', 'academy-lesson-manager'));
+        }
+    }
+    
+    /**
+     * Update an existing chapter
+     */
+    private function update_chapter() {
+        $chapter_id = intval($_POST['chapter_id']);
+        $chapter_title = sanitize_text_field($_POST['chapter_title']);
+        $lesson_id = intval($_POST['lesson_id']);
+        
+        if (empty($chapter_title) || empty($lesson_id)) {
+            wp_die(__('Chapter title and lesson are required.', 'academy-lesson-manager'));
+        }
+        
+        $data = array(
+            'lesson_id' => $lesson_id,
+            'chapter_title' => $chapter_title,
+            'menu_order' => intval($_POST['menu_order']),
+            'vimeo_id' => intval($_POST['vimeo_id']),
+            'youtube_id' => sanitize_text_field($_POST['youtube_id']),
+            'bunny_url' => esc_url_raw($_POST['bunny_url']),
+            'duration' => intval($_POST['duration']),
+            'free' => sanitize_text_field($_POST['free']),
+            'slug' => sanitize_text_field($_POST['slug']),
+            'post_date' => sanitize_text_field($_POST['post_date']),
+            'updated_at' => current_time('mysql')
+        );
+        
+        $result = $this->wpdb->update(
+            $this->table_name,
+            $data,
+            array('ID' => $chapter_id),
+            array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'action' => 'edit', 'id' => $chapter_id, 'message' => 'updated')));
+            exit;
+        } else {
+            wp_die(__('Error updating chapter.', 'academy-lesson-manager'));
+        }
+    }
+    
+    /**
+     * Handle chapter deletion
+     */
+    private function handle_delete($chapter_id) {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        $result = $this->wpdb->delete($this->table_name, array('ID' => $chapter_id));
+        
+        if ($result) {
+            wp_redirect(add_query_arg('message', 'deleted', admin_url('admin.php?page=academy-manager-chapters')));
+            exit;
+        } else {
+            wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager-chapters')));
+            exit;
+        }
+    }
+}

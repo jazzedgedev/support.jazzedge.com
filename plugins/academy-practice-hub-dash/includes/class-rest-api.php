@@ -147,6 +147,67 @@ class JPH_REST_API {
             'permission_callback' => '__return_true'
         ));
         
+        register_rest_route('aph/v1', '/jpc/migrate', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_migrate_jpc_data'),
+            'permission_callback' => array($this, 'rest_check_admin_permissions'),
+            'args' => array(
+                'dry_run' => array(
+                    'type' => 'string',
+                    'default' => 'false',
+                    'description' => 'If true, only analyze without making changes'
+                ),
+                'batch_size' => array(
+                    'type' => 'integer',
+                    'default' => 100,
+                    'description' => 'Number of records to process per batch'
+                ),
+                'skip_existing' => array(
+                    'type' => 'string',
+                    'default' => 'true',
+                    'description' => 'If true, skip records that already exist'
+                ),
+                'include_milestones' => array(
+                    'type' => 'string',
+                    'default' => 'true',
+                    'description' => 'If true, include milestone submissions in migration'
+                ),
+                'log_level' => array(
+                    'type' => 'string',
+                    'default' => 'info',
+                    'description' => 'Logging level (debug, info, warning, error)'
+                )
+            )
+        ));
+        
+        // Register JPC progress analysis endpoint
+        register_rest_route('aph/v1', '/jpc/analyze-progress', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_analyze_jpc_progress'),
+            'permission_callback' => array($this, 'rest_check_admin_permissions')
+        ));
+        
+        // Register JPC assignment fix endpoint
+        register_rest_route('aph/v1', '/jpc/fix-assignments', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_jpc_assignments'),
+            'permission_callback' => array($this, 'rest_check_admin_permissions')
+        ));
+        
+        // Register JPC specific student fix endpoint
+        register_rest_route('aph/v1', '/jpc/fix-specific-student', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_specific_student'),
+            'permission_callback' => array($this, 'rest_check_admin_permissions')
+        ));
+        
+        // Register JPC student self-fix endpoint
+        register_rest_route('aph/v1', '/jpc/fix-my-progress', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_my_progress'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Export endpoint
         register_rest_route('aph/v1', '/export-practice-history', array(
             'methods' => 'GET',
@@ -347,6 +408,31 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // Analytics endpoints
+        register_rest_route('aph/v1', '/analytics/overview', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_analytics_overview'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/analytics/students', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_analytics_students'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/analytics/send-outreach', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_send_outreach_email'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/analytics/export-at-risk', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_export_at_risk_students'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
         // Admin students endpoints
         register_rest_route('aph/v1', '/students', array(
             'methods' => 'GET',
@@ -523,6 +609,13 @@ class JPH_REST_API {
      */
     public function check_admin_permission() {
         return current_user_can('manage_options');
+    }
+    
+    /**
+     * REST API admin permission callback
+     */
+    public function rest_check_admin_permissions() {
+        return $this->check_admin_permission();
     }
     
     /**
@@ -1704,7 +1797,12 @@ class JPH_REST_API {
                 $wpdb->prefix . 'jph_user_stats',
                 $wpdb->prefix . 'jph_user_badges',
                 $wpdb->prefix . 'jph_gem_transactions',
-                $wpdb->prefix . 'jph_lesson_favorites'
+                $wpdb->prefix . 'jph_gems_transactions',
+                $wpdb->prefix . 'jph_lesson_favorites',
+                $wpdb->prefix . 'jph_jpc_user_assignments',
+                $wpdb->prefix . 'jph_jpc_user_progress',
+                $wpdb->prefix . 'jph_jpc_milestone_submissions',
+                $wpdb->prefix . 'jph_audit_logs'
             );
             
             $cleared_tables = array();
@@ -4964,9 +5062,18 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 
                 // Clear gem transactions
                 $wpdb->query("DELETE FROM {$wpdb->prefix}jph_gem_transactions WHERE user_id IN ($user_ids_str)");
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_gems_transactions WHERE user_id IN ($user_ids_str)");
                 
                 // Clear lesson favorites
                 $wpdb->query("DELETE FROM {$wpdb->prefix}jph_lesson_favorites WHERE user_id IN ($user_ids_str)");
+                
+                // Clear JPC user data
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_jpc_user_assignments WHERE user_id IN ($user_ids_str)");
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_jpc_user_progress WHERE user_id IN ($user_ids_str)");
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_jpc_milestone_submissions WHERE user_id IN ($user_ids_str)");
+                
+                // Clear audit logs
+                $wpdb->query("DELETE FROM {$wpdb->prefix}jph_audit_logs WHERE user_id IN ($user_ids_str)");
                 
                 // Delete the users themselves
                 foreach ($user_ids as $user_id) {
@@ -5425,9 +5532,18 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
         
         // Clear gem transactions
         $wpdb->query("DELETE FROM {$wpdb->prefix}jph_gem_transactions WHERE user_id IN ($user_ids_str)");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_gems_transactions WHERE user_id IN ($user_ids_str)");
         
         // Clear lesson favorites
         $wpdb->query("DELETE FROM {$wpdb->prefix}jph_lesson_favorites WHERE user_id IN ($user_ids_str)");
+        
+        // Clear JPC user data
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_jpc_user_assignments WHERE user_id IN ($user_ids_str)");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_jpc_user_progress WHERE user_id IN ($user_ids_str)");
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_jpc_milestone_submissions WHERE user_id IN ($user_ids_str)");
+        
+        // Clear audit logs
+        $wpdb->query("DELETE FROM {$wpdb->prefix}jph_audit_logs WHERE user_id IN ($user_ids_str)");
     }
     
     /**
@@ -5667,7 +5783,8 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
         // Clear all Practice Hub JPC tables
         $tables_to_clear = array(
             'jph_jpc_user_assignments',
-            'jph_jpc_user_progress'
+            'jph_jpc_user_progress',
+            'jph_jpc_milestone_submissions'
         );
         
         $results = array();
@@ -5684,6 +5801,65 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             'tables_cleared' => $results,
             'note' => 'Curriculum and steps tables preserved (read-only reference data)'
         ));
+    }
+    
+    /**
+     * Migrate JPC data from old tables to new system
+     * 
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public function rest_migrate_jpc_data($request) {
+        // Check if user has admin capabilities
+        if (!current_user_can('manage_options')) {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'Insufficient permissions'
+            ), 403);
+        }
+        
+        $dry_run = $request->get_param('dry_run') === 'true';
+        $options = array(
+            'batch_size' => intval($request->get_param('batch_size')) ?: 100,
+            'skip_existing' => $request->get_param('skip_existing') !== 'false',
+            'include_milestones' => $request->get_param('include_milestones') !== 'false',
+            'log_level' => $request->get_param('log_level') ?: 'info'
+        );
+        
+        // Include the migration class
+        if (!class_exists('JPH_JPC_Migration')) {
+            require_once plugin_dir_path(__FILE__) . 'class-jpc-migration.php';
+        }
+        
+        // Validate prerequisites first
+        $validation = JPH_JPC_Migration::validate_prerequisites();
+        if (!$validation['valid']) {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'Migration prerequisites not met',
+                'issues' => $validation['issues']
+            ), 400);
+        }
+        
+        // Perform migration
+        $result = JPH_JPC_Migration::migrate_all_jpc_data($dry_run, $options);
+        
+        if ($result['success']) {
+            return new WP_REST_Response(array(
+                'success' => true,
+                'message' => $dry_run ? 'Migration analysis completed' : 'Migration completed successfully',
+                'dry_run' => $dry_run,
+                'stats' => $result['stats'],
+                'results' => $result['results']
+            ), 200);
+        } else {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'message' => 'Migration failed',
+                'error' => $result['error'],
+                'stats' => $result['stats']
+            ), 500);
+        }
     }
     
     /**
@@ -6133,6 +6309,881 @@ Guidelines:
 - Don't change the core message or criticism
 
 Return only the cleaned feedback text, no explanations or additional commentary.";
+    }
+    
+    /**
+     * Get analytics overview data
+     */
+    public function rest_get_analytics_overview($request) {
+        try {
+            global $wpdb;
+            
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$stats_table}'");
+            if (!$table_exists) {
+                return wp_send_json_error('User stats table does not exist');
+            }
+            
+            // Total students
+            $total_students = $wpdb->get_var("
+                SELECT COUNT(DISTINCT us.user_id) 
+                FROM {$stats_table} us
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+            ");
+            
+            // Active students (practiced in last 7 days)
+            $active_students = $wpdb->get_var("
+                SELECT COUNT(DISTINCT us.user_id) 
+                FROM {$stats_table} us
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+                WHERE us.last_practice_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ");
+            
+            // At-risk students (30+ days since last practice)
+            $at_risk_students = $wpdb->get_var("
+                SELECT COUNT(DISTINCT us.user_id) 
+                FROM {$stats_table} us
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+                WHERE us.last_practice_date < DATE_SUB(NOW(), INTERVAL 30 DAY)
+                OR us.last_practice_date IS NULL
+            ");
+            
+            // Average practice time (last 30 days)
+            $avg_practice_time = $wpdb->get_var("
+                SELECT AVG(ps.duration_minutes) 
+                FROM {$wpdb->prefix}jph_practice_sessions ps
+                WHERE ps.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ");
+            
+            return wp_send_json_success(array(
+                'total_students' => (int) $total_students,
+                'active_students' => (int) $active_students,
+                'at_risk_students' => (int) $at_risk_students,
+                'avg_practice_time' => round($avg_practice_time ?: 0, 1) . ' min'
+            ));
+            
+        } catch (Exception $e) {
+            return wp_send_json_error('Error loading analytics overview: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Get analytics students data with filtering
+     */
+    public function rest_get_analytics_students($request) {
+        try {
+            global $wpdb;
+            
+            $risk_filter = $request->get_param('risk');
+            $level_filter = $request->get_param('level');
+            $search_term = $request->get_param('search');
+            
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$stats_table}'");
+            if (!$table_exists) {
+                return wp_send_json_error('User stats table does not exist');
+            }
+            
+            $where_conditions = array();
+            
+            // Risk level filtering
+            if ($risk_filter === 'low') {
+                $where_conditions[] = "us.last_practice_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            } elseif ($risk_filter === 'medium') {
+                $where_conditions[] = "us.last_practice_date >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND us.last_practice_date < DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            } elseif ($risk_filter === 'high') {
+                $where_conditions[] = "(us.last_practice_date < DATE_SUB(NOW(), INTERVAL 30 DAY) OR us.last_practice_date IS NULL)";
+            }
+            
+            // Level filtering
+            if ($level_filter && $level_filter !== 'all') {
+                if ($level_filter === '5') {
+                    $where_conditions[] = "us.current_level >= 5";
+                } else {
+                    $where_conditions[] = $wpdb->prepare("us.current_level = %d", $level_filter);
+                }
+            }
+            
+            // Search filtering
+            if ($search_term) {
+                $where_conditions[] = $wpdb->prepare("(u.display_name LIKE %s OR u.user_email LIKE %s)", 
+                    '%' . $search_term . '%', '%' . $search_term . '%');
+            }
+            
+            $where_clause = '';
+            if (!empty($where_conditions)) {
+                $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+            }
+            
+            // Check if last_email_sent column exists
+            $columns = $wpdb->get_col("DESCRIBE {$stats_table}");
+            $email_column = in_array('last_email_sent', $columns) ? 'us.last_email_sent' : 'NULL as last_email_sent';
+            
+            $query = "
+                SELECT 
+                    us.user_id,
+                    u.display_name,
+                    u.user_email,
+                    us.current_level as level,
+                    us.last_practice_date,
+                    us.total_sessions,
+                    us.current_streak,
+                    {$email_column},
+                    CASE 
+                        WHEN us.last_practice_date IS NULL THEN DATEDIFF(NOW(), us.created_at)
+                        ELSE DATEDIFF(NOW(), us.last_practice_date)
+                    END as days_since_last_practice
+                FROM {$stats_table} us
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+                {$where_clause}
+                ORDER BY days_since_last_practice DESC, us.last_practice_date DESC
+                LIMIT 100
+            ";
+            
+            $students = $wpdb->get_results($query, ARRAY_A);
+            
+            // Debug information
+            $debug_info = array(
+                'query' => $query,
+                'students_count' => count($students),
+                'table_name' => $stats_table,
+                'filters_applied' => array(
+                    'risk' => $risk_filter,
+                    'level' => $level_filter,
+                    'search' => $search_term
+                )
+            );
+            
+            return wp_send_json_success(array(
+                'students' => $students,
+                'debug' => $debug_info
+            ));
+            
+        } catch (Exception $e) {
+            return wp_send_json_error('Error loading analytics students: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Send outreach email to student
+     */
+    public function rest_send_outreach_email($request) {
+        try {
+            $user_id = $request->get_param('user_id');
+            
+            if (!$user_id) {
+                return wp_send_json_error('User ID is required');
+            }
+            
+            $user = get_userdata($user_id);
+            if (!$user) {
+                return wp_send_json_error('User not found');
+            }
+            
+            // Get student's last practice date
+            global $wpdb;
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            $last_practice = $wpdb->get_var($wpdb->prepare(
+                "SELECT last_practice_date FROM {$stats_table} WHERE user_id = %d", 
+                $user_id
+            ));
+            
+            $days_since = 0;
+            if ($last_practice) {
+                $days_since = floor((time() - strtotime($last_practice)) / (24 * 60 * 60));
+            }
+            
+            // Create personalized outreach email
+            $subject = "We miss you! Let's get back to practicing";
+            $message = $this->create_outreach_email_content($user->display_name, $days_since);
+            
+            $sent = wp_mail($user->user_email, $subject, $message, array('Content-Type: text/html; charset=UTF-8'));
+            
+            if ($sent) {
+                // Update last_email_sent timestamp if column exists
+                $stats_table = $wpdb->prefix . 'jph_user_stats';
+                $columns = $wpdb->get_col("DESCRIBE {$stats_table}");
+                
+                if (in_array('last_email_sent', $columns)) {
+                    $wpdb->update(
+                        $stats_table,
+                        array('last_email_sent' => current_time('mysql')),
+                        array('user_id' => $user_id),
+                        array('%s'),
+                        array('%d')
+                    );
+                }
+                
+                // Log the outreach
+                $this->logger->info('Outreach email sent', array(
+                    'user_id' => $user_id,
+                    'user_email' => $user->user_email,
+                    'days_since_practice' => $days_since
+                ));
+                
+                return wp_send_json_success('Outreach email sent successfully');
+            } else {
+                return wp_send_json_error('Failed to send email');
+            }
+            
+        } catch (Exception $e) {
+            return wp_send_json_error('Error sending outreach email: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Create outreach email content
+     */
+    private function create_outreach_email_content($display_name, $days_since) {
+        $days_text = $days_since > 0 ? "{$days_since} days" : "a while";
+        
+        return "
+        <html>
+        <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
+            <div style='max-width: 600px; margin: 0 auto; padding: 20px;'>
+                <h2 style='color: #459E90;'>Hi {$display_name}!</h2>
+                
+                <p>We noticed it's been {$days_text} since your last practice session, and we wanted to reach out to see how you're doing.</p>
+                
+                <p>We know life can get busy, but we're here to help you get back on track with your musical journey. Here are some ways we can support you:</p>
+                
+                <ul style='margin: 20px 0;'>
+                    <li>📚 <strong>Review your practice goals</strong> - Sometimes revisiting why you started can reignite your passion</li>
+                    <li>🎵 <strong>Start small</strong> - Even 10-15 minutes of practice can make a difference</li>
+                    <li>🎯 <strong>Focus on one piece</strong> - Pick your favorite song and work on it consistently</li>
+                    <li>👥 <strong>Join our community</strong> - Connect with other students for motivation and support</li>
+                </ul>
+                
+                <p>Remember, every musician has ups and downs. What matters is getting back to it when you're ready.</p>
+                
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href='https://jazzedge.academy/dashboard' style='background: #459E90; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;'>Return to Practice Hub</a>
+                </div>
+                
+                <p>If you're facing any specific challenges or need help with anything, please don't hesitate to reach out. We're here to support your musical journey!</p>
+                
+                <p>Best regards,<br>
+                The JazzEdge Team</p>
+                
+                <hr style='margin: 30px 0; border: none; border-top: 1px solid #eee;'>
+                <p style='font-size: 12px; color: #666;'>
+                    You're receiving this email because you're a valued member of JazzEdge Academy. 
+                    If you'd prefer not to receive these check-in emails, you can update your preferences in your account settings.
+                </p>
+            </div>
+        </body>
+        </html>
+        ";
+    }
+    
+    /**
+     * Export at-risk students as CSV
+     */
+    public function rest_export_at_risk_students($request) {
+        try {
+            global $wpdb;
+            
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            
+            $students = $wpdb->get_results("
+                SELECT 
+                    us.user_id,
+                    u.display_name,
+                    u.user_email,
+                    us.level,
+                    us.last_practice_date,
+                    us.total_practice_sessions,
+                    us.current_streak,
+                    CASE 
+                        WHEN us.last_practice_date IS NULL THEN DATEDIFF(NOW(), us.created_at)
+                        ELSE DATEDIFF(NOW(), us.last_practice_date)
+                    END as days_since_last_practice
+                FROM {$stats_table} us
+                INNER JOIN {$wpdb->users} u ON us.user_id = u.ID
+                WHERE (us.last_practice_date < DATE_SUB(NOW(), INTERVAL 30 DAY) OR us.last_practice_date IS NULL)
+                ORDER BY days_since_last_practice DESC
+            ", ARRAY_A);
+            
+            // Set headers for CSV download
+            header('Content-Type: text/csv');
+            header('Content-Disposition: attachment; filename="at-risk-students-' . date('Y-m-d') . '.csv"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+            
+            $output = fopen('php://output', 'w');
+            
+            // CSV headers
+            fputcsv($output, array(
+                'Student Name',
+                'Email',
+                'Level',
+                'Last Practice Date',
+                'Days Since Last Practice',
+                'Total Sessions',
+                'Current Streak',
+                'Risk Level'
+            ));
+            
+            // CSV data
+            foreach ($students as $student) {
+                $days_since = $student['days_since_last_practice'];
+                $risk_level = $days_since > 30 ? 'High' : 'Medium';
+                
+                fputcsv($output, array(
+                    $student['display_name'],
+                    $student['user_email'],
+                    $student['level'] ?: 'N/A',
+                    $student['last_practice_date'] ?: 'Never',
+                    $days_since,
+                    $student['total_practice_sessions'] ?: 0,
+                    $student['current_streak'] ?: 0,
+                    $risk_level
+                ));
+            }
+            
+            fclose($output);
+            exit;
+            
+        } catch (Exception $e) {
+            wp_send_json_error('Error exporting at-risk students: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Analyze JPC progress for all students
+     */
+    public function rest_analyze_jpc_progress($request) {
+        global $wpdb;
+        
+        try {
+            // Get all students with JPC assignments
+            $students = $wpdb->get_results(
+                "SELECT DISTINCT jua.user_id, jua.curriculum_id, jua.step_id, jc.focus_order, jc.focus_title
+                 FROM {$wpdb->prefix}jph_jpc_user_assignments jua
+                 JOIN {$wpdb->prefix}jph_jpc_curriculum jc ON jua.curriculum_id = jc.id
+                 WHERE jua.deleted_at IS NULL
+                 ORDER BY jua.user_id, jua.curriculum_id",
+                ARRAY_A
+            );
+            
+            $analysis = array(
+                'total_students' => 0,
+                'correct_assignments' => 0,
+                'incorrect_assignments' => 0,
+                'students_to_fix' => array()
+            );
+            
+            $processed_users = array();
+            
+            foreach ($students as $student) {
+                $user_id = $student['user_id'];
+                
+                if (in_array($user_id, $processed_users)) {
+                    continue;
+                }
+                
+                $processed_users[] = $user_id;
+                $analysis['total_students']++;
+                
+                // Get student's progress across all focuses
+                $all_progress = $wpdb->get_results($wpdb->prepare(
+                    "SELECT curriculum_id, step_1, step_2, step_3, step_4, step_5, step_6, 
+                            step_7, step_8, step_9, step_10, step_11, step_12
+                     FROM {$wpdb->prefix}jph_jpc_user_progress 
+                     WHERE user_id = %d",
+                    $user_id
+                ), ARRAY_A);
+                
+                // Find completed focuses
+                $completed_focuses = array();
+                foreach ($all_progress as $progress) {
+                    $completed_keys = 0;
+                    for ($i = 1; $i <= 12; $i++) {
+                        if (!empty($progress['step_' . $i])) {
+                            $completed_keys++;
+                        }
+                    }
+                    
+                    if ($completed_keys === 12) {
+                        $completed_focuses[] = $progress['curriculum_id'];
+                    }
+                }
+                
+                // Get current assignment
+                $current_assignment = $wpdb->get_row($wpdb->prepare(
+                    "SELECT jua.curriculum_id, jc.focus_order, jc.focus_title
+                     FROM {$wpdb->prefix}jph_jpc_user_assignments jua
+                     JOIN {$wpdb->prefix}jph_jpc_curriculum jc ON jua.curriculum_id = jc.id
+                     WHERE jua.user_id = %d AND jua.deleted_at IS NULL
+                     ORDER BY jua.id DESC LIMIT 1",
+                    $user_id
+                ), ARRAY_A);
+                
+                if ($current_assignment) {
+                    $current_focus_id = $current_assignment['curriculum_id'];
+                    $current_focus_order = $current_assignment['focus_order'];
+                    
+                    // Determine what focus they should be at
+                    $should_be_at = null;
+                    if (!empty($completed_focuses)) {
+                        // Find the highest completed focus
+                        $highest_completed = max($completed_focuses);
+                        
+                        // Get the next focus after the highest completed
+                        $next_focus = $wpdb->get_row($wpdb->prepare(
+                            "SELECT id, focus_order FROM {$wpdb->prefix}jph_jpc_curriculum 
+                             WHERE id > %d ORDER BY id ASC LIMIT 1",
+                            $highest_completed
+                        ), ARRAY_A);
+                        
+                        if ($next_focus) {
+                            $should_be_at = $next_focus['focus_order'];
+                        }
+                    }
+                    
+                    // Check if assignment is correct
+                    if ($should_be_at && $current_focus_order != $should_be_at) {
+                        $analysis['incorrect_assignments']++;
+                        $analysis['students_to_fix'][] = array(
+                            'user_id' => $user_id,
+                            'current_focus' => $current_focus_order,
+                            'correct_focus' => $should_be_at,
+                            'completed_focuses' => $completed_focuses
+                        );
+                    } else {
+                        $analysis['correct_assignments']++;
+                    }
+                }
+            }
+            
+            return rest_ensure_response($analysis);
+            
+        } catch (Exception $e) {
+            return new WP_Error('analyze_progress_error', 'Error analyzing progress: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Fix JPC assignments based on analysis
+     */
+    public function rest_fix_jpc_assignments($request) {
+        global $wpdb;
+        
+        try {
+            $fixed_count = 0;
+            
+            // Get all students with JPC assignments
+            $students = $wpdb->get_results(
+                "SELECT DISTINCT jua.user_id, jua.curriculum_id, jua.step_id, jc.focus_order, jc.focus_title
+                 FROM {$wpdb->prefix}jph_jpc_user_assignments jua
+                 JOIN {$wpdb->prefix}jph_jpc_curriculum jc ON jua.curriculum_id = jc.id
+                 WHERE jua.deleted_at IS NULL
+                 ORDER BY jua.user_id, jua.curriculum_id",
+                ARRAY_A
+            );
+            
+            $processed_users = array();
+            
+            foreach ($students as $student) {
+                $user_id = $student['user_id'];
+                
+                if (in_array($user_id, $processed_users)) {
+                    continue;
+                }
+                
+                $processed_users[] = $user_id;
+                
+                // Get student's progress across all focuses
+                $all_progress = $wpdb->get_results($wpdb->prepare(
+                    "SELECT curriculum_id, step_1, step_2, step_3, step_4, step_5, step_6, 
+                            step_7, step_8, step_9, step_10, step_11, step_12
+                     FROM {$wpdb->prefix}jph_jpc_user_progress 
+                     WHERE user_id = %d",
+                    $user_id
+                ), ARRAY_A);
+                
+                // Find completed focuses
+                $completed_focuses = array();
+                foreach ($all_progress as $progress) {
+                    $completed_keys = 0;
+                    for ($i = 1; $i <= 12; $i++) {
+                        if (!empty($progress['step_' . $i])) {
+                            $completed_keys++;
+                        }
+                    }
+                    
+                    if ($completed_keys === 12) {
+                        $completed_focuses[] = $progress['curriculum_id'];
+                    }
+                }
+                
+                // Determine what focus they should be at
+                $should_be_at_id = null;
+                if (!empty($completed_focuses)) {
+                    // Find the highest completed focus
+                    $highest_completed = max($completed_focuses);
+                    
+                    // Get the next focus after the highest completed
+                    $next_focus = $wpdb->get_row($wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}jph_jpc_curriculum 
+                         WHERE id > %d ORDER BY id ASC LIMIT 1",
+                        $highest_completed
+                    ), ARRAY_A);
+                    
+                    if ($next_focus) {
+                        $should_be_at_id = $next_focus['id'];
+                    }
+                }
+                
+                if ($should_be_at_id) {
+                    // Get first step of the correct focus
+                    $first_step = $wpdb->get_row($wpdb->prepare(
+                        "SELECT step_id FROM {$wpdb->prefix}jph_jpc_steps 
+                         WHERE curriculum_id = %d AND key_sig = 1",
+                        $should_be_at_id
+                    ), ARRAY_A);
+                    
+                    if ($first_step) {
+                        // Update assignment
+                        $result = $wpdb->update(
+                            $wpdb->prefix . 'jph_jpc_user_assignments',
+                            array(
+                                'curriculum_id' => $should_be_at_id,
+                                'step_id' => $first_step['step_id'],
+                                'assigned_date' => current_time('mysql')
+                            ),
+                            array('user_id' => $user_id, 'deleted_at' => null),
+                            array('%d', '%d', '%s'),
+                            array('%d', '%s')
+                        );
+                        
+                        if ($result !== false) {
+                            $fixed_count++;
+                        }
+                    }
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'fixed_count' => $fixed_count,
+                'message' => "Successfully fixed $fixed_count student assignments"
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('fix_assignments_error', 'Error fixing assignments: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Fix a specific student's assignment
+     */
+    public function rest_fix_specific_student($request) {
+        global $wpdb;
+        
+        try {
+            $user_id = intval($request->get_param('user_id'));
+            $focus_order = $request->get_param('focus_order');
+            $key_number = intval($request->get_param('key_number'));
+            
+            if (!$user_id || !$focus_order || !$key_number) {
+                return new WP_Error('invalid_params', 'User ID, Focus Order, and Key Number are required', array('status' => 400));
+            }
+            
+            if ($key_number < 1 || $key_number > 12) {
+                return new WP_Error('invalid_key', 'Key number must be between 1 and 12', array('status' => 400));
+            }
+            
+            // First, find the curriculum ID for the given focus order
+            $curriculum = $wpdb->get_row($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}jph_jpc_curriculum 
+                 WHERE focus_order = %s",
+                $focus_order
+            ), ARRAY_A);
+            
+            if (!$curriculum) {
+                return new WP_Error('focus_not_found', 'No focus found with order ' . $focus_order, array('status' => 404));
+            }
+            
+            $focus_id = $curriculum['id'];
+            
+            // Get the step_id for the specified focus and key
+            $step = $wpdb->get_row($wpdb->prepare(
+                "SELECT step_id FROM {$wpdb->prefix}jph_jpc_steps 
+                 WHERE curriculum_id = %d AND key_sig = %d",
+                $focus_id, $key_number
+            ), ARRAY_A);
+            
+            if (!$step) {
+                return new WP_Error('step_not_found', 'No step found for focus ' . $focus_order . ', key ' . $key_number, array('status' => 404));
+            }
+            
+            // Update the student's assignment
+            $result = $wpdb->update(
+                $wpdb->prefix . 'jph_jpc_user_assignments',
+                array(
+                    'curriculum_id' => $focus_id,
+                    'step_id' => $step['step_id'],
+                    'assigned_date' => current_time('mysql')
+                ),
+                array('user_id' => $user_id, 'deleted_at' => null),
+                array('%d', '%d', '%s'),
+                array('%d', '%s')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to update student assignment', array('status' => 500));
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => "Successfully moved user $user_id to focus $focus_order, key $key_number",
+                'user_id' => $user_id,
+                'focus_order' => $focus_order,
+                'focus_id' => $focus_id,
+                'key_number' => $key_number,
+                'step_id' => $step['step_id']
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('fix_specific_student_error', 'Error fixing specific student: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Allow students to fix their own progress
+     */
+        public function rest_fix_my_progress($request) {
+            global $wpdb;
+            
+            try {
+                $user_id = get_current_user_id();
+            $current_focus = $request->get_param('current_focus');
+            $current_key = $request->get_param('current_key');
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to fix your progress', array('status' => 401));
+            }
+            
+            // Get student's current assignment
+            $current_assignment = $wpdb->get_row($wpdb->prepare(
+                "SELECT jua.curriculum_id, jua.step_id, jc.focus_order, js.key_sig, js.key_sig_name
+                 FROM {$wpdb->prefix}jph_jpc_user_assignments jua
+                 JOIN {$wpdb->prefix}jph_jpc_curriculum jc ON jua.curriculum_id = jc.id
+                 JOIN {$wpdb->prefix}jph_jpc_steps js ON jua.step_id = js.step_id
+                 WHERE jua.user_id = %d AND jua.deleted_at IS NULL
+                 ORDER BY jua.id DESC LIMIT 1",
+                $user_id
+            ), ARRAY_A);
+            
+            if (!$current_assignment) {
+                return new WP_Error('no_assignment', 'No current assignment found', array('status' => 404));
+            }
+            
+            $current_focus_id = $current_assignment['curriculum_id'];
+            $current_focus_order = $current_assignment['focus_order'];
+            $current_step_id = $current_assignment['step_id'];
+            $current_key_sig = $current_assignment['key_sig'];
+            $current_key_name = $current_assignment['key_sig_name'];
+            
+            // Get student's progress for the current focus
+            $current_progress = $wpdb->get_row($wpdb->prepare(
+                "SELECT step_1, step_2, step_3, step_4, step_5, step_6, 
+                        step_7, step_8, step_9, step_10, step_11, step_12
+                 FROM {$wpdb->prefix}jph_jpc_user_progress 
+                 WHERE user_id = %d AND curriculum_id = %d",
+                $user_id, $current_focus_id
+            ), ARRAY_A);
+            
+            // Find the absolute lowest NULL step across ALL curriculum records
+            $next_step_id = null;
+            $lowest_null_step = null;
+            $lowest_null_curriculum_id = null;
+            
+            // Get all progress records for this user
+            $all_progress = $wpdb->get_results($wpdb->prepare(
+                "SELECT curriculum_id, step_1, step_2, step_3, step_4, step_5, step_6, 
+                        step_7, step_8, step_9, step_10, step_11, step_12 
+                 FROM {$wpdb->prefix}jph_jpc_user_progress 
+                 WHERE user_id = %d 
+                 ORDER BY curriculum_id",
+                $user_id
+            ), ARRAY_A);
+            
+            if ($all_progress) {
+                // Find the absolute lowest step_id that is NULL across all curriculum records
+                $lowest_null_step_id = null;
+                
+                foreach ($all_progress as $progress) {
+                    $curriculum_id = $progress['curriculum_id'];
+                    
+                    // Check each step in this curriculum
+                    for ($i = 1; $i <= 12; $i++) {
+                        if (empty($progress['step_' . $i])) {
+                            // Calculate the step_id for this NULL step
+                            $step_id = ($curriculum_id - 1) * 12 + $i;
+                            
+                            // Found a NULL step - check if it's the lowest step_id
+                            if ($lowest_null_step_id === null || $step_id < $lowest_null_step_id) {
+                                $lowest_null_step_id = $step_id;
+                                $lowest_null_step = $i;
+                                $lowest_null_curriculum_id = $curriculum_id;
+                            }
+                            break; // Move to next curriculum
+                        }
+                    }
+                }
+                
+                if ($lowest_null_step_id) {
+                    $next_step_id = $lowest_null_step_id;
+                }
+            }
+            
+            // Use the curriculum with the lowest NULL step
+            if ($lowest_null_curriculum_id) {
+                $should_be_at_id = $lowest_null_curriculum_id;
+                // Get the focus order for this curriculum
+                $focus_info = $wpdb->get_row($wpdb->prepare(
+                    "SELECT focus_order FROM {$wpdb->prefix}jph_jpc_curriculum WHERE id = %d",
+                    $lowest_null_curriculum_id
+                ), ARRAY_A);
+                $should_be_at_order = $focus_info ? $focus_info['focus_order'] : $current_focus_order;
+            } else {
+                // Fallback to current focus
+                $should_be_at_id = $current_focus_id;
+                $should_be_at_order = $current_focus_order;
+            }
+            
+            // Check if assignment needs fixing
+            $needs_fixing = false;
+            $fix_reason = '';
+            
+            // If we're at the lowest NULL step, we need to clear future progress
+            if ($lowest_null_step && $lowest_null_curriculum_id && 
+                $current_focus_id == $lowest_null_curriculum_id && 
+                $current_step_id == $next_step_id) {
+                
+                // We're at the correct step, but need to clear future progress
+                $needs_fixing = true;
+                $fix_reason = 'clear_future_progress';
+            }
+            
+            // Check if they're at the wrong focus
+            if ($should_be_at_id && $current_focus_id != $should_be_at_id) {
+                $needs_fixing = true;
+                $fix_reason = 'wrong focus';
+            }
+            // Check if they're at the wrong key within the same focus
+            elseif ($next_step_id && $current_step_id != $next_step_id) {
+                $needs_fixing = true;
+                $fix_reason = 'wrong key';
+            }
+            
+            if ($needs_fixing) {
+                if ($fix_reason === 'clear_future_progress') {
+                    // Clear future progress steps after the lowest NULL step
+                    if ($lowest_null_step && $lowest_null_curriculum_id) {
+                        $update_fields = array();
+                        
+                        // NULL out all steps after the lowest NULL step in current curriculum
+                        for ($i = $lowest_null_step + 1; $i <= 12; $i++) {
+                            $update_fields[] = "step_$i = NULL";
+                        }
+                        
+                        if (!empty($update_fields)) {
+                            $update_sql = "UPDATE {$wpdb->prefix}jph_jpc_user_progress SET " . implode(', ', $update_fields) . 
+                                         " WHERE user_id = %d AND curriculum_id = %d";
+                            $wpdb->query($wpdb->prepare($update_sql, $user_id, $lowest_null_curriculum_id));
+                        }
+                        
+                        // Delete ALL curriculum records with curriculum_id > current curriculum
+                        $wpdb->query($wpdb->prepare(
+                            "DELETE FROM {$wpdb->prefix}jph_jpc_user_progress 
+                             WHERE user_id = %d AND curriculum_id > %d",
+                            $user_id, $lowest_null_curriculum_id
+                        ));
+                    }
+                    
+                    return rest_ensure_response(array(
+                        'success' => true,
+                        'fixed' => true,
+                        'message' => "Future progress cleared successfully",
+                        'old_focus' => $current_focus_order,
+                        'old_key' => $current_key_name,
+                        'new_focus' => $should_be_at_order,
+                        'new_key' => $current_key_name,
+                        'fix_reason' => $fix_reason
+                    ));
+                } else {
+                    // Get the correct step information
+                    $correct_step = $wpdb->get_row($wpdb->prepare(
+                        "SELECT step_id, key_sig_name FROM {$wpdb->prefix}jph_jpc_steps 
+                         WHERE step_id = %d",
+                        $next_step_id
+                    ), ARRAY_A);
+                    
+                    if ($correct_step) {
+                        // Clear future progress steps after the lowest NULL step
+                        if ($lowest_null_step && $lowest_null_curriculum_id && $fix_reason === 'wrong key') {
+                            $update_fields = array();
+                            $update_values = array();
+                            
+                            // NULL out all steps after the lowest NULL step
+                            for ($i = $lowest_null_step + 1; $i <= 12; $i++) {
+                                $update_fields[] = "step_$i = NULL";
+                            }
+                            
+                            if (!empty($update_fields)) {
+                                $update_sql = "UPDATE {$wpdb->prefix}jph_jpc_user_progress SET " . implode(', ', $update_fields) . 
+                                             " WHERE user_id = %d AND curriculum_id = %d";
+                                $wpdb->query($wpdb->prepare($update_sql, $user_id, $lowest_null_curriculum_id));
+                            }
+                        }
+                        
+                        // Update assignment
+                        $result = $wpdb->update(
+                            $wpdb->prefix . 'jph_jpc_user_assignments',
+                            array(
+                                'curriculum_id' => $should_be_at_id,
+                                'step_id' => $correct_step['step_id'],
+                                'assigned_date' => current_time('mysql')
+                            ),
+                            array('user_id' => $user_id, 'deleted_at' => null),
+                            array('%d', '%d', '%s'),
+                            array('%d', '%s')
+                        );
+                        
+                        if ($result !== false) {
+                            return rest_ensure_response(array(
+                                'success' => true,
+                                'fixed' => true,
+                                'message' => "Progress fixed successfully",
+                                'old_focus' => $current_focus_order,
+                                'old_key' => $current_key_name,
+                                'new_focus' => $should_be_at_order,
+                                'new_key' => $correct_step['key_sig_name'],
+                                'fix_reason' => $fix_reason
+                            ));
+                        }
+                    }
+                }
+            }
+            
+                // No fix needed
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'fixed' => false,
+                    'message' => "Your progress is already correct",
+                    'current_focus' => $current_focus_order
+                ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('fix_my_progress_error', 'Error fixing progress: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
 }

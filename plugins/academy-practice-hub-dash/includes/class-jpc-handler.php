@@ -415,6 +415,9 @@ class JPH_JPC_Handler {
             return false;
         }
         
+        // Also create the JPC practice item for new users
+        self::ensure_jpc_practice_item($user_id);
+        
         // Get curriculum and step details to return complete assignment data
         $curriculum = self::get_curriculum_details(1);
         if (!$curriculum) {
@@ -648,5 +651,51 @@ class JPH_JPC_Handler {
             ),
             array('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s')
         );
+    }
+    
+    /**
+     * Ensure JPC practice item exists for a user
+     * 
+     * @param int $user_id User ID
+     * @return bool Success status
+     */
+    private static function ensure_jpc_practice_item($user_id) {
+        global $wpdb;
+        
+        $practice_items_table = $wpdb->prefix . 'jph_practice_items';
+        
+        // Check if JPC practice item already exists
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $practice_items_table WHERE user_id = %d AND category = 'jpc'",
+            $user_id
+        ));
+        
+        if ($exists) {
+            return true; // Already exists
+        }
+        
+        // Create the JPC practice item
+        $result = $wpdb->insert(
+            $practice_items_table,
+            array(
+                'user_id' => $user_id,
+                'name' => 'JazzEdge Practice Curriculum™',
+                'category' => 'jpc',
+                'description' => 'Complete jazz piano curriculum with 12 keys per focus',
+                'is_active' => 1,
+                'sort_order' => 1,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ),
+            array('%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
+        );
+        
+        if ($result === false) {
+            error_log("JPC Handler: Failed to create JPC practice item for user $user_id: " . $wpdb->last_error);
+            return false;
+        }
+        
+        error_log("JPC Handler: Created JPC practice item for new user $user_id");
+        return true;
     }
 }

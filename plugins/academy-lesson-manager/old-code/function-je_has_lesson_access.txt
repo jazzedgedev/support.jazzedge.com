@@ -1,0 +1,32 @@
+function je_has_lesson_access() {
+    global $wpdb, $user_id, $user_membership_level, $user_membership_level_num, $lesson_post_id;
+    if (in_array($lesson_post_id, [587, 548, 547])) { 
+        return 'true'; 
+    }
+    
+    //esentials membership
+    if ($user_membership_level_num >= 1 && in_array($lesson_post_id, [232, 268, 262, 244, 251, 272, 246, 277, 298, 302, 300, 295, 297, 285, 291, 294, 292, 288, 289, 293, 286, 284, 317, 320, 329, 316, 322, 341, 338, 337, 339, 336, 343, 326, 321, 305, 309, 304, 313, 340, 308, 287])) { 
+        return 'true'; 
+    }
+    //echo "**$user_membership_level";
+
+    if (empty($user_id)) { 
+        return 'false'; 
+    }
+    $lesson_id = get_the_ID();
+    $purchased_lesson = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_credit_purchases WHERE user_id = %d AND post_id = %d", $user_id, $lesson_id));
+
+    if (empty($purchased_lesson)) { 
+        $purchased_lesson = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_user_credit_log WHERE user_id = %d AND post_id = %d", $user_id, $lesson_id));
+    }
+
+    if (!empty($purchased_lesson)) { 
+        return 'true'; 
+    }
+
+    if (in_array($user_membership_level, ['14daytrial', 'studio', 'lessons']) || $user_membership_level_num >= 2) { 
+        return 'true'; 
+    }
+
+    return 'false';
+}

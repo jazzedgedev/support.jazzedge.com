@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Academy Practice Hub with Dashboard
  * Description: Complete practice tracking and gamification system with leaderboards, badges, and progress analytics for JazzEdge Academy students.
- * Version: 1.0
+ * Version: 1.3
  * Author: JazzEdge
  * Text Domain: academy-practice-hub
  */
@@ -28,6 +28,8 @@ require_once __DIR__ . '/includes/class-rest-api.php';
 require_once __DIR__ . '/includes/class-admin-pages.php';
 require_once __DIR__ . '/includes/class-frontend.php';
 require_once __DIR__ . '/includes/class-jpc-handler.php';
+require_once __DIR__ . '/includes/class-jpc-migration.php';
+require_once __DIR__ . '/includes/class-jpc-migration-admin.php';
 
 // Initialize database schema on activation
 register_activation_hook(__FILE__, 'aph_activate');
@@ -38,6 +40,9 @@ function aph_activate() {
     
     // Add leaderboard columns to existing tables
     APH_Database_Schema::add_leaderboard_columns();
+    
+    // Add email tracking column
+    APH_Database_Schema::add_email_tracking_column();
     
     // Update badges schema to use image_url instead of icon
     APH_Database_Schema::update_badges_schema();
@@ -92,6 +97,9 @@ new JPH_REST_API();
 
 // Initialize Admin Pages
 new JPH_Admin_Pages();
+
+// Initialize JPC Migration Admin
+new JPH_JPC_Migration_Admin();
 
 // Initialize Frontend (conditionally based on wire-through setting)
 if (!defined('APH_FRONTEND_SEPARATED')) {
@@ -512,6 +520,11 @@ function aph_add_jpc_modal_scripts() {
     }
 }
 
+
+// Load WP-CLI commands if available
+if (defined('WP_CLI') && WP_CLI) {
+    // WP-CLI commands can be added here if needed
+}
 
 // When enabled, bootstrap the existing JazzEdge Practice Hub code paths for parity testing.
 if (APH_WIRE_THROUGH) {

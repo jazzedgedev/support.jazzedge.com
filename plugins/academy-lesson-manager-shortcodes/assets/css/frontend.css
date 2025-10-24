@@ -1,0 +1,1008 @@
+/* ALM Chapter List Styles - Frontend */
+.alm-chapter-list {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 20px 0;
+}
+
+.alm-chapter-header {
+    background: linear-gradient(135deg, #004555 0%, #239B90 100%);
+    color: white;
+    padding: 24px;
+    text-align: center;
+}
+
+.alm-lesson-title {
+    margin: 0 0 12px 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.alm-lesson-meta {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.alm-progress-container {
+    padding: 20px 24px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.alm-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.alm-progress-fill {
+    height: 100%;
+    background: #239B90;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.alm-progress-text {
+    font-size: 14px;
+    color: #6c757d;
+    text-align: center;
+}
+
+.alm-chapters-container {
+    padding: 0;
+}
+
+.alm-chapter-item {
+    border-bottom: 1px solid #f1f3f4;
+    transition: all 0.2s ease;
+}
+
+.alm-chapter-item:last-child {
+    border-bottom: none;
+}
+
+.alm-chapter-item:hover {
+    background: #f8f9fa;
+}
+
+.alm-chapter-item.active {
+    background: #f0f8f7;
+    border-left: 4px solid #239B90;
+}
+
+.alm-chapter-item.completed {
+    background: #f1f8e9;
+}
+
+.alm-chapter-link {
+    display: flex;
+    align-items: center;
+    padding: 20px 24px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.alm-chapter-number {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 16px;
+    flex-shrink: 0;
+}
+
+.alm-status-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.alm-status-icon.completed {
+    background: #F04E23;
+    color: white;
+}
+
+.alm-status-icon.current {
+    background: #239B90;
+    color: white;
+}
+
+.alm-status-icon.pending {
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+.alm-chapter-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.alm-chapter-title {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.4;
+}
+
+.alm-chapter-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+}
+
+.alm-duration {
+    color: #6c757d;
+    background: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.alm-current-badge {
+    background: #239B90;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.alm-completed-badge {
+    background: #F04E23;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.alm-chapter-action {
+    margin-left: 16px;
+    flex-shrink: 0;
+}
+
+.alm-play-icon {
+    width: 40px;
+    height: 40px;
+    background: #f8f9fa;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.alm-chapter-item:hover .alm-play-icon {
+    background: #239B90;
+    color: white;
+    transform: scale(1.1);
+}
+
+.alm-chapter-item.active .alm-play-icon {
+    background: #239B90;
+    color: white;
+}
+
+/* Complete Lesson Experience Styles */
+.alm-lesson-complete {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0;
+}
+
+.alm-video-section {
+    background: #000;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    margin-bottom: 0;
+    width: 100%;
+}
+
+.alm-video-title-bar {
+    background: #004555;
+    padding: 16px 24px;
+    border-bottom: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.alm-lesson-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.alm-chapter-name {
+    font-size: 18px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.alm-progress-badge {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.alm-progress-badge::before {
+    content: '✓';
+    font-size: 16px;
+    color: #239B90;
+}
+
+.alm-video-section iframe,
+.alm-video-section video {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    border-radius: 0;
+    display: block;
+}
+
+.alm-current-chapter-title {
+    margin: 0 0 0 0;
+    padding: 20px 24px;
+    font-size: 24px;
+    font-weight: 600;
+    color: #fff;
+    text-align: center;
+    background: #000;
+}
+
+.alm-actions-section {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 16px 24px;
+    background: #fff;
+}
+
+.alm-action-left {
+    flex-shrink: 0;
+    width: 180px;
+}
+
+.alm-action-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+}
+
+.alm-action-right {
+    flex-shrink: 0;
+    width: 180px;
+}
+
+.alm-action-left button,
+.alm-action-right button {
+    width: 100%;
+}
+
+.alm-action-right .save-favorite-btn {
+    width: auto;
+    min-width: 180px;
+}
+
+.alm-action-center .alm-progress-text {
+    font-size: 13px;
+    color: #6c757d;
+    text-align: center;
+}
+
+/* 2-Column Grid Layout */
+.alm-main-content-grid {
+    display: grid;
+    grid-template-columns: 65% 35%;
+    gap: 24px;
+    padding: 24px;
+}
+
+@media (max-width: 768px) {
+    .alm-main-content-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Left Column: Chapters */
+.alm-chapters-column {
+    min-width: 0;
+}
+
+/* Notes Section */
+.alm-notes-section {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+    margin-top: 24px;
+}
+
+.alm-notes-header {
+    padding: 16px 24px;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-align: center;
+    color: white;
+    text-transform: uppercase;
+    background: #004555;
+}
+
+.alm-notes-content {
+    padding: 24px;
+}
+
+.alm-notes-actions {
+    margin-top: 16px;
+    text-align: right;
+}
+
+.alm-save-notes-btn {
+    background: #239B90;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.alm-save-notes-btn:hover {
+    background: #1e7a6b;
+}
+
+.alm-save-notes-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Quill Editor Styling */
+.ql-editor {
+    min-height: 120px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.ql-toolbar {
+    border-top: 1px solid #ccc;
+    border-left: 1px solid #ccc;
+    border-right: 1px solid #ccc;
+}
+
+.ql-container {
+    border-bottom: 1px solid #ccc;
+    border-left: 1px solid #ccc;
+    border-right: 1px solid #ccc;
+}
+
+/* Upgrade Banner */
+.alm-upgrade-banner {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 2px solid #dee2e6;
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.alm-upgrade-content {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.alm-upgrade-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #495057;
+    margin: 0 0 12px 0;
+}
+
+.alm-upgrade-text {
+    font-size: 16px;
+    color: #6c757d;
+    margin: 0 0 16px 0;
+}
+
+.alm-upgrade-levels {
+    font-size: 14px;
+    color: #495057;
+    font-weight: 600;
+    margin: 0 0 24px 0;
+}
+
+.alm-upgrade-button {
+    display: inline-block;
+    background: linear-gradient(135deg, #ff6b35 0%, #ff4500 100%) !important;
+    color: white !important;
+    padding: 20px 40px !important;
+    border: 3px solid #ff4500 !important;
+    border-radius: 15px !important;
+    text-decoration: none !important;
+    font-weight: 700 !important;
+    font-size: 20px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 8px 20px rgba(255, 107, 53, 0.5) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 2px !important;
+    animation: pulse 2s infinite !important;
+}
+
+.alm-upgrade-button:hover {
+    background: linear-gradient(135deg, #ff4500 0%, #ff2d00 100%) !important;
+    transform: translateY(-3px) scale(1.05) !important;
+    box-shadow: 0 12px 30px rgba(255, 107, 53, 0.7) !important;
+    color: white !important;
+    text-decoration: none !important;
+    border-color: #ff6b35 !important;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 8px 20px rgba(255, 107, 53, 0.5);
+    }
+    50% {
+        box-shadow: 0 8px 20px rgba(255, 107, 53, 0.8);
+    }
+    100% {
+        box-shadow: 0 8px 20px rgba(255, 107, 53, 0.5);
+    }
+}
+
+/* Ensure buttons in restricted sections maintain full opacity */
+.alm-restricted button,
+.alm-restricted .alm-upgrade-link,
+.alm-restricted a {
+    opacity: 1 !important;
+    position: relative;
+    z-index: 30;
+}
+
+/* Restricted Access Styling */
+.alm-restricted {
+    position: relative;
+    opacity: 0.8;
+}
+
+.alm-restricted::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.3);
+    z-index: 10;
+    border-radius: 8px;
+}
+
+.alm-restricted-overlay {
+    position: relative;
+    z-index: 20;
+    text-align: center;
+    padding: 20px;
+    color: #212529;
+}
+
+.alm-restricted-overlay svg {
+    color: #495057;
+}
+
+.alm-restricted-overlay p {
+    margin: 8px 0 12px 0;
+    font-size: 14px;
+    color: #212529;
+    font-weight: 500;
+}
+
+.alm-upgrade-link {
+    color: #007bff !important;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    opacity: 1 !important;
+    position: relative;
+    z-index: 30;
+}
+
+.alm-upgrade-link:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+.alm-restricted-message {
+    text-align: center;
+    padding: 20px;
+    color: #212529;
+}
+
+.alm-restricted-message svg {
+    color: #495057;
+}
+
+.alm-restricted-message p {
+    margin: 8px 0 12px 0;
+    font-size: 14px;
+    color: #212529;
+    font-weight: 500;
+}
+
+/* CTA Button for Restricted Actions */
+.alm-upgrade-cta-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #ff6b35 0%, #ff4500 100%);
+    color: white !important;
+    padding: 14px 32px;
+    border-radius: 8px;
+    text-decoration: none !important;
+    font-weight: 700;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+    text-transform: none;
+    letter-spacing: 0.5px;
+}
+
+.alm-upgrade-cta-btn:hover {
+    background: linear-gradient(135deg, #ff4500 0%, #ff2d00 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.6);
+    color: white !important;
+    text-decoration: none !important;
+}
+
+.alm-locked-badge {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.alm-restricted-link {
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Video Placeholder */
+.alm-video-placeholder {
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 60px 20px;
+    text-align: center;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.alm-video-placeholder h3 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #000000;
+    margin: 0 0 8px 0;
+}
+
+.alm-video-placeholder p {
+    font-size: 16px;
+    color: #212529;
+    margin: 0 0 20px 0;
+    font-weight: 500;
+}
+
+.alm-chapters-container {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Custom scrollbar styling for better visibility */
+    scrollbar-width: thin;
+    scrollbar-color: #239B90 #f1f3f4;
+}
+
+/* Webkit browsers (Chrome, Safari) */
+.alm-chapters-container::-webkit-scrollbar {
+    width: 12px;
+}
+
+.alm-chapters-container::-webkit-scrollbar-track {
+    background: #f1f3f4;
+    border-radius: 10px;
+}
+
+.alm-chapters-container::-webkit-scrollbar-thumb {
+    background: #239B90;
+    border-radius: 10px;
+    border: 2px solid #f1f3f4;
+}
+
+.alm-chapters-container::-webkit-scrollbar-thumb:hover {
+    background: #1e7a6b;
+}
+
+/* Right Column: Sidebar */
+.alm-sidebar-column {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.alm-sidebar-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+}
+
+/* Card Styles */
+.alm-card-header {
+    padding: 16px 24px;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-align: center;
+    color: white;
+    text-transform: uppercase;
+    background: #004555;
+}
+
+.alm-lesson-header {
+    background: #004555;
+}
+
+.alm-collection-header {
+    background: #6B2B60;
+}
+
+.alm-card-content {
+    padding: 24px;
+}
+
+.alm-card-title {
+    margin: 0 0 12px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #004555;
+}
+
+.alm-collection-header + .alm-card-content .alm-card-title {
+    color: #004555;
+}
+
+.alm-card-description {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* Favorite Button Section */
+.alm-favorite-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+.alm-completion-btn,
+.save-favorite-btn {
+    background: #f04e23;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    width: 100%;
+    justify-content: center;
+}
+
+.alm-completion-btn {
+    background: #239B90;
+}
+
+.alm-completion-btn.restart {
+    background: #6c757d;
+}
+
+.alm-completion-btn:hover {
+    background: #1e7a6b !important;
+}
+
+.alm-completion-btn.restart:hover {
+    background: #5a6268 !important;
+}
+
+.save-favorite-btn:hover {
+    background: #d43d1a !important;
+}
+
+.save-favorite-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+/* Lesson Navigation Dropdown */
+.alm-lesson-nav {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+.alm-lesson-selector {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #F04E23;
+    border-radius: 8px;
+    background: white;
+    font-size: 15px;
+    font-weight: 500;
+    color: #004555;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23F04E23' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+}
+
+.alm-lesson-selector:hover {
+    border-color: #239B90;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.alm-lesson-selector:focus {
+    outline: none;
+    border-color: #239B90;
+    box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+}
+
+.alm-lesson-header-alt {
+    background: linear-gradient(135deg, #004555 0%, #239B90 100%);
+    color: white;
+    padding: 32px;
+    text-align: center;
+    border-radius: 12px 12px 0 0;
+    margin-bottom: 0;
+}
+
+.alm-lesson-header-alt .alm-lesson-title {
+    margin: 0 0 16px 0;
+    font-size: 32px;
+    font-weight: 700;
+}
+
+.alm-lesson-header-alt .alm-lesson-meta {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    font-size: 16px;
+    opacity: 0.9;
+}
+
+.alm-video-section {
+    background: #fff;
+    padding: 24px;
+    border-radius: 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.alm-current-chapter-title {
+    margin: 0 0 20px 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #004555;
+    text-align: center;
+}
+
+.alm-mark-complete-section {
+    margin-top: 20px;
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+}
+
+.alm-progress-container {
+    padding: 24px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    margin: 0;
+}
+
+.alm-chapters-container {
+    background: #fff;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    margin-top: 0;
+}
+
+/* Resources Styles */
+.alm-resources-container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    padding: 24px;
+    margin: 20px 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.alm-resources-title {
+    margin: 0 0 20px 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #004555;
+    text-align: center;
+    border-bottom: 2px solid #239B90;
+    padding-bottom: 12px;
+}
+
+.alm-resources-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.alm-resource-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #239B90;
+    transition: all 0.2s ease;
+}
+
+.alm-resource-item:hover {
+    background: #e3f2fd;
+    transform: translateX(4px);
+}
+
+.alm-resource-item.note {
+    border-left-color: #F04E23;
+    background: #fff3cd;
+}
+
+.alm-resource-item i,
+.alm-resource-item svg {
+    margin-right: 12px;
+    font-size: 18px;
+    color: #239B90;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.alm-resource-item.note i,
+.alm-resource-item.note svg {
+    color: #F04E23;
+}
+
+.alm-resource-link {
+    flex: 1;
+    font-weight: 600;
+    color: #004555;
+    text-decoration: none;
+    font-size: 16px;
+}
+
+.alm-resource-link:hover {
+    color: #239B90;
+}
+
+.alm-resource-type {
+    background: #e9ecef;
+    color: #6c757d;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-left: 12px;
+}
+
+.favorite_resource a,
+.unfavorite_resource a {
+    color: #6c757d;
+    text-decoration: none;
+    margin-left: 8px;
+}
+
+.favorite_resource a:hover {
+    color: #239B90;
+}
+
+.unfavorite_resource a:hover {
+    color: #F04E23;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .alm-lesson-meta {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .alm-chapter-link {
+        padding: 16px;
+    }
+    
+    .alm-chapter-number {
+        width: 40px;
+        height: 40px;
+        margin-right: 12px;
+    }
+    
+    .alm-status-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+    
+    .alm-chapter-title {
+        font-size: 15px;
+    }
+    
+    .alm-chapter-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+}

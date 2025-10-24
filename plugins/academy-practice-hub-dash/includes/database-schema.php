@@ -332,6 +332,11 @@ class APH_Database_Schema {
                     'null' => true,
                     'description' => 'Last practice session date'
                 ),
+                'last_email_sent' => array(
+                    'type' => 'DATETIME',
+                    'null' => true,
+                    'description' => 'Last outreach email sent date'
+                ),
                 'display_name' => array(
                     'type' => 'VARCHAR',
                     'length' => 100,
@@ -852,6 +857,30 @@ class APH_Database_Schema {
                     error_log("Failed to add leaderboard indexes: " . $wpdb->last_error);
                     return false;
                 }
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Add last_email_sent column to user_stats table
+     */
+    public static function add_email_tracking_column() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Check if column already exists
+        $columns = $wpdb->get_col("DESCRIBE {$table_name}");
+        
+        if (!in_array('last_email_sent', $columns)) {
+            $sql = "ALTER TABLE `{$table_name}` ADD COLUMN `last_email_sent` DATETIME NULL COMMENT 'Last outreach email sent date'";
+            $result = $wpdb->query($sql);
+            
+            if ($result === false) {
+                error_log("Failed to add last_email_sent column: " . $wpdb->last_error);
+                return false;
             }
         }
         

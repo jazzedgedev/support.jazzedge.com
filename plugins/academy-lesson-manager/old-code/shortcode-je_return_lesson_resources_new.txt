@@ -1,0 +1,96 @@
+ function je_return_lesson_resources_new($atts, $content = NULL)
+    {
+        $atts = shortcode_atts(
+            array(),
+            $atts,
+            'je_return_lesson_resources_new'
+        );
+        global $user_membership_level_num;
+        $access = FALSE;
+        $user_id = get_current_user_id();
+        $post_id = get_the_ID();
+        $lesson_id = get_post_meta($post_id, 'lesson_id', true);
+        $je_has_lesson_access = je_has_lesson_access();
+        $academy_credit_access = je_check_academy_credit_access();
+        $no_access_message = '<h4 style="color:#f04e23; text-align: center; width: 100%;">Looking for sheet music and backing tracks?</h4><p><a href="/signup" class="hover-black ">Upgrade</a> your membership to gain access to the sheet music and resources.</p><p><a href="#" class="show-modal-sheet-music-sample hover-black">View a sheet music sample</a></p><p style="font-size: 10pt;">If you are seeing this message, and you are a member, <strong>make sure you are logged in</strong>.</p>';
+
+		$payment_failed = do_shortcode('[memb_has_any_tag tagid=7772]');
+		if ($payment_failed === 'Yes') { return $no_access_message; }
+	
+		if ($user_membership_level_num >= 1)  { 
+			$access = TRUE;
+		}
+		
+        if ($post_id == 587 || $post_id == 547 || $post_id == 548) { // 30-Day Playbook
+            $access = TRUE;
+        }
+        if ($je_has_lesson_access === 'true' && $user_membership_level_num > 1) {
+            $access = TRUE;
+        }
+        if ($academy_credit_access === 'true') {
+            $access = TRUE;
+        }
+        if ($access === FALSE) {
+            return $no_access_message;
+        }
+
+        if (je_return_membership_expired() == 'true') {
+            return $no_access_message;
+        }
+
+        global $wpdb;
+        $domain = 'jazzedge.academy';
+        $resource_name = '';
+        $note_return = '';
+        $resources = unserialize($wpdb->get_var("SELECT resources FROM academy_lessons WHERE ID = $lesson_id "));
+        $return = '<div style="text-align: left; "><ul style="list-style: none; padding:10px 0px; margin:0px;">';
+        foreach ($resources as $k => $v) {
+            if (!empty($v)) {
+                $found = TRUE;
+            }
+            $favorite_this_resource = '';
+            $is_resource_favorited = $wpdb->get_var("SELECT user_id FROM academy_favorites WHERE course_or_lesson_id = $lesson_id AND type = 'resource' AND user_id = $user_id AND link = '$v' ");
+            if (!empty($is_resource_favorited)) {
+                $favorite_this_resource .= ' <span class="unfavorite_resource"><a href="/willie/favorite_resource.php?action=unfavorite&link_type=' . $k . '&lesson_id=' . $lesson_id . '"><i class="fa-solid fa-folder-minus"></i></a></span>';
+            } else {
+                $favorite_this_resource .= ' <span class="favorite_resource"><a href="/willie/favorite_resource.php?action=favorite&link_type=' . $k . '&lesson_id=' . $lesson_id . '&v=' . $v . '"><i class="fa-solid fa-folder-plus"></i></a></span>';
+            }
+            switch (substr($k, 0, 3)) {
+                case 'mp3':
+                    $icon = '<i class="fa-sharp fa-solid fa-volume"></i>';
+                    $resource_name = 'Lesson Audio Only';
+                    break;
+                case 'mid':
+                    $icon = '<i class="fa-sharp fa-solid fa-sliders-h"></i>';
+                    $resource_name = 'MIDI Files';
+                    break;
+                case 'ire':
+                    $icon = '<i class="fa-sharp fa-solid fa-sliders-h"></i>';
+                    $resource_name = 'iRealPro';
+                    break;
+                case 'pdf':
+                    $icon = '<i class="fa-sharp fa-solid fa-music"></i>';
+                    $resource_name = 'Sheet Music';
+                    break;
+                case 'jam':
+                    $icon = '<i class="fa-sharp fa-solid fa-drum"></i>';
+                    $resource_name = 'Backing Track';
+                    break;
+                case 'cal':
+                    $icon = '<i class="fa-sharp fa-solid fa-people-arrows"></i>';
+                    $resource_name = 'Call & Response';
+                    break;
+                case 'zip':
+                    $icon = '<i class="fa-sharp fa-solid fa-file-zipper"></i>';
+                    $resource_name = 'Zip File';
+                    break;
+            }
+            if ($resource_name != 'Zip File') { // hiding zip files
+                $return .= (!empty($v) && $k != 'note') ? '<li class="resource-list-item">' . $icon . ' <a href="https://' . $domain . '/je_link.php?id=' . $lesson_id . '&link=' . $v . '" class="hover-black" target="_blank">' . $resource_name . '</a> <span class="resource_type">' . $k . '</span>' . $favorite_this_resource . '</li>' : '';
+            }
+            $note_return = ($k === 'note' && !empty($v)) ? '<li class="resource-list-item"><i class="fa fa-sticky-note"></i> ' . $v . '</li>' : '';
+        }
+        $return .= $note_return;
+        $return .= '</ul></div>';
+        return (!empty($return)) ? $return : '<p>There are no resources for this lesson.</p>';
+    

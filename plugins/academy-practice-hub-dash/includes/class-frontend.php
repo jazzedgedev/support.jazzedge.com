@@ -405,6 +405,77 @@ class JPH_Frontend {
             font-style: italic;
         }
         
+        .jph-membership-required {
+            text-align: center;
+            padding: 60px 40px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            margin: 40px auto;
+            max-width: 600px;
+            border: 1px solid #e9ecef;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .jph-membership-required::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
+        }
+        
+        .membership-notice h3 {
+            color: #2c3e50;
+            margin-bottom: 24px;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            position: relative;
+        }
+        
+        .membership-notice h3::after {
+            content: '🔒';
+            margin-left: 12px;
+            font-size: 24px;
+            opacity: 0.7;
+        }
+        
+        .membership-notice p {
+            color: #5a6c7d;
+            margin-bottom: 20px;
+            font-size: 18px;
+            line-height: 1.6;
+            font-weight: 400;
+        }
+        
+        .membership-notice a {
+            display: inline-block;
+            background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 115, 170, 0.3);
+            margin-top: 8px;
+        }
+        
+        .membership-notice a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 115, 170, 0.4);
+            background: linear-gradient(135deg, #005a87 0%, #004066 100%);
+        }
+        
+        .membership-notice a:active {
+            transform: translateY(0);
+        }
+        
         .jph-widget-footer {
             margin-top: 15px;
             padding-top: 15px;
@@ -878,6 +949,90 @@ class JPH_Frontend {
             return '<div class="jph-login-required">Please log in to access your practice dashboard.</div>';
         }
         
+        // Check if user has active membership
+        if (function_exists('je_return_active_member') && je_return_active_member() !== 'true') {
+            return '<style>
+                .jph-membership-required {
+                    text-align: center;
+                    padding: 60px 40px;
+                    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                    border-radius: 16px;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+                    margin: 40px auto;
+                    max-width: 600px;
+                    border: 1px solid #e9ecef;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .jph-membership-required::before {
+                    content: "";
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 4px;
+                    background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
+                }
+                
+                .membership-notice h3 {
+                    color: #2c3e50;
+                    margin-bottom: 24px;
+                    font-size: 28px;
+                    font-weight: 700;
+                    letter-spacing: -0.5px;
+                    position: relative;
+                }
+                
+                .membership-notice h3::after {
+                    content: "🔒";
+                    margin-left: 12px;
+                    font-size: 24px;
+                    opacity: 0.7;
+                }
+                
+                .membership-notice p {
+                    color: #5a6c7d;
+                    margin-bottom: 20px;
+                    font-size: 18px;
+                    line-height: 1.6;
+                    font-weight: 400;
+                }
+                
+                .membership-notice a {
+                    display: inline-block;
+                    background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
+                    color: white;
+                    text-decoration: none;
+                    font-weight: 600;
+                    padding: 14px 28px;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 12px rgba(0, 115, 170, 0.3);
+                    margin-top: 8px;
+                }
+                
+                .membership-notice a:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(0, 115, 170, 0.4);
+                    background: linear-gradient(135deg, #005a87 0%, #004066 100%);
+                }
+                
+                .membership-notice a:active {
+                    transform: translateY(0);
+                }
+            </style>
+            <div class="jph-membership-required">
+                <div class="membership-notice">
+                    <h3>Membership Required</h3>
+                    <p>You need an active JazzEdge Academy membership to access the Practice Hub dashboard.</p>
+                    <p>Please contact us to activate your membership:</p>
+                    <a href="mailto:support@jazzedge.com">Contact Support</a>
+                </div>
+            </div>';
+        }
+        
         $user_id = get_current_user_id();
         
         // Automatically add user to all community spaces on first load
@@ -979,7 +1134,12 @@ class JPH_Frontend {
             <div class="jph-header">
                 <div class="header-top">
                     <div class="welcome-title-container">
-                        <h2 id="jph-welcome-title">🎹 Your Practice Dashboard</h2>
+                        <h2 id="jph-welcome-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75s.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z" />
+                            </svg>
+                            Your Practice Dashboard
+                        </h2>
                         <button id="jph-edit-name-btn" class="jph-edit-name-btn" title="Edit leaderboard name" style="display: none;">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
@@ -1578,7 +1738,6 @@ class JPH_Frontend {
                                     try {
                                         $current_assignment = JPH_JPC_Handler::get_user_current_assignment($user_id);
                                     } catch (Exception $e) {
-                                        error_log('JPC Assignment query error: ' . $e->getMessage());
                                         $current_assignment = null;
                                     }
                                 
@@ -1588,7 +1747,6 @@ class JPH_Frontend {
                                     try {
                                         $progress = JPH_JPC_Handler::get_user_progress($user_id, $current_assignment['curriculum_id']);
                                     } catch (Exception $e) {
-                                        error_log('JPC Progress query error: ' . $e->getMessage());
                                         $progress = array();
                                     }
                                     
@@ -1677,6 +1835,16 @@ class JPH_Frontend {
                                                         </svg>
                                                         Mark Complete
                                                     </button>
+                                                    
+            <!-- Fix Progress Link -->
+            <div class="jpc-fix-progress">
+                <a href="#" class="jpc-fix-progress-link" 
+                   data-user-id="<?php echo esc_attr($user_id); ?>"
+                   data-current-focus="<?php echo esc_attr($focus_order); ?>"
+                   data-current-key="<?php echo esc_attr($key_name); ?>">
+                    Fix my progress
+                </a>
+            </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1749,7 +1917,6 @@ class JPH_Frontend {
                                                             try {
                                                                 $cur_progress = JPH_JPC_Handler::get_user_progress($user_id, $cur_id);
                                                             } catch (Exception $e) {
-                                                                error_log('JPC Progress query error: ' . $e->getMessage());
                                                                 $cur_progress = array();
                                                             }
                                                         }
@@ -2030,7 +2197,6 @@ class JPH_Frontend {
                                             $profileSpaces = $profile->spaces;
                                         }
                                     } catch (Exception $e) {
-                                        error_log('Fluent Community Profile Error: ' . $e->getMessage());
                                     }
                                 }
                                 
@@ -2083,12 +2249,6 @@ class JPH_Frontend {
                                                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                                                     </svg>
                                                     Complete Profile
-                                                </a>
-                                                <a href="https://jazzedge.academy/community/u/<?php echo esc_attr($clean_username); ?>" target="_blank" class="jph-btn jph-btn-primary profile-update-btn">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                                                    </svg>
-                                                    Video Profile
                                                 </a>
                                             </div>
                                         </div>
@@ -2166,7 +2326,7 @@ class JPH_Frontend {
                                     <?php endif; ?>
                                 </div>
                                 
-                                <!-- Recent Community Posts Section -->
+                                <!-- Recent Community Videos Section -->
                                 <?php
                                 // Get recent community posts with videos from wp_fcom_posts table
                                 global $wpdb;
@@ -2186,7 +2346,7 @@ class JPH_Frontend {
                                 <?php if (!empty($recent_posts)): ?>
                                     <div class="recent-posts-section">
                                         <div class="recent-posts-header">
-                                            <h5>Recent Community Posts</h5>
+                                            <h5>Recent Community Videos</h5>
                                             <a href="https://jazzedge.academy/community/" target="_blank" class="jph-btn jph-btn-secondary view-all-posts-btn">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -2351,12 +2511,6 @@ class JPH_Frontend {
                     <div class="jph-tab-pane" id="shield-protection-tab">
                         <!-- Shield Protection Section -->
                         <div class="jph-shield-protection">
-                            <h3>
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                                </svg>
-                                Shield Protection
-                            </h3>
                             
                             <!-- Shield Stats and Actions -->
                             <div class="jph-protection-stats">
@@ -2440,7 +2594,6 @@ class JPH_Frontend {
                     <div class="jph-tab-pane" id="badges-tab">
                         <!-- Badges Section -->
                         <div class="jph-badges-section">
-                            <h2>🏆 Your Badges</h2>
                             
                             <?php
                             $badges = $this->database->get_badges();
@@ -2622,12 +2775,7 @@ class JPH_Frontend {
                                             <span class="period-value count-up" id="analytics-7-days-minutes" data-target="0" data-start="0">0</span>
                                         </div>
                                         <div class="time-period">
-                                            <span class="period-label">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14" style="display: inline-block; margin-right: 6px; vertical-align: middle;">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                Last 30 days
-                                            </span>
+                                            <span class="period-label">Last 30 days</span>
                                             <span class="period-value count-up" id="analytics-30-days-minutes" data-target="0" data-start="0">0</span>
                                         </div>
                                         <div class="time-period">
@@ -2768,7 +2916,11 @@ class JPH_Frontend {
                                             </div>
                                             <div class="ai-analysis-actions">
                                                 <button type="button" class="ai-generate-btn" id="ai-generate-btn">
-                                                    <span class="generate-icon">✨</span>
+                                                    <span class="generate-icon">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                                        </svg>
+                                                    </span>
                                                     Generate AI Analysis
                                                 </button>
                                                 <button type="button" class="ai-print-btn" id="ai-print-btn" style="display: none;">
@@ -4350,6 +4502,7 @@ class JPH_Frontend {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            justify-content: flex-end;
         }
         
         .profile-update-btn {
@@ -4358,8 +4511,8 @@ class JPH_Frontend {
             gap: 8px;
             font-size: 14px;
             padding: 8px 16px;
-            flex: 1;
             min-width: 140px;
+            flex-shrink: 0;
         }
         
         .spaces-grid {
@@ -7131,6 +7284,76 @@ class JPH_Frontend {
             box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
         }
         
+        .jpc-fix-progress {
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        .jpc-fix-progress-link {
+            color: #6b7280;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        
+        .jpc-fix-progress-link:hover {
+            color: #374151;
+            text-decoration: underline;
+        }
+        
+        /* Notification styling */
+        .jpc-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            z-index: 9999;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .jpc-notification-show {
+            transform: translateX(0);
+        }
+        
+        .jpc-notification-success {
+            background: #10b981;
+            color: white;
+            border-left: 4px solid #059669;
+        }
+        
+        .jpc-notification-error {
+            background: #ef4444;
+            color: white;
+            border-left: 4px solid #dc2626;
+        }
+        
+        .jpc-notification-info {
+            background: #3b82f6;
+            color: white;
+            border-left: 4px solid #2563eb;
+        }
+        
+        .jpc-copy-btn {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .jpc-copy-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
         .jpc-progress-overview {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -9204,17 +9427,28 @@ class JPH_Frontend {
                 margin: 30px 0;
             }
             
+            .analytics-header {
+                margin-bottom: 30px !important;
+                padding: 0 15px !important;
+            }
+            
             .analytics-header h3 {
-                font-size: 1.8em;
+                font-size: 1.8em !important;
+                margin-bottom: 8px !important;
+                gap: 8px !important;
+                flex-wrap: wrap !important;
+                justify-content: center !important;
             }
             
             .analytics-icon {
-                width: 28px;
-                height: 28px;
+                width: 28px !important;
+                height: 28px !important;
             }
             
             .analytics-header p {
-                font-size: 1.1em;
+                font-size: 1.1em !important;
+                margin-bottom: 0 !important;
+                line-height: 1.4 !important;
             }
             
             .analytics-card {
@@ -9889,9 +10123,15 @@ class JPH_Frontend {
                     sessions.forEach(session => {
                         const date = new Date(session.created_at).toLocaleDateString();
                         const score = parseInt(session.sentiment_score, 10);
-                        const sentimentEmojiMap = {1:'😞',2:'😕',3:'😐',4:'😊',5:'🤩'};
+                        const sentimentIconMap = {
+                            1: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            2: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            3: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            4: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            5: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>'
+                        };
                         const sentimentLabelMap = {1:'Struggled',2:'Difficult',3:'Okay',4:'Good',5:'Excellent'};
-                        const sentiment = score ? (sentimentEmojiMap[score] + ' ' + sentimentLabelMap[score]) : 'Not specified';
+                        const sentiment = score ? (sentimentIconMap[score] + ' ' + sentimentLabelMap[score]) : 'Not specified';
                         // DB may return '0'/'1' strings; ensure strict numeric/boolean check
                         const improvementDetected = (session.improvement_detected === true)
                             || (session.improvement_detected === 1)
@@ -9944,7 +10184,6 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(data, status, xhr) {
-                        console.log('Export response:', data, 'Status:', status, 'XHR:', xhr);
                         
                         // Check if we got CSV data or an error
                         if (typeof data === 'string' && (data.includes('Date,Practice Item') || data.includes('"Date","Practice Item"'))) {
@@ -9990,7 +10229,6 @@ class JPH_Frontend {
                 const currentSessions = $('#practice-history-list .practice-history-item').length;
                 const limit = 10;
                 
-                console.log('Load More: Current sessions count:', currentSessions, 'Offset:', currentSessions);
                 
                 $('#load-more-sessions-bottom').prop('disabled', true).text('Loading...');
                 
@@ -10013,9 +10251,15 @@ class JPH_Frontend {
                             response.sessions.forEach(session => {
                                 const date = new Date(session.created_at).toLocaleDateString();
                                 const score = parseInt(session.sentiment_score, 10);
-                                const sentimentEmojiMap = {1:'😞',2:'😕',3:'😐',4:'😊',5:'🤩'};
+                                const sentimentIconMap = {
+                            1: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            2: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            3: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            4: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
+                            5: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>'
+                        };
                                 const sentimentLabelMap = {1:'Struggled',2:'Difficult',3:'Okay',4:'Good',5:'Excellent'};
-                                const sentiment = score ? (sentimentEmojiMap[score] + ' ' + sentimentLabelMap[score]) : 'Not specified';
+                                const sentiment = score ? (sentimentIconMap[score] + ' ' + sentimentLabelMap[score]) : 'Not specified';
                                 // DB may return '0'/'1' strings; ensure strict numeric/boolean check
                                 const improvementDetected = (session.improvement_detected === true)
                                     || (session.improvement_detected === 1)
@@ -10067,7 +10311,7 @@ class JPH_Frontend {
                         showToast('Error loading more sessions', 'error');
                     },
                     complete: function() {
-                        $('#load-more-sessions-bottom').prop('disabled', false).html('<span class="btn-icon">📈</span>Load More Sessions');
+                        $('#load-more-sessions-bottom').prop('disabled', false).html('<span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg></span>Load More Sessions');
                     }
                 });
             }
@@ -10438,7 +10682,7 @@ class JPH_Frontend {
                 `);
                 
                 // Disable the button during generation
-                $('#ai-generate-btn').prop('disabled', true).html('<span class="generate-icon">⏳</span> Generating...');
+                $('#ai-generate-btn').prop('disabled', true).html('<span class="generate-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></span> Generating...');
                 
                 // Make the API call
                 $.ajax({
@@ -10452,12 +10696,12 @@ class JPH_Frontend {
                         if (response.success && response.data) {
                             displayAIAnalysis(response.data, false);
                             // Update button to allow regeneration
-                            $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon">🔄</span> Regenerate Analysis');
+                            $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 16.338l10.125-3.75m0 0l3.75 3.75m-3.75-3.75l-3.75 3.75" /></svg></span> Regenerate Analysis');
                         } else {
                             console.error('AI Analysis API error:', response);
                             displayAIAnalysisError('API Error: ' + (response.message || 'Unknown error'));
                             // Reset button
-                            $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon">✨</span> Generate AI Analysis');
+                            $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" /></svg></span> Generate AI Analysis');
                         }
                     },
                     error: function(xhr, status, error) {
@@ -11473,7 +11717,7 @@ class JPH_Frontend {
                 const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
                 const nameToShow = displayName && displayName.trim() !== '' ? displayName : wpDisplayName;
                 
-                $('#jph-welcome-title').text('🎹 Welcome, ' + nameToShow + '!');
+                $('#jph-welcome-title').html('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24" style="display: inline-block; margin-right: 8px; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75s.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z" /></svg>Welcome, ' + nameToShow + '!');
                 $('#jph-edit-name-btn').show();
             }
             
@@ -11696,6 +11940,79 @@ class JPH_Frontend {
                         // Re-enable button
                         button.prop('disabled', false);
                         button.html('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg> Mark Complete');
+                    }
+                });
+            });
+            
+            // JPC Fix Progress link handler
+            $('.jpc-fix-progress-link').on('click', function(e) {
+                e.preventDefault();
+                
+                const link = $(this);
+                const userId = link.data('user-id');
+                const currentFocus = link.data('current-focus');
+                const currentKey = link.data('current-key');
+                
+                // Show confirmation dialog
+                if (!confirm('This will analyze your progress and move you to the lowest incomplete step. Any steps completed after that will be reset and need to be completed again. Continue?')) {
+                    return;
+                }
+                
+                // Show loading state
+                link.text('Analyzing...').css('pointer-events', 'none');
+                
+                // Make AJAX request to analyze and fix progress
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/jpc/fix-my-progress'); ?>',
+                    method: 'POST',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    data: {
+                        user_id: userId,
+                        current_focus: currentFocus,
+                        current_key: currentKey
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            if (response.fixed) {
+                                let message = '✅ Progress fixed! ';
+                                if (response.fix_reason === 'wrong key') {
+                                    message += 'Moved to the lowest incomplete step: ' + response.new_key + ' in focus ' + response.new_focus + '. Any steps completed after this have been reset.';
+                                } else if (response.fix_reason === 'wrong focus') {
+                                    message += 'Moved from focus ' + response.old_focus + ' to focus ' + response.new_focus + ', ' + response.new_key + '.';
+                                } else {
+                                    message += 'You are now at ' + response.new_focus + ', ' + response.new_key + '.';
+                                }
+                                showNotification(message, 'success');
+                                // Reload page to show updated assignment
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 3000);
+                            } else {
+                                showNotification('ℹ️ Your progress is already correct. No changes needed.', 'info');
+                            }
+                        } else {
+                            showNotification('❌ ' + (response.message || 'Unable to fix progress'), 'error');
+                        }
+                    },
+                    error: function(xhr) {
+                        let errorMessage = 'An error occurred while fixing your progress';
+                        if (xhr.responseText) {
+                            try {
+                                const errorData = JSON.parse(xhr.responseText);
+                                if (errorData.message) {
+                                    errorMessage = errorData.message;
+                                }
+                            } catch (e) {
+                                errorMessage = xhr.responseText;
+                            }
+                        }
+                        showNotification('❌ ' + errorMessage, 'error');
+                    },
+                    complete: function() {
+                        // Reset link state
+                        link.text('Fix my progress').css('pointer-events', 'auto');
                     }
                 });
             });
@@ -12412,7 +12729,6 @@ class JPH_Frontend {
                     },
                     error: function() {
                         // Silently fail - user position is not critical
-                        console.log('Failed to load user position');
                     }
                 });
                 <?php endif; ?>
@@ -12980,7 +13296,11 @@ class JPH_Frontend {
                     <div class="jph-practice-item" data-item-id="<?php echo esc_attr($item['id']); ?>">
                         <div class="jph-practice-item-content">
                             <div class="jph-practice-item-name">
-                                <span class="jph-item-icon">🎵</span>
+                                <span class="jph-item-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
+                                    </svg>
+                                </span>
                                 <span class="jph-item-title"><?php echo esc_html($item['name']); ?></span>
                             </div>
                             <?php if (!empty($item['description'])): ?>
@@ -12997,7 +13317,11 @@ class JPH_Frontend {
                         </div>
                         <?php if ($atts['show_log_button'] === 'true'): ?>
                             <button class="jph-log-practice-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-item-name="<?php echo esc_attr($item['name']); ?>">
-                                <span class="btn-icon">📝</span>
+                                <span class="btn-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                    </svg>
+                                </span>
                                 Log Practice
                             </button>
                         <?php endif; ?>
@@ -14534,7 +14858,6 @@ class JPH_Frontend {
         
         // Check if Fluent Community is available
         if (!class_exists('\\FluentCommunity\\App\\Services\\Helper')) {
-            error_log('JPH: Fluent Community plugin not available for auto space addition');
             return;
         }
         
@@ -14550,7 +14873,6 @@ class JPH_Frontend {
         ");
         
         if (empty($spaces)) {
-            error_log('JPH: No community spaces found for auto addition');
             return;
         }
         
@@ -14564,11 +14886,9 @@ class JPH_Frontend {
                 $added_count++;
                 
                 // Log the addition
-                error_log("JPH: Auto-added user {$user_id} to space '{$space->title}' (ID: {$space->id})");
                 
             } catch (Exception $e) {
                 $errors[] = "Failed to add to space '{$space->title}': " . $e->getMessage();
-                error_log("JPH: Error auto-adding user {$user_id} to space {$space->id}: " . $e->getMessage());
             }
         }
         
@@ -14576,6 +14896,5 @@ class JPH_Frontend {
         update_user_meta($user_id, 'jph_spaces_added', true);
         
         // Log summary
-        error_log("JPH: Auto space addition completed for user {$user_id}. Added to {$added_count} spaces. Errors: " . count($errors));
     }
 }
