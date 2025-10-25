@@ -189,8 +189,6 @@ function aph_add_jpc_modal_scripts() {
         
         <script>
         jQuery(document).ready(function($) {
-            console.log('JPC Modal script loaded');
-            
             // JPC Video Modal functionality
             const modal = $('#jpc-video-modal');
             const modalTitle = $('#jpc-modal-title');
@@ -212,23 +210,14 @@ function aph_add_jpc_modal_scripts() {
             let currentStepData = null;
             let currentSubmissionData = null;
             
-            console.log('Modal elements:', {
-                modal: modal.length,
-                modalTitle: modalTitle.length,
-                videoContainer: videoContainer.length
-            });
-            
             // Open modal when clicking on completed key
             $(document).on('click', '.jpc-video-modal-trigger', function(e) {
                 e.preventDefault();
-                console.log('Modal trigger clicked');
                 
                 const stepId = $(this).data('step-id');
                 const curriculumId = $(this).data('curriculum-id');
                 const keyName = $(this).data('key-name');
                 const focusTitle = $(this).data('focus-title');
-                
-                console.log('Modal data:', { stepId, curriculumId, keyName, focusTitle });
                 
                 currentStepData = {
                     stepId: stepId,
@@ -248,8 +237,6 @@ function aph_add_jpc_modal_scripts() {
                 // Show modal
                 modal.show();
                 $('body').addClass('jpc-modal-open');
-                
-                console.log('Modal shown');
                 
                 // Load video
                 loadVideo(stepId, curriculumId);
@@ -296,7 +283,6 @@ function aph_add_jpc_modal_scripts() {
             // Open submission modal when clicking "Get Graded"
             $(document).on('click', '.jpc-submission-modal-trigger', function(e) {
                 e.preventDefault();
-                console.log('Submission modal trigger clicked');
                 
                 const curriculumId = $(this).data('curriculum-id');
                 const focusTitle = $(this).data('focus-title');
@@ -318,8 +304,6 @@ function aph_add_jpc_modal_scripts() {
                 // Show modal
                 submissionModal.show();
                 $('body').addClass('jpc-modal-open');
-                
-                console.log('Submission modal shown for curriculum:', curriculumId);
             });
             
             // Submit milestone functionality
@@ -351,7 +335,6 @@ function aph_add_jpc_modal_scripts() {
                         nonce: '<?php echo wp_create_nonce('jpc_submit_milestone'); ?>'
                     },
                     success: function(response) {
-                        console.log('Submission response:', response);
                         if (response.success) {
                             // Show success message
                             submissionForm.hide();
@@ -404,8 +387,6 @@ function aph_add_jpc_modal_scripts() {
             }
             
             function loadVideo(stepId, curriculumId) {
-                console.log('Loading video for step:', stepId, 'curriculum:', curriculumId);
-                
                 // First verify the user has completed this step
                 $.ajax({
                     url: '<?php echo admin_url('admin-ajax.php'); ?>',
@@ -417,7 +398,6 @@ function aph_add_jpc_modal_scripts() {
                         nonce: '<?php echo wp_create_nonce('jpc_verify_step'); ?>'
                     },
                     success: function(response) {
-                        console.log('AJAX response:', response);
                         if (response.success && response.data.completed) {
                             // Get the video URL from the step data
                             if (response.data.vimeo_id) {
@@ -461,7 +441,6 @@ function aph_add_jpc_modal_scripts() {
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.log('AJAX error:', xhr, status, error);
                         videoContainer.html(`
                             <div style="text-align: center; padding: 40px; color: #dc3545;">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 48px; height: 48px; margin-bottom: 16px;">

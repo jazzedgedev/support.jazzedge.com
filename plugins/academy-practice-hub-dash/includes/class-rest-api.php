@@ -110,6 +110,43 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // Repertoire endpoints
+        register_rest_route('aph/v1', '/repertoire', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_repertoire'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/repertoire', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_add_repertoire'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/repertoire/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_repertoire'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/repertoire/(?P<id>\d+)', array(
+            'methods' => 'DELETE',
+            'callback' => array($this, 'rest_delete_repertoire'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/repertoire/(?P<id>\d+)/practice', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_mark_repertoire_practiced'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/repertoire/order', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_update_repertoire_order'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // JPC endpoints
         register_rest_route('aph/v1', '/jpc/test', array(
             'methods' => 'GET',
@@ -868,6 +905,153 @@ class JPH_REST_API {
         return rest_ensure_response(array(
             'success' => true,
             'message' => 'Practice session deleted successfully'
+        ));
+    }
+    
+    /**
+     * Get user's repertoire items
+     */
+    public function rest_get_repertoire($request) {
+        $user_id = get_current_user_id();
+        $order_by = $request->get_param('order_by') ?: 'last_practiced';
+        $order = $request->get_param('order') ?: 'DESC';
+        
+        $items = $this->database->get_user_repertoire($user_id, $order_by, $order);
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'items' => $items
+        ));
+    }
+    
+    /**
+     * Add repertoire item
+     */
+    public function rest_add_repertoire($request) {
+        $user_id = get_current_user_id();
+        $title = sanitize_text_field($request->get_param('title'));
+        $composer = sanitize_text_field($request->get_param('composer'));
+        $notes = sanitize_text_field($request->get_param('notes'));
+        
+        if (empty($title) || empty($composer)) {
+            return new WP_Error('missing_fields', 'Title and composer are required', array('status' => 400));
+        }
+        
+        $item_id = $this->database->add_repertoire_item($user_id, $title, $composer, $notes);
+        
+        if ($item_id === false) {
+            return new WP_Error('add_failed', 'Failed to add repertoire item', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'item_id' => $item_id,
+            'message' => 'Repertoire item added successfully'
+        ));
+    }
+    
+    /**
+     * Update repertoire item
+     */
+    public function rest_update_repertoire($request) {
+        $user_id = get_current_user_id();
+        $item_id = $request->get_param('id');
+        $title = sanitize_text_field($request->get_param('title'));
+        $composer = sanitize_text_field($request->get_param('composer'));
+        $notes = sanitize_text_field($request->get_param('notes'));
+        
+        if (empty($title) || empty($composer)) {
+            return new WP_Error('missing_fields', 'Title and composer are required', array('status' => 400));
+        }
+        
+        $result = $this->database->update_repertoire_item($item_id, $user_id, $title, $composer, $notes);
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update repertoire item', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Repertoire item updated successfully'
+        ));
+    }
+    
+    /**
+     * Delete repertoire item
+     */
+    public function rest_delete_repertoire($request) {
+        $user_id = get_current_user_id();
+        $item_id = $request->get_param('id');
+        
+        $result = $this->database->delete_repertoire_item($item_id, $user_id);
+        
+        if ($result === false) {
+            return new WP_Error('delete_failed', 'Failed to delete repertoire item', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Repertoire item deleted successfully'
+        ));
+    }
+    
+    /**
+     * Mark repertoire as practiced (with 25 XP reward)
+     */
+    public function rest_mark_repertoire_practiced($request) {
+        $user_id = get_current_user_id();
+        $item_id = $request->get_param('id');
+        
+        // Mark as practiced
+        $result = $this->database->mark_repertoire_practiced($item_id, $user_id);
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to mark repertoire as practiced', array('status' => 500));
+        }
+        
+        // Award 25 XP
+        $gamification = new APH_Gamification();
+        $gamification->add_xp($user_id, 25);
+        
+        // Check for level up
+        $level_up = $gamification->check_level_up($user_id);
+        
+        // Update streak
+        $streak_update = $gamification->update_streak($user_id);
+        
+        // Get updated user stats
+        $updated_stats = $this->database->get_user_stats($user_id);
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'xp_awarded' => 25,
+            'level_up' => $level_up,
+            'streak_update' => $streak_update,
+            'user_stats' => $updated_stats,
+            'message' => 'Repertoire marked as practiced! You earned 25 XP.'
+        ));
+    }
+    
+    /**
+     * Update repertoire order
+     */
+    public function rest_update_repertoire_order($request) {
+        $user_id = get_current_user_id();
+        $item_orders = $request->get_param('item_orders');
+        
+        if (!is_array($item_orders)) {
+            return new WP_Error('invalid_data', 'Invalid item orders', array('status' => 400));
+        }
+        
+        $result = $this->database->update_repertoire_order($user_id, $item_orders);
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update repertoire order', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Repertoire order updated successfully'
         ));
     }
     

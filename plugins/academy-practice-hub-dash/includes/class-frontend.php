@@ -1365,7 +1365,7 @@ class JPH_Frontend {
                         <!-- Practice Items Section -->
                         <div class="jph-practice-items">
                             <div class="practice-items-header">
-                                <h3>Your Practice Items 
+                                <h3>My Practice Items 
                                     <span class="item-count">(<?php echo count($practice_items); ?>/6)</span>
                                 </h3>
                                 <button type="button" class="jph-practice-history-btn" id="jph-practice-history-btn">
@@ -1487,6 +1487,56 @@ class JPH_Frontend {
                                     endif;
                                 endfor; 
                                 ?>
+                            </div>
+                        </div>
+                        
+                        <!-- Repertoire Section -->
+                        <div class="jph-repertoire-section" style="margin-top: 40px;">
+                            <div class="repertoire-header">
+                                <h3>My Repertoire</h3>
+                                <div class="repertoire-header-actions">
+                                    <button type="button" class="jph-btn jph-btn-secondary" id="jph-print-repertoire-btn">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
+                                        </svg>
+                                        Print
+                                    </button>
+                                    <button type="button" class="jph-btn jph-btn-primary" id="jph-add-repertoire-btn">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                        </svg>
+                                        Add Repertoire
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="repertoire-controls">
+                                <div class="sort-controls">
+                                    <label>Sort by:</label>
+                                    <select id="repertoire-sort">
+                                        <option value="last_practiced">Last Practice Date</option>
+                                        <option value="title">Title</option>
+                                        <option value="date_added">Date Added</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="repertoire-table-container">
+                                <table class="repertoire-table" id="repertoire-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 40px;"></th>
+                                            <th>Title</th>
+                                            <th>Composer</th>
+                                            <th>Last Practice Date</th>
+                                            <th>Notes</th>
+                                            <th style="width: 120px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="repertoire-tbody">
+                                        <!-- Repertoire items will be loaded here via JavaScript -->
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -3344,6 +3394,86 @@ class JPH_Frontend {
                         <div class="jph-modal-footer">
                             <button type="submit" class="jph-btn jph-btn-primary">Update Practice Item</button>
                             <button type="button" class="jph-btn jph-btn-secondary jph-close">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add Repertoire Modal -->
+        <div id="jph-add-repertoire-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h2>Add Repertoire</h2>
+                    <span class="jph-modal-close"><i class="fa-solid fa-circle-xmark"></i></span>
+                </div>
+                <div class="jph-modal-body">
+                    <form id="add-repertoire-form">
+                        <div class="form-group">
+                            <label>Title:</label>
+                            <input type="text" name="title" placeholder="e.g., Autumn Leaves" required maxlength="100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Composer:</label>
+                            <input type="text" name="composer" placeholder="e.g., Joseph Kosma" required maxlength="100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>My Notes:</label>
+                            <span style="color: #6c757d; font-size: 0.9em;">255 Characters</span>
+                            <textarea name="notes" placeholder="Add any notes about this piece..." maxlength="255" style="resize: vertical; min-height: 100px;"></textarea>
+                        </div>
+                        
+                        <div class="jph-modal-footer">
+                            <button type="button" class="jph-btn jph-btn-secondary jph-modal-close">Cancel</button>
+                            <button type="submit" class="jph-btn jph-btn-primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 4px; vertical-align: middle;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                                Save Repertoire
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Edit Repertoire Modal -->
+        <div id="jph-edit-repertoire-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h2>Edit Repertoire</h2>
+                    <span class="jph-modal-close"><i class="fa-solid fa-circle-xmark"></i></span>
+                </div>
+                <div class="jph-modal-body">
+                    <form id="edit-repertoire-form">
+                        <input type="hidden" name="item_id" id="edit-repertoire-id">
+                        
+                        <div class="form-group">
+                            <label>Title:</label>
+                            <input type="text" name="title" id="edit-repertoire-title" required maxlength="100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Composer:</label>
+                            <input type="text" name="composer" id="edit-repertoire-composer" required maxlength="100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>My Notes:</label>
+                            <span style="color: #6c757d; font-size: 0.9em;">255 Characters</span>
+                            <textarea name="notes" id="edit-repertoire-notes" maxlength="255" style="resize: vertical; min-height: 100px;"></textarea>
+                        </div>
+                        
+                        <div class="jph-modal-footer">
+                            <button type="button" class="jph-btn jph-btn-secondary jph-modal-close">Cancel</button>
+                            <button type="submit" class="jph-btn jph-btn-primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 4px; vertical-align: middle;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                                Update Repertoire
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -9686,6 +9816,221 @@ class JPH_Frontend {
         }
         </style>
         
+        <!-- Repertoire Styles -->
+        <style>
+        .jph-repertoire-section {
+            margin-top: 40px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .repertoire-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .repertoire-header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .repertoire-header h3 {
+            margin: 0;
+            font-size: 1.5em;
+            color: #004555;
+        }
+        
+        .repertoire-controls {
+            margin-bottom: 20px;
+        }
+        
+        .sort-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .sort-controls label {
+            font-weight: 600;
+            color: #004555;
+        }
+        
+        .sort-controls select {
+            padding: 8px 12px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #004555;
+            background: white;
+            cursor: pointer;
+        }
+        
+        .repertoire-table-container {
+            overflow-x: auto;
+        }
+        
+        .repertoire-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .repertoire-table thead {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+        }
+        
+        .repertoire-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .repertoire-table tbody tr {
+            border-bottom: 1px solid #e8f5f4;
+            transition: background-color 0.2s ease;
+        }
+        
+        .repertoire-table tbody tr:hover {
+            background-color: #f8fafc;
+        }
+        
+        .repertoire-table tbody tr.dragging {
+            opacity: 0.5;
+        }
+        
+        .repertoire-table tbody tr.drag-over {
+            background-color: #e0f2fe;
+        }
+        
+        .repertoire-table td {
+            padding: 12px;
+            vertical-align: middle;
+        }
+        
+        .drag-handle-cell {
+            text-align: center;
+            width: 40px;
+            cursor: move;
+        }
+        
+        .repertoire-title {
+            font-weight: 600;
+            color: #004555;
+        }
+        
+        .repertoire-composer {
+            color: #666;
+        }
+        
+        .repertoire-date {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .repertoire-notes {
+            color: #666;
+            font-size: 0.9em;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .repertoire-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .repertoire-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            color: #666;
+        }
+        
+        .repertoire-actions button:hover {
+            background-color: #f3f4f6;
+            color: #004555;
+        }
+        
+        .btn-mark-practiced:hover {
+            color: #10b981 !important;
+        }
+        
+        .btn-edit-repertoire:hover {
+            color: #3b82f6 !important;
+        }
+        
+        .btn-delete-repertoire:hover {
+            color: #ef4444 !important;
+        }
+        
+        /* Stat update animation */
+        .stat-updated {
+            animation: statPulse 0.6s ease-in-out;
+        }
+        
+        @keyframes statPulse {
+            0% {
+                transform: scale(1);
+                background-color: transparent;
+            }
+            50% {
+                transform: scale(1.05);
+                background-color: rgba(16, 185, 129, 0.1);
+            }
+            100% {
+                transform: scale(1);
+                background-color: transparent;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .repertoire-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+            
+            .repertoire-header-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+            
+            .repertoire-header-actions button {
+                width: 100%;
+            }
+            
+            .repertoire-table {
+                font-size: 12px;
+            }
+            
+            .repertoire-table th,
+            .repertoire-table td {
+                padding: 8px 4px;
+            }
+            
+            .repertoire-notes {
+                display: none;
+            }
+            
+            .repertoire-actions {
+                flex-direction: column;
+            }
+        }
+        </style>
+        
         <!-- Chart.js -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         
@@ -9734,7 +10079,7 @@ class JPH_Frontend {
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('Error loading chart data:', error);
+                        // Chart failed to load
                     }
                 });
             }
@@ -10207,7 +10552,6 @@ class JPH_Frontend {
                             } else if (typeof data === 'string') {
                                 errorMsg = data;
                             }
-                            console.error('Export error:', errorMsg);
                             showToast('Error exporting practice history: ' + errorMsg, 'error');
                         }
                     },
@@ -10436,7 +10780,6 @@ class JPH_Frontend {
             
             // Load badges
             function loadBadges() {
-                console.log('Loading badges...');
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/badges'); ?>',
                     method: 'GET',
@@ -10444,18 +10787,13 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
-                        console.log('Badges API response:', response);
                         if (response.success) {
-                            console.log('Success! Displaying badges:', response.badges);
                             displayBadges(response.badges);
                         } else {
-                            console.log('API returned success: false');
                             $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges available</div>');
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('Error loading badges:', error);
-                        console.error('XHR response:', xhr.responseText);
                         $('#jph-badges-grid').html('<div class="no-badges-message"><span class="emoji">🏆</span>No badges earned yet</div>');
                     }
                 });
@@ -10504,7 +10842,6 @@ class JPH_Frontend {
             
             // Load lesson favorites
             function loadLessonFavorites() {
-                console.log('Loading lesson favorites...');
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/lesson-favorites'); ?>',
                     method: 'GET',
@@ -10536,7 +10873,6 @@ class JPH_Frontend {
             
             // Load analytics data
             function loadAnalytics() {
-                console.log('Loading analytics...');
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/analytics'); ?>',
                     method: 'GET',
@@ -10798,6 +11134,19 @@ class JPH_Frontend {
                             h3 { color: #34495e; }
                             p { margin-bottom: 15px; }
                             .analysis-date { color: #666; font-style: italic; margin-bottom: 20px; }
+                            .print-website {
+                                text-align: center;
+                                margin-bottom: 20px;
+                                color: #666;
+                                font-size: 12px;
+                            }
+                            .print-website a {
+                                color: #F04E23;
+                                text-decoration: none;
+                            }
+                            .print-website a:hover {
+                                text-decoration: underline;
+                            }
                             .insight-item { margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 5px; }
                             .insight-label { font-weight: bold; color: #2c3e50; }
                             .insight-value { color: #F04E23; font-weight: bold; }
@@ -10810,6 +11159,9 @@ class JPH_Frontend {
                     <body>
                         <h1>AI Practice Analysis</h1>
                         <div class="analysis-date">Generated on ${new Date().toLocaleDateString()}</div>
+                        <div class="print-website">
+                            <a href="https://jazzedge.academy/">https://jazzedge.academy/</a>
+                        </div>
                         ${analysisContent}
                     </body>
                     </html>
@@ -11462,15 +11814,6 @@ class JPH_Frontend {
                 });
             }
             
-            // Debug gem balance on page load
-            jQuery(document).ready(function() {
-                console.log('=== PAGE LOAD GEM BALANCE DEBUG ===');
-                const gemsStat = jQuery('.jph-stat-gems .jph-stat-value');
-                const gemsWidget = jQuery('.jph-gems-amount');
-                console.log('Gems stat element found:', gemsStat.length, 'Value:', gemsStat.text());
-                console.log('Gems widget element found:', gemsWidget.length, 'Value:', gemsWidget.text());
-                console.log('=== END PAGE LOAD DEBUG ===');
-            });
             
             // Leaderboard tab management
             window.openLeaderboard = function() {
@@ -12047,6 +12390,660 @@ class JPH_Frontend {
             }
             
         });
+        
+        // Repertoire Management JavaScript
+        (function($) {
+            'use strict';
+            
+            let repertoireItems = [];
+            let draggedItem = null;
+            
+            // Local showMessage function for repertoire
+            function showMessage(message, type = 'success') {
+                const messageElement = $('<div class="jph-message jph-message-' + type + '">' + message + '</div>');
+                $('body').append(messageElement);
+                messageElement.fadeIn(300);
+                setTimeout(function() {
+                    messageElement.fadeOut(300, function() {
+                        $(this).remove();
+                    });
+                }, 3000);
+            }
+            
+            // Load repertoire items on page load
+            function loadRepertoireItems() {
+                const orderBy = $('#repertoire-sort').val() || 'last_practiced';
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/repertoire'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: {
+                        order_by: orderBy,
+                        order: 'DESC'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            repertoireItems = response.items;
+                            renderRepertoireTable();
+                        }
+                    },
+                    error: function() {
+                        $('#repertoire-tbody').html('<tr><td colspan="6" style="text-align: center; padding: 20px;">Failed to load repertoire items.</td></tr>');
+                    }
+                });
+            }
+            
+            // Render repertoire table
+            function renderRepertoireTable() {
+                const tbody = $('#repertoire-tbody');
+                
+                if (repertoireItems.length === 0) {
+                    tbody.html('<tr><td colspan="6" style="text-align: center; padding: 20px;">No repertoire items yet. Click "Add Repertoire" to get started!</td></tr>');
+                    return;
+                }
+                
+                let html = '';
+                repertoireItems.forEach(function(item) {
+                    const lastPracticed = item.last_practiced ? formatDate(item.last_practiced) : 'Never';
+                    const notesPreview = item.notes ? (item.notes.length > 50 ? item.notes.substring(0, 50) + '...' : item.notes) : '';
+                    
+                    html += `
+                        <tr class="repertoire-row" data-item-id="${item.ID}" draggable="true">
+                            <td class="drag-handle-cell">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="cursor: move; opacity: 0.5;">
+                                    <circle cx="4" cy="4" r="1"/>
+                                    <circle cx="8" cy="4" r="1"/>
+                                    <circle cx="12" cy="4" r="1"/>
+                                    <circle cx="4" cy="8" r="1"/>
+                                    <circle cx="8" cy="8" r="1"/>
+                                    <circle cx="12" cy="8" r="1"/>
+                                    <circle cx="4" cy="12" r="1"/>
+                                    <circle cx="8" cy="12" r="1"/>
+                                    <circle cx="12" cy="12" r="1"/>
+                                </svg>
+                            </td>
+                            <td class="repertoire-title">${escapeHtml(item.title)}</td>
+                            <td class="repertoire-composer">${escapeHtml(item.composer)}</td>
+                            <td class="repertoire-date">${lastPracticed}</td>
+                            <td class="repertoire-notes">${escapeHtml(notesPreview)}</td>
+                            <td class="repertoire-actions">
+                                <button class="btn-mark-practiced" data-item-id="${item.ID}" title="Mark as practiced (25 XP)">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                    </svg>
+                                </button>
+                                <button class="btn-edit-repertoire" data-item-id="${item.ID}" title="Edit">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                    </svg>
+                                </button>
+                                <button class="btn-delete-repertoire" data-item-id="${item.ID}" title="Delete">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.html(html);
+                
+                // Attach event handlers
+                attachRepertoireHandlers();
+            }
+            
+            // Attach event handlers
+            function attachRepertoireHandlers() {
+                // Mark as practiced
+                $('.btn-mark-practiced').off('click').on('click', function() {
+                    const itemId = $(this).data('item-id');
+                    markRepertoirePracticed(itemId);
+                });
+                
+                // Edit repertoire
+                $('.btn-edit-repertoire').off('click').on('click', function() {
+                    const itemId = $(this).data('item-id');
+                    openEditModal(itemId);
+                });
+                
+                // Delete repertoire
+                $('.btn-delete-repertoire').off('click').on('click', function() {
+                    const itemId = $(this).data('item-id');
+                    deleteRepertoire(itemId);
+                });
+                
+                // Drag and drop handlers
+                $('.repertoire-row').off('dragstart dragend dragover drop').on('dragstart', function(e) {
+                    draggedItem = $(this);
+                    $(this).addClass('dragging');
+                    e.originalEvent.dataTransfer.effectAllowed = 'move';
+                }).on('dragend', function() {
+                    $(this).removeClass('dragging');
+                    draggedItem = null;
+                }).on('dragover', function(e) {
+                    e.preventDefault();
+                    e.originalEvent.dataTransfer.dropEffect = 'move';
+                    if (!$(this).hasClass('dragging')) {
+                        $(this).addClass('drag-over');
+                    }
+                }).on('dragleave', function() {
+                    $(this).removeClass('drag-over');
+                }).on('drop', function(e) {
+                    e.preventDefault();
+                    $(this).removeClass('drag-over');
+                    
+                    if (draggedItem && draggedItem[0] !== this) {
+                        const $target = $(this);
+                        if (draggedItem.index() < $target.index()) {
+                            $target.after(draggedItem);
+                        } else {
+                            $target.before(draggedItem);
+                        }
+                        updateRepertoireOrder();
+                    }
+                });
+            }
+            
+            // Mark repertoire as practiced
+            function markRepertoirePracticed(itemId) {
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/repertoire'); ?>/' + itemId + '/practice',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            let message = 'Repertoire marked as practiced! You earned 25 XP! 🎉';
+                            
+                            // Update stats from server response
+                            if (response.user_stats) {
+                                updateXPStatFromServer(response.user_stats.total_xp);
+                                
+                                if (response.user_stats.current_level) {
+                                    updateLevelStat(response.user_stats.current_level);
+                                }
+                                
+                                if (response.user_stats.current_streak !== undefined) {
+                                    updateStreakStat(response.user_stats.current_streak);
+                                }
+                            }
+                            
+                            // Check for level up
+                            if (response.level_up && response.level_up.leveled_up) {
+                                message += ' 🎉 LEVEL UP! You reached level ' + response.level_up.new_level + '!';
+                            }
+                            
+                            // Update streak if needed
+                            if (response.streak_update && response.streak_update.streak_updated) {
+                                if (response.streak_update.streak_continued) {
+                                    message += ' 🔥 STREAK ' + response.streak_update.current_streak + '-day streak!';
+                                }
+                            }
+                            
+                            showMessage(message, 'success');
+                            loadRepertoireItems();
+                        } else {
+                            showMessage('Failed to mark as practiced: ' + (response.message || 'Unknown error'), 'error');
+                        }
+                    },
+                    error: function() {
+                        showMessage('Error marking repertoire as practiced. Please try again.', 'error');
+                    }
+                });
+            }
+            
+            // Update XP stat in real-time from server value
+            function updateXPStatFromServer(newTotalXP) {
+                // Update widget stats
+                const xpElement = $('.jph-stat-xp .jph-stat-value');
+                if (xpElement.length) {
+                    xpElement.text(newTotalXP.toLocaleString());
+                    
+                    // Add flash animation
+                    xpElement.parent().parent().addClass('stat-updated');
+                    setTimeout(function() {
+                        xpElement.parent().parent().removeClass('stat-updated');
+                    }, 1000);
+                }
+                
+                // Update main dashboard stats
+                const mainXPElement = $('.stat-xp.stat-value');
+                if (mainXPElement.length) {
+                    mainXPElement.text(newTotalXP);
+                    
+                    // Add flash animation
+                    mainXPElement.parent().addClass('stat-updated');
+                    setTimeout(function() {
+                        mainXPElement.parent().removeClass('stat-updated');
+                    }, 1000);
+                }
+            }
+            
+            // Update level stat in real-time
+            function updateLevelStat(newLevel) {
+                // Update widget stats
+                const levelElement = $('.jph-stat-level .jph-stat-value');
+                if (levelElement.length) {
+                    levelElement.text(newLevel);
+                    
+                    // Add flash animation
+                    levelElement.parent().parent().addClass('stat-updated');
+                    setTimeout(function() {
+                        levelElement.parent().parent().removeClass('stat-updated');
+                    }, 1000);
+                }
+                
+                // Update main dashboard stats
+                const mainLevelElement = $('.stat-level.stat-value');
+                if (mainLevelElement.length) {
+                    mainLevelElement.text(newLevel);
+                    
+                    // Add flash animation
+                    mainLevelElement.parent().addClass('stat-updated');
+                    setTimeout(function() {
+                        mainLevelElement.parent().removeClass('stat-updated');
+                    }, 1000);
+                }
+            }
+            
+            // Update streak stat in real-time
+            function updateStreakStat(newStreak) {
+                // Update widget stats
+                const streakElement = $('.jph-stat-streak .jph-stat-value');
+                if (streakElement.length) {
+                    streakElement.text(newStreak);
+                    
+                    // Add flash animation
+                    streakElement.parent().parent().addClass('stat-updated');
+                    setTimeout(function() {
+                        streakElement.parent().parent().removeClass('stat-updated');
+                    }, 1000);
+                }
+                
+                // Update main dashboard stats
+                const mainStreakElement = $('.stat-streak.stat-value');
+                if (mainStreakElement.length) {
+                    mainStreakElement.text(newStreak);
+                    
+                    // Add flash animation
+                    mainStreakElement.parent().addClass('stat-updated');
+                    setTimeout(function() {
+                        mainStreakElement.parent().removeClass('stat-updated');
+                    }, 1000);
+                }
+            }
+            
+            // Open edit modal
+            function openEditModal(itemId) {
+                const item = repertoireItems.find(i => i.ID == itemId);
+                if (!item) return;
+                
+                $('#edit-repertoire-id').val(item.ID);
+                $('#edit-repertoire-title').val(item.title);
+                $('#edit-repertoire-composer').val(item.composer);
+                $('#edit-repertoire-notes').val(item.notes);
+                $('#jph-edit-repertoire-modal').show();
+            }
+            
+            // Delete repertoire
+            function deleteRepertoire(itemId) {
+                if (!confirm('Are you sure you want to delete this repertoire item?')) {
+                    return;
+                }
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/repertoire'); ?>/' + itemId,
+                    method: 'DELETE',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            showMessage('Repertoire item deleted successfully.', 'success');
+                            loadRepertoireItems();
+                        } else {
+                            showMessage('Failed to delete repertoire: ' + (response.message || 'Unknown error'), 'error');
+                        }
+                    },
+                    error: function() {
+                        showMessage('Error deleting repertoire item. Please try again.', 'error');
+                    }
+                });
+            }
+            
+            // Update repertoire order
+            function updateRepertoireOrder() {
+                const itemOrders = {};
+                $('.repertoire-row').each(function(index) {
+                    const itemId = $(this).data('item-id');
+                    itemOrders[itemId] = index;
+                });
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/repertoire/order'); ?>',
+                    method: 'POST',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: {
+                        item_orders: itemOrders
+                    },
+                    success: function(response) {
+                        if (!response.success) {
+                            console.error('Failed to update order:', response);
+                        }
+                    },
+                    error: function() {
+                        console.error('Error updating repertoire order');
+                    }
+                });
+            }
+            
+            // Format date helper
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+                
+                if (diffMins < 1) return 'Just now';
+                if (diffMins < 60) return diffMins + ' min ago';
+                if (diffHours < 24) return diffHours + ' hr ago';
+                if (diffDays < 7) return diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago';
+                
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+            }
+            
+            // Escape HTML helper
+            function escapeHtml(text) {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+            
+            // Initialize repertoire handlers
+            function initRepertoireHandlers() {
+                // Add repertoire button
+                $('#jph-add-repertoire-btn').on('click', function() {
+                    $('#add-repertoire-form')[0].reset();
+                    $('#jph-add-repertoire-modal').show();
+                });
+                
+                // Print repertoire button
+                $('#jph-print-repertoire-btn').on('click', function() {
+                    printRepertoire();
+                });
+                
+                // Sort dropdown
+                $('#repertoire-sort').on('change', function() {
+                    loadRepertoireItems();
+                });
+                
+                // Add repertoire form submission
+                $('#add-repertoire-form').on('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const title = $(this).find('[name="title"]').val().trim();
+                    const composer = $(this).find('[name="composer"]').val().trim();
+                    const notes = $(this).find('[name="notes"]').val().trim();
+                    
+                    if (!title || !composer) {
+                        showMessage('Title and composer are required.', 'error');
+                        return;
+                    }
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/repertoire'); ?>',
+                        method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        data: {
+                            title: title,
+                            composer: composer,
+                            notes: notes
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                showMessage('Repertoire item added successfully!', 'success');
+                                $('#jph-add-repertoire-modal').hide();
+                                loadRepertoireItems();
+                            } else {
+                                showMessage('Failed to add repertoire: ' + (response.message || 'Unknown error'), 'error');
+                            }
+                        },
+                        error: function() {
+                            showMessage('Error adding repertoire item. Please try again.', 'error');
+                        }
+                    });
+                });
+                
+                // Edit repertoire form submission
+                $('#edit-repertoire-form').on('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const itemId = $(this).find('[name="item_id"]').val();
+                    const title = $(this).find('[name="title"]').val().trim();
+                    const composer = $(this).find('[name="composer"]').val().trim();
+                    const notes = $(this).find('[name="notes"]').val().trim();
+                    
+                    if (!title || !composer) {
+                        showMessage('Title and composer are required.', 'error');
+                        return;
+                    }
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/repertoire'); ?>/' + itemId,
+                        method: 'PUT',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                        },
+                        data: {
+                            title: title,
+                            composer: composer,
+                            notes: notes
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                showMessage('Repertoire item updated successfully!', 'success');
+                                $('#jph-edit-repertoire-modal').hide();
+                                loadRepertoireItems();
+                            } else {
+                                showMessage('Failed to update repertoire: ' + (response.message || 'Unknown error'), 'error');
+                            }
+                        },
+                        error: function() {
+                            showMessage('Error updating repertoire item. Please try again.', 'error');
+                        }
+                    });
+                });
+                
+                // Close modals
+                $('#jph-add-repertoire-modal .jph-modal-close, #jph-edit-repertoire-modal .jph-modal-close').on('click', function() {
+                    $(this).closest('.jph-modal').hide();
+                });
+                
+                // Close modals when clicking outside
+                $('#jph-add-repertoire-modal, #jph-edit-repertoire-modal').on('click', function(e) {
+                    if ($(e.target).hasClass('jph-modal')) {
+                        $(this).hide();
+                    }
+                });
+            }
+            
+            // Load repertoire items on page load
+            if ($('#repertoire-table').length) {
+                initRepertoireHandlers();
+                loadRepertoireItems();
+            }
+            
+            // Print repertoire function
+            function printRepertoire() {
+                if (repertoireItems.length === 0) {
+                    showMessage('No repertoire items to print.', 'error');
+                    return;
+                }
+                
+                // Create print window
+                const printWindow = window.open('', '_blank');
+                const userName = '<?php echo esc_js(wp_get_current_user()->display_name); ?>';
+                const printDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                
+                let html = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>My Repertoire - ${userName}</title>
+                        <style>
+                            body {
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                padding: 40px;
+                                color: #333;
+                            }
+                            .print-header {
+                                text-align: center;
+                                margin-bottom: 30px;
+                                border-bottom: 3px solid #004555;
+                                padding-bottom: 20px;
+                            }
+                            .print-header h1 {
+                                margin: 0;
+                                color: #004555;
+                                font-size: 28px;
+                            }
+                            .print-header .subtitle {
+                                margin-top: 10px;
+                                color: #666;
+                                font-size: 14px;
+                            }
+                            .print-date {
+                                text-align: right;
+                                margin-bottom: 20px;
+                                color: #666;
+                                font-size: 12px;
+                            }
+                            .print-website {
+                                text-align: center;
+                                margin-bottom: 20px;
+                                color: #666;
+                                font-size: 12px;
+                            }
+                            .print-website a {
+                                color: #004555;
+                                text-decoration: none;
+                            }
+                            .print-website a:hover {
+                                text-decoration: underline;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-top: 20px;
+                            }
+                            th {
+                                background-color: #004555;
+                                color: white;
+                                padding: 12px;
+                                text-align: left;
+                                font-weight: 600;
+                                font-size: 12px;
+                                text-transform: uppercase;
+                                letter-spacing: 0.5px;
+                            }
+                            td {
+                                padding: 12px;
+                                border-bottom: 1px solid #e5e7eb;
+                                font-size: 14px;
+                            }
+                            tr:hover {
+                                background-color: #f9fafb;
+                            }
+                            .repertoire-title {
+                                font-weight: 600;
+                                color: #004555;
+                            }
+                            .repertoire-composer {
+                                color: #666;
+                            }
+                            .repertoire-date {
+                                color: #666;
+                                font-size: 13px;
+                            }
+                            .repertoire-notes {
+                                color: #666;
+                                font-size: 13px;
+                                max-width: 300px;
+                            }
+                            @media print {
+                                body { padding: 20px; }
+                                .no-print { display: none; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="print-header">
+                            <h1>My Repertoire</h1>
+                            <div class="subtitle">${userName}</div>
+                        </div>
+                        <div class="print-date">Printed: ${printDate}</div>
+                        <div class="print-website">
+                            <a href="https://jazzedge.academy/">https://jazzedge.academy/</a>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Composer</th>
+                                    <th>Last Practice Date</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                repertoireItems.forEach(function(item) {
+                    const lastPracticed = item.last_practiced ? formatDate(item.last_practiced) : 'Never';
+                    const notes = item.notes || '';
+                    
+                    html += `
+                        <tr>
+                            <td class="repertoire-title">${escapeHtml(item.title)}</td>
+                            <td class="repertoire-composer">${escapeHtml(item.composer)}</td>
+                            <td class="repertoire-date">${lastPracticed}</td>
+                            <td class="repertoire-notes">${escapeHtml(notes)}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </body>
+                    </html>
+                `;
+                
+                printWindow.document.write(html);
+                printWindow.document.close();
+                
+                // Wait for content to load, then print
+                setTimeout(function() {
+                    printWindow.print();
+                }, 250);
+            }
+            
+        })(jQuery);
         
         // Debug functionality removed - no longer needed
         </script>

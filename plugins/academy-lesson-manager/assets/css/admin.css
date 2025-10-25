@@ -7,32 +7,44 @@
 /* Main container */
 .alm-search-form {
     margin: 20px 0;
-    padding: 10px 0;
-    border-bottom: 1px solid #ddd;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
 }
 
 .alm-search-form .search-box {
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
 }
 
 .alm-search-form input[type="search"] {
     width: 300px;
-    margin-right: 10px;
 }
 
-.alm-filter-form {
-    background: #f9f9f9;
-    padding: 10px;
-    border-radius: 4px;
-    border: 1px solid #ddd;
+.alm-search-form .alm-filter-form {
+    background: transparent;
+    padding: 0;
+    border: none;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
-.alm-filter-form label {
+.alm-search-form .alm-filter-form label {
     font-weight: 600;
     margin-right: 8px;
 }
 
-.alm-filter-form select {
+.alm-search-form .alm-filter-form select {
     margin-right: 10px;
 }
 
@@ -91,6 +103,40 @@
     color: #666;
 }
 
+.alm-delete-resource {
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.alm-delete-resource:hover {
+    text-decoration: underline;
+}
+
+#alm-add-resource-form {
+    border-radius: 4px;
+}
+
+#alm-add-resource-form h4 {
+    margin-top: 0;
+    color: #23282d;
+}
+
+#alm-resource-file-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#alm-resource-file-wrapper input[readonly] {
+    flex: 1;
+    cursor: pointer;
+}
+
+#alm-select-media-btn,
+#alm-clear-media-btn {
+    white-space: nowrap;
+}
+
 /* Course/Lesson chapters */
 .alm-course-lessons,
 .alm-lesson-chapters {
@@ -109,11 +155,40 @@
 
 /* Table enhancements */
 .wp-list-table .column-id {
-    width: 60px;
+    width: 50px;
 }
 
 .wp-list-table .column-post-id {
-    width: 70px;
+    width: 60px;
+}
+
+.wp-list-table .column-date {
+    width: 100px;
+}
+
+.wp-list-table .column-title {
+    width: 250px;
+}
+
+.wp-list-table .column-song {
+    width: 60px;
+}
+
+.wp-list-table .column-course {
+    width: 180px;
+}
+
+.wp-list-table .column-duration {
+    width: 85px;
+}
+
+.wp-list-table .column-membership {
+    width: 80px;
+}
+
+.wp-list-table .column-actions {
+    width: 140px;
+    white-space: nowrap;
 }
 
 .wp-list-table .column-site {
@@ -144,11 +219,6 @@
     width: 60px;
 }
 
-.wp-list-table .column-actions {
-    width: 200px;
-    white-space: nowrap;
-}
-
 /* Status indicators */
 .wp-list-table tr[style*="background-color: #ffffcc"] {
     border-left: 4px solid #ffb900;
@@ -170,9 +240,22 @@
 
 /* Responsive adjustments */
 @media screen and (max-width: 782px) {
+    .alm-search-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .alm-search-form .search-box {
+        width: 100%;
+    }
+    
     .alm-search-form input[type="search"] {
         width: 100%;
-        margin-bottom: 10px;
+    }
+    
+    .alm-search-form .alm-filter-form {
+        flex-direction: column;
+        align-items: stretch;
     }
     
     .wp-list-table .column-actions {

@@ -85,6 +85,7 @@ class ALM_Admin_Collections {
         echo '<a href="?page=academy-manager" class="button ' . ($current_page === 'collections' ? 'button-primary' : '') . '">' . __('Collections', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-lessons" class="button ' . ($current_page === 'lessons' ? 'button-primary' : '') . '">' . __('Lessons', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-chapters" class="button ' . ($current_page === 'chapters' ? 'button-primary' : '') . '">' . __('Chapters', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings" class="button ' . ($current_page === 'settings' ? 'button-primary' : '') . '" style="margin-left: 10px;">' . __('Settings', 'academy-lesson-manager') . '</a>';
         echo '</div>';
     }
     
@@ -151,7 +152,7 @@ class ALM_Admin_Collections {
         echo '<th scope="col" class="manage-column column-id">' . __('ID', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-post-id">' . __('Post ID', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-title">' . __('Collection Title', 'academy-lesson-manager') . '</th>';
-        echo '<th scope="col" class="manage-column column-membership">' . __('Membership Level', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-membership">' . __('Level', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-lessons">' . __('Lessons', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-actions">' . __('Actions', 'academy-lesson-manager') . '</th>';
         echo '</tr>';

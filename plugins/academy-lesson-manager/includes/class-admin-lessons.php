@@ -46,24 +46,21 @@ class ALM_Admin_Lessons {
         $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : 'list';
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         
+        // Handle bulk actions first
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
+            $this->handle_bulk_action();
+            return;
+        }
+        
         // Handle form submissions
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handle_form_submission();
             return;
         }
         
-        // Handle bulk actions
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
-            $this->handle_bulk_action();
-            return;
-        }
-        
         echo '<div class="wrap">';
         $this->render_navigation_buttons('lessons');
         echo '<h1>' . __('Lessons', 'academy-lesson-manager') . ' <a href="?page=academy-manager-lessons&action=add" class="page-title-action">' . __('Add New', 'academy-lesson-manager') . '</a></h1>';
-        
-        // Add bulk actions form
-        $this->render_bulk_actions_form();
         
         switch ($action) {
             case 'add':
@@ -100,6 +97,7 @@ class ALM_Admin_Lessons {
         echo '<a href="?page=academy-manager" class="button ' . ($current_page === 'collections' ? 'button-primary' : '') . '">' . __('Collections', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-lessons" class="button ' . ($current_page === 'lessons' ? 'button-primary' : '') . '">' . __('Lessons', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-chapters" class="button ' . ($current_page === 'chapters' ? 'button-primary' : '') . '">' . __('Chapters', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings" class="button ' . ($current_page === 'settings' ? 'button-primary' : '') . '" style="margin-left: 10px;">' . __('Settings', 'academy-lesson-manager') . '</a>';
         echo '</div>';
     }
     
@@ -129,11 +127,23 @@ class ALM_Admin_Lessons {
                 case 'synced':
                     echo '<div class="notice notice-success"><p>' . __('All lessons synced successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
+                case 'bulk_updated':
+                    echo '<div class="notice notice-success"><p>' . __('Membership levels updated successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'error':
+                    echo '<div class="notice notice-error"><p>' . __('An error occurred. Please try again.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'no_lessons_selected':
+                    echo '<div class="notice notice-warning"><p>' . __('Please select at least one lesson.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'no_level_selected':
+                    echo '<div class="notice notice-warning"><p>' . __('Please select a membership level.', 'academy-lesson-manager') . '</p></div>';
+                    break;
             }
         }
         
         // Handle search and filters
-        $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
+        $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
         $membership_filter = isset($_GET['membership_level']) ? intval($_GET['membership_level']) : 0;
         $order_by = isset($_GET['order_by']) ? sanitize_text_field($_GET['order_by']) : 'ID';
         $order = isset($_GET['order']) ? sanitize_text_field($_GET['order']) : 'DESC';
@@ -167,11 +177,46 @@ class ALM_Admin_Lessons {
         $sql = "SELECT * FROM {$this->table_name} {$where} ORDER BY {$order_by} {$order}";
         $lessons = $this->wpdb->get_results($sql);
         
-        // Render search form
+        // Render search form (outside bulk actions form)
         $this->render_search_form($search, $membership_filter);
         
-        // Render lessons table
+        // Open bulk actions form
+        echo '<!-- DEBUG: Opening bulk actions form -->';
+        echo '<form method="post" action="" id="bulk-actions-form">';
+        echo '<div class="alm-bulk-actions" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">';
+        echo '<h3>' . __('Bulk Actions', 'academy-lesson-manager') . '</h3>';
+        
+        echo '<p>';
+        echo '<label for="bulk_membership_level">' . __('Set membership level to:', 'academy-lesson-manager') . '</label> ';
+        echo '<select id="bulk_membership_level" name="bulk_membership_level">';
+        echo '<option value="">' . __('Select level...', 'academy-lesson-manager') . '</option>';
+        $membership_levels = ALM_Admin_Settings::get_membership_levels();
+        foreach ($membership_levels as $key => $level) {
+            echo '<option value="' . esc_attr($level['numeric']) . '">' . esc_html($level['name']) . ' (' . $level['numeric'] . ') - ' . esc_html($level['description']) . '</option>';
+        }
+        echo '</select>';
+        echo '<input type="submit" class="button" value="' . __('Update Selected Lessons', 'academy-lesson-manager') . '" onclick="return confirm(\'' . __('Are you sure you want to update the membership levels for the selected lessons?', 'academy-lesson-manager') . '\')" />';
+        echo '</p>';
+        echo '<input type="hidden" name="bulk_action" value="update_membership" />';
+        
+        echo '<p class="description">' . __('Select lessons from the list below, then choose a membership level and click "Update Selected Lessons".', 'academy-lesson-manager') . '</p>';
+        
+        echo '<p style="margin-top: 15px;">';
+        echo '<a href="?page=academy-manager-lessons&action=sync_all" class="button" onclick="return confirm(\'' . __('This will sync all lessons to WordPress posts. Continue?', 'academy-lesson-manager') . '\')">' . __('Sync All Lessons', 'academy-lesson-manager') . '</a>';
+        echo '</p>';
+        
+        echo '</div>';
+        
+        // Render lessons table (inside bulk actions form)
         $this->render_lessons_table($lessons, $order_by, $order);
+        
+        // Debug: Check if we're still inside the form
+        echo '<!-- DEBUG: About to close bulk actions form -->';
+        
+        // Close bulk actions form
+        echo '</form>';
+        
+        echo '<!-- DEBUG: Bulk actions form closed -->';
     }
     
     /**
@@ -179,19 +224,24 @@ class ALM_Admin_Lessons {
      */
     private function render_search_form($search, $membership_filter = 0) {
         echo '<div class="alm-search-form">';
-        echo '<form method="post" action="">';
-        echo '<p class="search-box">';
+        
+        // Search box
+        echo '<form method="get" action="" class="search-box">';
+        echo '<input type="hidden" name="page" value="academy-manager-lessons" />';
+        if ($membership_filter > 0) {
+            echo '<input type="hidden" name="membership_level" value="' . esc_attr($membership_filter) . '" />';
+        }
         echo '<label class="screen-reader-text" for="lesson-search-input">' . __('Search Lessons:', 'academy-lesson-manager') . '</label>';
         echo '<input type="search" id="lesson-search-input" name="search" value="' . esc_attr($search) . '" placeholder="' . __('Search lessons...', 'academy-lesson-manager') . '" />';
         echo '<input type="submit" id="search-submit" class="button" value="' . __('Search Lessons', 'academy-lesson-manager') . '" />';
-        echo '</p>';
         echo '</form>';
         
-        // Add membership level filter
-        echo '<div class="alm-filter-form" style="margin-top: 10px;">';
-        echo '<form method="get" action="">';
+        // Membership level filter
+        echo '<form method="get" action="" class="alm-filter-form">';
         echo '<input type="hidden" name="page" value="academy-manager-lessons" />';
-        echo '<p>';
+        if (!empty($search)) {
+            echo '<input type="hidden" name="search" value="' . esc_attr($search) . '" />';
+        }
         echo '<label for="membership-filter">' . __('Filter by Membership Level:', 'academy-lesson-manager') . '</label> ';
         echo '<select id="membership-filter" name="membership_level" onchange="this.form.submit()">';
         echo '<option value="">' . __('All Levels', 'academy-lesson-manager') . '</option>';
@@ -203,11 +253,9 @@ class ALM_Admin_Lessons {
         }
         echo '</select>';
         if ($membership_filter > 0) {
-            echo ' <a href="?page=academy-manager-lessons" class="button">' . __('Clear Filter', 'academy-lesson-manager') . '</a>';
+            echo ' <a href="?page=academy-manager-lessons' . (!empty($search) ? '&search=' . urlencode($search) : '') . '" class="button">' . __('Clear Filter', 'academy-lesson-manager') . '</a>';
         }
-        echo '</p>';
         echo '</form>';
-        echo '</div>';
         echo '</div>';
     }
     
@@ -219,15 +267,15 @@ class ALM_Admin_Lessons {
         echo '<thead>';
         echo '<tr>';
         echo '<th scope="col" class="manage-column column-cb check-column"><input type="checkbox" /></th>';
-        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('ID', 'ID', $order_by, $order) . '</th>';
-        echo '<th scope="col" class="manage-column">' . __('Post ID', 'academy-lesson-manager') . '</th>';
-        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Date', 'post_date', $order_by, $order) . '</th>';
-        echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Lesson Title', 'lesson_title', $order_by, $order) . '</th>';
-        echo '<th scope="col" class="manage-column">' . __('Song', 'academy-lesson-manager') . '</th>';
-        echo '<th scope="col" class="manage-column">' . __('Collection', 'academy-lesson-manager') . '</th>';
-        echo '<th scope="col" class="manage-column">' . __('Duration', 'academy-lesson-manager') . '</th>';
-        echo '<th scope="col" class="manage-column">' . __('Membership Level', 'academy-lesson-manager') . '</th>';
-        echo '<th scope="col" class="manage-column">' . __('Actions', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-id">' . $this->get_sortable_header('ID', 'ID', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column column-post-id">' . __('Post ID', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-date">' . $this->get_sortable_header('Date', 'post_date', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column column-title">' . $this->get_sortable_header('Lesson Title', 'lesson_title', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column column-song">' . __('Song', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-course">' . __('Collection', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-duration">' . __('Duration', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-membership">' . __('Level', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-actions">' . __('Actions', 'academy-lesson-manager') . '</th>';
         echo '</tr>';
         echo '</thead>';
         echo '<tbody>';
@@ -799,20 +847,65 @@ class ALM_Admin_Lessons {
         $resources = ALM_Helpers::format_serialized_resources($lesson->resources);
         
         echo '<div class="alm-lesson-resources">';
-        echo '<h3>' . __('Resources', 'academy-lesson-manager') . '</h3>';
+        echo '<h3>' . __('Resources', 'academy-lesson-manager') . ' <button type="button" class="button button-small" id="alm-add-resource-btn">' . __('Add Resource', 'academy-lesson-manager') . '</button></h3>';
         
         if (empty($resources)) {
             echo '<p>' . __('No resources found for this lesson.', 'academy-lesson-manager') . '</p>';
         } else {
             echo '<ul class="alm-resources-list">';
             foreach ($resources as $resource) {
+                // Get filename from attachment if available
+                $display_name = $resource['url'];
+                if (!empty($resource['attachment_id'])) {
+                    $attachment = get_post($resource['attachment_id']);
+                    if ($attachment) {
+                        $display_name = $attachment->post_title ?: basename($resource['url']);
+                    }
+                }
+                
                 echo '<li>';
                 echo '<strong>' . esc_html(ucfirst($resource['type'])) . ':</strong> ';
-                echo '<a href="' . esc_url($resource['display_url']) . '" target="_blank">' . esc_html($resource['url']) . '</a>';
+                echo '<a href="' . esc_url($resource['display_url']) . '" target="_blank">' . esc_html($display_name) . '</a>';
+                echo ' <a href="#" class="alm-delete-resource" data-type="' . esc_attr($resource['type']) . '" data-lesson-id="' . esc_attr($lesson->ID) . '" style="color: #dc3232; margin-left: 10px;">' . __('Delete', 'academy-lesson-manager') . '</a>';
                 echo '</li>';
             }
             echo '</ul>';
         }
+        
+        // Add resource form (hidden by default)
+        echo '<div id="alm-add-resource-form" style="display: none; margin-top: 20px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">';
+        echo '<h4>' . __('Add New Resource', 'academy-lesson-manager') . '</h4>';
+        echo '<table class="form-table">';
+        echo '<tr>';
+        echo '<th scope="row"><label for="alm-resource-type">' . __('Resource Type', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="alm-resource-type" name="resource_type">';
+        echo '<option value="">' . __('Choose...', 'academy-lesson-manager') . '</option>';
+        echo '<option value="sheet_music">Sheet Music</option>';
+        echo '<option value="ireal">iRealPro</option>';
+        echo '<option value="jam">Backing Track (mp3)</option>';
+        echo '<option value="zip">Zip File</option>';
+        echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        echo '<tr>';
+        echo '<th scope="row"><label for="alm-resource-url">' . __('Resource File', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<div id="alm-resource-file-wrapper">';
+        echo '<input type="hidden" id="alm-resource-attachment-id" name="attachment_id" value="" />';
+        echo '<input type="text" id="alm-resource-url" name="resource_url" class="regular-text" placeholder="Click to select file from media library" readonly style="background-color: #f0f0f1;" />';
+        echo '<button type="button" class="button" id="alm-select-media-btn" style="margin-left: 10px;">' . __('Select from Media Library', 'academy-lesson-manager') . '</button>';
+        echo '<button type="button" class="button" id="alm-clear-media-btn" style="margin-left: 5px; display: none;">' . __('Clear', 'academy-lesson-manager') . '</button>';
+        echo '</div>';
+        echo '<p class="description">' . __('Select a file from the media library or enter a URL manually.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        echo '</table>';
+        echo '<p class="submit">';
+        echo '<button type="button" class="button button-primary" id="alm-save-resource-btn">' . __('Add Resource', 'academy-lesson-manager') . '</button> ';
+        echo '<button type="button" class="button" id="alm-cancel-resource-btn">' . __('Cancel', 'academy-lesson-manager') . '</button>';
+        echo '</p>';
+        echo '</div>';
         
         echo '</div>';
     }
@@ -841,8 +934,9 @@ class ALM_Admin_Lessons {
             echo '<th scope="col">' . __('ID', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Order', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Title', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Vimeo ID', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('YouTube ID', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col">' . __('Vimeo', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col">' . __('YouTube', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col">' . __('Bunny', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Duration', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Free', 'academy-lesson-manager') . '</th>';
             echo '</tr>';
@@ -856,8 +950,9 @@ class ALM_Admin_Lessons {
                 echo '<td>' . $chapter->ID . '</td>';
                 echo '<td class="chapter-order">' . $chapter->menu_order . '</td>';
                 echo '<td><a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '">' . esc_html(stripslashes($chapter->chapter_title)) . '</a></td>';
-                echo '<td>' . ($chapter->vimeo_id ? '<a href="https://vimeo.com/' . $chapter->vimeo_id . '" target="_blank">' . $chapter->vimeo_id . '</a>' : '—') . '</td>';
-                echo '<td>' . ($chapter->youtube_id ? '<a href="https://youtube.com/watch?v=' . $chapter->youtube_id . '" target="_blank">' . esc_html($chapter->youtube_id) . '</a>' : '—') . '</td>';
+                echo '<td>' . ($chapter->vimeo_id && $chapter->vimeo_id > 0 ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                echo '<td>' . (!empty($chapter->youtube_id) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                echo '<td>' . (!empty($chapter->bunny_url) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
                 echo '<td>' . ALM_Helpers::format_duration($chapter->duration) . '</td>';
                 echo '<td>' . ($chapter->free === 'y' ? __('Yes', 'academy-lesson-manager') : __('No', 'academy-lesson-manager')) . '</td>';
                 echo '</tr>';
@@ -872,36 +967,6 @@ class ALM_Admin_Lessons {
         echo '</div>';
     }
     
-    /**
-     * Render bulk actions form
-     */
-    private function render_bulk_actions_form() {
-        echo '<div class="alm-bulk-actions" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">';
-        echo '<h3>' . __('Bulk Actions', 'academy-lesson-manager') . '</h3>';
-        
-        echo '<form method="post" action="" id="bulk-actions-form">';
-        echo '<p>';
-        echo '<label for="bulk_membership_level">' . __('Set membership level to:', 'academy-lesson-manager') . '</label> ';
-        echo '<select id="bulk_membership_level" name="bulk_membership_level">';
-        echo '<option value="">' . __('Select level...', 'academy-lesson-manager') . '</option>';
-        $membership_levels = ALM_Admin_Settings::get_membership_levels();
-        foreach ($membership_levels as $key => $level) {
-            echo '<option value="' . esc_attr($level['numeric']) . '">' . esc_html($level['name']) . ' (' . $level['numeric'] . ') - ' . esc_html($level['description']) . '</option>';
-        }
-        echo '</select>';
-        echo '<input type="submit" class="button" value="' . __('Update Selected Lessons', 'academy-lesson-manager') . '" onclick="return confirm(\'' . __('Are you sure you want to update the membership levels for the selected lessons?', 'academy-lesson-manager') . '\')" />';
-        echo '</p>';
-        echo '<input type="hidden" name="bulk_action" value="update_membership" />';
-        echo '</form>';
-        
-        echo '<p class="description">' . __('Select lessons from the list below, then choose a membership level and click "Update Selected Lessons".', 'academy-lesson-manager') . '</p>';
-        
-        echo '<p style="margin-top: 15px;">';
-        echo '<a href="?page=academy-manager-lessons&action=sync_all" class="button" onclick="return confirm(\'' . __('This will sync all lessons to WordPress posts. Continue?', 'academy-lesson-manager') . '\')">' . __('Sync All Lessons', 'academy-lesson-manager') . '</a>';
-        echo '</p>';
-        
-        echo '</div>';
-    }
     
     /**
      * Handle bulk actions
@@ -925,8 +990,21 @@ class ALM_Admin_Lessons {
         $lesson_ids = isset($_POST['lesson']) ? array_map('intval', $_POST['lesson']) : array();
         $membership_level = isset($_POST['bulk_membership_level']) ? intval($_POST['bulk_membership_level']) : 0;
         
-        if (empty($lesson_ids) || $membership_level === 0) {
-            wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager-lessons')));
+        // Debug: Log what we received
+        error_log('ALMD Bulk Action Debug:');
+        error_log('ALMD POST data: ' . print_r($_POST, true));
+        error_log('ALMD Lesson IDs: ' . print_r($lesson_ids, true));
+        error_log('ALMD Membership Level: ' . $membership_level);
+        
+        // Check if lessons were selected
+        if (empty($lesson_ids)) {
+            wp_redirect(add_query_arg('message', 'no_lessons_selected', admin_url('admin.php?page=academy-manager-lessons')));
+            exit;
+        }
+        
+        // Check if membership level was selected
+        if ($membership_level === 0) {
+            wp_redirect(add_query_arg('message', 'no_level_selected', admin_url('admin.php?page=academy-manager-lessons')));
             exit;
         }
         

@@ -95,6 +95,10 @@ class Academy_Lesson_Manager {
         // Add AJAX handler for debugging Bunny.net config
         add_action('wp_ajax_alm_debug_bunny_config', array($this, 'ajax_debug_bunny_config'));
         
+        // Add AJAX handlers for resources
+        add_action('wp_ajax_alm_add_resource', array($this, 'ajax_add_resource'));
+        add_action('wp_ajax_alm_delete_resource', array($this, 'ajax_delete_resource'));
+        
         // Add WordPress hooks for reverse sync
         add_action('save_post', array($this, 'handle_post_save'));
         add_action('delete_post', array($this, 'handle_post_delete'));
@@ -149,6 +153,15 @@ class Academy_Lesson_Manager {
             'academy-manager-chapters',
             array($this, 'admin_page_chapters')
         );
+        
+        add_submenu_page(
+            'academy-manager',
+            __('Settings', 'academy-lesson-manager'),
+            __('Settings', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-settings',
+            array($this, 'admin_page_settings')
+        );
     }
     
     /**
@@ -174,6 +187,11 @@ class Academy_Lesson_Manager {
         $admin_chapters->render_page();
     }
     
+    public function admin_page_settings() {
+        $admin_settings = new ALM_Admin_Settings();
+        $admin_settings->render_settings_page();
+    }
+    
     /**
      * Enqueue admin scripts and styles
      */
@@ -197,6 +215,9 @@ class Academy_Lesson_Manager {
             ALM_VERSION,
             true
         );
+        
+        // Enqueue media uploader scripts
+        wp_enqueue_media();
         
         // Localize script with AJAX data
         wp_localize_script('alm-admin-js', 'alm_admin', array(
@@ -374,6 +395,152 @@ class Academy_Lesson_Manager {
             });
         ');
         
+        // Add JavaScript for resource management
+        wp_add_inline_script('alm-admin-js', '
+            jQuery(document).ready(function($) {
+                // Toggle add resource form
+                $("#alm-add-resource-btn").on("click", function() {
+                    $("#alm-add-resource-form").slideToggle();
+                });
+                
+                // Cancel add resource form
+                $("#alm-cancel-resource-btn").on("click", function() {
+                    $("#alm-add-resource-form").slideUp();
+                    $("#alm-resource-type").val("");
+                    $("#alm-resource-url").val("");
+                    $("#alm-resource-attachment-id").val("");
+                    $("#alm-clear-media-btn").hide();
+                });
+                
+                // Media library selector
+                var mediaUploader;
+                $("#alm-select-media-btn").on("click", function(e) {
+                    e.preventDefault();
+                    
+                    // If the uploader object has already been created, reopen it
+                    if (mediaUploader) {
+                        mediaUploader.open();
+                        return;
+                    }
+                    
+                    // Create the media uploader
+                    mediaUploader = wp.media({
+                        title: "Select Resource File",
+                        button: {
+                            text: "Use this file"
+                        },
+                        multiple: false,
+                        library: {
+                            type: ["application/pdf", "audio", "application/zip", "application/x-zip-compressed"]
+                        }
+                    });
+                    
+                    // When a file is selected, run a callback
+                    mediaUploader.on("select", function() {
+                        var attachment = mediaUploader.state().get("selection").first().toJSON();
+                        $("#alm-resource-attachment-id").val(attachment.id);
+                        $("#alm-resource-url").val(attachment.url);
+                        $("#alm-clear-media-btn").show();
+                    });
+                    
+                    // Open the uploader
+                    mediaUploader.open();
+                });
+                
+                // Clear selected media
+                $("#alm-clear-media-btn").on("click", function() {
+                    $("#alm-resource-attachment-id").val("");
+                    $("#alm-resource-url").val("");
+                    $(this).hide();
+                });
+                
+                // Allow manual URL entry (double-click to enable)
+                $("#alm-resource-url").on("dblclick", function() {
+                    $(this).prop("readonly", false).css("background-color", "#fff");
+                });
+                
+                // Add resource
+                $("#alm-save-resource-btn").on("click", function() {
+                    var resourceType = $("#alm-resource-type").val();
+                    var resourceUrl = $("#alm-resource-url").val();
+                    var attachmentId = $("#alm-resource-attachment-id").val();
+                    var lessonId = ' . (isset($_GET['id']) ? intval($_GET['id']) : 0) . ';
+                    
+                    if (!resourceType || !resourceUrl) {
+                        alert("Please select a resource type and choose a file.");
+                        return;
+                    }
+                    
+                    var $button = $(this);
+                    $button.prop("disabled", true).text("Adding...");
+                    
+                    $.ajax({
+                        url: ajaxurl,
+                        type: "POST",
+                        data: {
+                            action: "alm_add_resource",
+                            lesson_id: lessonId,
+                            resource_type: resourceType,
+                            resource_url: resourceUrl,
+                            attachment_id: attachmentId,
+                            nonce: alm_admin.nonce
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Reload page to show updated resources
+                                location.reload();
+                            } else {
+                                alert("Error: " + response.data);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", xhr, status, error);
+                            alert("Error adding resource. Please try again.");
+                        },
+                        complete: function() {
+                            $button.prop("disabled", false).text("Add Resource");
+                        }
+                    });
+                });
+                
+                // Delete resource
+                $(document).on("click", ".alm-delete-resource", function(e) {
+                    e.preventDefault();
+                    
+                    if (!confirm("Are you sure you want to delete this resource?")) {
+                        return;
+                    }
+                    
+                    var $link = $(this);
+                    var resourceType = $link.data("type");
+                    var lessonId = $link.data("lesson-id");
+                    
+                    $.ajax({
+                        url: ajaxurl,
+                        type: "POST",
+                        data: {
+                            action: "alm_delete_resource",
+                            lesson_id: lessonId,
+                            resource_type: resourceType,
+                            nonce: alm_admin.nonce
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Reload page to show updated resources
+                                location.reload();
+                            } else {
+                                alert("Error: " + response.data);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", xhr, status, error);
+                            alert("Error deleting resource. Please try again.");
+                        }
+                    });
+                });
+            });
+        ');
+        
             // Add CSS for drag and drop
             wp_add_inline_style('alm-admin-css', '
                 .chapter-drag-handle {
@@ -531,6 +698,141 @@ class Academy_Lesson_Manager {
         $debug_info = $bunny_api->debug_request();
         
         wp_send_json_success($debug_info);
+    }
+    
+    /**
+     * AJAX handler for adding a resource
+     */
+    public function ajax_add_resource() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'alm_admin_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $lesson_id = intval($_POST['lesson_id']);
+        $resource_type = sanitize_text_field($_POST['resource_type']);
+        $resource_url = sanitize_text_field($_POST['resource_url']);
+        $attachment_id = isset($_POST['attachment_id']) ? intval($_POST['attachment_id']) : 0;
+        
+        if (empty($lesson_id) || empty($resource_type) || empty($resource_url)) {
+            wp_send_json_error('All fields are required');
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $table_name = $database->get_table_name('lessons');
+        
+        // Get current resources
+        $lesson = $wpdb->get_row($wpdb->prepare(
+            "SELECT resources FROM {$table_name} WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            wp_send_json_error('Lesson not found');
+        }
+        
+        // Unserialize resources
+        $resources = maybe_unserialize($lesson->resources);
+        if (!is_array($resources)) {
+            $resources = array();
+        }
+        
+        // Store both URL and attachment ID if provided
+        if ($attachment_id > 0) {
+            $resources[$resource_type] = array(
+                'url' => $resource_url,
+                'attachment_id' => $attachment_id
+            );
+        } else {
+            $resources[$resource_type] = $resource_url;
+        }
+        
+        // Update database
+        $result = $wpdb->update(
+            $table_name,
+            array('resources' => serialize($resources)),
+            array('ID' => $lesson_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array(
+                'message' => 'Resource added successfully',
+                'resources' => ALM_Helpers::format_serialized_resources(serialize($resources))
+            ));
+        } else {
+            wp_send_json_error('Failed to add resource');
+        }
+    }
+    
+    /**
+     * AJAX handler for deleting a resource
+     */
+    public function ajax_delete_resource() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'alm_admin_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $lesson_id = intval($_POST['lesson_id']);
+        $resource_type = sanitize_text_field($_POST['resource_type']);
+        
+        if (empty($lesson_id) || empty($resource_type)) {
+            wp_send_json_error('Invalid parameters');
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $table_name = $database->get_table_name('lessons');
+        
+        // Get current resources
+        $lesson = $wpdb->get_row($wpdb->prepare(
+            "SELECT resources FROM {$table_name} WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            wp_send_json_error('Lesson not found');
+        }
+        
+        // Unserialize resources
+        $resources = maybe_unserialize($lesson->resources);
+        if (!is_array($resources)) {
+            $resources = array();
+        }
+        
+        // Remove resource
+        unset($resources[$resource_type]);
+        
+        // Update database
+        $result = $wpdb->update(
+            $table_name,
+            array('resources' => serialize($resources)),
+            array('ID' => $lesson_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array(
+                'message' => 'Resource deleted successfully',
+                'resources' => ALM_Helpers::format_serialized_resources(serialize($resources))
+            ));
+        } else {
+            wp_send_json_error('Failed to delete resource');
+        }
     }
     
     /**

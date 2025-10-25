@@ -106,13 +106,25 @@ class ALM_Helpers {
         }
         
         $formatted = array();
-        foreach ($unserialized as $type => $url) {
-            if (!empty($url)) {
-                $formatted[] = array(
-                    'type' => $type,
-                    'url' => $url,
-                    'display_url' => self::format_resource_url($url, $type)
-                );
+        foreach ($unserialized as $type => $value) {
+            if (!empty($value)) {
+                // Handle both old format (string URL) and new format (array with url and attachment_id)
+                if (is_array($value)) {
+                    $url = isset($value['url']) ? $value['url'] : '';
+                    $attachment_id = isset($value['attachment_id']) ? $value['attachment_id'] : 0;
+                } else {
+                    $url = $value;
+                    $attachment_id = 0;
+                }
+                
+                if (!empty($url)) {
+                    $formatted[] = array(
+                        'type' => $type,
+                        'url' => $url,
+                        'attachment_id' => $attachment_id,
+                        'display_url' => self::format_resource_url($url, $type)
+                    );
+                }
             }
         }
         

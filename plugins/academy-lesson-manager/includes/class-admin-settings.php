@@ -102,8 +102,8 @@ class ALM_Admin_Settings {
         echo '<div class="alm-navigation-buttons" style="margin-bottom: 20px;">';
         echo '<a href="?page=academy-manager" class="button">' . __('Collections', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-lessons" class="button">' . __('Lessons', 'academy-lesson-manager') . '</a> ';
-        echo '<a href="?page=academy-manager-chapters" class="button">' . __('Chapters', 'academy-lesson-manager') . '</a> ';
-        echo '<a href="?page=academy-manager-settings" class="button button-primary">' . __('Settings', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-chapters" class="button">' . __('Chapters', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings" class="button button-primary" style="margin-left: 10px;">' . __('Settings', 'academy-lesson-manager') . '</a>';
         echo '</div>';
     }
     

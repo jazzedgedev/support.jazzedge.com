@@ -35,7 +35,8 @@ class APH_Database_Schema {
             'jpc_steps' => self::get_jpc_steps_schema(),
             'jpc_user_assignments' => self::get_jpc_user_assignments_schema(),
             'jpc_user_progress' => self::get_jpc_user_progress_schema(),
-            'jpc_milestone_submissions' => self::get_jpc_milestone_submissions_schema()
+            'jpc_milestone_submissions' => self::get_jpc_milestone_submissions_schema(),
+            'repertoire' => self::get_repertoire_schema()
         );
     }
     
@@ -1372,6 +1373,74 @@ class APH_Database_Schema {
                 'submission_date' => array('submission_date'),
                 'grade' => array('grade'),
                 'graded_on' => array('graded_on')
+            )
+        );
+    }
+    
+    /**
+     * Repertoire Table Schema
+     * 
+     * Stores user's repertoire items (songs/pieces):
+     * - Title, composer, notes
+     * - Practice tracking (last_practiced)
+     * - Soft delete support
+     */
+    private static function get_repertoire_schema() {
+        return array(
+            'table_name' => 'academy_user_repertoire',
+            'columns' => array(
+                'ID' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique repertoire ID'
+                ),
+                'user_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'not_null' => true,
+                    'description' => 'WordPress user ID'
+                ),
+                'title' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'not_null' => true,
+                    'description' => 'Repertoire title'
+                ),
+                'composer' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 100,
+                    'not_null' => true,
+                    'description' => 'Composer name'
+                ),
+                'date_added' => array(
+                    'type' => 'DATE',
+                    'not_null' => true,
+                    'description' => 'Date when repertoire was added'
+                ),
+                'last_practiced' => array(
+                    'type' => 'DATETIME',
+                    'not_null' => true,
+                    'description' => 'Last practice date'
+                ),
+                'notes' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 255,
+                    'not_null' => true,
+                    'description' => 'User notes'
+                ),
+                'deleted_at' => array(
+                    'type' => 'DATETIME',
+                    'null' => true,
+                    'description' => 'Soft delete timestamp'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'last_practiced' => array('last_practiced'),
+                'title' => array('title')
             )
         );
     }

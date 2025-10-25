@@ -82,6 +82,7 @@ class ALM_Admin_Chapters {
         echo '<a href="?page=academy-manager" class="button ' . ($current_page === 'collections' ? 'button-primary' : '') . '">' . __('Collections', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-lessons" class="button ' . ($current_page === 'lessons' ? 'button-primary' : '') . '">' . __('Lessons', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-chapters" class="button ' . ($current_page === 'chapters' ? 'button-primary' : '') . '">' . __('Chapters', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings" class="button ' . ($current_page === 'settings' ? 'button-primary' : '') . '" style="margin-left: 10px;">' . __('Settings', 'academy-lesson-manager') . '</a>';
         echo '</div>';
     }
     
@@ -264,16 +265,6 @@ class ALM_Admin_Chapters {
         echo '</select>';
         echo '</td>';
         echo '</tr>';
-        
-        echo '<tr>';
-        echo '<th scope="row"><label for="slug">' . __('Slug', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="text" id="slug" name="slug" value="" class="regular-text" /></td>';
-        echo '</tr>';
-        
-        echo '<tr>';
-        echo '<th scope="row"><label for="post_date">' . __('Release Date', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="date" id="post_date" name="post_date" value="" class="regular-text" /></td>';
-        echo '</tr>';
         echo '</tbody>';
         echo '</table>';
         
@@ -321,8 +312,10 @@ class ALM_Admin_Chapters {
         echo '<td class="column-duration">' . ALM_Helpers::format_duration($chapter->duration) . '</td>';
         echo '<td class="column-free">' . ($chapter->free === 'y' ? __('Yes', 'academy-lesson-manager') : __('No', 'academy-lesson-manager')) . '</td>';
         echo '<td class="column-actions">';
-        echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small">' . __('Edit', 'academy-lesson-manager') . '</a> ';
-        echo '<a href="?page=academy-manager-chapters&action=delete&id=' . $chapter->ID . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')">' . __('Delete', 'academy-lesson-manager') . '</a>';
+        echo '<div style="display: flex; gap: 5px; flex-wrap: nowrap;">';
+        echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small" title="' . __('Edit Chapter', 'academy-lesson-manager') . '"><span class="dashicons dashicons-edit"></span></a>';
+        echo '<a href="?page=academy-manager-chapters&action=delete&id=' . $chapter->ID . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')" title="' . __('Delete Chapter', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span></a>';
+        echo '</div>';
         echo '</td>';
         echo '</tr>';
     }
@@ -460,16 +453,6 @@ class ALM_Admin_Chapters {
         echo '</tr>';
         
         echo '<tr>';
-        echo '<th scope="row"><label for="slug">' . __('Slug', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="text" id="slug" name="slug" value="' . esc_attr($chapter->slug) . '" class="regular-text" /></td>';
-        echo '</tr>';
-        
-        echo '<tr>';
-        echo '<th scope="row"><label for="post_date">' . __('Release Date', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="date" id="post_date" name="post_date" value="' . esc_attr($chapter->post_date) . '" class="regular-text" /></td>';
-        echo '</tr>';
-        
-        echo '<tr>';
         echo '<th scope="row">' . __('Created', 'academy-lesson-manager') . '</th>';
         echo '<td>' . ALM_Helpers::format_date($chapter->created_at) . '</td>';
         echo '</tr>';
@@ -528,8 +511,6 @@ class ALM_Admin_Chapters {
             'bunny_url' => esc_url_raw($_POST['bunny_url']),
             'duration' => intval($_POST['duration']),
             'free' => sanitize_text_field($_POST['free']),
-            'slug' => sanitize_text_field($_POST['slug']),
-            'post_date' => sanitize_text_field($_POST['post_date']),
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql')
         );
@@ -572,8 +553,6 @@ class ALM_Admin_Chapters {
             'bunny_url' => esc_url_raw($_POST['bunny_url']),
             'duration' => intval($_POST['duration']),
             'free' => sanitize_text_field($_POST['free']),
-            'slug' => sanitize_text_field($_POST['slug']),
-            'post_date' => sanitize_text_field($_POST['post_date']),
             'updated_at' => current_time('mysql')
         );
         
@@ -581,7 +560,7 @@ class ALM_Admin_Chapters {
             $this->table_name,
             $data,
             array('ID' => $chapter_id),
-            array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s'),
+            array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s'),
             array('%d')
         );
         

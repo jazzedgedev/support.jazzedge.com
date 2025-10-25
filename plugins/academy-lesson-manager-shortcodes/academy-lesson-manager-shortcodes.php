@@ -1985,6 +1985,18 @@ class ALM_Shortcodes_Plugin {
                 continue;
             }
             
+            // Handle both old (string) and new (array) resource formats
+            $resource_url = '';
+            if (is_array($v)) {
+                $resource_url = isset($v['url']) ? $v['url'] : '';
+            } else {
+                $resource_url = $v;
+            }
+            
+            if (empty($resource_url)) {
+                continue;
+            }
+            
             // Filter out unwanted resource types
             $resource_type = substr($k, 0, 3);
             $excluded_types = ['map', 'mp3', 'mid', 'zip'];
@@ -2023,7 +2035,7 @@ class ALM_Shortcodes_Plugin {
             
             // Handle notes separately
             if ($k === 'note') {
-                $note_content = '<li class="alm-resource-item note"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg> ' . esc_html($v) . '</li>';
+                $note_content = '<li class="alm-resource-item note"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg> ' . esc_html($resource_url) . '</li>';
                 continue;
             }
             
@@ -2039,22 +2051,22 @@ class ALM_Shortcodes_Plugin {
                     "SELECT user_id FROM {$wpdb->prefix}academy_favorites WHERE course_or_lesson_id = %d AND type = 'resource' AND user_id = %d AND link = %s",
                     $atts['lesson_id'],
                     $user_id,
-                    $v
+                    $resource_url
                 ));
                 
                 if (!empty($is_favorited)) {
                     $favorite_link = ' <span class="unfavorite_resource"><a href="/willie/favorite_resource.php?action=unfavorite&link_type=' . $k . '&lesson_id=' . $atts['lesson_id'] . '"><i class="fa-solid fa-folder-minus"></i></a></span>';
                 } else {
-                    $favorite_link = ' <span class="favorite_resource"><a href="/willie/favorite_resource.php?action=favorite&link_type=' . $k . '&lesson_id=' . $atts['lesson_id'] . '&v=' . urlencode($v) . '"><i class="fa-solid fa-folder-plus"></i></a></span>';
+                    $favorite_link = ' <span class="favorite_resource"><a href="/willie/favorite_resource.php?action=favorite&link_type=' . $k . '&lesson_id=' . $atts['lesson_id'] . '&v=' . urlencode($resource_url) . '"><i class="fa-solid fa-folder-plus"></i></a></span>';
                 }
             }
             
             // Build resource link
-            $resource_url = 'https://jazzedge.academy/je_link.php?id=' . $atts['lesson_id'] . '&link=' . urlencode($v);
+            $final_resource_url = 'https://jazzedge.academy/je_link.php?id=' . $atts['lesson_id'] . '&link=' . urlencode($resource_url);
             
             $return .= '<li class="alm-resource-item">';
             $return .= $icon . ' ';
-            $return .= '<a href="' . esc_url($resource_url) . '" class="alm-resource-link" target="_blank">' . esc_html($resource_name) . '</a>';
+            $return .= '<a href="' . esc_url($final_resource_url) . '" class="alm-resource-link" target="_blank">' . esc_html($resource_name) . '</a>';
             $return .= ' <span class="alm-resource-type">' . esc_html($k) . '</span>';
             $return .= $favorite_link;
             $return .= '</li>';

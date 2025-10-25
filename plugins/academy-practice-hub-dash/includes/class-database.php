@@ -1009,4 +1009,149 @@ class JPH_Database {
         
         return (int) $count;
     }
+    
+    /**
+     * Get user's repertoire items
+     */
+    public function get_user_repertoire($user_id, $order_by = 'last_practiced', $order = 'DESC') {
+        global $wpdb;
+        
+        $table_name = 'academy_user_repertoire';
+        
+        // Validate order_by
+        $allowed_order_by = array('last_practiced', 'title', 'date_added');
+        $order_by = in_array($order_by, $allowed_order_by) ? $order_by : 'last_practiced';
+        
+        // Validate order
+        $order = strtoupper($order) === 'ASC' ? 'ASC' : 'DESC';
+        
+        $items = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d AND deleted_at IS NULL ORDER BY {$order_by} {$order}",
+            $user_id
+        ), ARRAY_A);
+        
+        return $items ?: array();
+    }
+    
+    /**
+     * Add repertoire item
+     */
+    public function add_repertoire_item($user_id, $title, $composer, $notes = '') {
+        global $wpdb;
+        
+        $table_name = 'academy_user_repertoire';
+        
+        $result = $wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'title' => $title,
+                'composer' => $composer,
+                'notes' => $notes,
+                'date_added' => current_time('mysql'),
+                'last_practiced' => current_time('mysql')
+            ),
+            array('%d', '%s', '%s', '%s', '%s', '%s')
+        );
+        
+        if ($result === false) {
+            return false;
+        }
+        
+        return $wpdb->insert_id;
+    }
+    
+    /**
+     * Update repertoire item
+     */
+    public function update_repertoire_item($item_id, $user_id, $title, $composer, $notes = '') {
+        global $wpdb;
+        
+        $table_name = 'academy_user_repertoire';
+        
+        $result = $wpdb->update(
+            $table_name,
+            array(
+                'title' => $title,
+                'composer' => $composer,
+                'notes' => $notes
+            ),
+            array(
+                'ID' => $item_id,
+                'user_id' => $user_id
+            ),
+            array('%s', '%s', '%s'),
+            array('%d', '%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Delete repertoire item (soft delete)
+     */
+    public function delete_repertoire_item($item_id, $user_id) {
+        global $wpdb;
+        
+        $table_name = 'academy_user_repertoire';
+        
+        $result = $wpdb->update(
+            $table_name,
+            array('deleted_at' => current_time('mysql')),
+            array(
+                'ID' => $item_id,
+                'user_id' => $user_id
+            ),
+            array('%s'),
+            array('%d', '%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Mark repertoire as practiced
+     */
+    public function mark_repertoire_practiced($item_id, $user_id) {
+        global $wpdb;
+        
+        $table_name = 'academy_user_repertoire';
+        
+        $result = $wpdb->update(
+            $table_name,
+            array('last_practiced' => current_time('mysql')),
+            array(
+                'ID' => $item_id,
+                'user_id' => $user_id
+            ),
+            array('%s'),
+            array('%d', '%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Update repertoire sort order
+     */
+    public function update_repertoire_order($user_id, $item_orders) {
+        global $wpdb;
+        
+        $table_name = 'academy_user_repertoire';
+        
+        foreach ($item_orders as $item_id => $order) {
+            $wpdb->update(
+                $table_name,
+                array('last_practiced' => current_time('mysql')), // Using last_practiced as sort order
+                array(
+                    'ID' => $item_id,
+                    'user_id' => $user_id
+                ),
+                array('%s'),
+                array('%d', '%d')
+            );
+        }
+        
+        return true;
+    }
 }
