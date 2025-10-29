@@ -46,8 +46,21 @@ class ALM_Admin_Chapters {
         $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : 'list';
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         
-        // Handle form submissions
+        // Handle POST requests
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Handle bulk actions first
+            if (isset($_POST['action']) && $_POST['action'] !== '-1') {
+                $this->handle_bulk_action();
+                return;
+            }
+            
+            // Handle bulk slug update
+            if (isset($_POST['bulk_update_slugs'])) {
+                $this->handle_bulk_update_slugs();
+                return;
+            }
+            
+            // Handle other form submissions (add/edit)
             $this->handle_form_submission();
             return;
         }
@@ -103,6 +116,18 @@ class ALM_Admin_Chapters {
                 case 'deleted':
                     echo '<div class="notice notice-success"><p>' . __('Chapter deleted successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
+                case 'slugs_updated':
+                    $updated_count = isset($_GET['updated_count']) ? intval($_GET['updated_count']) : 0;
+                    echo '<div class="notice notice-success"><p>' . sprintf(__('%d chapter slug(s) updated successfully.', 'academy-lesson-manager'), $updated_count) . '</p></div>';
+                    break;
+                case 'bulk_deleted':
+                    $deleted_count = isset($_GET['deleted_count']) ? intval($_GET['deleted_count']) : 0;
+                    echo '<div class="notice notice-success"><p>' . sprintf(__('%d chapter(s) deleted successfully.', 'academy-lesson-manager'), $deleted_count) . '</p></div>';
+                    break;
+                case 'bulk_slugs_updated':
+                    $updated_count = isset($_GET['updated_count']) ? intval($_GET['updated_count']) : 0;
+                    echo '<div class="notice notice-success"><p>' . sprintf(__('%d chapter slug(s) updated successfully.', 'academy-lesson-manager'), $updated_count) . '</p></div>';
+                    break;
             }
         }
         
@@ -111,13 +136,20 @@ class ALM_Admin_Chapters {
         $order_by = isset($_GET['order_by']) ? sanitize_text_field($_GET['order_by']) : 'ID';
         $order = isset($_GET['order']) ? sanitize_text_field($_GET['order']) : 'DESC';
         
-        // Build query with lesson join
+		// Build query with lesson join
         $lessons_table = $this->database->get_table_name('lessons');
-        $where = '';
+		$where = '';
+		$orphan_filter = isset($_GET['orphans']) && $_GET['orphans'] === '1';
         if (!empty($search)) {
-            $where = $this->wpdb->prepare("WHERE c.chapter_title LIKE %s OR l.lesson_title LIKE %s", 
-                '%' . $search . '%', '%' . $search . '%');
+			$where = $this->wpdb->prepare("WHERE (c.chapter_title LIKE %s OR l.lesson_title LIKE %s)", 
+				'%' . $search . '%', '%' . $search . '%');
         }
+
+		// Orphan filter (chapters without a valid lesson)
+		if ($orphan_filter) {
+			$orphan_sql = "(c.lesson_id IS NULL OR c.lesson_id = 0 OR l.ID IS NULL)";
+			$where = empty($where) ? "WHERE {$orphan_sql}" : $where . " AND {$orphan_sql}";
+		}
         
         // Validate order by
         $allowed_order_by = array('ID', 'chapter_title', 'menu_order', 'vimeo_id', 'duration');
@@ -138,8 +170,11 @@ class ALM_Admin_Chapters {
         
         $chapters = $this->wpdb->get_results($sql);
         
-        // Render search form
-        $this->render_search_form($search);
+		// Render statistics
+		$this->render_statistics();
+        
+		// Render search form
+		$this->render_search_form($search);
         
         // Render chapters table
         $this->render_chapters_table($chapters, $order_by, $order);
@@ -157,21 +192,55 @@ class ALM_Admin_Chapters {
         echo '<input type="submit" id="search-submit" class="button" value="' . __('Search Chapters', 'academy-lesson-manager') . '" />';
         echo '</p>';
         echo '</form>';
+        // Orphan toggle link
+        $is_orphans = isset($_GET['orphans']) && $_GET['orphans'] === '1';
+        $orphans_on_url = add_query_arg(array('orphans' => '1'));
+        $orphans_off_url = remove_query_arg('orphans');
+        echo '<div style="margin-top: 8px;">';
+        if ($is_orphans) {
+            echo '<a class="button" href="' . esc_url($orphans_off_url) . '">' . __('Show All Chapters', 'academy-lesson-manager') . '</a> ';
+            echo '<span class="description" style="margin-left: 6px;">' . __('Filtering orphans (no lesson)', 'academy-lesson-manager') . '</span>';
+        } else {
+            echo '<a class="button" href="' . esc_url($orphans_on_url) . '">' . __('Show Orphaned Chapters', 'academy-lesson-manager') . '</a>';
+        }
+        echo '</div>';
         echo '</div>';
     }
     
     /**
-     * Render chapters table
+     * Render chapters table with bulk actions
      */
     private function render_chapters_table($chapters, $order_by, $order) {
+        echo '<form method="post" action="">';
+        echo '<div class="tablenav top">';
+        echo '<div class="alignleft actions bulkactions">';
+        echo '<select name="action" id="bulk-action-selector-top">';
+        echo '<option value="-1">' . __('Bulk Actions', 'academy-lesson-manager') . '</option>';
+        echo '<option value="update_slugs">' . __('Update Slugs', 'academy-lesson-manager') . '</option>';
+        echo '<option value="delete">' . __('Delete', 'academy-lesson-manager') . '</option>';
+        echo '</select>';
+        echo '<input type="submit" class="button action" value="' . __('Apply', 'academy-lesson-manager') . '" onclick="return confirmAction();" />';
+        echo '<script>
+        function confirmAction() {
+            var action = document.getElementById("bulk-action-selector-top").value;
+            if (action === "delete") {
+                return confirm("' . __('Are you sure you want to delete the selected chapters?', 'academy-lesson-manager') . '");
+            }
+            return true;
+        }
+        </script>';
+        echo '</div>';
+        echo '</div>';
+        
         echo '<table class="wp-list-table widefat fixed striped">';
         echo '<thead>';
         echo '<tr>';
-        echo '<th scope="col" class="manage-column column-cb check-column"><input type="checkbox" /></th>';
+        echo '<th scope="col" class="manage-column column-cb check-column"><input type="checkbox" id="cb-select-all" /></th>';
         echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('ID', 'ID', $order_by, $order) . '</th>';
         echo '<th scope="col" class="manage-column">' . __('Lesson', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Order', 'menu_order', $order_by, $order) . '</th>';
         echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Chapter Title', 'chapter_title', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column">' . __('Slug', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Vimeo ID', 'vimeo_id', $order_by, $order) . '</th>';
         echo '<th scope="col" class="manage-column">' . __('YouTube ID', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column">' . $this->get_sortable_header('Duration', 'duration', $order_by, $order) . '</th>';
@@ -182,7 +251,7 @@ class ALM_Admin_Chapters {
         echo '<tbody>';
         
         if (empty($chapters)) {
-            echo '<tr><td colspan="10" class="no-items">' . __('No chapters found.', 'academy-lesson-manager') . '</td></tr>';
+            echo '<tr><td colspan="11" class="no-items">' . __('No chapters found.', 'academy-lesson-manager') . '</td></tr>';
         } else {
             foreach ($chapters as $chapter) {
                 $this->render_chapter_row($chapter);
@@ -191,6 +260,7 @@ class ALM_Admin_Chapters {
         
         echo '</tbody>';
         echo '</table>';
+        echo '</form>';
     }
     
     /**
@@ -283,6 +353,20 @@ class ALM_Admin_Chapters {
         $lesson_title = $chapter->lesson_title ? $chapter->lesson_title : 'Unknown Lesson';
         $background = ($chapter->vimeo_id == 0 && empty($chapter->youtube_id) && empty($chapter->bunny_url)) ? 'background-color: #ffebee;' : '';
         
+        // Get chapter permalink (lesson post + chapter slug parameter)
+        $chapter_url = '';
+        if ($chapter->lesson_id) {
+            $lessons_table = $this->database->get_table_name('lessons');
+            $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT post_id FROM {$lessons_table} WHERE ID = %d",
+                $chapter->lesson_id
+            ));
+            
+            if ($lesson && $lesson->post_id && get_post($lesson->post_id)) {
+                $chapter_url = add_query_arg('c', $chapter->slug, get_permalink($lesson->post_id));
+            }
+        }
+        
         echo '<tr style="' . $background . '">';
         echo '<th scope="row" class="check-column"><input type="checkbox" name="chapter[]" value="' . $chapter->ID . '" /></th>';
         echo '<td class="column-id">' . $chapter->ID . '</td>';
@@ -295,6 +379,13 @@ class ALM_Admin_Chapters {
         echo '</td>';
         echo '<td class="column-order">' . $chapter->menu_order . '</td>';
         echo '<td class="column-title"><strong>' . esc_html(stripslashes($chapter->chapter_title)) . '</strong></td>';
+        echo '<td class="column-slug">';
+        if (empty($chapter->slug)) {
+            echo '<span style="color: #dc3232; font-weight: bold;">⚠️ Missing</span>';
+        } else {
+            echo esc_html($chapter->slug);
+        }
+        echo '</td>';
         echo '<td class="column-vimeo">';
         if ($chapter->vimeo_id) {
             echo '<a href="https://vimeo.com/' . $chapter->vimeo_id . '" target="_blank">' . $chapter->vimeo_id . '</a>';
@@ -314,6 +405,9 @@ class ALM_Admin_Chapters {
         echo '<td class="column-actions">';
         echo '<div style="display: flex; gap: 5px; flex-wrap: nowrap;">';
         echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small" title="' . __('Edit Chapter', 'academy-lesson-manager') . '"><span class="dashicons dashicons-edit"></span></a>';
+        if (!empty($chapter_url)) {
+            echo '<a href="' . esc_url($chapter_url) . '" class="button button-small" target="_blank" title="' . __('View Chapter on Frontend', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-site"></span></a>';
+        }
         echo '<a href="?page=academy-manager-chapters&action=delete&id=' . $chapter->ID . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')" title="' . __('Delete Chapter', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span></a>';
         echo '</div>';
         echo '</td>';
@@ -405,6 +499,11 @@ class ALM_Admin_Chapters {
         echo '<tr>';
         echo '<th scope="row"><label for="chapter_title">' . __('Chapter Title', 'academy-lesson-manager') . ' <span class="description">(required)</span></label></th>';
         echo '<td><input type="text" id="chapter_title" name="chapter_title" value="' . esc_attr(stripslashes($chapter->chapter_title)) . '" class="regular-text" required /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row">' . __('Slug', 'academy-lesson-manager') . '</th>';
+        echo '<td>' . ($chapter->slug ? esc_html($chapter->slug) : '<span style="color: #dc3232;">Not set</span>') . '</td>';
         echo '</tr>';
         
         echo '<tr>';
@@ -502,6 +601,9 @@ class ALM_Admin_Chapters {
             wp_die(__('Chapter title and lesson are required.', 'academy-lesson-manager'));
         }
         
+        // Generate slug from chapter title
+        $slug = sanitize_title($chapter_title);
+        
         $data = array(
             'lesson_id' => $lesson_id,
             'chapter_title' => $chapter_title,
@@ -511,6 +613,7 @@ class ALM_Admin_Chapters {
             'bunny_url' => esc_url_raw($_POST['bunny_url']),
             'duration' => intval($_POST['duration']),
             'free' => sanitize_text_field($_POST['free']),
+            'slug' => $slug,
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql')
         );
@@ -544,6 +647,9 @@ class ALM_Admin_Chapters {
             wp_die(__('Chapter title and lesson are required.', 'academy-lesson-manager'));
         }
         
+        // Generate slug from chapter title
+        $slug = sanitize_title($chapter_title);
+        
         $data = array(
             'lesson_id' => $lesson_id,
             'chapter_title' => $chapter_title,
@@ -553,6 +659,7 @@ class ALM_Admin_Chapters {
             'bunny_url' => esc_url_raw($_POST['bunny_url']),
             'duration' => intval($_POST['duration']),
             'free' => sanitize_text_field($_POST['free']),
+            'slug' => $slug,
             'updated_at' => current_time('mysql')
         );
         
@@ -560,7 +667,7 @@ class ALM_Admin_Chapters {
             $this->table_name,
             $data,
             array('ID' => $chapter_id),
-            array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s'),
+            array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s'),
             array('%d')
         );
         
@@ -589,5 +696,159 @@ class ALM_Admin_Chapters {
             wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager-chapters')));
             exit;
         }
+    }
+    
+    /**
+     * Render bulk update slugs button
+     */
+    private function render_bulk_update_slugs_button() {
+        echo '<form method="post" action="" style="margin-bottom: 15px;" onsubmit="return confirm(\'' . __('Are you sure you want to update all chapter slugs? This will regenerate slugs for all chapters based on their titles.', 'academy-lesson-manager') . '\');">';
+        echo '<input type="hidden" name="bulk_update_slugs" value="1" />';
+        echo '<input type="submit" class="button button-secondary" value="' . __('Update All Slugs', 'academy-lesson-manager') . '" />';
+        echo '</form>';
+    }
+    
+    /**
+     * Handle bulk slug update
+     */
+    private function handle_bulk_update_slugs() {
+        // Get all chapters
+        $chapters = $this->wpdb->get_results("SELECT ID, chapter_title FROM {$this->table_name}");
+        
+        $updated_count = 0;
+        
+        foreach ($chapters as $chapter) {
+            // Generate slug from chapter title
+            $slug = sanitize_title($chapter->chapter_title);
+            
+            // Update the chapter
+            $result = $this->wpdb->update(
+                $this->table_name,
+                array('slug' => $slug, 'updated_at' => current_time('mysql')),
+                array('ID' => $chapter->ID),
+                array('%s', '%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                $updated_count++;
+            }
+        }
+        
+        // Redirect back to list page with success message
+        wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'slugs_updated', 'updated_count' => $updated_count)));
+        exit;
+    }
+    
+    /**
+     * Handle bulk actions (delete, update slugs)
+     */
+    private function handle_bulk_action() {
+        $action = sanitize_text_field($_POST['action']);
+        $chapters = isset($_POST['chapter']) ? array_map('intval', $_POST['chapter']) : array();
+        
+        if (empty($chapters)) {
+            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'no_selection')));
+            exit;
+        }
+        
+        if ($action === 'delete') {
+            $deleted_count = 0;
+            
+            foreach ($chapters as $chapter_id) {
+                $result = $this->wpdb->delete($this->table_name, array('ID' => $chapter_id), array('%d'));
+                
+                if ($result) {
+                    $deleted_count++;
+                }
+            }
+            
+            // Redirect back to list page with success message
+            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'bulk_deleted', 'deleted_count' => $deleted_count)));
+            exit;
+        } elseif ($action === 'update_slugs') {
+            $updated_count = 0;
+            
+            foreach ($chapters as $chapter_id) {
+                // Get the chapter
+                $chapter = $this->wpdb->get_row($this->wpdb->prepare("SELECT chapter_title FROM {$this->table_name} WHERE ID = %d", $chapter_id));
+                
+                if ($chapter) {
+                    // Generate slug from chapter title
+                    $slug = sanitize_title($chapter->chapter_title);
+                    
+                    // Update the chapter
+                    $result = $this->wpdb->update(
+                        $this->table_name,
+                        array('slug' => $slug, 'updated_at' => current_time('mysql')),
+                        array('ID' => $chapter_id),
+                        array('%s', '%s'),
+                        array('%d')
+                    );
+                    
+                    if ($result !== false) {
+                        $updated_count++;
+                    }
+                }
+            }
+            
+            // Redirect back to list page with success message
+            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'bulk_slugs_updated', 'updated_count' => $updated_count)));
+            exit;
+        }
+    }
+    
+    /**
+     * Render database statistics
+     */
+    private function render_statistics() {
+        // Get counts
+        $chapters_count = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name}");
+        
+        $lessons_table = $this->database->get_table_name('lessons');
+        $lessons_count = $this->wpdb->get_var("SELECT COUNT(*) FROM {$lessons_table}");
+        
+        $collections_table = $this->database->get_table_name('collections');
+        $collections_count = $this->wpdb->get_var("SELECT COUNT(*) FROM {$collections_table}");
+        
+        // Get average chapters per lesson
+        $avg_chapters = $lessons_count > 0 ? round($chapters_count / $lessons_count, 1) : 0;
+
+        // Get total duration in seconds across all chapters
+        $total_seconds = intval($this->wpdb->get_var("SELECT COALESCE(SUM(duration),0) FROM {$this->table_name}"));
+        $hours = floor($total_seconds / 3600);
+        $minutes = floor(($total_seconds % 3600) / 60);
+        $seconds = $total_seconds % 60;
+        $hhmmss = sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+        
+        echo '<div class="alm-statistics" style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px 20px; margin-bottom: 20px; display: flex; gap: 30px; flex-wrap: wrap;">';
+        
+        echo '<div style="flex: 1; min-width: 150px;">';
+        echo '<span style="font-size: 24px; font-weight: bold; color: #2271b1;">' . number_format($chapters_count) . '</span>';
+        echo '<p style="margin: 5px 0 0 0; color: #666;">' . __('Chapters', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        echo '<div style="flex: 1; min-width: 150px;">';
+        echo '<span style="font-size: 24px; font-weight: bold; color: #2271b1;">' . number_format($lessons_count) . '</span>';
+        echo '<p style="margin: 5px 0 0 0; color: #666;">' . __('Lessons', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        echo '<div style="flex: 1; min-width: 150px;">';
+        echo '<span style="font-size: 24px; font-weight: bold; color: #2271b1;">' . number_format($collections_count) . '</span>';
+        echo '<p style="margin: 5px 0 0 0; color: #666;">' . __('Collections', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        echo '<div style="flex: 1; min-width: 180px;">';
+        echo '<span style="font-size: 24px; font-weight: bold; color: #2271b1;">' . number_format($hours, 1) . '+</span>';
+        echo '<p style="margin: 5px 0 0 0; color: #666;">' . __('Hours of Content (approx)', 'academy-lesson-manager') . '</p>';
+        echo '<p style="margin: 2px 0 0 0; color: #888; font-size: 12px;">' . esc_html($hhmmss) . ' (' . number_format($total_seconds) . 's)</p>';
+        echo '</div>';
+
+        echo '<div style="flex: 1; min-width: 150px;">';
+        echo '<span style="font-size: 24px; font-weight: bold; color: #2271b1;">' . number_format($avg_chapters, 1) . '</span>';
+        echo '<p style="margin: 5px 0 0 0; color: #666;">' . __('Avg Chapters/Lesson', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        echo '</div>';
     }
 }

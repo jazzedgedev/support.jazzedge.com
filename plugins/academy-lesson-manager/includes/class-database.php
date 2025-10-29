@@ -49,24 +49,38 @@ class ALM_Database {
         
         // Check and add membership_level columns if they don't exist
         $this->check_and_add_membership_columns();
+        
+        // Check and add menu_order column to lessons table if it doesn't exist
+        $this->check_and_add_menu_order_column();
     }
     
     /**
      * Check and add membership_level columns to existing tables
      */
     public function check_and_add_membership_columns() {
-        // Check collections table
+        // Lessons table
+        $lessons_table = $this->tables['lessons'];
+        $lessons_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'membership_level'");
+        if (empty($lessons_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN membership_level int(11) DEFAULT 2 AFTER slug, ADD KEY membership_level (membership_level)");
+        }
+
+        // Collections table
         $collections_table = $this->tables['collections'];
         $collections_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $collections_table LIKE 'membership_level'");
         if (empty($collections_columns)) {
             $this->wpdb->query("ALTER TABLE $collections_table ADD COLUMN membership_level int(11) DEFAULT 2 AFTER collection_description, ADD KEY membership_level (membership_level)");
         }
-        
-        // Check lessons table
+    }
+    
+    /**
+     * Check and add menu_order column to lessons table
+     */
+    public function check_and_add_menu_order_column() {
         $lessons_table = $this->tables['lessons'];
-        $lessons_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'membership_level'");
+        $lessons_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'menu_order'");
         if (empty($lessons_columns)) {
-            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN membership_level int(11) DEFAULT 2 AFTER slug, ADD KEY membership_level (membership_level)");
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN menu_order int(11) DEFAULT 0 AFTER collection_id, ADD KEY menu_order (menu_order)");
         }
     }
     

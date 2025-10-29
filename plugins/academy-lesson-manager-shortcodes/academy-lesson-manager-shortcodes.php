@@ -35,6 +35,11 @@ class ALM_Shortcodes_Plugin {
         add_action('wp_ajax_alm_mark_lesson_complete', array($this, 'ajax_mark_lesson_complete'));
         add_action('wp_ajax_alm_mark_lesson_incomplete', array($this, 'ajax_mark_lesson_incomplete'));
         add_action('wp_ajax_alm_save_lesson_notes', array($this, 'ajax_save_lesson_notes'));
+        add_action('wp_ajax_alm_toggle_resource_favorite', array($this, 'ajax_toggle_resource_favorite'));
+        add_action('wp_ajax_alm_create_note', array($this, 'ajax_create_note'));
+        add_action('wp_ajax_alm_update_note', array($this, 'ajax_update_note'));
+        add_action('wp_ajax_alm_delete_note', array($this, 'ajax_delete_note'));
+        add_action('wp_ajax_alm_get_lessons_list', array($this, 'ajax_get_lessons_list'));
         
         // Create ALM notes table on activation
         add_action('init', array($this, 'create_alm_notes_table'));
@@ -143,6 +148,10 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('alm_lesson_resources', array($this, 'lesson_resources_shortcode'));
         add_shortcode('alm_lesson_progress', array($this, 'lesson_progress_shortcode'));
         add_shortcode('alm_mark_complete', array($this, 'mark_complete_shortcode'));
+        add_shortcode('alm_collection_complete', array($this, 'collection_complete_shortcode'));
+        add_shortcode('alm_collections_dropdown', array($this, 'collections_dropdown_shortcode'));
+        add_shortcode('alm_favorites_management', array($this, 'favorites_management_shortcode'));
+        add_shortcode('alm_user_notes_manager', array($this, 'user_notes_manager_shortcode'));
         
         // Add debugging
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -177,10 +186,13 @@ class ALM_Shortcodes_Plugin {
     public function enqueue_frontend_scripts() {
         // Only load on frontend
         if (!is_admin()) {
+            // Enqueue jQuery UI for drag and drop
+            wp_enqueue_script('jquery-ui-sortable');
+            
             wp_enqueue_script(
                 'alm-shortcodes-frontend',
                 ALM_SHORTCODES_PLUGIN_URL . 'assets/js/frontend.js',
-                array('jquery'),
+                array('jquery', 'jquery-ui-sortable'),
                 ALM_SHORTCODES_VERSION,
                 true
             );
@@ -259,6 +271,33 @@ class ALM_Shortcodes_Plugin {
                     <div class="shortcode-example">
                         <code>[alm_mark_complete lesson_id="123" chapter_id="456" type="chapter"]</code>
                         <button class="button button-small copy-shortcode" data-shortcode='[alm_mark_complete lesson_id="123" chapter_id="456" type="chapter"]'>Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Collections Dropdown</h3>
+                    <p>Dropdown list of all lesson collections grouped by membership level</p>
+                    <div class="shortcode-example">
+                        <code>[alm_collections_dropdown placeholder="Select a collection..."]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[alm_collections_dropdown placeholder="Select a collection..."]'>Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Favorites Management</h3>
+                    <p>View and manage your favorite lessons and resources</p>
+                    <div class="shortcode-example">
+                        <code>[alm_favorites_management]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_favorites_management]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>User Notes Manager</h3>
+                    <p>CRUD interface for creating, editing, and deleting user notes</p>
+                    <div class="shortcode-example">
+                        <code>[alm_user_notes_manager]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_user_notes_manager]">Copy</button>
                     </div>
                 </div>
             </div>
@@ -433,6 +472,68 @@ class ALM_Shortcodes_Plugin {
                 <li><code>academy_completed_lessons</code> - For lesson completion</li>
                 <li>Uses <code>deleted_at</code> column for soft deletes (restart functionality)</li>
             </ul>
+            
+            <h3>alm_collections_dropdown</h3>
+            <p>Dropdown list of all lesson collections grouped by membership level</p>
+            <h4>Parameters:</h4>
+            <ul>
+                <li><strong>placeholder</strong> (optional): Placeholder text for the dropdown (default: "Select a collection...")</li>
+                <li><strong>class</strong> (optional): Additional CSS class for the dropdown</li>
+                <li><strong>style</strong> (optional): Inline CSS styles</li>
+            </ul>
+            <h4>Features:</h4>
+            <ul>
+                <li>Groups collections by membership level</li>
+                <li>Redirects to collection page on selection</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[alm_collections_dropdown placeholder="Select a collection..."]</code></pre>
+            
+            <h3>alm_favorites_management</h3>
+            <p>View and manage your favorite lessons and resources</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Features:</h4>
+            <ul>
+                <li>Displays all user favorites from <code>wp_jph_lesson_favorites</code> table</li>
+                <li>Shows lesson favorites and resource favorites with distinct styling</li>
+                <li>Delete functionality with confirmation</li>
+                <li>Shows date added for each favorite</li>
+                <li>Links to lesson or resource URLs</li>
+                <li>Only visible to logged-in users</li>
+            </ul>
+            <h4>Database:</h4>
+            <p>Reads from <code>wp_jph_lesson_favorites</code> table, dynamically detects table structure</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[alm_favorites_management]</code></pre>
+            
+            <h3>alm_user_notes_manager</h3>
+            <p>Full CRUD (Create, Read, Update, Delete) interface for managing user notes</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Features:</h4>
+            <ul>
+                <li><strong>Create Notes:</strong> "New Note" button opens form with optional lesson association</li>
+                <li><strong>View Notes:</strong> Displays all user notes sorted by most recent update</li>
+                <li><strong>Edit Notes:</strong> Click "Edit" button to modify note content and lesson association</li>
+                <li><strong>Delete Notes:</strong> Delete button with confirmation, immediate UI feedback</li>
+                <li><strong>Lesson Association:</strong> Optionally link notes to specific lessons</li>
+                <li><strong>Note Previews:</strong> Shows note content preview with date/time</li>
+                <li><strong>Empty State:</strong> Displays helpful message when no notes exist</li>
+                <li>Only visible to logged-in users</li>
+            </ul>
+            <h4>Database:</h4>
+            <p>Stores notes in <code>wp_alm_user_notes</code> table with fields:</p>
+            <ul>
+                <li><code>user_id</code> - User who owns the note</li>
+                <li><code>lesson_id</code> - Optional lesson association</li>
+                <li><code>post_id</code> - Optional post association</li>
+                <li><code>notes_content</code> - Note content (supports HTML)</li>
+                <li><code>created_at</code> - Creation timestamp</li>
+                <li><code>updated_at</code> - Last update timestamp</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[alm_user_notes_manager]</code></pre>
         </div>
         
         <style>
@@ -1138,9 +1239,12 @@ class ALM_Shortcodes_Plugin {
                 $lesson->collection_id
             ));
             
-            // Get all lessons in this collection for navigation
+            // Get all lessons in this collection for navigation, with post_id from wp_alm_lessons table
             $collection_lessons = $wpdb->get_results($wpdb->prepare(
-                "SELECT ID, lesson_title, slug FROM {$wpdb->prefix}alm_lessons WHERE collection_id = %d ORDER BY ID ASC",
+                "SELECT ID, lesson_title, slug, post_id 
+                 FROM {$wpdb->prefix}alm_lessons 
+                 WHERE collection_id = %d 
+                 ORDER BY ID ASC",
                 $lesson->collection_id
             ));
         }
@@ -1172,13 +1276,9 @@ class ALM_Shortcodes_Plugin {
             $return .= '<span class="alm-chapter-name">(' . esc_html($chapter_title) . ')</span>';
             $return .= '</div>';
             
-            // Calculate and display progress percentage
-            $progress_percentage = 0;
-            if (function_exists('je_return_lesson_progress_percentage')) {
-                $progress_percentage = je_return_lesson_progress_percentage($atts['lesson_id'], 'percent');
-            }
-            
-            $return .= '<div class="alm-progress-badge">' . intval($progress_percentage) . '% Complete</div>';
+            // Display progress percentage (use calculated value from line 1121)
+            $progress_badge_value = $total_chapters > 0 ? intval(($completed_chapters / $total_chapters) * 100) : 0;
+            $return .= '<div class="alm-progress-badge">' . $progress_badge_value . '% Complete</div>';
             $return .= '</div>';
             $return .= do_shortcode('[fvplayer src="' . esc_url($video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
             
@@ -1225,154 +1325,33 @@ class ALM_Shortcodes_Plugin {
             $return .= '</div>';
             
             $return .= '</div>';
-        } elseif (!$has_access && !empty($chapters)) {
-            // PREVIEW MODE: Show shortest chapter as preview for users without access
-            $shortest_chapter = null;
-            $shortest_duration = PHP_INT_MAX;
+        } elseif (!$has_access) {
+            // NO ACCESS: Show upgrade message only (no preview)
+            $return .= '<div class="alm-video-section">';
+            $lesson_title = stripslashes($lesson->lesson_title);
+            $return .= '<div class="alm-video-title-bar">';
+            $return .= '<span class="alm-lesson-name">' . esc_html($lesson_title) . '</span>';
+            $return .= '</div>';
+            $return .= '<div class="alm-video-placeholder">';
+            $return .= '<div class="alm-restricted-overlay">';
+            $return .= '<svg style="width: 48px; height: 48px; margin-bottom: 16px;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>';
+            $return .= '<h3 style="margin: 0 0 12px 0; font-size: 24px; color: #004555;">Premium Content</h3>';
+            $return .= '<p style="margin: 0 0 24px 0; font-size: 16px; color: #495057;">Get full access to video lessons, sheet music, backing tracks, and more</p>';
+            $return .= '<a href="/upgrade" class="alm-upgrade-button">Upgrade to ' . esc_html($required_level_name) . '</a>';
+            $return .= '</div>';
+            $return .= '</div>';
+            $return .= '</div>';
             
-            // Find the shortest chapter
-            foreach ($chapters as $chapter) {
-                $duration = intval($chapter->duration);
-                if ($duration > 0 && $duration < $shortest_duration) {
-                    $shortest_duration = $duration;
-                    $shortest_chapter = $chapter;
-                }
-            }
-            
-            if ($shortest_chapter) {
-                // Get video URL for shortest chapter
-                $preview_video_url = '';
-                if (!empty($shortest_chapter->bunny_url)) {
-                    $preview_video_url = $shortest_chapter->bunny_url;
-                } elseif (!empty($shortest_chapter->youtube_id)) {
-                    $preview_video_url = 'https://www.youtube.com/watch?v=' . $shortest_chapter->youtube_id;
-                } elseif (!empty($shortest_chapter->vimeo_id)) {
-                    $preview_video_url = 'https://vimeo.com/' . $shortest_chapter->vimeo_id;
-                }
-                
-                if (!empty($preview_video_url)) {
-                    $return .= '<div class="alm-video-section">';
-                    $lesson_title = stripslashes($lesson->lesson_title);
-                    $chapter_title = stripslashes($shortest_chapter->chapter_title);
-                    $return .= '<div class="alm-video-title-bar">';
-                    $return .= '<div style="display: flex; align-items: center; gap: 8px;">';
-                    $return .= '<span class="alm-lesson-name">' . esc_html($lesson_title) . '</span>';
-                    $return .= '<span class="alm-chapter-name">(' . esc_html($chapter_title) . ' - Preview)</span>';
-                    $return .= '</div>';
-                    
-                    // Calculate and display progress percentage
-                    $progress_percentage = 0;
-                    if (function_exists('je_return_lesson_progress_percentage')) {
-                        $progress_percentage = je_return_lesson_progress_percentage($atts['lesson_id'], 'percent');
-                    }
-                    
-                    $return .= '<div class="alm-progress-badge">' . intval($progress_percentage) . '% Complete</div>';
-                    $return .= '</div>';
-                    
-                    // Add preview notice
-                    $return .= '<div style="background: #fff3cd; color: #856404; padding: 12px 20px; border-bottom: 1px solid #ffeaa7; font-size: 14px; font-weight: 500;">';
-                    $return .= '🎬 <strong>Preview Mode:</strong> This video will stop after 2 minutes. Upgrade to ' . esc_html($required_level_name) . ' for full access.';
-                    $return .= '</div>';
-                    
-                    // Add the video player with preview JavaScript
-                    $return .= do_shortcode('[fvplayer src="' . esc_url($preview_video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
-                    
-                    // Add preview control JavaScript
-                    $return .= '<script>
-                    document.addEventListener("DOMContentLoaded", function() {
-                        // Wait for FV Player to load
-                        if (typeof(flowplayer) != "undefined") {
-                            flowplayer(function(api, root) {
-                                var previewPaused = false;
-                                api.bind("ready", function(e, api, video) {
-                                    console.log("Preview video loaded - will stop after 2 minutes");
-                                });
-                                api.bind("progress", function(e, api, time) {
-                                    if (!previewPaused && time > 120) { // 2 minutes = 120 seconds
-                                        api.pause();
-                                        previewPaused = true;
-                                        
-                                        // Show upgrade message
-                                        var upgradeDiv = document.createElement("div");
-                                        upgradeDiv.style.cssText = "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); color: white; padding: 30px; border-radius: 10px; text-align: center; z-index: 1000; max-width: 400px;";
-                                        upgradeDiv.innerHTML = `
-                                            <h3 style="margin: 0 0 15px 0; color: #ff6b35;">Preview Complete</h3>
-                                            <p style="margin: 0 0 20px 0; font-size: 16px;">You\'ve watched 2 minutes of this lesson.</p>
-                                            <a href="/upgrade" style="background: linear-gradient(135deg, #ff6b35 0%, #ff4500 100%); color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">Upgrade to ' . esc_html($required_level_name) . '</a>
-                                        `;
-                                        
-                                        // Add to video container
-                                        var videoContainer = root.querySelector(".flowplayer");
-                                        if (videoContainer) {
-                                            videoContainer.style.position = "relative";
-                                            videoContainer.appendChild(upgradeDiv);
-                                        }
-                                    }
-                                });
-                            });
-                        }
-                    });
-                    </script>';
-                    
-                    // Add restricted actions section
-                    $return .= '<div class="alm-actions-section alm-restricted">';
-                    $return .= '<div class="alm-action-center">';
-                    $return .= '<div class="alm-restricted-message">';
-                    $return .= '<svg style="width: 32px; height: 32px; margin-bottom: 12px;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>';
-                    $return .= '<p style="margin-bottom: 16px; font-size: 15px; color: #212529; font-weight: 500;">Get full access to video lessons, sheet music, backing tracks, and more</p>';
-                    $return .= '<a href="/upgrade" class="alm-upgrade-cta-btn">Get Full Access →</a>';
-                    $return .= '</div>';
-                    $return .= '</div>';
-                    $return .= '</div>';
-                    $return .= '</div>';
-                } else {
-                    // Fallback to placeholder if no video URL
-                    $return .= '<div class="alm-video-section">';
-                    $lesson_title = stripslashes($lesson->lesson_title);
-                    $chapter_title = stripslashes($shortest_chapter->chapter_title);
-                    $return .= '<div class="alm-video-title-bar">';
-                    $return .= '<div style="display: flex; align-items: center; gap: 8px;">';
-                    $return .= '<span class="alm-lesson-name">' . esc_html($lesson_title) . '</span>';
-                    $return .= '<span class="alm-chapter-name">(' . esc_html($chapter_title) . ')</span>';
-                    $return .= '</div>';
-                    
-                    // Calculate and display progress percentage
-                    $progress_percentage = 0;
-                    if (function_exists('je_return_lesson_progress_percentage')) {
-                        $progress_percentage = je_return_lesson_progress_percentage($atts['lesson_id'], 'percent');
-                    }
-                    
-                    $return .= '<div class="alm-progress-badge">' . intval($progress_percentage) . '% Complete</div>';
-                    $return .= '</div>';
-                    $return .= '<div class="alm-video-placeholder">';
-                    $return .= '<div class="alm-restricted-overlay">';
-                    $return .= '<svg style="width: 48px; height: 48px; margin-bottom: 16px;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>';
-                    $return .= '<h3>Video Preview</h3>';
-                    $return .= '<p>Watch the full lesson with ' . esc_html($required_level_name) . ' membership</p>';
-                    $return .= '<a href="/upgrade" class="alm-upgrade-button">Upgrade to ' . esc_html($required_level_name) . '</a>';
-                    $return .= '</div>';
-                    $return .= '</div>';
-                    $return .= '</div>';
-                }
-            } else {
-                // Fallback to original placeholder
-                $return .= '<div class="alm-video-section">';
-                $lesson_title = stripslashes($lesson->lesson_title);
-                $chapter_title = stripslashes($current_chapter->chapter_title);
-                $return .= '<div class="alm-video-title-bar">';
-                $return .= '<span class="alm-lesson-name">' . esc_html($lesson_title) . '</span>';
-                $return .= '<span class="alm-chapter-name">(' . esc_html($chapter_title) . ')</span>';
-                $return .= '</div>';
-                $return .= '<div class="alm-video-placeholder">';
-                $return .= '<div class="alm-restricted-overlay">';
-                $return .= '<svg style="width: 48px; height: 48px; margin-bottom: 16px;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>';
-                $return .= '<h3>Video Preview</h3>';
-                $return .= '<p>Watch the full lesson with ' . esc_html($required_level_name) . ' membership</p>';
-                $return .= '<a href="/upgrade" class="alm-upgrade-button">Upgrade to ' . esc_html($required_level_name) . '</a>';
-                $return .= '</div>';
-                $return .= '</div>';
-                $return .= '</div>';
-            }
+            // Add restricted actions section
+            $return .= '<div class="alm-actions-section alm-restricted">';
+            $return .= '<div class="alm-action-center">';
+            $return .= '<div class="alm-restricted-message">';
+            $return .= '<svg style="width: 32px; height: 32px; margin-bottom: 12px;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>';
+            $return .= '<p style="margin-bottom: 16px; font-size: 15px; color: #212529; font-weight: 500;">Get full access to video lessons, sheet music, backing tracks, and more</p>';
+            $return .= '<a href="/upgrade" class="alm-upgrade-cta-btn">Get Full Access →</a>';
+            $return .= '</div>';
+            $return .= '</div>';
+            $return .= '</div>';
         } else {
             // No video source available
             $return .= '<div class="alm-video-section">';
@@ -1610,7 +1589,24 @@ class ALM_Shortcodes_Plugin {
         $return .= '<div class="alm-card-content">';
         $return .= '<h3 class="alm-card-title">' . esc_html(stripslashes($lesson->lesson_title)) . '</h3>';
         if (!empty($lesson->lesson_description)) {
-            $return .= '<p class="alm-card-description">' . esc_html(stripslashes($lesson->lesson_description)) . '</p>';
+            // Strip all HTML tags for clean display
+            $clean_description = wp_strip_all_tags(stripslashes($lesson->lesson_description));
+            $return .= '<p class="alm-card-description">' . esc_html($clean_description) . '</p>';
+        }
+        
+        // Debug: Show membership level (only if debug parameter is set)
+        if (isset($_GET['debug']) && !empty($_GET['debug'])) {
+            $user_level = intval($atts['user_membership_level']);
+            $lesson_level = intval($lesson->membership_level);
+            $required_level_name = ALM_Admin_Settings::get_membership_level_name($lesson_level);
+            $user_level_name = ALM_Admin_Settings::get_membership_level_name($user_level);
+            
+            $return .= '<div style="background: #f9f9f9; padding: 10px; margin-top: 10px; border-left: 3px solid #0073aa; font-size: 12px;">';
+            $return .= '<strong>DEBUG - Membership Levels:</strong><br>';
+            $return .= 'User Level: ' . $user_level . ' (' . esc_html($user_level_name) . ')<br>';
+            $return .= 'Lesson Level: ' . $lesson_level . ' (' . esc_html($required_level_name) . ')<br>';
+            $return .= 'Has Access: ' . ($has_access ? 'YES' : 'NO') . '<br>';
+            $return .= '</div>';
         }
         
         $return .= '</div>';
@@ -1621,7 +1617,17 @@ class ALM_Shortcodes_Plugin {
             $return .= '<div class="alm-sidebar-card">';
             $return .= '<div class="alm-card-header alm-collection-header">LESSON COLLECTION DETAILS</div>';
             $return .= '<div class="alm-card-content">';
-            $return .= '<h3 class="alm-card-title">' . esc_html(stripslashes($collection->collection_title)) . '</h3>';
+            
+            // Make collection title a clickable link to the collection listing page
+            $collection_title = esc_html(stripslashes($collection->collection_title));
+            $collection_url = null;
+            if (!empty($collection->post_id)) {
+                $collection_url = get_permalink($collection->post_id);
+                $return .= '<h3 class="alm-card-title"><a href="' . esc_url($collection_url) . '" style="text-decoration: none; color: inherit; display: block;">' . $collection_title . '</a></h3>';
+            } else {
+                $return .= '<h3 class="alm-card-title">' . $collection_title . '</h3>';
+            }
+            
             if (!empty($collection->collection_description)) {
                 $return .= '<p class="alm-card-description">' . esc_html(stripslashes($collection->collection_description)) . '</p>';
             }
@@ -1633,26 +1639,8 @@ class ALM_Shortcodes_Plugin {
                 $return .= '<option value="">Lessons...</option>';
                 
                 foreach ($collection_lessons as $nav_lesson) {
-                    // Get lesson post_id from postmeta
-                    $lesson_post_id = $wpdb->get_var($wpdb->prepare(
-                        "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = 'lesson_id' AND meta_value = %d",
-                        $nav_lesson->ID
-                    ));
-                    
-                    // Determine chapter slug
-                    $chapter_count = $wpdb->get_var($wpdb->prepare(
-                        "SELECT COUNT(ID) FROM {$wpdb->prefix}alm_chapters WHERE lesson_id = %d",
-                        $nav_lesson->ID
-                    ));
-                    
-                    if ($chapter_count == 1) {
-                        $chapter_slug = $wpdb->get_var($wpdb->prepare(
-                            "SELECT slug FROM {$wpdb->prefix}alm_chapters WHERE lesson_id = %d",
-                            $nav_lesson->ID
-                        ));
-                    } else {
-                        $chapter_slug = $nav_lesson->slug;
-                    }
+                    // Use post_id from wp_alm_lessons table
+                    $lesson_post_id = !empty($nav_lesson->post_id) ? $nav_lesson->post_id : null;
                     
                     // Check if lesson is completed
                     $lesson_complete = '';
@@ -1660,16 +1648,31 @@ class ALM_Shortcodes_Plugin {
                         $lesson_complete = je_is_lesson_marked_complete($nav_lesson->ID) ? ' (done)' : '';
                     }
                     
-                    // Build URL
-                    $permalink = get_permalink($lesson_post_id);
-                    $lesson_url = $permalink . '?c=' . $chapter_slug;
+                    // Build URL using the lesson's actual post_id
+                    if ($lesson_post_id) {
+                        $lesson_url = get_permalink($lesson_post_id);
+                    } else {
+                        $lesson_url = '#';
+                    }
                     
                     // Mark current lesson
                     $mark = ($nav_lesson->ID == $atts['lesson_id']) ? '» ' : '';
                     
-                    // Format title
+                    // Format title - show start and end with ... in middle if too long
                     $lesson_title = stripslashes($nav_lesson->lesson_title);
-                    $trimmed_title = mb_strimwidth($lesson_title, 0, 28, '...');
+                    $title_length = mb_strlen($lesson_title);
+                    $max_length = 40; // Maximum total length
+                    
+                    if ($title_length > $max_length) {
+                        // Take first part (about 18 chars) and last part (about 18 chars) with ... in middle
+                        $start_len = 18;
+                        $end_len = 18;
+                        $start = mb_substr($lesson_title, 0, $start_len);
+                        $end = mb_substr($lesson_title, -$end_len);
+                        $trimmed_title = $start . '...' . $end;
+                    } else {
+                        $trimmed_title = $lesson_title;
+                    }
                     
                     $selected = ($nav_lesson->ID == $atts['lesson_id']) ? ' selected' : '';
                     $return .= '<option value="' . esc_url($lesson_url) . '"' . $selected . '>' . $mark . esc_html($trimmed_title) . $lesson_complete . '</option>';
@@ -1677,6 +1680,42 @@ class ALM_Shortcodes_Plugin {
                 
                 $return .= '</select>';
                 $return .= '</div>';
+                
+                // Add CSS to prevent dropdown from being cut off
+                $return .= '<style>
+                .alm-lesson-nav {
+                    position: relative;
+                    z-index: 1000;
+                }
+                .alm-lesson-selector {
+                    width: 100%;
+                    padding: 10px 12px;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    background: white;
+                    cursor: pointer;
+                }
+                .alm-lesson-selector:focus {
+                    outline: 2px solid #667eea;
+                    outline-offset: 2px;
+                }
+                </style>';
+            }
+            
+            // Add button to go back to collection listing
+            if (!empty($collection_url)) {
+                $return .= '<div class="alm-collection-back-button" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">';
+                $return .= '<a href="' . esc_url($collection_url) . '" class="alm-btn-collection-back" style="display: block; text-align: center; padding: 12px 20px; background: #229B90; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 14px; transition: background 0.2s ease;">';
+                $return .= '← Back to Collection';
+                $return .= '</a>';
+                $return .= '</div>';
+                // Add hover effect
+                $return .= '<style>
+                .alm-btn-collection-back:hover {
+                    background: #1d7a70 !important;
+                }
+                </style>';
             }
             
             $return .= '</div>';
@@ -1941,7 +1980,6 @@ class ALM_Shortcodes_Plugin {
             return '<div style="text-align: center; padding: 20px;">
                         <h4 style="color:#F04E23; text-align: center; width: 100%;">Looking for sheet music and backing tracks?</h4>
                         <p><a href="/signup" class="hover-black">Upgrade</a> your membership to gain access to the sheet music and resources.</p>
-                        <p><a href="#" class="show-modal-sheet-music-sample hover-black">View a sheet music sample</a></p>
                         <p style="font-size: 10pt;">If you are seeing this message, and you are a member, <strong>make sure you are logged in</strong>.</p>
                     </div>';
         }
@@ -1975,22 +2013,58 @@ class ALM_Shortcodes_Plugin {
         }
         
         // Build resources list
-        $return .= '<ul class="alm-resources-list">';
+        $return .= '<ul class="alm-resources-list" style="list-style: none; margin: 0; padding: 0;">';
         
         $found_resources = false;
-        $note_content = '';
         
+        // Sort resources by type to group them together
+        $resource_types_order = ['sheet_music', 'pdf', 'ireal', 'jam', 'zip', 'midi', 'note'];
+        $sorted_resources = array();
+        
+        // First pass: get all resources sorted by type
+        foreach ($resource_types_order as $type) {
+            foreach ($resources as $k => $v) {
+                $key_lower = strtolower($k);
+                if (strpos($key_lower, $type) === 0) {
+                    $sorted_resources[$k] = $v;
+                }
+            }
+        }
+        
+        // Add any resources that didn't match our known types
         foreach ($resources as $k => $v) {
+            if (!isset($sorted_resources[$k])) {
+                $sorted_resources[$k] = $v;
+            }
+        }
+        
+        foreach ($sorted_resources as $k => $v) {
             if (empty($v)) {
                 continue;
             }
             
             // Handle both old (string) and new (array) resource formats
             $resource_url = '';
+            $resource_label = '';
             if (is_array($v)) {
                 $resource_url = isset($v['url']) ? $v['url'] : '';
+                $resource_label = isset($v['label']) ? $v['label'] : '';
+                
+                // Safety check: if url is still an array, try to extract from it
+                if (is_array($resource_url)) {
+                    $resource_url = isset($resource_url['url']) ? $resource_url['url'] : (isset($resource_url[0]) ? $resource_url[0] : '');
+                }
             } else {
                 $resource_url = $v;
+            }
+            
+            // Ensure resource_url is a string before proceeding
+            if (!is_string($resource_url) && !is_numeric($resource_url)) {
+                // Try to convert to string or skip
+                if (is_array($resource_url)) {
+                    continue; // Skip invalid array resources
+                }
+                $resource_url = (string) $resource_url;
             }
             
             if (empty($resource_url)) {
@@ -1998,88 +2072,320 @@ class ALM_Shortcodes_Plugin {
             }
             
             // Filter out unwanted resource types
-            $resource_type = substr($k, 0, 3);
-            $excluded_types = ['map', 'mp3', 'mid', 'zip'];
-            if (in_array(strtolower($k), $excluded_types) || in_array($resource_type, $excluded_types)) {
+            $excluded_types = ['map', 'mp3', 'mid'];
+            if (in_array(strtolower($k), $excluded_types)) {
                 continue;
             }
             
             $found_resources = true;
             
-            // Get resource type and icon
+            // Get resource type and icon based on the resource key
             $icon = '';
             $resource_name = '';
             
-            switch ($resource_type) {
-                case 'ire':
-                    $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>';
-                    $resource_name = 'iRealPro';
-                    break;
-                case 'pdf':
-                    $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>';
-                    $resource_name = 'Sheet Music';
-                    break;
-                case 'jam':
-                    $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.369 4.369 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/></svg>';
-                    $resource_name = 'Backing Track';
-                    break;
-                case 'cal':
-                    $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/></svg>';
-                    $resource_name = 'Call & Response';
-                    break;
-                case 'zip':
-                    $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>';
-                    $resource_name = 'Zip File';
-                    break;
-            }
+            // Check if this is a numbered resource (jam2, jam3, ireal2, etc.)
+            $is_numbered = preg_match('/^(jam|ireal|sheet_music|pdf)(\d+)$/', strtolower($k), $matches);
             
-            // Handle notes separately
-            if ($k === 'note') {
-                $note_content = '<li class="alm-resource-item note"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg> ' . esc_html($resource_url) . '</li>';
-                continue;
-            }
-            
-            // Skip zip files (as in original)
-            if ($resource_name === 'Zip File') {
-                continue;
-            }
-            
-            // Build favorite/unfavorite links
-            $favorite_link = '';
-            if (function_exists('je_is_resource_favorited')) {
-                $is_favorited = $wpdb->get_var($wpdb->prepare(
-                    "SELECT user_id FROM {$wpdb->prefix}academy_favorites WHERE course_or_lesson_id = %d AND type = 'resource' AND user_id = %d AND link = %s",
-                    $atts['lesson_id'],
-                    $user_id,
-                    $resource_url
-                ));
+            if ($is_numbered) {
+                $base_type = $matches[1];
+                $number = $matches[2];
                 
-                if (!empty($is_favorited)) {
-                    $favorite_link = ' <span class="unfavorite_resource"><a href="/willie/favorite_resource.php?action=unfavorite&link_type=' . $k . '&lesson_id=' . $atts['lesson_id'] . '"><i class="fa-solid fa-folder-minus"></i></a></span>';
-                } else {
-                    $favorite_link = ' <span class="favorite_resource"><a href="/willie/favorite_resource.php?action=favorite&link_type=' . $k . '&lesson_id=' . $atts['lesson_id'] . '&v=' . urlencode($resource_url) . '"><i class="fa-solid fa-folder-plus"></i></a></span>';
+                switch ($base_type) {
+                    case 'jam':
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.369 4.369 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/></svg>';
+                        $resource_name = 'Backing Track ' . $number;
+                        break;
+                    case 'ireal':
+                        $icon = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" /></svg>';
+                        $resource_name = 'iRealPro ' . $number;
+                        break;
+                    case 'sheet_music':
+                    case 'pdf':
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>';
+                        $resource_name = 'Sheet Music ' . $number;
+                        break;
+                }
+            } else {
+                switch (strtolower($k)) {
+                    case 'ireal':
+                        $icon = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" /></svg>';
+                        $resource_name = 'iRealPro';
+                        break;
+                    case 'sheet_music':
+                    case 'pdf':
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>';
+                        $resource_name = 'Sheet Music';
+                        break;
+                    case 'jam':
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.369 4.369 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/></svg>';
+                        $resource_name = 'Backing Track';
+                        break;
+                    case 'zip':
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>';
+                        $resource_name = 'Zip File';
+                        break;
+                    case 'midi':
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>';
+                        $resource_name = 'Midi';
+                        break;
+                    case 'note':
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>';
+                        $resource_name = 'Note';
+                        break;
+                    default:
+                        // Default icon for unknown types
+                        $icon = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>';
+                        $resource_name = ucfirst(str_replace('_', ' ', $k));
+                        break;
                 }
             }
             
-            // Build resource link
+            // Final validation: ensure resource_url is definitely a string at this point
+            // Re-check and extract if still an array
+            if (is_array($resource_url)) {
+                // Try one more time to extract
+                $resource_url = isset($resource_url['url']) ? $resource_url['url'] : (isset($resource_url[0]) ? $resource_url[0] : '');
+            }
+            
+            // Convert to string if numeric
+            if (is_numeric($resource_url)) {
+                $resource_url = (string) $resource_url;
+            }
+            
+            // Final check: skip if still not a string or empty
+            if (!is_string($resource_url) || empty($resource_url)) {
+                error_log("ALM Shortcodes: Skipping invalid resource for lesson {$atts['lesson_id']}. Resource type: {$k}, Resource value type: " . gettype($resource_url));
+                continue;
+            }
+            
+            // Handle note type - display as text, not a link
+            if ($k === 'note') {
+                $return .= '<li class="alm-resource-item" style="background: #fff8e1; border-radius: 6px; margin-bottom: 8px; padding: 12px 16px; border-left: 4px solid #f57c00; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+                $return .= '<span style="color: #f57c00; flex-shrink: 0; margin-right: 8px;">📝</span>';
+                $return .= '<div style="flex-grow: 1; color: #333; white-space: pre-wrap;">' . esc_html($resource_url) . '</div>';
+                $return .= '</li>';
+                continue;
+            }
+            
+            // Build resource link for file-based resources
+            // At this point, $resource_url must be a string, but double-check before urlencode
+            if (!is_string($resource_url)) {
+                error_log("ALM Shortcodes: Resource URL is not a string before urlencode. Type: " . gettype($resource_url) . ", Value: " . print_r($resource_url, true));
+                continue;
+            }
             $final_resource_url = 'https://jazzedge.academy/je_link.php?id=' . $atts['lesson_id'] . '&link=' . urlencode($resource_url);
             
-            $return .= '<li class="alm-resource-item">';
-            $return .= $icon . ' ';
-            $return .= '<a href="' . esc_url($final_resource_url) . '" class="alm-resource-link" target="_blank">' . esc_html($resource_name) . '</a>';
-            $return .= ' <span class="alm-resource-type">' . esc_html($k) . '</span>';
-            $return .= $favorite_link;
+            // Check if resource is favorited in wp_jph_lesson_favorites
+            $is_favorited = false;
+            $favorite_id = 0;
+            if ($user_id) {
+                $favorite_check = $wpdb->get_row($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}jph_lesson_favorites WHERE user_id = %d AND url = %s",
+                    $user_id,
+                    $final_resource_url
+                ));
+                
+                if ($favorite_check) {
+                    $is_favorited = true;
+                    $favorite_id = $favorite_check->id;
+                }
+            }
+            
+            $return .= '<li class="alm-resource-item" style="margin-bottom: 12px; display: flex; align-items: stretch; gap: 8px;">';
+            
+            // Main clickable card (reduced width)
+            $return .= '<a href="' . esc_url($final_resource_url) . '" target="_blank" style="flex: 1; background: white; border-radius: 8px; padding: 16px; border-left: 4px solid #10b981; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; cursor: pointer; transition: all 0.2s ease;">';
+            $return .= '<span style="color: #10b981; flex-shrink: 0;">' . $icon . '</span>';
+            $return .= '<div style="flex-grow: 1;">';
+            $return .= '<span style="color: #111827; font-weight: 600; display: block; font-size: 15px; margin-bottom: 4px;">' . esc_html($resource_name) . '</span>';
+            if (!empty($resource_label)) {
+                $return .= '<span style="display: block; font-size: 13px; color: #6b7280; margin-top: 2px;">' . esc_html($resource_label) . '</span>';
+            }
+            $return .= '</div>';
+            $return .= '</a>';
+            
+            // Favorite button (outside the card) - just icon, no bounding box
+            // Title format: "Lesson Title (Resource Type)"
+            $lesson_title = stripslashes($lesson->lesson_title);
+            $final_resource_name = $lesson_title . ' (' . $resource_name . ')';
+            
+            // Determine resource_type for database
+            $resource_type_for_db = $k;
+            if ($k === 'sheet_music' || $k === 'pdf') {
+                $resource_type_for_db = 'pdf';
+            }
+            
+            // Extract resource_link from resource_url (file path) - preserve exactly as stored
+            $resource_link = $resource_url;
+            
+            $return .= '<button class="alm-resource-favorite-btn" data-resource-url="' . esc_attr($final_resource_url) . '" data-resource-name="' . esc_attr($final_resource_name) . '" data-resource-link="' . esc_attr($resource_link) . '" data-resource-type="' . esc_attr($resource_type_for_db) . '" data-favorite-id="' . $favorite_id . '" onclick="almToggleResourceFavorite(event, this); return false;">';
+            
+            if ($is_favorited) {
+                $return .= '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#ef4444"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>';
+            } else {
+                $return .= '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#9ca3af"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>';
+            }
+            $return .= '</button>';
+            
             $return .= '</li>';
-        }
-        
-        // Add note content if exists
-        if (!empty($note_content)) {
-            $return .= $note_content;
         }
         
         $return .= '</ul>';
         $return .= '</div>'; // End alm-card-content
         $return .= '</div>'; // End alm-sidebar-card
+        
+        // Add CSS for resource favorite button
+        $return .= '<style>
+        .alm-resource-favorite-btn {
+            background: none !important;
+            border: none !important;
+            padding: 4px !important;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .alm-resource-favorite-btn:hover svg {
+            transform: scale(1.1);
+        }
+        .alm-resource-favorite-btn.favorited svg path {
+            stroke: #ef4444 !important;
+        }
+        </style>';
+        
+        // Add JavaScript for resource favorites
+        $ajax_url = admin_url('admin-ajax.php');
+        $nonce = wp_create_nonce('alm_resource_favorite_nonce');
+        
+        $return .= '<script>
+        function almToggleResourceFavorite(event, btn) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            var $btn = jQuery(btn);
+            var resourceUrl = $btn.data("resource-url");
+            var resourceName = $btn.data("resource-name");
+            var resourceLink = $btn.data("resource-link");
+            var resourceType = $btn.data("resource-type");
+            
+            console.log("ALM: Toggle resource favorite", {
+                url: resourceUrl,
+                name: resourceName,
+                link: resourceLink,
+                type: resourceType
+            });
+            
+            // Toggle UI immediately
+            var isFavorited = $btn.find("path").attr("stroke") === "#ef4444";
+            
+            if (isFavorited) {
+                // Unfavorite
+                $btn.find("svg path").attr("stroke", "#9ca3af");
+                $btn.removeClass("favorited");
+                
+                var postData = {
+                    action: "alm_toggle_resource_favorite",
+                    resource_url: resourceUrl,
+                    is_favorite: 0,
+                    nonce: "' . $nonce . '"
+                };
+                console.log("ALM: Unfavorite request", postData);
+                
+                // AJAX call to remove favorite
+                jQuery.post("' . $ajax_url . '", postData, function(response) {
+                    console.log("ALM: Unfavorite response", response);
+                    if (!response.success) {
+                        // Revert on error
+                        $btn.find("svg path").attr("stroke", "#ef4444");
+                        $btn.addClass("favorited");
+                        alert("Error: " + response.data);
+                    }
+                }).fail(function(xhr, status, error) {
+                    console.error("ALM: Unfavorite failed", xhr, status, error);
+                    // Revert on error
+                    $btn.find("svg path").attr("stroke", "#ef4444");
+                    $btn.addClass("favorited");
+                    alert("Error removing favorite");
+                });
+            } else {
+                // Favorite
+                $btn.find("svg path").attr("stroke", "#ef4444");
+                $btn.addClass("favorited");
+                
+                var postData = {
+                    action: "alm_toggle_resource_favorite",
+                    resource_url: resourceUrl,
+                    resource_name: resourceName,
+                    resource_link: resourceLink,
+                    resource_type: resourceType,
+                    is_favorite: 1,
+                    nonce: "' . $nonce . '"
+                };
+                console.log("ALM: Favorite request", postData);
+                
+                // AJAX call to add favorite
+                jQuery.ajax({
+                    url: "' . $ajax_url . '",
+                    type: "POST",
+                    dataType: "json",
+                    data: postData,
+                    success: function(response) {
+                        console.log("ALM: Favorite success response", response);
+                        if (response && response.success && response.data && response.data.id) {
+                            $btn.data("favorite-id", response.data.id);
+                            console.log("ALM: Favorite added successfully, ID:", response.data.id);
+                        } else {
+                            console.error("ALM: Favorite response missing success/data", response);
+                            // Revert on error
+                            $btn.find("svg path").attr("stroke", "#9ca3af");
+                            $btn.removeClass("favorited");
+                            var errorMsg = (response && response.data) ? response.data : "Error adding favorite";
+                            alert("Error: " + errorMsg);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("ALM: Favorite AJAX error", {
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            responseText: xhr.responseText,
+                            responseJSON: xhr.responseJSON,
+                            error: error,
+                            allResponseHeaders: xhr.getAllResponseHeaders()
+                        });
+                        
+                        // Revert on error
+                        $btn.find("svg path").attr("stroke", "#9ca3af");
+                        $btn.removeClass("favorited");
+                        
+                        var errorMsg = "Error adding favorite";
+                        
+                        // Check for WordPress "0" response (action not found)
+                        if (xhr.responseText === "0" || xhr.responseText.trim() === "0") {
+                            errorMsg = "AJAX action not found. The action \\"alm_toggle_resource_favorite\\" may not be registered. Check server logs.";
+                            console.error("ALM: WordPress returned \\"0\\" - action may not be registered or function not called");
+                        } else if (xhr.responseJSON && xhr.responseJSON.data) {
+                            errorMsg = xhr.responseJSON.data;
+                        } else if (xhr.responseText && xhr.responseText !== "0") {
+                            try {
+                                var json = jQuery.parseJSON(xhr.responseText);
+                                if (json && json.data) {
+                                    errorMsg = json.data;
+                                }
+                            } catch(e) {
+                                console.error("ALM: Could not parse error response", xhr.responseText);
+                                errorMsg = "HTTP " + xhr.status + ": " + xhr.statusText + " - Response: " + xhr.responseText.substring(0, 200);
+                            }
+                        }
+                        
+                        console.error("ALM: Final error message:", errorMsg);
+                        alert(errorMsg);
+                    }
+                });
+            }
+        }
+        </script>';
         
         return $return;
     }
@@ -2323,6 +2629,107 @@ class ALM_Shortcodes_Plugin {
             wp_send_json_success(array('message' => 'Notes saved successfully'));
         } else {
             wp_send_json_error(array('message' => 'Database error occurred: ' . $wpdb->last_error));
+        }
+    }
+    
+    /**
+     * AJAX Handler: Toggle Resource Favorite
+     */
+    public function ajax_toggle_resource_favorite() {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+            return;
+        }
+        
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alm_resource_favorite_nonce')) {
+            wp_send_json_error('Security check failed');
+            return;
+        }
+        
+        if (!isset($_POST['resource_url'])) {
+            wp_send_json_error('Resource URL is required');
+            return;
+        }
+        
+        global $wpdb;
+        $resource_url = sanitize_text_field($_POST['resource_url']);
+        $is_favorite = isset($_POST['is_favorite']) ? intval($_POST['is_favorite']) : 0;
+        $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        if ($is_favorite) {
+            // Add favorite
+            $resource_name = isset($_POST['resource_name']) ? sanitize_text_field($_POST['resource_name']) : 'Resource';
+            // Preserve resource_link - it's a file path, so we need to keep / characters
+            $resource_link = isset($_POST['resource_link']) ? $_POST['resource_link'] : '';
+            if (!empty($resource_link)) {
+                // Normalize path separators and remove null bytes for safety
+                $resource_link = str_replace('\\', '/', $resource_link);
+                $resource_link = str_replace("\0", '', $resource_link);
+                $resource_link = trim($resource_link);
+            }
+            $resource_type = isset($_POST['resource_type']) ? sanitize_text_field($_POST['resource_type']) : '';
+            
+            // Check if already favorited
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $table_name WHERE user_id = %d AND url = %s",
+                $user_id,
+                $resource_url
+            ));
+            
+            if ($existing) {
+                wp_send_json_success(array('id' => $existing, 'message' => 'Already favorited'));
+                return;
+            }
+            
+            // Insert new favorite
+            $insert_data = array(
+                'user_id' => $user_id,
+                'title' => $resource_name,
+                'url' => $resource_url,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            );
+            $insert_format = array('%d', '%s', '%s', '%s', '%s');
+            
+            if (!empty($resource_link)) {
+                $insert_data['resource_link'] = $resource_link;
+                $insert_format[] = '%s';
+            }
+            
+            if (!empty($resource_type)) {
+                $insert_data['resource_type'] = $resource_type;
+                $insert_format[] = '%s';
+            }
+            
+            $insert_data['category'] = 'lesson';
+            $insert_format[] = '%s';
+            
+            $result = $wpdb->insert($table_name, $insert_data, $insert_format);
+            
+            if ($result !== false) {
+                $favorite_id = $wpdb->insert_id;
+                wp_send_json_success(array('id' => $favorite_id, 'message' => 'Added to favorites'));
+            } else {
+                wp_send_json_error('Database insert failed: ' . $wpdb->last_error);
+            }
+        } else {
+            // Remove favorite
+            $deleted = $wpdb->delete(
+                $table_name,
+                array(
+                    'user_id' => $user_id,
+                    'url' => $resource_url
+                ),
+                array('%d', '%s')
+            );
+            
+            if ($deleted) {
+                wp_send_json_success(array('message' => 'Removed from favorites'));
+            } else {
+                wp_send_json_error('Failed to remove favorite');
+            }
         }
     }
     
@@ -2585,6 +2992,1347 @@ class ALM_Shortcodes_Plugin {
         }
         
         wp_send_json_success(array('message' => 'Lesson restarted!'));
+    }
+    
+    /**
+     * Collection Complete Shortcode
+     * Lists all lessons in a collection with progress tracking
+     */
+    public function collection_complete_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'collection_id' => ''
+        ), $atts);
+        
+        // Auto-detect collection_id from current post if not provided
+        if (empty($atts['collection_id'])) {
+            $post_id = get_the_ID();
+            if ($post_id) {
+                // Try ACF field first
+                if (function_exists('get_field')) {
+                    $collection_id = get_field('alm_collection_id', $post_id);
+                }
+                
+                // Fallback to post meta
+                if (empty($collection_id)) {
+                    $collection_id = get_post_meta($post_id, 'course_id', true);
+                }
+                
+                if (!empty($collection_id)) {
+                    $atts['collection_id'] = $collection_id;
+                }
+            }
+        }
+        
+        if (empty($atts['collection_id'])) {
+            return '<p style="color: red;">Error: collection_id is required</p>';
+        }
+        
+        global $wpdb;
+        
+        // Get collection data
+        $collection = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}alm_collections WHERE ID = %d",
+            $atts['collection_id']
+        ));
+        
+        if (!$collection) {
+            return '<p style="color: red;">Error: Collection not found</p>';
+        }
+        
+        // Get lessons in this collection
+        $lessons = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}alm_lessons WHERE collection_id = %d ORDER BY menu_order ASC, lesson_title ASC",
+            $atts['collection_id']
+        ));
+        
+        $return = '<div class="alm-course-listing">';
+        // Minimal inline style for favorite indicator
+        $return .= '<style>.alm-fav-indicator{display:inline-flex;align-items:center;gap:6px;color:#f59e0b;font-weight:600;font-size:12px;margin-top:6px}.alm-fav-indicator .dashicons{color:#f59e0b}</style>';
+        
+        if (empty($lessons)) {
+            $return .= '<p class="alm-no-lessons">No lessons in this course yet.</p>';
+            $return .= '</div>';
+            return $return;
+        }
+        
+        // Course Stats with Collection Progress
+        $total_lessons = count($lessons);
+        $total_duration = 0; // Track total duration in seconds
+        $completed_lessons = array();
+        $total_lessons_progress = 0;
+        $user_id = get_current_user_id();
+        
+        // Prepare favorites cache for current user (from JPH lesson favorites table)
+        $favorites_titles = array();
+        if ($user_id) {
+            $jph_table = $wpdb->prefix . 'jph_lesson_favorites';
+            // Ensure table exists before querying
+            $jph_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $jph_table));
+            if (!empty($jph_exists)) {
+                $rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT title FROM {$jph_table} WHERE user_id = %d",
+                    $user_id
+                ));
+                if (!empty($rows)) {
+                    foreach ($rows as $row) {
+                        if (!empty($row->title)) {
+                            $favorites_titles[strtolower(trim($row->title))] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Calculate progress for each lesson by checking academy_completed_chapters table
+        foreach ($lessons as $lesson) {
+            $progress = 0;
+            
+            // Add lesson duration to total
+            $total_duration += intval($lesson->duration);
+            
+            // Get all chapters for this lesson
+            $chapters = $wpdb->get_results($wpdb->prepare(
+                "SELECT ID FROM {$wpdb->prefix}alm_chapters WHERE lesson_id = %d",
+                $lesson->ID
+            ));
+            
+            if (!empty($chapters) && $user_id) {
+                $total_chapters = count($chapters);
+                $completed_chapters = 0;
+                
+                // Count completed chapters from academy_completed_chapters table
+                foreach ($chapters as $chapter) {
+                    $completed = $wpdb->get_var($wpdb->prepare(
+                        "SELECT ID FROM academy_completed_chapters WHERE chapter_id = %d AND user_id = %d AND deleted_at IS NULL",
+                        $chapter->ID,
+                        $user_id
+                    ));
+                    if (!empty($completed)) {
+                        $completed_chapters++;
+                    }
+                }
+                
+                $progress = $total_chapters > 0 ? ($completed_chapters / $total_chapters) * 100 : 0;
+            }
+            
+            $total_lessons_progress += $progress;
+            if ($progress == 100) {
+                $completed_lessons[] = $lesson->ID;
+            }
+        }
+        
+        $completed_count = count($completed_lessons);
+        $collection_progress = $total_lessons > 0 ? round($total_lessons_progress / $total_lessons) : 0;
+        
+        // Get all collections for dropdown (including membership_level)
+        $all_collections = $wpdb->get_results(
+            "SELECT ID, collection_title, membership_level FROM {$wpdb->prefix}alm_collections ORDER BY membership_level ASC, collection_title ASC"
+        );
+        
+        // NEW HERO SECTION
+        $return .= '<div class="alm-collection-hero">';
+        $return .= '<div class="alm-hero-content">';
+        
+        // Collection Dropdown (inside hero)
+        if (!empty($all_collections) && count($all_collections) > 1) {
+            $return .= '<div class="alm-hero-collection-selector">';
+            $return .= '<div class="alm-hero-collection-card">';
+            $return .= '<p class="alm-hero-collection-label">Browse Other Collections</p>';
+            $return .= '<select class="alm-hero-collection-dropdown" onchange="if(this.value) window.location.href = this.value;">';
+            $return .= '<option value="">Select a collection...</option>';
+            
+            // Get membership level names
+            $membership_levels = ALM_Admin_Settings::get_membership_levels();
+            $current_level = null;
+            
+            foreach ($all_collections as $coll) {
+                // Get post_id for this collection
+                $coll_post_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT post_id FROM {$wpdb->prefix}alm_collections WHERE ID = %d",
+                    $coll->ID
+                ));
+                
+                if ($coll_post_id) {
+                    $coll_url = get_permalink($coll_post_id);
+                    $selected = ($coll->ID == $atts['collection_id']) ? 'selected' : '';
+                    
+                    // Add optgroup for each membership level
+                    $membership_level = intval($coll->membership_level);
+                    
+                    // Find the membership level name by numeric value
+                    $level_name = 'Unknown';
+                    foreach ($membership_levels as $level_key => $level_data) {
+                        if ($level_data['numeric'] == $membership_level) {
+                            $level_name = $level_data['name'];
+                            break;
+                        }
+                    }
+                    
+                    if ($current_level !== $membership_level) {
+                        // Close previous optgroup if it exists
+                        if ($current_level !== null) {
+                            $return .= '</optgroup>';
+                        }
+                        $return .= '<optgroup label="' . esc_attr($level_name) . '">';
+                        $current_level = $membership_level;
+                    }
+                    
+                    $return .= '<option value="' . esc_url($coll_url) . '" ' . $selected . '>' . esc_html(stripslashes($coll->collection_title)) . '</option>';
+                }
+            }
+            
+            // Close last optgroup
+            if ($current_level !== null) {
+                $return .= '</optgroup>';
+            }
+            
+            $return .= '</select>';
+            $return .= '</div>';
+            $return .= '</div>';
+        }
+        
+        // Membership Level Pill
+        $membership_level = isset($collection->membership_level) ? intval($collection->membership_level) : 2;
+        $membership_levels = ALM_Admin_Settings::get_membership_levels();
+        
+        // Find the membership level by numeric value
+        $membership_name = 'Unknown';
+        foreach ($membership_levels as $level_key => $level_data) {
+            if ($level_data['numeric'] == $membership_level) {
+                $membership_name = $level_data['name'];
+                break;
+            }
+        }
+        
+        // Badges Container (for horizontal alignment)
+        $return .= '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px;">';
+        
+        $return .= '<div class="alm-collection-badge">';
+        $return .= '<svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clip-rule="evenodd"/></svg>';
+        $return .= '<span>Lesson Collection</span>';
+        $return .= '</div>';
+        
+        // Membership Level Pill (separate style with orange color)
+        $return .= '<div class="alm-membership-badge">';
+        $return .= '<span>' . esc_html($membership_name) . '</span>';
+        $return .= '</div>';
+        
+        $return .= '</div>';
+        
+        // Title
+        $return .= '<h1 class="alm-hero-title">' . esc_html(stripslashes($collection->collection_title)) . '</h1>';
+        
+        // Description
+        if (!empty($collection->collection_description)) {
+            $return .= '<div class="alm-hero-description">' . nl2br(esc_html(stripslashes($collection->collection_description))) . '</div>';
+        }
+        
+        // Calculate formatted duration
+        $formatted_duration = ALM_Helpers::format_duration($total_duration);
+        
+        // Hero Stats (Large Cards)
+        $return .= '<div class="alm-hero-stats">';
+        $return .= '<div class="alm-hero-stat-card">';
+        $return .= '<div class="alm-hero-stat-icon lessons">';
+        $return .= '<svg width="28" height="28" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>';
+        $return .= '</div>';
+        $return .= '<div class="alm-hero-stat-content">';
+        $return .= '<div class="alm-hero-stat-number">' . $total_lessons . ' Lessons</div>';
+        $return .= '<div class="alm-hero-stat-label" style="color: rgba(255, 255, 255, 0.8); font-weight: 500;">' . $formatted_duration . ' Total</div>';
+        $return .= '</div>';
+        $return .= '</div>';
+        
+        $return .= '<div class="alm-hero-stat-card primary">';
+        $return .= '<div class="alm-hero-stat-icon progress">';
+        $return .= '<svg width="28" height="28" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>';
+        $return .= '</div>';
+        $return .= '<div class="alm-hero-stat-content">';
+        $return .= '<div class="alm-hero-stat-number">' . $collection_progress . '<span class="percent">%</span></div>';
+        $return .= '<div class="alm-hero-stat-label">Complete</div>';
+        // Progress bar for hero
+        $return .= '<div class="alm-hero-progress-bar">';
+        $return .= '<div class="alm-hero-progress-fill" style="width: ' . $collection_progress . '%"></div>';
+        $return .= '</div>';
+        $return .= '</div>';
+        $return .= '</div>';
+        
+        if ($completed_count > 0) {
+            $return .= '<div class="alm-hero-stat-card success">';
+            $return .= '<div class="alm-hero-stat-icon completed">';
+            $return .= '<svg width="28" height="28" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>';
+            $return .= '</div>';
+            $return .= '<div class="alm-hero-stat-content">';
+            $return .= '<div class="alm-hero-stat-number">' . $completed_count . '</div>';
+            $return .= '<div class="alm-hero-stat-label">Completed</div>';
+            $return .= '</div>';
+            $return .= '</div>';
+        }
+        
+        $return .= '</div>'; // End alm-hero-stats
+        $return .= '</div>'; // End alm-hero-content
+        $return .= '</div>'; // End alm-collection-hero
+        
+        // Lessons Section Header
+        $return .= '<div class="alm-lessons-section-header">';
+        $return .= '<h2 class="alm-lessons-section-title">Lessons in This Collection</h2>';
+        $return .= '<p class="alm-lessons-section-subtitle">Start with any lesson below and track your progress</p>';
+        $return .= '</div>';
+        
+        // Lessons Grid
+        $return .= '<div class="alm-lessons-grid-course">';
+        
+        $lesson_number = 0;
+        foreach ($lessons as $lesson) {
+            $lesson_number++;
+            $is_completed = in_array($lesson->ID, $completed_lessons);
+            $progress = 0;
+            
+            // Calculate progress for this specific lesson
+            $chapters = $wpdb->get_results($wpdb->prepare(
+                "SELECT ID FROM {$wpdb->prefix}alm_chapters WHERE lesson_id = %d",
+                $lesson->ID
+            ));
+            
+            if (!empty($chapters) && $user_id) {
+                $total_chapters = count($chapters);
+                $completed_chapters = 0;
+                
+                foreach ($chapters as $chapter) {
+                    $completed = $wpdb->get_var($wpdb->prepare(
+                        "SELECT ID FROM academy_completed_chapters WHERE chapter_id = %d AND user_id = %d AND deleted_at IS NULL",
+                        $chapter->ID,
+                        $user_id
+                    ));
+                    if (!empty($completed)) {
+                        $completed_chapters++;
+                    }
+                }
+                
+                $progress = $total_chapters > 0 ? round(($completed_chapters / $total_chapters) * 100) : 0;
+            }
+            
+            // Detect if lesson is favorited for current user
+            $is_favorited = false;
+            if ($user_id && !empty($favorites_titles)) {
+                // Check by lesson title (case-insensitive)
+                $ltitle = strtolower(trim(stripslashes($lesson->lesson_title)));
+                if (isset($favorites_titles[$ltitle])) {
+                    $is_favorited = true;
+                }
+            }
+
+            $return .= '<div class="alm-lesson-card-course' . ($is_completed ? ' alm-completed' : '') . '">';
+            
+            // Link to lesson if post exists
+            if ($lesson->post_id) {
+                $lesson_url = get_permalink($lesson->post_id);
+                $return .= '<a href="' . esc_url($lesson_url) . '" class="alm-lesson-card-link">';
+            }
+            
+            $return .= '<div class="alm-lesson-card-content">';
+            
+            // Lesson number and title
+            $return .= '<div class="alm-lesson-number">' . __('Lesson', 'academy-lesson-manager') . ' ' . $lesson_number . '</div>';
+            $return .= '<h3 class="alm-lesson-title">' . esc_html(stripslashes($lesson->lesson_title));
+            if ($is_favorited) {
+                $return .= ' <span class="alm-fav-indicator" title="In Favorites"><span class="dashicons dashicons-star-filled"></span> ' . __('Favorite', 'academy-lesson-manager') . '</span>';
+            }
+            $return .= '</h3>';
+            
+            // Lesson description
+            if (!empty($lesson->lesson_description)) {
+                $return .= '<div class="alm-lesson-description-course">' . esc_html(stripslashes($lesson->lesson_description)) . '</div>';
+            }
+            
+            // Progress bar - always show progress
+            $return .= '<div class="alm-progress-bar-course">';
+            $return .= '<div class="alm-progress-fill" style="width: ' . $progress . '%;"></div>';
+            $return .= '</div>';
+            $return .= '<div class="alm-progress-text">' . $progress . '% ' . __('Complete', 'academy-lesson-manager') . '</div>';
+            
+            // Completion badge
+            if ($is_completed) {
+                $return .= '<div class="alm-completion-badge-course">';
+                $return .= '<span class="dashicons dashicons-yes"></span> ' . __('Completed', 'academy-lesson-manager');
+                $return .= '</div>';
+            }
+            
+            // Duration
+            if ($lesson->duration > 0) {
+                $duration_hours = floor($lesson->duration / 3600);
+                $duration_minutes = floor(($lesson->duration % 3600) / 60);
+                $duration_str = '';
+                if ($duration_hours > 0) {
+                    $duration_str .= $duration_hours . 'h ';
+                }
+                if ($duration_minutes > 0) {
+                    $duration_str .= $duration_minutes . 'm';
+                }
+                if ($duration_str) {
+                    $return .= '<div class="alm-lesson-duration">';
+                    $return .= '<span class="dashicons dashicons-clock"></span> ';
+                    $return .= esc_html(trim($duration_str));
+                    $return .= '</div>';
+                }
+            }
+            
+            $return .= '</div>'; // Close alm-lesson-card-content
+            
+            if ($lesson->post_id) {
+                $return .= '</a>'; // Close lesson link
+            }
+            
+            $return .= '</div>'; // Close alm-lesson-card-course
+        }
+        
+        $return .= '</div>'; // Close alm-lessons-grid-course
+        $return .= '</div>'; // Close alm-course-listing
+        
+        return $return;
+    }
+    
+    /**
+     * Favorites Management Page Shortcode
+     * 
+     * Displays a drag-and-drop list of user's favorite lessons
+     * Allows reordering and deleting favorites
+     * 
+     * @param array $atts Shortcode attributes
+     * @return string HTML output
+     */
+    public function favorites_management_shortcode($atts) {
+        // Only show to logged in users
+        if (!is_user_logged_in()) {
+            return '<p>' . __('Please log in to view your favorites.', 'academy-lesson-manager') . '</p>';
+        }
+        
+        $user_id = get_current_user_id();
+        global $wpdb;
+        
+        // Check which favorites table exists
+        $jph_table = $wpdb->prefix . 'jph_lesson_favorites';
+        $jf_table = $wpdb->prefix . 'jf_favorites';
+        
+        $table_exists = false;
+        $table_name = '';
+        $table_type = '';
+        
+        // Try jph first
+        $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $jph_table));
+        if ($exists) {
+            $table_name = $jph_table;
+            $table_type = 'jph';
+            $table_exists = true;
+        } else {
+            // Try jf
+            $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $jf_table));
+            if ($exists) {
+                $table_name = $jf_table;
+                $table_type = 'jf';
+                $table_exists = true;
+            }
+        }
+        
+        if (!$table_exists) {
+            return '<p>' . __('Favorites system not found.', 'academy-lesson-manager') . '</p>';
+        }
+        
+        // Get user's favorites
+        if ($table_type === 'jph') {
+            $favorites = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY created_at DESC",
+                $user_id
+            ));
+        } else {
+            $favorites = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE user_id = %d AND is_active = 1 ORDER BY created_at DESC",
+                $user_id
+            ));
+        }
+        
+        $return = '<div class="alm-favorites-management">';
+        $return .= '<div class="alm-favorites-header">';
+        $return .= '<h2>' . __('My Favorites', 'academy-lesson-manager') . '</h2>';
+        $return .= '<span class="alm-favorites-count">' . count($favorites) . ' ' . __('lessons', 'academy-lesson-manager') . '</span>';
+        $return .= '</div>';
+        
+        if (empty($favorites)) {
+            $return .= '<div class="alm-favorites-empty">';
+            $return .= '<svg width="64" height="64" fill="currentColor" viewBox="0 0 20 20" style="opacity: 0.3; margin-bottom: 16px;"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/></svg>';
+            $return .= '<p>' . __('You haven\'t added any favorites yet.', 'academy-lesson-manager') . '</p>';
+            $return .= '</div>';
+        } else {
+            $return .= '<div class="alm-favorites-list" data-user-id="' . $user_id . '" data-table="' . $table_name . '" data-table-type="' . $table_type . '">';
+            
+            foreach ($favorites as $favorite) {
+                $title = stripslashes($favorite->title);
+                $created_date = !empty($favorite->created_at) ? date('M j, Y', strtotime($favorite->created_at)) : '';
+                
+                // Build URL: if resource_link exists and url contains je_link.php, rebuild using resource_link
+                $favorite_url = $favorite->url;
+                if (!empty($favorite->resource_link)) {
+                    // Check if url contains je_link.php - if so, extract lesson ID and rebuild with resource_link
+                    if (strpos($favorite->url, 'je_link.php') !== false) {
+                        // Extract lesson ID from existing URL
+                        parse_str(parse_url($favorite->url, PHP_URL_QUERY), $params);
+                        if (!empty($params['id']) && !empty($favorite->resource_link)) {
+                            // Rebuild URL with properly encoded resource_link
+                            $favorite_url = 'https://jazzedge.academy/je_link.php?id=' . intval($params['id']) . '&link=' . urlencode($favorite->resource_link);
+                        }
+                    } elseif (strpos($favorite->resource_link, 'http://') !== 0 && strpos($favorite->resource_link, 'https://') !== 0) {
+                        // resource_link is a file path and url is direct S3 URL - use resource_link to rebuild
+                        // But we need lesson ID... Actually, if url is S3 direct, we might not have lesson ID
+                        // For now, if url is S3 direct with broken path, try to fix it
+                        if (strpos($favorite->url, 's3.amazonaws.com') !== false && strpos($favorite->url, $favorite->resource_link) === false) {
+                            // Rebuild S3 URL with proper resource_link
+                            $favorite_url = 'https://s3.amazonaws.com/jazzedge-resources/' . $favorite->resource_link;
+                        }
+                    }
+                }
+                
+                // Check if it's a resource favorite
+                $is_resource = !empty($favorite->resource_link);
+                
+                $return .= '<div class="alm-favorite-item' . ($is_resource ? ' alm-favorite-resource' : '') . '" data-favorite-id="' . $favorite->id . '">';
+                $return .= '<a href="' . esc_url($favorite_url) . '" class="alm-favorite-link' . ($is_resource ? ' alm-favorite-resource-link' : '') . '">';
+                if ($is_resource) {
+                    $return .= '<span class="alm-favorite-resource-icon">📄</span>';
+                }
+                $return .= '<span class="alm-favorite-title">' . esc_html($title) . '</span>';
+                if ($created_date) {
+                    $return .= '<span class="alm-favorite-date">' . esc_html($created_date) . '</span>';
+                }
+                $return .= '</a>';
+                $return .= '<button class="alm-favorite-delete" data-favorite-id="' . $favorite->id . '" title="' . __('Remove favorite', 'academy-lesson-manager') . '">';
+                $return .= '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>';
+                $return .= '</button>';
+                $return .= '</div>';
+            }
+            
+            $return .= '</div>';
+        }
+        
+        $return .= '</div>';
+        
+        // Add CSS
+        $return .= '<style>
+            .alm-favorites-management {
+                max-width: 900px;
+                margin: 20px auto;
+                padding: 0 20px;
+            }
+            .alm-favorites-header {
+                display: flex;
+                align-items: baseline;
+                gap: 12px;
+                margin-bottom: 20px;
+            }
+            .alm-favorites-header h2 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 700;
+                color: #111827;
+            }
+            .alm-favorites-count {
+                font-size: 14px;
+                color: #6b7280;
+                font-weight: 500;
+            }
+            .alm-favorites-hint {
+                font-size: 13px;
+                color: #9ca3af;
+                margin: 0 0 16px 0;
+            }
+            .alm-favorites-empty {
+                text-align: center;
+                padding: 60px 20px;
+                color: #6b7280;
+            }
+            .alm-favorites-empty p {
+                font-size: 15px;
+                margin: 0;
+            }
+            .alm-favorites-list {
+                padding: 0;
+                margin: 0;
+            }
+            .alm-favorite-item {
+                display: flex;
+                align-items: center;
+                margin-bottom: 12px;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                overflow: hidden;
+                transition: all 0.2s ease;
+                width: 100%;
+            }
+            .alm-favorite-item:hover {
+                border-color: #d1d5db;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }
+            .alm-favorite-link {
+                flex: 1 1 auto;
+                padding: 16px 20px;
+                text-decoration: none;
+                color: #374151;
+                font-size: 16px;
+                font-weight: 500;
+                transition: color 0.2s ease;
+                line-height: 24px;
+                min-width: 0;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                height: 56px;
+                gap: 16px;
+            }
+            .alm-favorite-link:hover {
+                color: #059669;
+            }
+            .alm-favorite-title {
+                flex: 1;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .alm-favorite-date {
+                font-size: 13px;
+                color: #9ca3af;
+                font-weight: normal;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            .alm-favorite-link:hover .alm-favorite-date {
+                color: #6b7280;
+            }
+            .alm-favorite-delete {
+                background: none;
+                border: none;
+                color: #9ca3af;
+                cursor: pointer;
+                padding: 16px;
+                transition: all 0.2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                height: 56px;
+            }
+            .alm-favorite-delete:hover {
+                color: #ef4444;
+                background: #fef2f2;
+            }
+            .alm-favorite-delete:active {
+                transform: scale(0.95);
+            }
+            .alm-favorite-delete svg {
+                width: 18px;
+                height: 18px;
+            }
+        </style>';
+        
+        // Add JavaScript for delete functionality
+        $ajax_url = admin_url('admin-ajax.php');
+        $nonce = wp_create_nonce('alm_favorites_nonce');
+        
+        $return .= '<script>
+        jQuery(document).ready(function($) {
+            $(document).on("click", ".alm-favorite-delete", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                var $button = $(this);
+                var $item = $button.closest(".alm-favorite-item");
+                var favoriteId = $button.data("favorite-id");
+                var list = $item.closest(".alm-favorites-list");
+                var tableType = list.data("table-type");
+                
+                // Prevent multiple clicks
+                if ($item.hasClass("deleting")) {
+                    return;
+                }
+                
+                if (!confirm("Are you sure you want to remove this favorite?")) {
+                    return;
+                }
+                
+                // Mark as deleting and hide immediately
+                $item.addClass("deleting");
+                $button.prop("disabled", true);
+                $item.css("opacity", "0.5");
+                $item.fadeOut(300);
+                
+                $.ajax({
+                    url: "' . $ajax_url . '",
+                    type: "POST",
+                    data: {
+                        action: "alm_delete_favorite",
+                        favorite_id: favoriteId,
+                        table_type: tableType,
+                        nonce: "' . $nonce . '"
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Item already hidden, just remove from DOM
+                            $item.remove();
+                            // Update count
+                            var count = list.find(".alm-favorite-item").length;
+                            $(".alm-favorites-count").text(count + " lessons");
+                        } else {
+                            // Error: show item again
+                            $item.removeClass("deleting");
+                            $button.prop("disabled", false);
+                            $item.stop().css("opacity", "1").show();
+                            alert("Error: " + response.data);
+                        }
+                    },
+                    error: function() {
+                        // Error: show item again
+                        $item.removeClass("deleting");
+                        $button.prop("disabled", false);
+                        $item.stop().css("opacity", "1").show();
+                        alert("Error removing favorite. Please try again.");
+                    }
+                });
+            });
+        });
+        </script>';
+        
+        return $return;
+    }
+    
+    /**
+     * Collections Dropdown Shortcode
+     * Displays a dropdown list of all lesson collections grouped by membership level
+     */
+    public function collections_dropdown_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'placeholder' => 'Select a collection...',
+            'class' => '',
+            'style' => ''
+        ), $atts);
+        
+        global $wpdb;
+        
+        // Get all collections with membership levels
+        $all_collections = $wpdb->get_results(
+            "SELECT ID, collection_title, membership_level, post_id FROM {$wpdb->prefix}alm_collections ORDER BY membership_level ASC, collection_title ASC"
+        );
+        
+        if (empty($all_collections)) {
+            return '<p>No collections found.</p>';
+        }
+        
+        // Get membership level names
+        $membership_levels = ALM_Admin_Settings::get_membership_levels();
+        
+        $return = '<div class="alm-collections-dropdown-wrapper">';
+        $return .= '<select class="alm-collections-dropdown ' . esc_attr($atts['class']) . '" style="' . esc_attr($atts['style']) . '" onchange="if(this.value) window.location.href = this.value;">';
+        $return .= '<option value="">' . esc_html($atts['placeholder']) . '</option>';
+        
+        $current_level = null;
+        
+        foreach ($all_collections as $coll) {
+            // Only include collections that have a post_id (are published/accessible)
+            if (empty($coll->post_id)) {
+                continue;
+            }
+            
+            $coll_url = get_permalink($coll->post_id);
+            if (!$coll_url) {
+                continue;
+            }
+            
+            $membership_level = intval($coll->membership_level);
+            
+            // Find the membership level name by numeric value
+            $level_name = 'Unknown';
+            foreach ($membership_levels as $level_key => $level_data) {
+                if ($level_data['numeric'] == $membership_level) {
+                    $level_name = $level_data['name'];
+                    break;
+                }
+            }
+            
+            // Start new optgroup when membership level changes
+            if ($current_level !== $membership_level) {
+                // Close previous optgroup if it exists
+                if ($current_level !== null) {
+                    $return .= '</optgroup>';
+                }
+                $return .= '<optgroup label="' . esc_attr($level_name) . '">';
+                $current_level = $membership_level;
+            }
+            
+            $return .= '<option value="' . esc_url($coll_url) . '">' . esc_html(stripslashes($coll->collection_title)) . '</option>';
+        }
+        
+        // Close last optgroup
+        if ($current_level !== null) {
+            $return .= '</optgroup>';
+        }
+        
+        $return .= '</select>';
+        $return .= '</div>';
+        
+        return $return;
+    }
+    
+    /**
+     * User Notes Manager Shortcode
+     * CRUD interface for managing user notes
+     */
+    public function user_notes_manager_shortcode($atts) {
+        // Only show to logged in users
+        if (!is_user_logged_in()) {
+            return '<p>' . __('Please log in to view your notes.', 'academy-lesson-manager') . '</p>';
+        }
+        
+        $user_id = get_current_user_id();
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'alm_user_notes';
+        
+        // Get all user's notes
+        $notes = $wpdb->get_results($wpdb->prepare(
+            "SELECT n.*, 
+                    l.lesson_title,
+                    p.post_title
+             FROM {$table_name} n
+             LEFT JOIN {$wpdb->prefix}alm_lessons l ON n.lesson_id = l.ID
+             LEFT JOIN {$wpdb->posts} p ON n.post_id = p.ID
+             WHERE n.user_id = %d
+             ORDER BY n.updated_at DESC",
+            $user_id
+        ));
+        
+        $nonce = wp_create_nonce('alm_notes_crud_nonce');
+        $ajax_url = admin_url('admin-ajax.php');
+        
+        $return = '<div class="alm-notes-manager">';
+        $return .= '<div class="alm-notes-header">';
+        $return .= '<div class="alm-notes-header-content">';
+        $return .= '<h1 class="alm-notes-title">' . __('My Notes', 'academy-lesson-manager') . '</h1>';
+        $return .= '<div class="alm-notes-actions">';
+        $return .= '<button class="alm-btn-export-csv" style="background: #6b7280; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; margin-right: 12px;">';
+        $return .= '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
+        $return .= 'Export CSV</button>';
+        $return .= '<button class="alm-btn-create-note" style="background: #229B90; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px;">+ New Note</button>';
+        $return .= '</div>';
+        $return .= '</div>';
+        $return .= '</div>';
+        
+        // Create/Edit form (hidden by default)
+        $return .= '<div class="alm-note-form-container" style="display: none; margin-top: 20px; padding: 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">';
+        $return .= '<form class="alm-note-form">';
+        $return .= '<input type="hidden" name="note_id" id="alm-note-id" value="">';
+        $return .= '<div style="margin-bottom: 15px;">';
+        $return .= '<label style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Note Title</label>';
+        $return .= '<input type="text" name="title" id="alm-note-title" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" placeholder="Enter note title..." maxlength="255">';
+        $return .= '</div>';
+        $return .= '<div style="margin-bottom: 15px;">';
+        $return .= '<label style="display: block; margin-bottom: 5px; font-weight: 500; color: #374151;">Note Content</label>';
+        $return .= '<textarea name="notes_content" id="alm-note-content" rows="6" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit;" placeholder="Enter your note..."></textarea>';
+        $return .= '</div>';
+        $return .= '<div style="display: flex; gap: 10px;">';
+        $return .= '<button type="submit" class="alm-btn-save-note" style="background: #229B90; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500;">Save Note</button>';
+        $return .= '<button type="button" class="alm-btn-cancel-note" style="background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500;">Cancel</button>';
+        $return .= '</div>';
+        $return .= '</form>';
+        $return .= '</div>';
+        
+        // Notes list
+        if (empty($notes)) {
+            $return .= '<div class="alm-notes-empty" style="text-align: center; padding: 60px 20px; color: #6b7280;">';
+            $return .= '<svg width="64" height="64" fill="currentColor" viewBox="0 0 20 20" style="opacity: 0.3; margin-bottom: 16px;"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>';
+            $return .= '<p>' . __('You haven\'t created any notes yet.', 'academy-lesson-manager') . '</p>';
+            $return .= '</div>';
+        } else {
+            $return .= '<div class="alm-notes-list" style="margin-top: 20px;">';
+            foreach ($notes as $note) {
+                $note_date = date('M j, Y g:i a', strtotime($note->updated_at));
+                $created_date = date('M j, Y g:i a', strtotime($note->created_at));
+                $note_preview = wp_strip_all_tags($note->notes_content);
+                $note_preview = mb_strimwidth($note_preview, 0, 150, '...');
+                
+                $return .= '<div class="alm-note-item" data-note-id="' . $note->id . '" data-lesson-id="' . ($note->lesson_id ? $note->lesson_id : '') . '" data-created-at="' . esc_attr($created_date) . '" data-updated-at="' . esc_attr($note_date) . '" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 12px; transition: all 0.2s ease;">';
+                
+                // Note header
+                $return .= '<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">';
+                $return .= '<div style="flex: 1;">';
+                $note_title = !empty($note->title) ? $note->title : (!empty($note->lesson_title) ? $note->lesson_title : (!empty($note->post_title) ? $note->post_title : __('General Note', 'academy-lesson-manager')));
+                $return .= '<div style="font-weight: 600; color: #111827; margin-bottom: 4px; font-size: 16px;">' . esc_html($note_title) . '</div>';
+                $return .= '<div style="font-size: 12px; color: #6b7280;">' . esc_html($note_date) . '</div>';
+                $return .= '</div>';
+                $return .= '<div style="display: flex; gap: 8px; align-items: center;">';
+                $return .= '<button class="alm-btn-print-note" data-note-id="' . $note->id . '" style="background: none; border: 1px solid #d1d5db; color: #374151; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" title="Print">';
+                $return .= '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" /></svg>';
+                $return .= '</button>';
+                $return .= '<button class="alm-btn-edit-note" data-note-id="' . $note->id . '" style="background: none; border: 1px solid #d1d5db; color: #374151; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" title="Edit">';
+                $return .= '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>';
+                $return .= '</button>';
+                $return .= '<button class="alm-btn-delete-note" data-note-id="' . $note->id . '" style="background: none; border: 1px solid #ef4444; color: #ef4444; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" title="Delete">';
+                $return .= '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>';
+                $return .= '</button>';
+                $return .= '</div>';
+                $return .= '</div>';
+                
+                // Note content preview - store full content in data attribute for editing
+                $return .= '<div class="alm-note-content" style="color: #4b5563; line-height: 1.6; margin-top: 10px;" data-full-content="' . esc_attr($note->notes_content) . '">';
+                $return .= '<div style="max-height: 100px; overflow: hidden;">' . wp_kses_post($note->notes_content) . '</div>';
+                $return .= '</div>';
+                
+                $return .= '</div>';
+            }
+            $return .= '</div>';
+        }
+        
+        $return .= '</div>';
+        
+        // Add CSS
+        $return .= '<style>
+        .alm-notes-manager {
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .alm-notes-header {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .alm-notes-header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .alm-notes-title {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1.2;
+        }
+        .alm-notes-actions {
+            display: flex;
+            align-items: center;
+        }
+        .alm-note-item:hover {
+            border-color: #d1d5db !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .alm-note-content {
+            color: #4b5563;
+        }
+        .alm-note-content p {
+            margin: 0 0 8px 0;
+        }
+        .alm-note-content p:last-child {
+            margin-bottom: 0;
+        }
+        </style>';
+        
+        // Add JavaScript
+        $return .= '<script>
+        jQuery(document).ready(function($) {
+            var $formContainer = $(".alm-note-form-container");
+            var $form = $(".alm-note-form");
+            var $createBtn = $(".alm-btn-create-note");
+            var $cancelBtn = $(".alm-btn-cancel-note");
+            var allLessons = [];
+            
+            // Show create form
+            $createBtn.on("click", function() {
+                $form[0].reset();
+                $("#alm-note-id").val("");
+                $formContainer.slideDown();
+            });
+            
+            // Hide form
+            $cancelBtn.on("click", function() {
+                $formContainer.slideUp();
+                $form[0].reset();
+                $("#alm-note-id").val("");
+            });
+            
+            // Edit note
+            $(document).on("click", ".alm-btn-edit-note", function() {
+                var noteId = $(this).data("note-id");
+                var $noteItem = $(this).closest(".alm-note-item");
+                
+                // Get note title (from the header)
+                var noteTitle = $noteItem.find(".alm-note-content").closest(".alm-note-item").find("div[style*=\"font-weight: 600\"]").first().text().trim();
+                
+                // Get full content from data attribute to preserve HTML
+                var fullContent = $noteItem.find(".alm-note-content").data("full-content") || "";
+                // Fallback to text if data attribute not available
+                if (!fullContent) {
+                    fullContent = $noteItem.find(".alm-note-content").text();
+                }
+                
+                $("#alm-note-id").val(noteId);
+                $("#alm-note-title").val(noteTitle);
+                
+                // Use a temporary div to convert HTML to text while preserving line breaks
+                var $temp = $("<div>").html(fullContent);
+                var textContent = $temp.text();
+                $("#alm-note-content").val(textContent);
+                
+                $formContainer.slideDown();
+                $("html, body").animate({ scrollTop: $formContainer.offset().top - 20 }, 300);
+            });
+            
+            // Print note
+            $(document).on("click", ".alm-btn-print-note", function() {
+                var noteId = $(this).data("note-id");
+                var $noteItem = $(this).closest(".alm-note-item");
+                
+                // Create print window content
+                var noteTitle = $noteItem.find("div[style*=\"font-weight: 600\"]").first().text();
+                var noteDate = $noteItem.find("div[style*=\"font-size: 12px\"]").first().text();
+                var noteContent = $noteItem.find(".alm-note-content").html();
+                
+                var printWindow = window.open("", "_blank");
+                printWindow.document.write("<!DOCTYPE html><html><head><title>" + noteTitle + "</title>");
+                printWindow.document.write("<style>body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }");
+                printWindow.document.write("h1 { font-size: 24px; margin-bottom: 10px; color: #111827; }");
+                printWindow.document.write(".note-meta { color: #6b7280; font-size: 14px; margin-bottom: 20px; }");
+                printWindow.document.write(".note-content { line-height: 1.6; color: #4b5563; }");
+                printWindow.document.write("@media print { body { padding: 20px; } }</style></head><body>");
+                printWindow.document.write("<h1>" + noteTitle + "</h1>");
+                printWindow.document.write("<div class=\"note-meta\">" + noteDate + "</div>");
+                printWindow.document.write("<div class=\"note-content\">" + noteContent + "</div>");
+                printWindow.document.write("</body></html>");
+                printWindow.document.close();
+                
+                setTimeout(function() {
+                    printWindow.print();
+                }, 250);
+            });
+            
+            // Export CSV
+            $(".alm-btn-export-csv").on("click", function() {
+                // Helper function to properly escape CSV fields
+                function escapeCsvField(field) {
+                    if (field === null || field === undefined) {
+                        return "";
+                    }
+                    field = String(field);
+                    // Normalize whitespace - replace all types of whitespace/newlines with single space
+                    field = field.replace(/[\\s\\r\\n\\t]+/g, " ").trim();
+                    // If field contains comma, quote, or starts/ends with space, wrap in quotes
+                    if (field.indexOf(",") !== -1 || field.indexOf("\"") !== -1 || field.indexOf("\\n") !== -1) {
+                        // Escape quotes by doubling them
+                        return "\"" + field.replace(/"/g, "\"\"") + "\"";
+                    }
+                    return field;
+                }
+                
+                // CSV header
+                var csvRows = ["Title,Content,Date Created,Date Updated"];
+                
+                // Process each note
+                $(".alm-note-item").each(function() {
+                    var $item = $(this);
+                    var title = $item.find("div[style*=\"font-weight: 600\"]").first().text().trim();
+                    var content = $item.find(".alm-note-content").text().trim();
+                    var dateCreated = $item.data("created-at") || "";
+                    var dateUpdated = $item.data("updated-at") || "";
+                    
+                    // Escape each field
+                    var escapedTitle = escapeCsvField(title);
+                    var escapedContent = escapeCsvField(content);
+                    var escapedDateCreated = escapeCsvField(dateCreated);
+                    var escapedDateUpdated = escapeCsvField(dateUpdated);
+                    
+                    // Build CSV row
+                    var row = escapedTitle + "," + escapedContent + "," + escapedDateCreated + "," + escapedDateUpdated;
+                    csvRows.push(row);
+                });
+                
+                // Join all rows with newline
+                var csv = csvRows.join("\\n");
+                
+                // Create download link
+                var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                var link = document.createElement("a");
+                var url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "my-notes-" + new Date().toISOString().split("T")[0] + ".csv");
+                link.style.visibility = "hidden";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+            
+            // Delete note
+            $(document).on("click", ".alm-btn-delete-note", function() {
+                if (!confirm("Are you sure you want to delete this note?")) {
+                    return;
+                }
+                
+                var $btn = $(this);
+                var noteId = $btn.data("note-id");
+                var $noteItem = $btn.closest(".alm-note-item");
+                
+                $btn.prop("disabled", true).text("Deleting...");
+                
+                $.ajax({
+                    url: "' . $ajax_url . '",
+                    type: "POST",
+                    data: {
+                        action: "alm_delete_note",
+                        nonce: "' . $nonce . '",
+                        note_id: noteId
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $noteItem.fadeOut(300, function() {
+                                $(this).remove();
+                            });
+                        } else {
+                            alert("Error: " + (response.data || "Failed to delete note"));
+                            $btn.prop("disabled", false).text("Delete");
+                        }
+                    },
+                    error: function() {
+                        alert("Error deleting note");
+                        $btn.prop("disabled", false).text("Delete");
+                    }
+                });
+            });
+            
+            // Save note (create or update)
+            $form.on("submit", function(e) {
+                e.preventDefault();
+                
+                var noteId = $("#alm-note-id").val();
+                var notesContent = $("#alm-note-content").val();
+                var noteTitle = $("#alm-note-title").val();
+                
+                if (!notesContent.trim()) {
+                    alert("Please enter note content");
+                    return;
+                }
+                
+                if (!noteTitle.trim()) {
+                    alert("Please enter note title");
+                    return;
+                }
+                
+                var $submitBtn = $(".alm-btn-save-note");
+                $submitBtn.prop("disabled", true).text("Saving...");
+                
+                var action = noteId ? "alm_update_note" : "alm_create_note";
+                var data = {
+                    action: action,
+                    nonce: "' . $nonce . '",
+                    notes_content: notesContent,
+                    title: noteTitle
+                };
+                
+                if (noteId) {
+                    data.note_id = noteId;
+                }
+                
+                $.ajax({
+                    url: "' . $ajax_url . '",
+                    type: "POST",
+                    data: data,
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            alert("Error: " + (response.data || "Failed to save note"));
+                            $submitBtn.prop("disabled", false).text("Save Note");
+                        }
+                    },
+                    error: function() {
+                        alert("Error saving note");
+                        $submitBtn.prop("disabled", false).text("Save Note");
+                    }
+                });
+            });
+        });
+        </script>';
+        
+        return $return;
+    }
+    
+    /**
+     * AJAX handler: Create note
+     */
+    public function ajax_create_note() {
+        check_ajax_referer('alm_notes_crud_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $notes_content = isset($_POST['notes_content']) ? wp_kses_post($_POST['notes_content']) : '';
+        $title = isset($_POST['title']) ? sanitize_text_field($_POST['title']) : '';
+        
+        if (empty($notes_content)) {
+            wp_send_json_error('Note content is required');
+        }
+        
+        if (empty($title)) {
+            wp_send_json_error('Note title is required');
+        }
+        
+        global $wpdb;
+        $post_id = get_the_ID();
+        
+        $result = $wpdb->insert(
+            $wpdb->prefix . 'alm_user_notes',
+            array(
+                'user_id' => $user_id,
+                'post_id' => $post_id ? $post_id : 0,
+                'lesson_id' => null,
+                'title' => $title,
+                'notes_content' => $notes_content,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ),
+            array('%d', '%d', '%d', '%s', '%s', '%s', '%s')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array('message' => 'Note created successfully'));
+        } else {
+            wp_send_json_error('Failed to create note');
+        }
+    }
+    
+    /**
+     * AJAX handler: Update note
+     */
+    public function ajax_update_note() {
+        check_ajax_referer('alm_notes_crud_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $note_id = isset($_POST['note_id']) ? intval($_POST['note_id']) : 0;
+        $notes_content = isset($_POST['notes_content']) ? wp_kses_post($_POST['notes_content']) : '';
+        $title = isset($_POST['title']) ? sanitize_text_field($_POST['title']) : '';
+        
+        if (!$note_id) {
+            wp_send_json_error('Note ID is required');
+        }
+        
+        if (empty($notes_content)) {
+            wp_send_json_error('Note content is required');
+        }
+        
+        if (empty($title)) {
+            wp_send_json_error('Note title is required');
+        }
+        
+        global $wpdb;
+        
+        // Verify note belongs to user
+        $note = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}alm_user_notes WHERE id = %d AND user_id = %d",
+            $note_id,
+            $user_id
+        ));
+        
+        if (!$note) {
+            wp_send_json_error('Note not found or access denied');
+        }
+        
+        $result = $wpdb->update(
+            $wpdb->prefix . 'alm_user_notes',
+            array(
+                'title' => $title,
+                'notes_content' => $notes_content,
+                'updated_at' => current_time('mysql')
+            ),
+            array('id' => $note_id),
+            array('%s', '%s', '%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success(array('message' => 'Note updated successfully'));
+        } else {
+            wp_send_json_error('Failed to update note');
+        }
+    }
+    
+    /**
+     * AJAX handler: Delete note
+     */
+    public function ajax_delete_note() {
+        check_ajax_referer('alm_notes_crud_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $note_id = isset($_POST['note_id']) ? intval($_POST['note_id']) : 0;
+        
+        if (!$note_id) {
+            wp_send_json_error('Note ID is required');
+        }
+        
+        global $wpdb;
+        
+        // Verify note belongs to user before deleting
+        $note = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}alm_user_notes WHERE id = %d AND user_id = %d",
+            $note_id,
+            $user_id
+        ));
+        
+        if (!$note) {
+            wp_send_json_error('Note not found or access denied');
+        }
+        
+        $deleted = $wpdb->delete(
+            $wpdb->prefix . 'alm_user_notes',
+            array('id' => $note_id),
+            array('%d')
+        );
+        
+        if ($deleted) {
+            wp_send_json_success(array('message' => 'Note deleted successfully'));
+        } else {
+            wp_send_json_error('Failed to delete note');
+        }
+    }
+    
+    /**
+     * AJAX handler: Get lessons list for dropdown
+     */
+    public function ajax_get_lessons_list() {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        global $wpdb;
+        $lessons = $wpdb->get_results(
+            "SELECT ID, lesson_title FROM {$wpdb->prefix}alm_lessons ORDER BY lesson_title ASC"
+        );
+        
+        $lessons_list = array();
+        foreach ($lessons as $lesson) {
+            $lessons_list[$lesson->ID] = stripslashes($lesson->lesson_title);
+        }
+        
+        wp_send_json_success($lessons_list);
     }
 }
 

@@ -85,6 +85,9 @@ class ALM_Post_Sync {
         // Update ACF fields
         $this->update_lesson_acf_fields($post_id, $lesson, $collection);
         
+        // Flush rewrite rules to update permalink
+        flush_rewrite_rules(false);
+        
         return $post_id;
     }
     
@@ -109,20 +112,35 @@ class ALM_Post_Sync {
             'post_title' => stripslashes($collection->collection_title),
             'post_content' => stripslashes($collection->collection_description),
             'post_status' => 'publish',
-            'post_type' => 'lesson-collection',
+            'post_type' => 'course',
             'post_date' => $collection->created_at,
             'post_modified' => current_time('mysql'),
             'post_name' => sanitize_title($collection->collection_title)
         );
         
-        // Update existing post or create new one
+        // Check if post_id exists and is valid
+        $post_id = null;
         if ($collection->post_id && get_post($collection->post_id)) {
+            // Use existing post_id
             $post_data['ID'] = $collection->post_id;
             $post_id = wp_update_post($post_data);
         } else {
-            $post_id = wp_insert_post($post_data);
+            // Check if a course post with this exact title already exists
+            $existing_post = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT ID FROM {$this->wpdb->posts} WHERE post_title = %s AND post_type = 'course' LIMIT 1",
+                stripslashes($collection->collection_title)
+            ));
             
-            // Update ALM table with new post_id
+            if ($existing_post) {
+                // Update the existing course post
+                $post_data['ID'] = $existing_post->ID;
+                $post_id = wp_update_post($post_data);
+            } else {
+                // Create new post
+                $post_id = wp_insert_post($post_data);
+            }
+            
+            // Update ALM table with post_id
             $this->wpdb->update(
                 $collections_table,
                 array('post_id' => $post_id),
@@ -199,6 +217,9 @@ class ALM_Post_Sync {
         
         // Also store as regular post meta for compatibility
         update_post_meta($post_id, 'alm_collection_id', $collection->ID);
+        
+        // Save course_id to meta (for backwards compatibility)
+        update_post_meta($post_id, 'course_id', $collection->ID);
         
         // Membership level name
         $membership_name = ALM_Admin_Settings::get_membership_level_name($collection->membership_level);
@@ -300,7 +321,7 @@ class ALM_Post_Sync {
     public function sync_post_to_collection($post_id) {
         $post = get_post($post_id);
         
-        if (!$post || $post->post_type !== 'lesson-collection') {
+        if (!$post || $post->post_type !== 'course') {
             return false;
         }
         

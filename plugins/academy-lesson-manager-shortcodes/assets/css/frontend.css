@@ -714,6 +714,21 @@
     color: #004555;
 }
 
+/* Collection title link styling */
+.alm-card-title a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.alm-card-title a:hover {
+    color: #6B2B60;
+    text-decoration: underline;
+    transform: translateX(3px);
+}
+
 .alm-card-description {
     margin: 0;
     font-size: 15px;
@@ -900,20 +915,16 @@
     margin: 0;
 }
 
-.alm-resource-item {
+.alm-resource-item a {
     display: flex;
     align-items: center;
-    padding: 12px 16px;
-    margin-bottom: 8px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border-left: 4px solid #239B90;
+    text-decoration: none;
     transition: all 0.2s ease;
 }
 
-.alm-resource-item:hover {
-    background: #e3f2fd;
-    transform: translateX(4px);
+.alm-resource-item:hover a {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
 }
 
 .alm-resource-item.note {
@@ -973,8 +984,696 @@
     color: #F04E23;
 }
 
+/* Course Listing Styles */
+.alm-course-listing {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #ffffff;
+}
+
+/* NEW: Collection Hero Section */
+.alm-collection-hero {
+    background: linear-gradient(135deg, #004555 0%, #006b7a 50%, #239B90 100%);
+    padding: 80px 40px 60px;
+    margin-bottom: 60px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Hero Collection Dropdown */
+.alm-hero-collection-selector {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 30px;
+}
+
+.alm-hero-collection-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    max-width: 360px;
+    width: 100%;
+}
+
+.alm-hero-collection-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #004555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.alm-hero-collection-dropdown {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0 35px 0 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #004555;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23004555' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    width: 100%;
+    margin: 0;
+}
+
+.alm-hero-collection-card:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    transform: translateY(-2px);
+}
+
+.alm-hero-collection-dropdown:focus {
+    outline: none;
+}
+
+.alm-hero-collection-dropdown option {
+    background: white;
+    color: #004555;
+    padding: 8px;
+}
+
+.alm-collection-hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    opacity: 0.1;
+}
+
+.alm-hero-content {
+    max-width: 1000px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* Collection Badge */
+.alm-collection-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.alm-collection-badge svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Membership Badge */
+.alm-membership-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(240, 78, 35, 0.9);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(240, 78, 35, 0.3);
+}
+
+/* Hero Title */
+.alm-hero-title {
+    font-size: 56px;
+    font-weight: 800;
+    color: white;
+    margin: 0 0 24px 0;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Hero Description */
+.alm-hero-description {
+    font-size: 20px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.95);
+    max-width: 800px;
+    margin-bottom: 40px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Hero Stats */
+.alm-hero-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    margin-top: 40px;
+}
+
+.alm-hero-stat-card {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.3s ease;
+}
+
+.alm-hero-stat-card:hover {
+    background: rgba(255, 255, 255, 0.18);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.alm-hero-stat-card.primary {
+    background: rgba(240, 78, 35, 0.25);
+    border-color: rgba(240, 78, 35, 0.3);
+}
+
+.alm-hero-stat-card.primary:hover {
+    background: rgba(240, 78, 35, 0.3);
+}
+
+.alm-hero-stat-card.success {
+    background: rgba(35, 155, 144, 0.25);
+    border-color: rgba(35, 155, 144, 0.3);
+}
+
+.alm-hero-stat-card.success:hover {
+    background: rgba(35, 155, 144, 0.3);
+}
+
+.alm-hero-stat-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.alm-hero-stat-icon.lessons {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.alm-hero-stat-icon.progress {
+    background: rgba(240, 78, 35, 0.3);
+    color: white;
+}
+
+.alm-hero-stat-icon.completed {
+    background: rgba(35, 155, 144, 0.3);
+    color: white;
+}
+
+.alm-hero-stat-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.alm-hero-stat-number {
+    font-size: 38px;
+    font-weight: 800;
+    color: white;
+    line-height: 1;
+    margin-bottom: 6px;
+}
+
+.alm-hero-stat-number .percent {
+    font-size: 24px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.alm-hero-stat-label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+/* Hero Progress Bar */
+.alm-hero-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.alm-hero-progress-fill {
+    height: 100%;
+    background: white;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+
+.alm-course-header {
+    text-align: center;
+    margin-bottom: 50px;
+    padding: 0;
+}
+
+.alm-course-title {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #004555 0%, #239B90 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 30px 0;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+}
+
+.alm-course-description {
+    font-size: 19px;
+    line-height: 1.8;
+    color: #495057;
+    max-width: 900px;
+    margin: 0 auto 20px auto;
+    text-align: center;
+}
+
+.alm-course-description p {
+    margin: 0 0 16px 0;
+}
+
+.alm-course-description strong {
+    color: #004555;
+    font-weight: 700;
+}
+
+.alm-course-description ul {
+    text-align: left;
+    max-width: 700px;
+    margin: 20px auto;
+    padding-left: 0;
+    list-style: none;
+}
+
+.alm-course-description li {
+    padding: 12px 0 12px 40px;
+    position: relative;
+    font-size: 17px;
+    line-height: 1.6;
+    color: #495057;
+}
+
+.alm-course-description li::before {
+    content: '✓';
+    position: absolute;
+    left: 10px;
+    color: #239B90;
+    font-weight: 700;
+    font-size: 20px;
+}
+
+.alm-course-stats {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 60px;
+    flex-wrap: wrap;
+}
+
+.alm-stat-item {
+    text-align: center;
+    padding: 30px 40px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 16px;
+    border: 2px solid #e9ecef;
+    min-width: 160px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.alm-stat-item:hover {
+    border-color: #239B90;
+    transform: translateY(-4px);
+    box-shadow: 0 6px 20px rgba(35, 155, 144, 0.2);
+}
+
+.alm-stat-number {
+    display: block;
+    font-size: 42px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #004555 0%, #239B90 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+    line-height: 1;
+}
+
+.alm-stat-label {
+    display: block;
+    font-size: 14px;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-weight: 600;
+}
+
+/* Lessons Section Header */
+.alm-lessons-section-header {
+    text-align: center;
+    margin: 60px 40px 40px 40px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.alm-lessons-section-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: #004555;
+    margin: 0 0 8px 0;
+}
+
+.alm-lessons-section-subtitle {
+    font-size: 16px;
+    color: #6c757d;
+    margin: 0;
+    font-weight: 500;
+}
+
+.alm-lessons-grid-course {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+    padding: 0 40px 60px 40px;
+}
+
+.alm-lesson-card-course {
+    background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    border: 2px solid #e9ecef;
+    position: relative;
+}
+
+.alm-lesson-card-course:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 12px 35px rgba(35, 155, 144, 0.25);
+    border-color: #239B90;
+    background: linear-gradient(to bottom, #ffffff 0%, #f0f8f7 100%);
+}
+
+.alm-lesson-card-course.alm-completed {
+    border-color: #F04E23;
+}
+
+.alm-lesson-card-course.alm-completed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 50px 50px 0;
+    border-color: transparent #F04E23 transparent transparent;
+    z-index: 10;
+}
+
+.alm-lesson-card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
+.alm-lesson-card-content {
+    padding: 32px;
+}
+
+.alm-lesson-number {
+    font-size: 12px;
+    font-weight: 800;
+    color: #239B90;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+}
+
+.alm-lesson-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #004555;
+    margin: 0 0 16px 0;
+    line-height: 1.3;
+    min-height: 64px;
+}
+
+.alm-lesson-description-course {
+    font-size: 15px;
+    color: #495057;
+    line-height: 1.7;
+    margin: 0 0 20px 0;
+    max-height: 76px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.alm-progress-bar-course {
+    width: 100%;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.alm-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #239B90 0%, #1e7a6b 100%);
+    border-radius: 8px;
+    transition: width 0.4s ease;
+    box-shadow: 0 2px 4px rgba(35, 155, 144, 0.3);
+}
+
+.alm-progress-text {
+    font-size: 13px;
+    color: #6c757d;
+    font-weight: 600;
+    text-align: center;
+    margin: 4px 0;
+}
+
+.alm-completion-badge-course {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #F04E23;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 15px;
+}
+
+.alm-completion-badge-course .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.alm-lesson-duration {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #6c757d;
+    font-size: 14px;
+    margin-top: 15px;
+    font-weight: 600;
+}
+
+.alm-lesson-duration .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: #239B90;
+}
+
+.alm-no-lessons {
+    text-align: center;
+    padding: 60px 20px;
+    font-size: 18px;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 2px dashed #dee2e6;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
+    /* Hero Section Responsive */
+    .alm-collection-hero {
+        padding: 50px 20px 40px;
+        margin-bottom: 40px;
+    }
+    
+    .alm-hero-collection-selector {
+        margin-bottom: 20px;
+    }
+    
+    .alm-hero-collection-card {
+        max-width: 100%;
+        padding: 12px;
+    }
+    
+    .alm-hero-collection-label {
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+    
+    .alm-hero-collection-dropdown {
+        padding: 0 30px 0 0;
+        font-size: 14px;
+    }
+    
+    .alm-hero-title {
+        font-size: 36px;
+    }
+    
+    .alm-hero-description {
+        font-size: 17px;
+        line-height: 1.6;
+        margin-bottom: 30px;
+    }
+    
+    .alm-hero-stats {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-top: 30px;
+    }
+    
+    .alm-hero-stat-card {
+        padding: 20px;
+    }
+    
+    .alm-hero-stat-number {
+        font-size: 32px;
+    }
+    
+    .alm-hero-stat-number .percent {
+        font-size: 20px;
+    }
+    
+    .alm-hero-stat-icon {
+        width: 48px;
+        height: 48px;
+    }
+    
+    .alm-hero-stat-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+    
+    .alm-collection-badge {
+        font-size: 11px;
+        padding: 6px 12px;
+        margin-bottom: 16px;
+    }
+    
+    /* Course Listing Responsive */
+    .alm-course-listing {
+        padding: 0;
+    }
+    
+    .alm-course-title {
+        font-size: 36px;
+        margin-bottom: 24px;
+    }
+    
+    .alm-course-description {
+        font-size: 17px;
+        line-height: 1.7;
+    }
+    
+    .alm-course-description li {
+        font-size: 16px;
+        padding: 10px 0 10px 35px;
+    }
+    
+    .alm-course-stats {
+        gap: 20px;
+        margin-bottom: 40px;
+    }
+    
+    .alm-stat-item {
+        min-width: 120px;
+        padding: 20px 25px;
+    }
+    
+    .alm-stat-number {
+        font-size: 32px;
+    }
+    
+    .alm-lessons-section-header {
+        margin: 40px 20px 30px 20px;
+        padding-bottom: 20px;
+    }
+    
+    .alm-lessons-section-title {
+        font-size: 28px;
+    }
+    
+    .alm-lessons-section-subtitle {
+        font-size: 14px;
+    }
+    
+    .alm-lessons-grid-course {
+        grid-template-columns: 1fr;
+        gap: 20px;
+        padding: 0 20px 40px 20px;
+        margin-top: 20px;
+    }
+    
+    .alm-lessons-section-header {
+        margin: 40px 20px 30px 20px;
+    }
+    
+    .alm-lesson-card-content {
+        padding: 20px;
+    }
+    
+    .alm-lesson-title {
+        min-height: auto;
+        font-size: 20px;
+    }
+    
     .alm-lesson-meta {
         flex-direction: column;
         gap: 8px;
@@ -1004,5 +1703,43 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 6px;
+    }
+}
+
+@media (max-width: 480px) {
+    .alm-collection-hero {
+        padding: 40px 15px 30px;
+    }
+    
+    .alm-hero-collection-card {
+        padding: 10px;
+    }
+    
+    .alm-hero-collection-label {
+        font-size: 11px;
+        margin-bottom: 4px;
+    }
+    
+    .alm-hero-collection-dropdown {
+        padding: 0 28px 0 0;
+        font-size: 13px;
+    }
+    
+    .alm-hero-title {
+        font-size: 28px;
+    }
+    
+    .alm-hero-description {
+        font-size: 16px;
+    }
+    
+    .alm-hero-stat-card {
+        padding: 16px;
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .alm-hero-stat-number {
+        font-size: 28px;
     }
 }

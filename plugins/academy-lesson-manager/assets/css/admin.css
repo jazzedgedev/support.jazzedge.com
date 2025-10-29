@@ -167,7 +167,8 @@
 }
 
 .wp-list-table .column-title {
-    width: 250px;
+    min-width: 300px;
+    width: auto;
 }
 
 .wp-list-table .column-song {
@@ -182,6 +183,13 @@
     width: 85px;
 }
 
+/* Lessons table specific - resources column */
+.wp-list-table .column-resources {
+    width: 100px;
+    text-align: center;
+}
+
+/* Default membership column width for lessons table */
 .wp-list-table .column-membership {
     width: 80px;
 }
@@ -199,10 +207,6 @@
     width: 100px;
 }
 
-.wp-list-table .column-duration {
-    width: 85px;
-}
-
 .wp-list-table .column-order {
     width: 60px;
 }
@@ -217,6 +221,22 @@
 
 .wp-list-table .column-free {
     width: 60px;
+}
+
+/* Collections table specific column widths - override default widths */
+.wp-list-table tbody tr:has(.column-title) .column-membership,
+.wp-list-table thead tr:has(.column-title) .column-membership {
+    width: 100px !important;
+}
+
+/* Alternative selector for browsers that don't support :has() */
+.wp-list-table.alm-collections-table .column-membership {
+    width: 100px;
+}
+
+.wp-list-table .column-lessons {
+    width: 80px;
+    text-align: center;
 }
 
 /* Status indicators */

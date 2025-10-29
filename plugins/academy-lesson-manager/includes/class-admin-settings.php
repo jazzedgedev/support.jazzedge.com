@@ -19,22 +19,7 @@ class ALM_Admin_Settings {
         $this->wpdb = $wpdb;
         $this->database = new ALM_Database();
         
-        add_action('admin_menu', array($this, 'add_settings_menu'));
         add_action('admin_init', array($this, 'register_settings'));
-    }
-    
-    /**
-     * Add settings menu
-     */
-    public function add_settings_menu() {
-        add_submenu_page(
-            'academy-manager',
-            __('Settings', 'academy-lesson-manager'),
-            __('Settings', 'academy-lesson-manager'),
-            'manage_options',
-            'academy-manager-settings',
-            array($this, 'render_settings_page')
-        );
     }
     
     /**
@@ -86,7 +71,6 @@ class ALM_Admin_Settings {
         }
         
         $this->render_navigation_buttons();
-        $this->render_membership_levels_settings();
         $this->render_keap_tags_settings();
         $this->render_bunny_api_settings();
         $this->render_database_update_section();
@@ -104,54 +88,6 @@ class ALM_Admin_Settings {
         echo '<a href="?page=academy-manager-lessons" class="button">' . __('Lessons', 'academy-lesson-manager') . '</a> ';
         echo '<a href="?page=academy-manager-chapters" class="button">' . __('Chapters', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings" class="button button-primary" style="margin-left: 10px;">' . __('Settings', 'academy-lesson-manager') . '</a>';
-        echo '</div>';
-    }
-    
-    /**
-     * Render membership levels settings
-     */
-    private function render_membership_levels_settings() {
-        $membership_levels = get_option('alm_membership_levels', array(
-            'free' => array('name' => 'Free', 'numeric' => 0, 'description' => 'Free content'),
-            'essentials' => array('name' => 'Essentials', 'numeric' => 1, 'description' => 'Basic membership'),
-            'studio' => array('name' => 'Studio', 'numeric' => 2, 'description' => 'Standard membership'),
-            'premier' => array('name' => 'Premier', 'numeric' => 3, 'description' => 'Premium membership')
-        ));
-        
-        echo '<div class="alm-settings-section">';
-        echo '<h2>' . __('Membership Levels', 'academy-lesson-manager') . '</h2>';
-        echo '<p class="description">' . __('Configure membership levels and their numeric values. Higher numbers have access to lower levels.', 'academy-lesson-manager') . '</p>';
-        
-        echo '<form method="post" action="">';
-        echo '<table class="form-table">';
-        echo '<tbody>';
-        
-        foreach ($membership_levels as $key => $level) {
-            echo '<tr>';
-            echo '<th scope="row"><label for="' . $key . '_name">' . ucfirst($key) . ' Level</label></th>';
-            echo '<td>';
-            echo '<input type="text" id="' . $key . '_name" name="membership_levels[' . $key . '][name]" value="' . esc_attr($level['name']) . '" class="regular-text" />';
-            echo '<input type="hidden" name="membership_levels[' . $key . '][numeric]" value="' . esc_attr($level['numeric']) . '" />';
-            echo '<p class="description">Numeric Level: ' . $level['numeric'] . '</p>';
-            echo '</td>';
-            echo '</tr>';
-            
-            echo '<tr>';
-            echo '<th scope="row"><label for="' . $key . '_description">' . ucfirst($key) . ' Description</label></th>';
-            echo '<td>';
-            echo '<input type="text" id="' . $key . '_description" name="membership_levels[' . $key . '][description]" value="' . esc_attr($level['description']) . '" class="regular-text" />';
-            echo '</td>';
-            echo '</tr>';
-        }
-        
-        echo '</tbody>';
-        echo '</table>';
-        
-        echo '<p class="submit">';
-        echo '<input type="hidden" name="save_settings" value="1" />';
-        echo '<input type="submit" class="button-primary" value="' . __('Save Membership Levels', 'academy-lesson-manager') . '" />';
-        echo '</p>';
-        echo '</form>';
         echo '</div>';
     }
     
@@ -419,10 +355,6 @@ class ALM_Admin_Settings {
     private function save_settings() {
         if (!current_user_can('manage_options')) {
             wp_die(__('You do not have sufficient permissions to access this page.'));
-        }
-        
-        if (isset($_POST['membership_levels'])) {
-            update_option('alm_membership_levels', $_POST['membership_levels']);
         }
         
         if (isset($_POST['keap_tags'])) {

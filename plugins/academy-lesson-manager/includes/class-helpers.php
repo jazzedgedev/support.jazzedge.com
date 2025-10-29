@@ -108,20 +108,29 @@ class ALM_Helpers {
         $formatted = array();
         foreach ($unserialized as $type => $value) {
             if (!empty($value)) {
-                // Handle both old format (string URL) and new format (array with url and attachment_id)
+                // Handle both old format (string URL) and new format (array with url, attachment_id, label)
                 if (is_array($value)) {
                     $url = isset($value['url']) ? $value['url'] : '';
                     $attachment_id = isset($value['attachment_id']) ? $value['attachment_id'] : 0;
+                    $label = isset($value['label']) ? $value['label'] : '';
+                    
+                    // Safety check: if url is still an array, try to extract from it
+                    if (is_array($url)) {
+                        $url = isset($url['url']) ? $url['url'] : (isset($url[0]) ? $url[0] : '');
+                    }
                 } else {
                     $url = $value;
                     $attachment_id = 0;
+                    $label = '';
                 }
                 
-                if (!empty($url)) {
+                // Ensure url is a string before proceeding
+                if (!empty($url) && is_string($url)) {
                     $formatted[] = array(
                         'type' => $type,
                         'url' => $url,
                         'attachment_id' => $attachment_id,
+                        'label' => $label,
                         'display_url' => self::format_resource_url($url, $type)
                     );
                 }
@@ -139,6 +148,21 @@ class ALM_Helpers {
      * @return string Formatted URL
      */
     private static function format_resource_url($url, $type) {
+        // Safety check: ensure we have a string
+        if (!is_string($url)) {
+            // If it's an array, try to extract URL
+            if (is_array($url)) {
+                $url = isset($url['url']) ? $url['url'] : (isset($url[0]) ? $url[0] : '');
+            } else {
+                $url = (string) $url;
+            }
+        }
+        
+        // If still not a string or empty, return empty string
+        if (!is_string($url) || empty($url)) {
+            return '';
+        }
+        
         // Handle different URL formats based on type
         if (strpos($url, 'https://s3.amazonaws.com/jazzedge-resources/') === 0) {
             return $url;
@@ -167,6 +191,36 @@ class ALM_Helpers {
      */
     public static function sanitize_textarea($content) {
         return sanitize_textarea_field($content);
+    }
+    
+    /**
+     * Clean HTML and WordPress block comments from content
+     * Removes WordPress Gutenberg block comments and HTML tags, keeping plain text
+     * 
+     * @param string $content Content to clean
+     * @return string Cleaned plain text content
+     */
+    public static function clean_html_content($content) {
+        if (empty($content)) {
+            return '';
+        }
+        
+        // Remove WordPress block comments (e.g., <!-- wp:paragraph -->, <!-- /wp:paragraph -->)
+        $content = preg_replace('/<!--\s*wp:[^>]*-->/i', '', $content);
+        $content = preg_replace('/<!--\s*\/wp:[^>]*-->/i', '', $content);
+        
+        // Remove all HTML tags but keep the text content
+        $content = strip_tags($content);
+        
+        // Decode HTML entities
+        $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        
+        // Clean up extra whitespace (multiple spaces, newlines, etc.)
+        $content = preg_replace('/[ \t]+/', ' ', $content); // Multiple spaces to single space
+        $content = preg_replace('/\n\s*\n\s*\n/', "\n\n", $content); // Multiple newlines to double newline
+        $content = trim($content);
+        
+        return $content;
     }
     
     /**

@@ -248,7 +248,7 @@ class JPH_Database {
         $table_name = $wpdb->prefix . 'jph_lesson_favorites';
         
         $favorites = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY created_at DESC",
+            "SELECT * FROM {$table_name} WHERE user_id = %d AND category = 'lesson' ORDER BY created_at DESC",
             $user_id
         ), ARRAY_A);
         

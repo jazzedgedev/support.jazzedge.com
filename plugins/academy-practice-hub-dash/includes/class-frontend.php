@@ -941,6 +941,22 @@ class JPH_Frontend {
     }
     
     /**
+     * Get all lesson favorites for a user (all categories)
+     */
+    private function get_all_lesson_favorites($user_id) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        
+        $favorites = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY category ASC, title ASC",
+            $user_id
+        ), ARRAY_A);
+        
+        return $favorites ?: array();
+    }
+    
+    /**
      * Render the student dashboard
      */
     public function render_dashboard($atts) {
@@ -1042,8 +1058,8 @@ class JPH_Frontend {
         $practice_items = $this->database->get_user_practice_items($user_id);
         $practice_items = $this->sanitize_practice_items($practice_items);
         
-        // Get user's lesson favorites for matching URLs
-        $lesson_favorites = $this->database->get_lesson_favorites($user_id);
+        // Get user's lesson favorites for matching URLs (all categories)
+        $lesson_favorites = $this->get_all_lesson_favorites($user_id);
         $lesson_favorites = $this->sanitize_practice_items($lesson_favorites); // Reuse the same sanitization
         
         // Create a lookup array for practice item names to lesson URLs
@@ -1075,7 +1091,7 @@ class JPH_Frontend {
                 <div class="beta-notice-content">
                     <div class="beta-notice-text">
                         <span class="beta-icon">🚧</span>
-                        <span class="beta-text">This is beta software. Your account is safe, but practice data may occasionally be affected.</span>
+                        <span class="beta-text">We're testing a new design! We'd love to hear your feedback on what you like and what we can improve.</span>
                     </div>
                     <button id="jph-feedback-btn-banner" type="button" class="jph-feedback-btn-banner">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="btn-icon">
@@ -1091,7 +1107,7 @@ class JPH_Frontend {
                 <div class="jph-modal-overlay"></div>
                 <div class="jph-modal-content">
                     <div class="jph-modal-header">
-                        <h3>🚧 Beta Software Notice</h3>
+                        <h3>✨ New Practice Hub Design</h3>
                         <button class="jph-modal-close" id="jph-beta-disclaimer-close">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -1104,20 +1120,20 @@ class JPH_Frontend {
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                             </svg>
                         </div>
-                        <p><strong>Welcome to the Practice Hub Beta!</strong></p>
-                        <p>This is beta software that we're actively developing and improving. While we've done extensive testing, there's still a small possibility of data loss.</p>
-                        <p><strong>What to know:</strong></p>
+                        <p><strong>Welcome to the redesigned Practice Hub!</strong></p>
+                        <p>We've been working hard on a fresh new look and improved experience. We'd love to hear what you think!</p>
+                        <p><strong>What's new:</strong></p>
                         <ul>
-                            <li>Your account and login information are completely safe</li>
-                            <li>Only practice data (sessions, XP, streaks) could potentially be affected</li>
-                            <li>We're continuously backing up your data</li>
-                            <li>If anything happens, we'll work with you to restore your progress</li>
+                            <li>Cleaner, more intuitive dashboard design</li>
+                            <li>Better organization of your practice items and favorites</li>
+                            <li>Enhanced progress tracking and analytics</li>
+                            <li>All your data is safe and secure</li>
                         </ul>
-                        <p>Thank you for being part of our beta testing community! Your feedback helps us make this tool better for everyone.</p>
+                        <p>Your feedback is invaluable as we continue to refine this new design. Please share your thoughts on what works well and what we can improve!</p>
                     </div>
                     <div class="jph-modal-footer">
                         <button id="jph-beta-disclaimer-understand" class="jph-btn jph-btn-primary">
-                            I Understand - Continue to Practice Hub
+                            Got It - Let's Go!
                         </button>
                     </div>
                 </div>
@@ -1229,7 +1245,7 @@ class JPH_Frontend {
                                 $last_lesson_data = maybe_unserialize($last_lesson);
                                 
                                 if (is_array($last_lesson_data) && !empty($last_lesson_data['title'])) {
-                                    $lesson_title = esc_html($last_lesson_data['title']);
+                                    $lesson_title = esc_html(stripslashes($last_lesson_data['title']));
                                     $permalink = esc_url($last_lesson_data['permalink']);
                                     ?>
                                     <div class="last-lesson-content">
@@ -1239,7 +1255,7 @@ class JPH_Frontend {
                                             </svg>
                                         </div>
                                         <div class="last-lesson-info">
-                                            <a href="<?php echo $permalink; ?>" class="last-lesson-link"><?php echo $lesson_title; ?></a>
+                                            <a href="<?php echo $permalink; ?>" target="_blank" rel="noopener noreferrer" class="last-lesson-link"><?php echo $lesson_title; ?></a>
                                             <span class="last-lesson-label">Last viewed lesson</span>
                                         </div>
                                     </div>
@@ -1274,6 +1290,102 @@ class JPH_Frontend {
                                 </div>
                                 <?php
                             }
+                        ?>
+                        
+                        <?php
+                        // Quick Favorites Dropdown - Grouped by category and alphabetized
+                        if (!empty($lesson_favorites)) {
+                            // Organize favorites by category
+                            $favorites_by_category = array();
+                            foreach ($lesson_favorites as $favorite_item) {
+                                if (empty($favorite_item['title']) || empty($favorite_item['url'])) {
+                                    continue;
+                                }
+                                $category = !empty($favorite_item['category']) ? $favorite_item['category'] : 'lesson';
+                                $title = stripslashes($favorite_item['title']);
+                                $resource_type = !empty($favorite_item['resource_type']) ? $favorite_item['resource_type'] : '';
+                                
+                                // Determine if this should be a Resource based on:
+                                // 1. resource_type is set (this indicates it's definitely a resource)
+                                // 2. Category is not 'lesson'
+                                // 3. Title contains resource indicators like "(Sheet Music)", "(PDF)", etc.
+                                $is_resource = false;
+                                if (!empty($resource_type)) {
+                                    $is_resource = true;
+                                } elseif ($category !== 'lesson') {
+                                    $is_resource = true;
+                                } else {
+                                    // Check title for resource indicators
+                                    $resource_indicators = array('(Sheet Music)', '(PDF)', '(Sheet)', '(Music)', '(Resource)');
+                                    foreach ($resource_indicators as $indicator) {
+                                        if (stripos($title, $indicator) !== false) {
+                                            $is_resource = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                $display_category = $is_resource ? 'Resources' : 'Lessons';
+                                
+                                if (!isset($favorites_by_category[$display_category])) {
+                                    $favorites_by_category[$display_category] = array();
+                                }
+                                
+                                $favorites_by_category[$display_category][] = $favorite_item;
+                            }
+                            
+                            // Sort each category alphabetically by title
+                            foreach ($favorites_by_category as $cat => &$items) {
+                                usort($items, function($a, $b) {
+                                    return strcasecmp(stripslashes($a['title']), stripslashes($b['title']));
+                                });
+                            }
+                            unset($items);
+                            
+                            echo '<div class="quick-nav quick-nav-favorites">';
+                            echo '<label for="jph-favorites-dropdown" class="quick-nav-label">Favorites</label>';
+                            echo '<select id="jph-favorites-dropdown" class="quick-nav-select" style="width:100%;max-width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#ffffff;box-shadow:none;outline:none;">';
+                            echo '<option value="">Select a favorite…</option>';
+                            echo '<option value="' . esc_url(home_url('/my-favorites')) . '" data-view-all="true">📋 View all favorites</option>';
+                            
+                            // Display in order: Lessons first, then Resources
+                            $category_order = array('Lessons', 'Resources');
+                            foreach ($category_order as $category_name) {
+                                if (isset($favorites_by_category[$category_name]) && !empty($favorites_by_category[$category_name])) {
+                                    echo '<optgroup label="' . esc_attr($category_name) . '">';
+                                    foreach ($favorites_by_category[$category_name] as $favorite_item) {
+                                        $fav_title = esc_html(stripslashes($favorite_item['title']));
+                                        
+                                        // Build URL: if resource_link exists and url contains je_link.php, rebuild using resource_link
+                                        $fav_url = $favorite_item['url'];
+                                        if (!empty($favorite_item['resource_link'])) {
+                                            // Check if url contains je_link.php - if so, extract lesson ID and rebuild with resource_link
+                                            if (strpos($fav_url, 'je_link.php') !== false) {
+                                                // Extract lesson ID from existing URL
+                                                parse_str(parse_url($fav_url, PHP_URL_QUERY), $params);
+                                                if (!empty($params['id']) && !empty($favorite_item['resource_link'])) {
+                                                    // Rebuild URL with properly encoded resource_link
+                                                    $fav_url = 'https://jazzedge.academy/je_link.php?id=' . intval($params['id']) . '&link=' . urlencode($favorite_item['resource_link']);
+                                                }
+                                            } elseif (strpos($favorite_item['resource_link'], 'http://') !== 0 && strpos($favorite_item['resource_link'], 'https://') !== 0) {
+                                                // resource_link is a file path and url is direct S3 URL - use resource_link to rebuild
+                                                if (strpos($fav_url, 's3.amazonaws.com') !== false && strpos($fav_url, $favorite_item['resource_link']) === false) {
+                                                    // Rebuild S3 URL with proper resource_link
+                                                    $fav_url = 'https://s3.amazonaws.com/jazzedge-resources/' . $favorite_item['resource_link'];
+                                                }
+                                            }
+                                        }
+                                        
+                                        $fav_url = esc_url($fav_url);
+                                        echo '<option value="' . $fav_url . '" title="' . $fav_title . '">' . $fav_title . '</option>';
+                                    }
+                                    echo '</optgroup>';
+                                }
+                            }
+                            
+                            echo '</select>';
+                            echo '</div>';
+                        }
                             ?>
                         </div>
                         
@@ -1291,6 +1403,74 @@ class JPH_Frontend {
                                     <span class="search-description">Find lessons, techniques, and topics</span>
                                 </div>
                             </div>
+                            <?php
+                            // Collections Dropdown (from Academy Lesson Manager collections)
+                            // Grouped by membership level
+                            global $wpdb;
+                            $collections_table = $wpdb->prefix . 'alm_collections';
+                            $collections = $wpdb->get_results(
+                                "SELECT ID, collection_title, membership_level, post_id 
+                                 FROM {$collections_table} 
+                                 ORDER BY membership_level ASC, collection_title ASC"
+                            );
+                            
+                            if (!empty($collections)) {
+                                // Get membership level names
+                                $membership_levels = array();
+                                if (class_exists('ALM_Admin_Settings') && method_exists('ALM_Admin_Settings', 'get_membership_levels')) {
+                                    $membership_levels = ALM_Admin_Settings::get_membership_levels();
+                                }
+                                
+                                echo '<div class="quick-nav quick-nav-collections">';
+                                echo '<label for="jph-collections-dropdown" class="quick-nav-label">Collections</label>';
+                                echo '<select id="jph-collections-dropdown" class="quick-nav-select" onchange="if(this.value) window.location.href=this.value;" style="width:100%;max-width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#ffffff;box-shadow:none;outline:none;">';
+                                echo '<option value="">Select a collection…</option>';
+                                
+                                $current_level = null;
+                                foreach ($collections as $collection_row) {
+                                    // Only include collections that have a post_id (are published/accessible)
+                                    $post_id = intval($collection_row->post_id);
+                                    if (!$post_id) { continue; }
+                                    
+                                    $collection_url = get_permalink($post_id);
+                                    if (!$collection_url) { continue; }
+                                    
+                                    $membership_level = intval($collection_row->membership_level);
+                                    
+                                    // Find the membership level name by numeric value
+                                    $level_name = 'Unknown';
+                                    if (!empty($membership_levels)) {
+                                        foreach ($membership_levels as $level_key => $level_data) {
+                                            if (isset($level_data['numeric']) && $level_data['numeric'] == $membership_level) {
+                                                $level_name = isset($level_data['name']) ? $level_data['name'] : 'Unknown';
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Start new optgroup when membership level changes
+                                    if ($current_level !== $membership_level) {
+                                        // Close previous optgroup if it exists
+                                        if ($current_level !== null) {
+                                            echo '</optgroup>';
+                                        }
+                                        echo '<optgroup label="' . esc_attr($level_name) . '">';
+                                        $current_level = $membership_level;
+                                    }
+                                    
+                                    $collection_title = esc_html(stripslashes($collection_row->collection_title));
+                                    echo '<option value="' . esc_url($collection_url) . '" title="' . $collection_title . '">' . $collection_title . '</option>';
+                                }
+                                
+                                // Close last optgroup
+                                if ($current_level !== null) {
+                                    echo '</optgroup>';
+                                }
+                                
+                                echo '</select>';
+                                echo '</div>';
+                            }
+                            ?>
                         </div>
                     </div>
                 </div>
@@ -10060,6 +10240,33 @@ class JPH_Frontend {
             
             // Initialize tab functionality
             initTabs();
+            
+            // Handle favorites dropdown - open in new tab without popup blocker
+            $('#jph-favorites-dropdown').on('change', function() {
+                const url = $(this).val();
+                if (url) {
+                    const selectedOption = $(this).find('option:selected');
+                    const isViewAll = selectedOption.data('view-all');
+                    
+                    if (isViewAll) {
+                        // Navigate to favorites page in same window
+                        window.location.href = url;
+                    } else {
+                        // Create a temporary anchor element and click it
+                        // This method avoids Safari popup blockers
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Reset dropdown
+                        $(this).val('');
+                    }
+                }
+            });
             
             // Function to initialize practice chart
             function initializePracticeChart() {
