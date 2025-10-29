@@ -139,6 +139,38 @@ class ALM_Shortcodes_Plugin {
         return isset($levels[$level]) ? $levels[$level] : 'Free';
     }
     
+    /**
+     * Format duration in seconds to human-readable format (e.g., "1hr 20min")
+     * 
+     * @param int $seconds Duration in seconds
+     * @return string Human-readable duration
+     */
+    private function format_duration_human_readable($seconds) {
+        if (empty($seconds) || $seconds <= 0) {
+            return '0min';
+        }
+        
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        
+        $parts = array();
+        
+        if ($hours > 0) {
+            $parts[] = $hours . 'hr';
+        }
+        
+        if ($minutes > 0) {
+            $parts[] = $minutes . 'min';
+        }
+        
+        // If less than a minute, show as minutes anyway
+        if (empty($parts)) {
+            return '0min';
+        }
+        
+        return implode(' ', $parts);
+    }
+    
     public function init() {
         // Register shortcodes
         add_shortcode('alm_test', array($this, 'test_shortcode'));
@@ -3227,8 +3259,8 @@ class ALM_Shortcodes_Plugin {
             $return .= '<div class="alm-hero-description">' . nl2br(esc_html(stripslashes($collection->collection_description))) . '</div>';
         }
         
-        // Calculate formatted duration
-        $formatted_duration = ALM_Helpers::format_duration($total_duration);
+        // Calculate formatted duration in human-readable format
+        $formatted_duration = self::format_duration_human_readable($total_duration);
         
         // Hero Stats (Large Cards)
         $return .= '<div class="alm-hero-stats">';
@@ -3321,7 +3353,17 @@ class ALM_Shortcodes_Plugin {
                 }
             }
 
-            $return .= '<div class="alm-lesson-card-course' . ($is_completed ? ' alm-completed' : '') . '">';
+            // Detect if lesson has resources
+            $has_resources = false;
+            if (!empty($lesson->resources)) {
+                $parsed_resources = ALM_Helpers::format_serialized_resources($lesson->resources);
+                if (!empty($parsed_resources)) {
+                    $has_resources = true;
+                }
+            }
+
+            // Card wrapper (position relative to allow bottom-right badges)
+            $return .= '<div class="alm-lesson-card-course' . ($is_completed ? ' alm-completed' : '') . '" style="position: relative;">';
             
             // Link to lesson if post exists
             if ($lesson->post_id) {
@@ -3357,7 +3399,10 @@ class ALM_Shortcodes_Plugin {
                 $return .= '</div>';
             }
             
-            // Duration
+            // Bottom section with duration and resource icon
+            $return .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">';
+            
+            // Duration on the left
             if ($lesson->duration > 0) {
                 $duration_hours = floor($lesson->duration / 3600);
                 $duration_minutes = floor(($lesson->duration % 3600) / 60);
@@ -3369,13 +3414,24 @@ class ALM_Shortcodes_Plugin {
                     $duration_str .= $duration_minutes . 'm';
                 }
                 if ($duration_str) {
-                    $return .= '<div class="alm-lesson-duration">';
+                    $return .= '<div class="alm-lesson-duration" style="margin-top: 0;">';
                     $return .= '<span class="dashicons dashicons-clock"></span> ';
                     $return .= esc_html(trim($duration_str));
                     $return .= '</div>';
                 }
+            } else {
+                $return .= '<div></div>'; // Spacer for flex layout
             }
             
+            // Resource badge icon on the right
+            if ($has_resources) {
+                $return .= '<div class="alm-lesson-resource-badge" title="Resources available" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #f0f8f7; border: 1px solid #d4e8e5; color: #239B90; pointer-events: none;">';
+                $return .= '<svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" /></svg>';
+                $return .= '</div>';
+            }
+            
+            $return .= '</div>'; // Close bottom section flex container
+
             $return .= '</div>'; // Close alm-lesson-card-content
             
             if ($lesson->post_id) {

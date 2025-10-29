@@ -549,7 +549,11 @@ class ALM_Admin_Collections {
         ));
         
         echo '<div class="alm-collection-lessons">';
-        echo '<h3>' . __('Lessons in This Collection', 'academy-lesson-manager') . ' <a href="?page=academy-manager-lessons&action=add&collection_id=' . $collection_id . '" class="button button-small">' . __('Add Lesson', 'academy-lesson-manager') . '</a></h3>';
+        echo '<h3>' . __('Lessons in This Collection', 'academy-lesson-manager') . ' <a href="?page=academy-manager-lessons&action=add&collection_id=' . $collection_id . '" class="button button-small">' . __('Add Lesson', 'academy-lesson-manager') . '</a>';
+        echo ' <button type="button" class="button button-small" id="alm-calculate-collection-bunny-durations" data-collection-id="' . $collection_id . '">' . __('Calculate All Bunny Durations', 'academy-lesson-manager') . '</button>';
+        echo ' <button type="button" class="button button-small" id="alm-calculate-collection-vimeo-durations" data-collection-id="' . $collection_id . '">' . __('Calculate All Vimeo Durations', 'academy-lesson-manager') . '</button>';
+        echo ' <button type="button" class="button button-small" id="alm-sync-collection-lessons" data-collection-id="' . $collection_id . '">' . __('Sync All Lessons', 'academy-lesson-manager') . '</button>';
+        echo '</h3>';
         
         if (empty($lessons)) {
             echo '<p>' . __('No lessons found in this collection.', 'academy-lesson-manager') . '</p>';
@@ -561,17 +565,31 @@ class ALM_Admin_Collections {
             echo '<th scope="col">' . __('ID', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Title', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Duration', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col">' . __('Synced Status', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Actions', 'academy-lesson-manager') . '</th>';
             echo '</tr>';
             echo '</thead>';
             echo '<tbody class="ui-sortable">';
             
             foreach ($lessons as $lesson) {
+                $sync_status = $this->check_lesson_sync_status($lesson);
+                
                 echo '<tr data-lesson-id="' . $lesson->ID . '">';
                 echo '<td><span class="dashicons dashicons-menu" style="cursor: move; color: #999;"></span></td>';
                 echo '<td>' . $lesson->ID . '</td>';
                 echo '<td><a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '">' . esc_html(stripslashes($lesson->lesson_title)) . '</a></td>';
                 echo '<td>' . ALM_Helpers::format_duration($lesson->duration) . '</td>';
+                echo '<td>';
+                if ($sync_status['status'] === 'synced') {
+                    echo '<span style="color: #46b450; font-weight: bold;">✓ ' . __('Synced', 'academy-lesson-manager') . '</span>';
+                } elseif ($sync_status['status'] === 'partial') {
+                    echo '<span style="color: #ffb900; font-weight: bold;">⚠ ' . __('Partially Synced', 'academy-lesson-manager') . '</span>';
+                } elseif ($sync_status['status'] === 'not_synced') {
+                    echo '<span style="color: #dc3232; font-weight: bold;">✗ ' . __('Not Synced', 'academy-lesson-manager') . '</span>';
+                } else {
+                    echo '<span style="color: #666; font-weight: bold;">— ' . __('No WordPress Post', 'academy-lesson-manager') . '</span>';
+                }
+                echo '</td>';
                 echo '<td>';
                 echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '" class="button button-small">' . __('Edit', 'academy-lesson-manager') . '</a> ';
                 echo '<a href="?page=academy-manager-lessons&action=remove_from_collection&id=' . $lesson->ID . '&collection_id=' . $collection_id . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to remove this lesson from the collection?', 'academy-lesson-manager') . '\')">' . __('Remove', 'academy-lesson-manager') . '</a>';
@@ -584,6 +602,46 @@ class ALM_Admin_Collections {
         }
         
         echo '</div>';
+    }
+    
+    /**
+     * Check sync status of lesson with WordPress post
+     */
+    private function check_lesson_sync_status($lesson) {
+        if (!$lesson->post_id) {
+            return array('status' => 'no_post');
+        }
+        
+        $post = get_post($lesson->post_id);
+        if (!$post) {
+            return array('status' => 'no_post');
+        }
+        
+        // Check if ACF function exists
+        if (!function_exists('get_field')) {
+            return array('status' => 'no_acf');
+        }
+        
+        // Check critical ACF fields
+        $alm_lesson_id = get_field('alm_lesson_id', $lesson->post_id);
+        $alm_collection_id = get_field('alm_collection_id', $lesson->post_id);
+        $lesson_duration = get_field('lesson_duration', $lesson->post_id);
+        $lesson_membership_level = get_field('lesson_membership_level', $lesson->post_id);
+        
+        // Count missing fields
+        $missing_fields = 0;
+        if ($alm_lesson_id != $lesson->ID) $missing_fields++;
+        if ($alm_collection_id != $lesson->collection_id) $missing_fields++;
+        if ($lesson_duration != $lesson->duration) $missing_fields++;
+        if ($lesson_membership_level != $lesson->membership_level) $missing_fields++;
+        
+        if ($missing_fields === 0) {
+            return array('status' => 'synced');
+        } elseif ($missing_fields <= 2) {
+            return array('status' => 'partial');
+        } else {
+            return array('status' => 'not_synced');
+        }
     }
     
     /**

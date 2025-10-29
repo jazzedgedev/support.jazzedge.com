@@ -117,6 +117,13 @@ class Academy_Lesson_Manager {
         // Add AJAX handler for calculating all chapter durations from Vimeo API
         add_action('wp_ajax_alm_calculate_all_vimeo_durations', array($this, 'ajax_calculate_all_vimeo_durations'));
         
+        // Add AJAX handlers for collection-level duration calculation
+        add_action('wp_ajax_alm_calculate_collection_bunny_durations', array($this, 'ajax_calculate_collection_bunny_durations'));
+        add_action('wp_ajax_alm_calculate_collection_vimeo_durations', array($this, 'ajax_calculate_collection_vimeo_durations'));
+        
+        // Add AJAX handler for syncing all lessons in a collection
+        add_action('wp_ajax_alm_sync_collection_lessons', array($this, 'ajax_sync_collection_lessons'));
+        
         // Note: Frontend AJAX handlers (favorites management) are registered in constructor
         
         // Add WordPress hooks for reverse sync
@@ -585,6 +592,173 @@ class Academy_Lesson_Manager {
                         },
                         complete: function() {
                             $button.prop("disabled", false).text("Calculate All Vimeo Durations");
+                        }
+                    });
+                });
+            });
+        ');
+        
+        // Add JavaScript for collection-level duration calculation
+        wp_add_inline_script('alm-admin-js', '
+            jQuery(document).ready(function($) {
+                // Collection Bunny durations
+                $("#alm-calculate-collection-bunny-durations").on("click", function() {
+                    var $button = $(this);
+                    var collectionId = $button.data("collection-id");
+                    
+                    if (!collectionId) {
+                        alert("Error: No collection ID found");
+                        return;
+                    }
+                    
+                    if (!confirm("This will calculate durations for ALL lessons in this collection. This may take a while for large collections. Continue?")) {
+                        return;
+                    }
+                    
+                    $button.prop("disabled", true).text("Calculating...");
+                    
+                    $.ajax({
+                        url: alm_admin.ajax_url,
+                        type: "POST",
+                        data: {
+                            action: "alm_calculate_collection_bunny_durations",
+                            nonce: alm_admin.nonce,
+                            collection_id: collectionId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                var message = "Collection processed: " + response.data.lessons_processed + " lessons, " + response.data.lessons_updated + " updated. ";
+                                message += response.data.chapters_updated + " chapters updated. ";
+                                if (response.data.total_duration > 0) {
+                                    var hours = Math.floor(response.data.total_duration / 3600);
+                                    var minutes = Math.floor((response.data.total_duration % 3600) / 60);
+                                    message += "Total duration: " + (hours > 0 ? hours + "h " : "") + minutes + "m";
+                                }
+                                $("<div class=\"notice notice-success is-dismissible\"><p>" + message + "</p></div>")
+                                    .insertAfter($button.closest("h3"))
+                                    .delay(5000)
+                                    .fadeOut();
+                                
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            } else {
+                                alert("Error: " + (response.data ? response.data : "Unknown error"));
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", xhr, status, error);
+                            alert("Error calculating durations. Please check the console for details.");
+                        },
+                        complete: function() {
+                            $button.prop("disabled", false).text("Calculate All Bunny Durations");
+                        }
+                    });
+                });
+                
+                // Collection Vimeo durations
+                $("#alm-calculate-collection-vimeo-durations").on("click", function() {
+                    var $button = $(this);
+                    var collectionId = $button.data("collection-id");
+                    
+                    if (!collectionId) {
+                        alert("Error: No collection ID found");
+                        return;
+                    }
+                    
+                    if (!confirm("This will calculate durations for ALL lessons in this collection. This may take a while for large collections. Continue?")) {
+                        return;
+                    }
+                    
+                    $button.prop("disabled", true).text("Calculating...");
+                    
+                    $.ajax({
+                        url: alm_admin.ajax_url,
+                        type: "POST",
+                        data: {
+                            action: "alm_calculate_collection_vimeo_durations",
+                            nonce: alm_admin.nonce,
+                            collection_id: collectionId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                var message = "Collection processed: " + response.data.lessons_processed + " lessons, " + response.data.lessons_updated + " updated. ";
+                                message += response.data.chapters_updated + " chapters updated. ";
+                                if (response.data.total_duration > 0) {
+                                    var hours = Math.floor(response.data.total_duration / 3600);
+                                    var minutes = Math.floor((response.data.total_duration % 3600) / 60);
+                                    message += "Total duration: " + (hours > 0 ? hours + "h " : "") + minutes + "m";
+                                }
+                                $("<div class=\"notice notice-success is-dismissible\"><p>" + message + "</p></div>")
+                                    .insertAfter($button.closest("h3"))
+                                    .delay(5000)
+                                    .fadeOut();
+                                
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            } else {
+                                alert("Error: " + (response.data ? response.data : "Unknown error"));
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", xhr, status, error);
+                            alert("Error calculating durations. Please check the console for details.");
+                        },
+                        complete: function() {
+                            $button.prop("disabled", false).text("Calculate All Vimeo Durations");
+                        }
+                    });
+                });
+                
+                // Collection lesson sync
+                $("#alm-sync-collection-lessons").on("click", function() {
+                    var $button = $(this);
+                    var collectionId = $button.data("collection-id");
+                    
+                    if (!collectionId) {
+                        alert("Error: No collection ID found");
+                        return;
+                    }
+                    
+                    if (!confirm("This will sync ALL lessons in this collection to their WordPress posts and update ACF fields. Continue?")) {
+                        return;
+                    }
+                    
+                    $button.prop("disabled", true).text("Syncing...");
+                    
+                    $.ajax({
+                        url: alm_admin.ajax_url,
+                        type: "POST",
+                        data: {
+                            action: "alm_sync_collection_lessons",
+                            nonce: alm_admin.nonce,
+                            collection_id: collectionId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                var message = "Sync completed: " + response.data.lessons_processed + " lessons processed, " + response.data.lessons_synced + " synced successfully.";
+                                if (response.data.lessons_failed > 0) {
+                                    message += " " + response.data.lessons_failed + " failed.";
+                                }
+                                $("<div class=\"notice notice-success is-dismissible\"><p>" + message + "</p></div>")
+                                    .insertAfter($button.closest("h3"))
+                                    .delay(5000)
+                                    .fadeOut();
+                                
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            } else {
+                                alert("Error: " + (response.data ? response.data : "Unknown error"));
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", xhr, status, error);
+                            alert("Error syncing lessons. Please check the console for details.");
+                        },
+                        complete: function() {
+                            $button.prop("disabled", false).text("Sync All Lessons");
                         }
                     });
                 });
@@ -1385,6 +1559,299 @@ class Academy_Lesson_Manager {
             'total_duration' => $total_duration,
             'chapters_count' => count($chapters),
             'debug_info' => implode("\n", $debug_info)
+        ));
+    }
+    
+    /**
+     * AJAX handler for calculating all chapter durations from Bunny API for a collection
+     */
+    public function ajax_calculate_collection_bunny_durations() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'alm_admin_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $collection_id = intval($_POST['collection_id']);
+        
+        if (empty($collection_id)) {
+            wp_send_json_error('Invalid collection ID');
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $lessons_table = $database->get_table_name('lessons');
+        $chapters_table = $database->get_table_name('chapters');
+        
+        // Get all lessons in this collection
+        $lessons = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID FROM {$lessons_table} WHERE collection_id = %d",
+            $collection_id
+        ));
+        
+        if (empty($lessons)) {
+            wp_send_json_error('No lessons found in this collection');
+        }
+        
+        $bunny_api = new ALM_Bunny_API();
+        
+        if (!$bunny_api->is_configured()) {
+            wp_send_json_error('Bunny.net API not configured. Please set Library ID and API Key in settings.');
+        }
+        
+        $lessons_processed = 0;
+        $lessons_updated = 0;
+        $chapters_updated = 0;
+        $total_duration = 0;
+        $debug_info = array();
+        
+        foreach ($lessons as $lesson) {
+            $lesson_id = $lesson->ID;
+            $debug_info[] = "Processing lesson ID: {$lesson_id}";
+            
+            // Get all chapters for this lesson that have Bunny URLs
+            $chapters = $wpdb->get_results($wpdb->prepare(
+                "SELECT ID, bunny_url FROM {$chapters_table} WHERE lesson_id = %d AND bunny_url != '' AND bunny_url IS NOT NULL",
+                $lesson_id
+            ));
+            
+            if (empty($chapters)) {
+                $debug_info[] = "  - No chapters with Bunny URLs found";
+                $lessons_processed++;
+                continue;
+            }
+            
+            $lesson_duration = 0;
+            $lesson_chapters_updated = 0;
+            
+            foreach ($chapters as $chapter) {
+                $duration = $bunny_api->get_video_duration($chapter->bunny_url);
+                
+                if ($duration !== false && $duration > 0) {
+                    // Update the chapter duration
+                    $wpdb->update(
+                        $chapters_table,
+                        array('duration' => $duration),
+                        array('ID' => $chapter->ID),
+                        array('%d'),
+                        array('%d')
+                    );
+                    
+                    $lesson_chapters_updated++;
+                    $lesson_duration += $duration;
+                    $chapters_updated++;
+                }
+            }
+            
+            // Update the lesson's total duration
+            if ($lesson_duration > 0) {
+                $wpdb->update(
+                    $lessons_table,
+                    array('duration' => $lesson_duration),
+                    array('ID' => $lesson_id),
+                    array('%d'),
+                    array('%d')
+                );
+                $lessons_updated++;
+                $total_duration += $lesson_duration;
+                $debug_info[] = "  - Updated lesson duration: " . ALM_Helpers::format_duration($lesson_duration) . " ({$lesson_chapters_updated} chapters)";
+            } else {
+                $debug_info[] = "  - No valid durations found for chapters";
+            }
+            
+            $lessons_processed++;
+        }
+        
+        // Log debug info
+        error_log("ALM Collection Bunny Duration Debug: " . implode("\n", $debug_info));
+        
+        wp_send_json_success(array(
+            'lessons_processed' => $lessons_processed,
+            'lessons_updated' => $lessons_updated,
+            'chapters_updated' => $chapters_updated,
+            'total_duration' => $total_duration,
+            'debug_info' => implode("\n", $debug_info)
+        ));
+    }
+    
+    /**
+     * AJAX handler for calculating all chapter durations from Vimeo API for a collection
+     */
+    public function ajax_calculate_collection_vimeo_durations() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'alm_admin_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $collection_id = intval($_POST['collection_id']);
+        
+        if (empty($collection_id)) {
+            wp_send_json_error('Invalid collection ID');
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $lessons_table = $database->get_table_name('lessons');
+        $chapters_table = $database->get_table_name('chapters');
+        
+        // Get all lessons in this collection
+        $lessons = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID FROM {$lessons_table} WHERE collection_id = %d",
+            $collection_id
+        ));
+        
+        if (empty($lessons)) {
+            wp_send_json_error('No lessons found in this collection');
+        }
+        
+        $vimeo_api = new ALM_Vimeo_API();
+        
+        $lessons_processed = 0;
+        $lessons_updated = 0;
+        $chapters_updated = 0;
+        $total_duration = 0;
+        $debug_info = array();
+        
+        foreach ($lessons as $lesson) {
+            $lesson_id = $lesson->ID;
+            $debug_info[] = "Processing lesson ID: {$lesson_id}";
+            
+            // Get all chapters for this lesson that have Vimeo IDs
+            $chapters = $wpdb->get_results($wpdb->prepare(
+                "SELECT ID, vimeo_id FROM {$chapters_table} WHERE lesson_id = %d AND vimeo_id > 0 AND vimeo_id IS NOT NULL",
+                $lesson_id
+            ));
+            
+            if (empty($chapters)) {
+                $debug_info[] = "  - No chapters with Vimeo IDs found";
+                $lessons_processed++;
+                continue;
+            }
+            
+            $lesson_duration = 0;
+            $lesson_chapters_updated = 0;
+            
+            foreach ($chapters as $chapter) {
+                $metadata = $vimeo_api->get_video_metadata($chapter->vimeo_id);
+                $duration = false;
+                
+                if ($metadata !== false && isset($metadata['duration'])) {
+                    $duration = intval($metadata['duration']);
+                }
+                
+                if ($duration !== false && $duration > 0) {
+                    // Update the chapter duration
+                    $wpdb->update(
+                        $chapters_table,
+                        array('duration' => $duration),
+                        array('ID' => $chapter->ID),
+                        array('%d'),
+                        array('%d')
+                    );
+                    
+                    $lesson_chapters_updated++;
+                    $lesson_duration += $duration;
+                    $chapters_updated++;
+                }
+            }
+            
+            // Update the lesson's total duration
+            if ($lesson_duration > 0) {
+                $wpdb->update(
+                    $lessons_table,
+                    array('duration' => $lesson_duration),
+                    array('ID' => $lesson_id),
+                    array('%d'),
+                    array('%d')
+                );
+                $lessons_updated++;
+                $total_duration += $lesson_duration;
+                $debug_info[] = "  - Updated lesson duration: " . ALM_Helpers::format_duration($lesson_duration) . " ({$lesson_chapters_updated} chapters)";
+            } else {
+                $debug_info[] = "  - No valid durations found for chapters";
+            }
+            
+            $lessons_processed++;
+        }
+        
+        // Log debug info
+        error_log("ALM Collection Vimeo Duration Debug: " . implode("\n", $debug_info));
+        
+        wp_send_json_success(array(
+            'lessons_processed' => $lessons_processed,
+            'lessons_updated' => $lessons_updated,
+            'chapters_updated' => $chapters_updated,
+            'total_duration' => $total_duration,
+            'debug_info' => implode("\n", $debug_info)
+        ));
+    }
+    
+    /**
+     * AJAX handler for syncing all lessons in a collection
+     */
+    public function ajax_sync_collection_lessons() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'alm_admin_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $collection_id = intval($_POST['collection_id']);
+        
+        if (empty($collection_id)) {
+            wp_send_json_error('Invalid collection ID');
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $lessons_table = $database->get_table_name('lessons');
+        
+        // Get all lessons in this collection
+        $lessons = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID FROM {$lessons_table} WHERE collection_id = %d",
+            $collection_id
+        ));
+        
+        if (empty($lessons)) {
+            wp_send_json_error('No lessons found in this collection');
+        }
+        
+        $sync = new ALM_Post_Sync();
+        
+        $lessons_processed = 0;
+        $lessons_synced = 0;
+        $lessons_failed = 0;
+        
+        foreach ($lessons as $lesson) {
+            $lesson_id = $lesson->ID;
+            $result = $sync->sync_lesson_to_post($lesson_id);
+            
+            if ($result !== false) {
+                $lessons_synced++;
+            } else {
+                $lessons_failed++;
+            }
+            
+            $lessons_processed++;
+        }
+        
+        wp_send_json_success(array(
+            'lessons_processed' => $lessons_processed,
+            'lessons_synced' => $lessons_synced,
+            'lessons_failed' => $lessons_failed
         ));
     }
     

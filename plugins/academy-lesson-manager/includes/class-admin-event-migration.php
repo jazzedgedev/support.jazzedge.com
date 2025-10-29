@@ -158,8 +158,8 @@ class ALM_Admin_Event_Migration {
             'post_type' => 'je_event',
             'post_status' => 'any',
             'posts_per_page' => -1,
-            'orderby' => 'date',
-            'order' => 'DESC'
+            'orderby' => 'title',
+            'order' => 'ASC'
         );
         
         // Add search query if search term exists
@@ -232,6 +232,7 @@ class ALM_Admin_Event_Migration {
         echo '<th scope="col">' . __('Date', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col">' . __('Has Replay', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col">' . __('Has Resources', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col">' . __('Publish Status', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col">' . __('Status', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col">' . __('Actions', 'academy-lesson-manager') . '</th>';
         echo '</tr>';
@@ -239,7 +240,7 @@ class ALM_Admin_Event_Migration {
         echo '<tbody>';
         
         if (empty($events)) {
-            echo '<tr><td colspan="8" style="text-align: center; padding: 20px;">' . __('No events found.', 'academy-lesson-manager') . '</td></tr>';
+            echo '<tr><td colspan="9" style="text-align: center; padding: 20px;">' . __('No events found.', 'academy-lesson-manager') . '</td></tr>';
         } else {
             foreach ($events as $event) {
                 $this->render_event_row($event, $filter);
@@ -323,6 +324,32 @@ class ALM_Admin_Event_Migration {
         echo '<td>' . date_i18n(get_option('date_format'), strtotime($event->post_date)) . '</td>';
         echo '<td>' . ($has_replay ? '<span style="color: #46b450;">✓</span>' : '<span style="color: #dc3232;">✗</span>') . '</td>';
         echo '<td>' . ($has_resources ? '<span style="color: #46b450;">✓</span>' : '<span style="color: #dc3232;">✗</span>') . '</td>';
+        // Publish status column
+        echo '<td>';
+        $pub_status = $event->post_status;
+        switch ($pub_status) {
+            case 'publish':
+                echo '<span style="color: #46b450; font-weight: bold;">' . __('Published', 'academy-lesson-manager') . '</span>';
+                break;
+            case 'private':
+                echo '<span style="color: #6c7781; font-weight: bold;">' . __('Private', 'academy-lesson-manager') . '</span>';
+                break;
+            case 'draft':
+                echo '<span style="color: #ffb900; font-weight: bold;">' . __('Draft', 'academy-lesson-manager') . '</span>';
+                break;
+            case 'pending':
+                echo '<span style="color: #ffb900; font-weight: bold;">' . __('Pending', 'academy-lesson-manager') . '</span>';
+                break;
+            case 'future':
+                echo '<span style="color: #2271b1; font-weight: bold;">' . __('Scheduled', 'academy-lesson-manager') . '</span>';
+                break;
+            case 'trash':
+                echo '<span style="color: #dc3232; font-weight: bold;">' . __('Trash', 'academy-lesson-manager') . '</span>';
+                break;
+            default:
+                echo '<span style="color: #666;">' . esc_html(ucfirst($pub_status)) . '</span>';
+        }
+        echo '</td>';
         echo '<td>';
         if ($is_converted) {
             echo '<span style="color: #46b450;">' . __('Converted', 'academy-lesson-manager') . '</span>';
@@ -585,6 +612,9 @@ class ALM_Admin_Event_Migration {
         
         // Mark event as converted
         update_post_meta($event_id, '_converted_to_alm_lesson_id', $lesson_id);
+        
+        // Reorder lessons in collection by title
+        $this->reorder_collection_lessons_by_title($collection_id);
         
         wp_redirect(add_query_arg(array('message' => 'converted', 'lesson_id' => $lesson_id), admin_url('admin.php?page=academy-manager-event-migration')));
         exit;
@@ -979,12 +1009,45 @@ class ALM_Admin_Event_Migration {
             $converted_count++;
         }
         
+        // Reorder lessons in collection by title after bulk conversion
+        $this->reorder_collection_lessons_by_title($collection_id);
+        
         wp_redirect(add_query_arg(array(
             'message' => 'bulk_converted',
             'converted_count' => $converted_count,
             'total_count' => $total_count
         ), admin_url('admin.php?page=academy-manager-event-migration')));
         exit;
+    }
+    
+    /**
+     * Reorder lessons in a collection by title (alphabetically)
+     * 
+     * @param int $collection_id Collection ID
+     */
+    private function reorder_collection_lessons_by_title($collection_id) {
+        // Ensure menu_order column exists
+        $database = new ALM_Database();
+        $database->check_and_add_menu_order_column();
+        
+        // Get all lessons in the collection, sorted by post_date then title
+        $lessons = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT ID, lesson_title, post_date FROM {$this->lessons_table} WHERE collection_id = %d ORDER BY post_date ASC, lesson_title ASC",
+            $collection_id
+        ));
+        
+        // Update menu_order sequentially using 0-based order (to match drag-drop behavior)
+        $menu_order = 0;
+        foreach ($lessons as $lesson) {
+            $this->wpdb->update(
+                $this->lessons_table,
+                array('menu_order' => $menu_order),
+                array('ID' => $lesson->ID),
+                array('%d'),
+                array('%d')
+            );
+            $menu_order++;
+        }
     }
     
     /**
