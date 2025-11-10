@@ -58,11 +58,22 @@ class Academy_Lesson_Manager {
         // Include required files
         $this->include_files();
         
+        // Ensure database tables are up to date (for existing installations)
+        $this->ensure_database_tables();
         
         // Initialize admin
         if (is_admin()) {
             $this->init_admin();
         }
+    }
+    
+    /**
+     * Ensure database tables are created and up to date
+     * This runs on every init to handle new table additions for existing installations
+     */
+    private function ensure_database_tables() {
+        $database = new ALM_Database();
+        $database->create_tables();
     }
     
     /**
@@ -80,6 +91,10 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-post-sync.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-bunny-api.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-vimeo-api.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-rest.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-frontend-search.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-ai.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-ai-recommender.php';
     }
     
     /**
@@ -123,6 +138,10 @@ class Academy_Lesson_Manager {
         
         // Add AJAX handler for syncing all lessons in a collection
         add_action('wp_ajax_alm_sync_collection_lessons', array($this, 'ajax_sync_collection_lessons'));
+        
+        // Add AJAX handler for quick pathway addition
+        add_action('wp_ajax_alm_quick_add_pathway', array($this, 'ajax_quick_add_pathway'));
+        add_action('wp_ajax_alm_save_column_preferences', array($this, 'ajax_save_column_preferences'));
         
         // Note: Frontend AJAX handlers (favorites management) are registered in constructor
         
@@ -365,13 +384,7 @@ class Academy_Lesson_Manager {
                                     nonce: alm_admin.nonce
                                 },
                                 success: function(response) {
-                                    if (response.success) {
-                                        // Show success message
-                                        $("<div class=\"notice notice-success is-dismissible\"><p>Lesson order updated successfully.</p></div>")
-                                            .insertAfter(".alm-collection-lessons h3")
-                                            .delay(3000)
-                                            .fadeOut();
-                                    } else {
+                                    if (!response.success) {
                                         console.error("AJAX Error:", response);
                                         alert("Error updating lesson order: " + (response.data || "Unknown error"));
                                     }
@@ -601,18 +614,18 @@ class Academy_Lesson_Manager {
         // Add JavaScript for collection-level duration calculation
         wp_add_inline_script('alm-admin-js', '
             jQuery(document).ready(function($) {
-                // Collection Bunny durations
-                $("#alm-calculate-collection-bunny-durations").on("click", function() {
+                // Collection Bunny durations - use delegation in case button loads dynamically
+                $(document).on("click", "#alm-calculate-collection-bunny-durations", function() {
                     var $button = $(this);
                     var collectionId = $button.data("collection-id");
                     
                     if (!collectionId) {
                         alert("Error: No collection ID found");
-                        return;
+                        return false;
                     }
                     
                     if (!confirm("This will calculate durations for ALL lessons in this collection. This may take a while for large collections. Continue?")) {
-                        return;
+                        return false;
                     }
                     
                     $button.prop("disabled", true).text("Calculating...");
@@ -647,27 +660,28 @@ class Academy_Lesson_Manager {
                             }
                         },
                         error: function(xhr, status, error) {
-                            console.error("AJAX Error:", xhr, status, error);
-                            alert("Error calculating durations. Please check the console for details.");
+                            alert("Error calculating durations. Please try again.");
                         },
                         complete: function() {
                             $button.prop("disabled", false).text("Calculate All Bunny Durations");
                         }
                     });
+                    
+                    return false;
                 });
                 
-                // Collection Vimeo durations
-                $("#alm-calculate-collection-vimeo-durations").on("click", function() {
+                // Collection Vimeo durations - use delegation
+                $(document).on("click", "#alm-calculate-collection-vimeo-durations", function() {
                     var $button = $(this);
                     var collectionId = $button.data("collection-id");
                     
                     if (!collectionId) {
                         alert("Error: No collection ID found");
-                        return;
+                        return false;
                     }
                     
                     if (!confirm("This will calculate durations for ALL lessons in this collection. This may take a while for large collections. Continue?")) {
-                        return;
+                        return false;
                     }
                     
                     $button.prop("disabled", true).text("Calculating...");
@@ -702,13 +716,14 @@ class Academy_Lesson_Manager {
                             }
                         },
                         error: function(xhr, status, error) {
-                            console.error("AJAX Error:", xhr, status, error);
-                            alert("Error calculating durations. Please check the console for details.");
+                            alert("Error calculating durations. Please try again.");
                         },
                         complete: function() {
                             $button.prop("disabled", false).text("Calculate All Vimeo Durations");
                         }
                     });
+                    
+                    return false;
                 });
                 
                 // Collection lesson sync
@@ -1607,28 +1622,72 @@ class Academy_Lesson_Manager {
         $lessons_updated = 0;
         $chapters_updated = 0;
         $total_duration = 0;
-        $debug_info = array();
         
         foreach ($lessons as $lesson) {
             $lesson_id = $lesson->ID;
-            $debug_info[] = "Processing lesson ID: {$lesson_id}";
             
-            // Get all chapters for this lesson that have Bunny URLs
+            // Get all chapters for this lesson
             $chapters = $wpdb->get_results($wpdb->prepare(
-                "SELECT ID, bunny_url FROM {$chapters_table} WHERE lesson_id = %d AND bunny_url != '' AND bunny_url IS NOT NULL",
+                "SELECT ID, bunny_url FROM {$chapters_table} WHERE lesson_id = %d",
                 $lesson_id
             ));
             
             if (empty($chapters)) {
-                $debug_info[] = "  - No chapters with Bunny URLs found";
                 $lessons_processed++;
                 continue;
+            }
+            
+            // Find the original event if chapters don't have bunny_url
+            $event_id = null;
+            $event_bunny_url = null;
+            $has_bunny_in_chapters = false;
+            
+            foreach ($chapters as $chapter) {
+                if (!empty($chapter->bunny_url)) {
+                    $has_bunny_in_chapters = true;
+                    break;
+                }
+            }
+            
+            // If no chapters have bunny_url, try to get it from the original event
+            if (!$has_bunny_in_chapters) {
+                // Find event that was converted to this lesson
+                $event_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_converted_to_alm_lesson_id' AND meta_value = %d LIMIT 1",
+                    $lesson_id
+                ));
+                
+                if ($event_id) {
+                    $event_bunny_url = get_post_meta($event_id, 'je_event_bunny_url', true);
+                    
+                    // If event has bunny_url, update the first chapter that doesn't have one
+                    if (!empty($event_bunny_url)) {
+                        foreach ($chapters as $chapter) {
+                            if (empty($chapter->bunny_url)) {
+                                $wpdb->update(
+                                    $chapters_table,
+                                    array('bunny_url' => sanitize_text_field($event_bunny_url)),
+                                    array('ID' => $chapter->ID),
+                                    array('%s'),
+                                    array('%d')
+                                );
+                                $chapter->bunny_url = $event_bunny_url;
+                                break; // Only update first chapter
+                            }
+                        }
+                    }
+                }
             }
             
             $lesson_duration = 0;
             $lesson_chapters_updated = 0;
             
             foreach ($chapters as $chapter) {
+                // Skip if chapter doesn't have bunny_url
+                if (empty($chapter->bunny_url)) {
+                    continue;
+                }
+                
                 $duration = $bunny_api->get_video_duration($chapter->bunny_url);
                 
                 if ($duration !== false && $duration > 0) {
@@ -1658,23 +1717,16 @@ class Academy_Lesson_Manager {
                 );
                 $lessons_updated++;
                 $total_duration += $lesson_duration;
-                $debug_info[] = "  - Updated lesson duration: " . ALM_Helpers::format_duration($lesson_duration) . " ({$lesson_chapters_updated} chapters)";
-            } else {
-                $debug_info[] = "  - No valid durations found for chapters";
             }
             
             $lessons_processed++;
         }
         
-        // Log debug info
-        error_log("ALM Collection Bunny Duration Debug: " . implode("\n", $debug_info));
-        
         wp_send_json_success(array(
             'lessons_processed' => $lessons_processed,
             'lessons_updated' => $lessons_updated,
             'chapters_updated' => $chapters_updated,
-            'total_duration' => $total_duration,
-            'debug_info' => implode("\n", $debug_info)
+            'total_duration' => $total_duration
         ));
     }
     
@@ -2231,6 +2283,138 @@ class Academy_Lesson_Manager {
         } catch (Exception $e) {
             wp_send_json_error('An error occurred: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * AJAX handler for quick pathway addition
+     */
+    public function ajax_quick_add_pathway() {
+        check_ajax_referer('alm_quick_add_pathway', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+            return;
+        }
+        
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        $pathway = isset($_POST['pathway']) ? sanitize_key($_POST['pathway']) : '';
+        $rank = isset($_POST['rank']) ? intval($_POST['rank']) : 1;
+        
+        // Debug logging
+        error_log('ALM Quick Add Pathway Debug - Received: lesson_id=' . $lesson_id . ', pathway=' . $pathway . ', rank=' . $rank);
+        error_log('ALM Quick Add Pathway Debug - POST data: ' . print_r($_POST, true));
+        
+        if (empty($lesson_id) || empty($pathway) || $rank < 1 || $rank > 5) {
+            error_log('ALM Quick Add Pathway Debug - Invalid parameters');
+            wp_send_json_error('Invalid parameters: lesson_id=' . $lesson_id . ', pathway=' . $pathway . ', rank=' . $rank);
+            return;
+        }
+        
+        $database = new ALM_Database();
+        $pathways_table = $database->get_table_name('lesson_pathways');
+        
+        global $wpdb;
+        
+        // Verify pathway exists in allowed pathways (check against option)
+        $allowed_pathways = ALM_Admin_Settings::get_pathways();
+        if (!isset($allowed_pathways[$pathway])) {
+            error_log('ALM Quick Add Pathway Debug - Pathway not in allowed list: ' . $pathway);
+            wp_send_json_error('Invalid pathway: ' . $pathway . '. Please add it via Settings > AI Settings first.');
+            return;
+        }
+        
+        // Ensure pathway column is VARCHAR (not ENUM) - convert if needed
+        $column_info = $wpdb->get_row($wpdb->prepare(
+            "SHOW COLUMNS FROM {$pathways_table} WHERE Field = %s",
+            'pathway'
+        ));
+        
+        if ($column_info && strpos($column_info->Type, 'enum') !== false) {
+            error_log('ALM Quick Add Pathway Debug - Converting ENUM to VARCHAR for dynamic pathways');
+            // Convert ENUM to VARCHAR to support dynamic pathways
+            $wpdb->query("ALTER TABLE {$pathways_table} MODIFY COLUMN pathway VARCHAR(100) NOT NULL");
+            error_log('ALM Quick Add Pathway Debug - Conversion complete');
+        }
+        
+        // Check if pathway already exists for this lesson
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$pathways_table} WHERE lesson_id = %d AND pathway = %s",
+            $lesson_id,
+            $pathway
+        ));
+        
+        error_log('ALM Quick Add Pathway Debug - Existing pathway ID: ' . ($existing ? $existing : 'none'));
+        
+        if ($existing) {
+            // Update existing
+            $result = $wpdb->update(
+                $pathways_table,
+                array('pathway_rank' => $rank),
+                array('ID' => $existing),
+                array('%d'),
+                array('%d')
+            );
+            error_log('ALM Quick Add Pathway Debug - Update result: ' . ($result !== false ? 'SUCCESS' : 'FAILED') . ', rows affected: ' . $result);
+        } else {
+            // Insert new
+            $result = $wpdb->insert(
+                $pathways_table,
+                array(
+                    'lesson_id' => $lesson_id,
+                    'pathway' => $pathway,
+                    'pathway_rank' => $rank
+                ),
+                array('%d', '%s', '%d')
+            );
+            error_log('ALM Quick Add Pathway Debug - Insert result: ' . ($result !== false ? 'SUCCESS' : 'FAILED') . ', insert ID: ' . $wpdb->insert_id);
+            error_log('ALM Quick Add Pathway Debug - Last error: ' . $wpdb->last_error);
+            error_log('ALM Quick Add Pathway Debug - Last query: ' . $wpdb->last_query);
+        }
+        
+        if ($result !== false) {
+            // Verify what was saved
+            $saved = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$pathways_table} WHERE lesson_id = %d AND pathway = %s",
+                $lesson_id,
+                $pathway
+            ));
+            error_log('ALM Quick Add Pathway Debug - Verified saved data: ' . print_r($saved, true));
+            
+            wp_send_json_success(array(
+                'message' => 'Pathway added successfully',
+                'lesson_id' => $lesson_id,
+                'pathway' => $pathway,
+                'rank' => $rank
+            ));
+        } else {
+            error_log('ALM Quick Add Pathway Debug - Save failed, last error: ' . $wpdb->last_error);
+            wp_send_json_error('Failed to save pathway: ' . $wpdb->last_error);
+        }
+    }
+    
+    /**
+     * AJAX handler for saving column visibility preferences
+     */
+    public function ajax_save_column_preferences() {
+        check_ajax_referer('alm_column_visibility', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+            return;
+        }
+        
+        $user_id = get_current_user_id();
+        $hidden_columns = isset($_POST['hidden_columns']) ? (array) $_POST['hidden_columns'] : array();
+        
+        // Sanitize column IDs
+        $hidden_columns = array_map('sanitize_key', $hidden_columns);
+        
+        update_user_meta($user_id, 'alm_lesson_list_hidden_columns', $hidden_columns);
+        
+        wp_send_json_success(array(
+            'message' => 'Column preferences saved successfully',
+            'hidden_columns' => $hidden_columns
+        ));
     }
     
     /**

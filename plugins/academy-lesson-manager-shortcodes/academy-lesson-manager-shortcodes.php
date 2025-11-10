@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALM_SHORTCODES_VERSION', '1.0.0');
+define('ALM_SHORTCODES_VERSION', '1.0.1');
 define('ALM_SHORTCODES_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ALM_SHORTCODES_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -22,6 +22,20 @@ define('ALM_SHORTCODES_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once ALM_SHORTCODES_PLUGIN_DIR . 'includes/class-chapter-handler.php';
 
 class ALM_Shortcodes_Plugin {
+    
+    /**
+     * Ensure ALM_Admin_Settings class is loaded
+     */
+    private function ensure_alm_settings_loaded() {
+        if (!class_exists('ALM_Admin_Settings')) {
+            // Try to load from academy-lesson-manager plugin
+            $alm_path = WP_PLUGIN_DIR . '/academy-lesson-manager/includes/class-admin-settings.php';
+            if (file_exists($alm_path)) {
+                require_once $alm_path;
+            }
+        }
+        return class_exists('ALM_Admin_Settings');
+    }
     
     public function __construct() {
         add_action('init', array($this, 'init'));
@@ -184,6 +198,7 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('alm_collections_dropdown', array($this, 'collections_dropdown_shortcode'));
         add_shortcode('alm_favorites_management', array($this, 'favorites_management_shortcode'));
         add_shortcode('alm_user_notes_manager', array($this, 'user_notes_manager_shortcode'));
+        add_shortcode('alm_membership_list', array($this, 'membership_list_shortcode'));
         
         // Add debugging
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -330,6 +345,15 @@ class ALM_Shortcodes_Plugin {
                     <div class="shortcode-example">
                         <code>[alm_user_notes_manager]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[alm_user_notes_manager]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Membership List</h3>
+                    <p>Display active subscriptions and memberships</p>
+                    <div class="shortcode-example">
+                        <code>[alm_membership_list]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_membership_list]">Copy</button>
                     </div>
                 </div>
             </div>
@@ -1107,9 +1131,9 @@ class ALM_Shortcodes_Plugin {
                 // Play button
                 $return .= '<div class="alm-chapter-action">';
                 if ($is_active_chapter) {
-                    $return .= '<span class="alm-play-icon">▶</span>';
+                    $return .= '<span class="alm-play-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg></span>';
                 } else {
-                    $return .= '<span class="alm-play-icon">▶</span>';
+                    $return .= '<span class="alm-play-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg></span>';
                 }
                 $return .= '</div>';
                 
@@ -1271,12 +1295,13 @@ class ALM_Shortcodes_Plugin {
                 $lesson->collection_id
             ));
             
-            // Get all lessons in this collection for navigation, with post_id from wp_alm_lessons table
+            // Get all lessons in this collection for navigation, ordered by menu_order then title
+            // This preserves the drag-and-drop order set in the admin collection page
             $collection_lessons = $wpdb->get_results($wpdb->prepare(
                 "SELECT ID, lesson_title, slug, post_id 
                  FROM {$wpdb->prefix}alm_lessons 
                  WHERE collection_id = %d 
-                 ORDER BY ID ASC",
+                 ORDER BY menu_order ASC, lesson_title ASC",
                 $lesson->collection_id
             ));
         }
@@ -1314,17 +1339,54 @@ class ALM_Shortcodes_Plugin {
             $return .= '</div>';
             $return .= do_shortcode('[fvplayer src="' . esc_url($video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
             
-            // Add buttons and progress in 3-column layout
-            $return .= '<div class="alm-actions-section' . (!$has_access ? ' alm-restricted' : '') . '">';
+            // Add buttons and progress in 3-column layout - Mobile responsive with inline styles
+            $return .= '<style>
+            @media screen and (max-width: 768px) {
+                body { overflow-x: hidden !important; max-width: 100vw !important; }
+                .alm-lesson-complete { max-width: 100% !important; width: 100% !important; overflow-x: hidden !important; }
+                .alm-video-section { width: 100% !important; max-width: 100% !important; overflow-x: hidden !important; }
+                .alm-video-title-bar { padding: 12px 16px !important; flex-wrap: wrap !important; }
+                .alm-video-section iframe, .alm-video-section video { width: 100% !important; max-width: 100% !important; }
+                .alm-actions-section {
+                    flex-direction: column !important;
+                    gap: 16px !important;
+                    padding: 16px !important;
+                    align-items: stretch !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+                .alm-action-left, .alm-action-right {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    flex-shrink: 1 !important;
+                    box-sizing: border-box !important;
+                }
+                .alm-action-center {
+                    order: -1 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin-bottom: 8px !important;
+                    flex: none !important;
+                    box-sizing: border-box !important;
+                }
+                .alm-action-left button, .alm-action-right button {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+            }
+            </style>';
+            $return .= '<div class="alm-actions-section' . (!$has_access ? ' alm-restricted' : '') . '" style="display: flex; align-items: center; gap: 24px; padding: 16px 24px; background: #fff;">';
             
             if ($has_access) {
                 // Left: Mark Complete Button
-                $return .= '<div class="alm-action-left">';
+                $return .= '<div class="alm-action-left" style="flex-shrink: 0; width: 180px;">';
                 $return .= do_shortcode('[alm_mark_complete lesson_id="' . $atts['lesson_id'] . '" chapter_id="' . $final_chapter_id . '" type="chapter"]');
                 $return .= '</div>';
                 
                 // Center: Progress Bar
-                $return .= '<div class="alm-action-center">';
+                $return .= '<div class="alm-action-center" style="flex: 1; display: flex; flex-direction: column; gap: 6px; align-items: center;">';
                 $return .= '<div class="alm-progress-bar">';
                 $return .= '<div class="alm-progress-fill" style="width: ' . $progress_percentage . '%"></div>';
                 $return .= '</div>';
@@ -1332,7 +1394,7 @@ class ALM_Shortcodes_Plugin {
                 $return .= '</div>';
                 
                 // Right: Save Favorite Button
-                $return .= '<div class="alm-action-right">';
+                $return .= '<div class="alm-action-right" style="flex-shrink: 0; width: 180px;">';
                 $post_id = !empty($lesson->post_id) ? $lesson->post_id : get_the_ID();
                 $title = stripslashes($lesson->lesson_title);
                 $url = get_permalink($post_id);
@@ -1446,7 +1508,7 @@ class ALM_Shortcodes_Plugin {
             
             // Play button
             $return .= '<div class="alm-chapter-action">';
-            $return .= '<span class="alm-play-icon">▶</span>';
+            $return .= '<span class="alm-play-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg></span>';
             $return .= '</div>';
             
             if ($has_access) {
@@ -1628,6 +1690,11 @@ class ALM_Shortcodes_Plugin {
         
         // Debug: Show membership level (only if debug parameter is set)
         if (isset($_GET['debug']) && !empty($_GET['debug'])) {
+            if (!$this->ensure_alm_settings_loaded()) {
+                $return .= '<p>Error: Membership settings not available.</p>';
+                return $return;
+            }
+            
             $user_level = intval($atts['user_membership_level']);
             $lesson_level = intval($lesson->membership_level);
             $required_level_name = ALM_Admin_Settings::get_membership_level_name($lesson_level);
@@ -3165,99 +3232,121 @@ class ALM_Shortcodes_Plugin {
         $return .= '<div class="alm-collection-hero">';
         $return .= '<div class="alm-hero-content">';
         
-        // Collection Dropdown (inside hero)
+        // Compute membership badge text
+        $membership_level = isset($collection->membership_level) ? intval($collection->membership_level) : 2;
+        
+        if (!$this->ensure_alm_settings_loaded()) {
+            $membership_name = 'Unknown';
+        } else {
+            $membership_levels = ALM_Admin_Settings::get_membership_levels();
+            $membership_name = 'Unknown';
+            foreach ($membership_levels as $level_key => $level_data) {
+                if ($level_data['numeric'] == $membership_level) {
+                    $membership_name = $level_data['name'];
+                    break;
+                }
+            }
+        }
+
+        // Top row: badges left, dropdown right - Mobile: dropdown on top
+        $return .= '<style>
+        @media screen and (max-width: 768px) {
+            .alm-hero-top {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 16px !important;
+                justify-content: flex-start !important;
+            }
+            .alm-hero-collection-card {
+                order: 1 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                flex-shrink: 0 !important;
+            }
+            .alm-hero-top > div:last-child {
+                order: 2 !important;
+                width: 100% !important;
+                flex-shrink: 0 !important;
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+                align-items: center !important;
+            }
+            .alm-collection-badge,
+            .alm-membership-badge {
+                font-size: 11px !important;
+                padding: 6px 12px !important;
+                margin-bottom: 0 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 6px !important;
+            }
+        }
+        </style>';
+        $return .= '<div class="alm-hero-top" style="display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:24px;">';
+
+        // Dropdown first (will appear first on mobile via CSS order)
         if (!empty($all_collections) && count($all_collections) > 1) {
-            $return .= '<div class="alm-hero-collection-selector">';
             $return .= '<div class="alm-hero-collection-card">';
             $return .= '<p class="alm-hero-collection-label">Browse Other Collections</p>';
             $return .= '<select class="alm-hero-collection-dropdown" onchange="if(this.value) window.location.href = this.value;">';
             $return .= '<option value="">Select a collection...</option>';
-            
-            // Get membership level names
-            $membership_levels = ALM_Admin_Settings::get_membership_levels();
+
+            if (!$this->ensure_alm_settings_loaded()) {
+                $membership_levels = array();
+            } else {
+                $membership_levels = ALM_Admin_Settings::get_membership_levels();
+            }
             $current_level = null;
-            
             foreach ($all_collections as $coll) {
-                // Get post_id for this collection
                 $coll_post_id = $wpdb->get_var($wpdb->prepare(
                     "SELECT post_id FROM {$wpdb->prefix}alm_collections WHERE ID = %d",
                     $coll->ID
                 ));
-                
                 if ($coll_post_id) {
                     $coll_url = get_permalink($coll_post_id);
                     $selected = ($coll->ID == $atts['collection_id']) ? 'selected' : '';
-                    
-                    // Add optgroup for each membership level
                     $membership_level = intval($coll->membership_level);
-                    
-                    // Find the membership level name by numeric value
                     $level_name = 'Unknown';
                     foreach ($membership_levels as $level_key => $level_data) {
-                        if ($level_data['numeric'] == $membership_level) {
-                            $level_name = $level_data['name'];
-                            break;
-                        }
+                        if ($level_data['numeric'] == $membership_level) { $level_name = $level_data['name']; break; }
                     }
-                    
                     if ($current_level !== $membership_level) {
-                        // Close previous optgroup if it exists
-                        if ($current_level !== null) {
-                            $return .= '</optgroup>';
-                        }
+                        if ($current_level !== null) { $return .= '</optgroup>'; }
                         $return .= '<optgroup label="' . esc_attr($level_name) . '">';
                         $current_level = $membership_level;
                     }
-                    
                     $return .= '<option value="' . esc_url($coll_url) . '" ' . $selected . '>' . esc_html(stripslashes($coll->collection_title)) . '</option>';
                 }
             }
-            
-            // Close last optgroup
-            if ($current_level !== null) {
-                $return .= '</optgroup>';
-            }
-            
+            if ($current_level !== null) { $return .= '</optgroup>'; }
             $return .= '</select>';
             $return .= '</div>';
-            $return .= '</div>';
+        } else {
+            $return .= '<div></div>';
         }
-        
-        // Membership Level Pill
-        $membership_level = isset($collection->membership_level) ? intval($collection->membership_level) : 2;
-        $membership_levels = ALM_Admin_Settings::get_membership_levels();
-        
-        // Find the membership level by numeric value
-        $membership_name = 'Unknown';
-        foreach ($membership_levels as $level_key => $level_data) {
-            if ($level_data['numeric'] == $membership_level) {
-                $membership_name = $level_data['name'];
-                break;
-            }
-        }
-        
-        // Badges Container (for horizontal alignment)
-        $return .= '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px;">';
-        
+
+        // Badges second (will appear second on mobile via CSS order)
+        $return .= '<div style="display:flex; align-items:center; gap:8px;">';
         $return .= '<div class="alm-collection-badge">';
         $return .= '<svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clip-rule="evenodd"/></svg>';
         $return .= '<span>Lesson Collection</span>';
         $return .= '</div>';
-        
-        // Membership Level Pill (separate style with orange color)
-        $return .= '<div class="alm-membership-badge">';
-        $return .= '<span>' . esc_html($membership_name) . '</span>';
+        $return .= '<div class="alm-membership-badge"><span>' . esc_html($membership_name) . '</span></div>';
         $return .= '</div>';
+
+        $return .= '</div>'; // end top row
         
-        $return .= '</div>';
-        
-        // Title
+        // Title and Description Container (centered with background)
+        $return .= '<div class="alm-hero-text-container">';
         $return .= '<h1 class="alm-hero-title">' . esc_html(stripslashes($collection->collection_title)) . '</h1>';
         
         // Description
         if (!empty($collection->collection_description)) {
             $return .= '<div class="alm-hero-description">' . nl2br(esc_html(stripslashes($collection->collection_description))) . '</div>';
         }
+        $return .= '</div>';
         
         // Calculate formatted duration in human-readable format
         $formatted_duration = self::format_duration_human_readable($total_duration);
@@ -3369,17 +3458,30 @@ class ALM_Shortcodes_Plugin {
             if ($lesson->post_id) {
                 $lesson_url = get_permalink($lesson->post_id);
                 $return .= '<a href="' . esc_url($lesson_url) . '" class="alm-lesson-card-link">';
+                $return .= '<div class="alm-lesson-card-content" style="position: relative;">';
+            } else {
+                $return .= '<div class="alm-lesson-card-content" style="position: relative;">';
             }
             
-            $return .= '<div class="alm-lesson-card-content">';
+            // Favorite button - positioned top right
+            $lesson_title = esc_attr(stripslashes($lesson->lesson_title));
+            $lesson_description = !empty($lesson->lesson_description) ? esc_attr(stripslashes($lesson->lesson_description)) : '';
+            $lesson_url_for_fav = $lesson->post_id ? esc_url(get_permalink($lesson->post_id)) : '';
+            
+            $return .= '<button type="button" class="alm-favorite-btn-collection' . ($is_favorited ? ' is-favorited' : '') . '" 
+                data-title="' . $lesson_title . '" 
+                data-url="' . $lesson_url_for_fav . '" 
+                data-description="' . $lesson_description . '"
+                onclick="almToggleCollectionFavorite(event, this); return false;"
+                style="position: absolute; top: 20px; right: 20px; background: ' . ($is_favorited ? 'rgba(240, 78, 35, 0.1)' : 'transparent') . '; border: none; cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 10; transition: all 0.2s ease; width: 36px; height: 36px; opacity: ' . ($is_favorited ? '1' : '0.6') . ';">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="' . ($is_favorited ? '#f04e23' : 'none') . '" stroke="' . ($is_favorited ? '#f04e23' : '#6b7280') . '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+            </button>';
             
             // Lesson number and title
             $return .= '<div class="alm-lesson-number">' . __('Lesson', 'academy-lesson-manager') . ' ' . $lesson_number . '</div>';
-            $return .= '<h3 class="alm-lesson-title">' . esc_html(stripslashes($lesson->lesson_title));
-            if ($is_favorited) {
-                $return .= ' <span class="alm-fav-indicator" title="In Favorites"><span class="dashicons dashicons-star-filled"></span> ' . __('Favorite', 'academy-lesson-manager') . '</span>';
-            }
-            $return .= '</h3>';
+            $return .= '<h3 class="alm-lesson-title" style="padding-right: 64px;">' . esc_html(stripslashes($lesson->lesson_title)) . '</h3>';
             
             // Lesson description
             if (!empty($lesson->lesson_description)) {
@@ -3399,8 +3501,8 @@ class ALM_Shortcodes_Plugin {
                 $return .= '</div>';
             }
             
-            // Bottom section with duration and resource icon
-            $return .= '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">';
+            // Bottom section with duration and resource icon - push to bottom with margin-top: auto
+            $return .= '<div class="alm-lesson-card-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 15px;">';
             
             // Duration on the left
             if ($lesson->duration > 0) {
@@ -3443,6 +3545,100 @@ class ALM_Shortcodes_Plugin {
         
         $return .= '</div>'; // Close alm-lessons-grid-course
         $return .= '</div>'; // Close alm-course-listing
+        
+        // Add JavaScript for favorite functionality
+        $rest_nonce = wp_create_nonce('wp_rest');
+        $favorites_add_url = rest_url('aph/v1/lesson-favorites');
+        $favorites_remove_url = rest_url('aph/v1/lesson-favorites/remove');
+        
+        $return .= '<script>
+        function almToggleCollectionFavorite(event, btn) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            var isFavorited = btn.classList.contains("is-favorited");
+            var title = btn.getAttribute("data-title");
+            var url = btn.getAttribute("data-url");
+            var description = btn.getAttribute("data-description");
+            var starPath = btn.querySelector("svg path");
+            
+            if (!url) {
+                alert("This lesson is not available");
+                return;
+            }
+            
+            var endpoint = isFavorited 
+                ? "' . esc_js($favorites_remove_url) . '"
+                : "' . esc_js($favorites_add_url) . '";
+            
+            var data = isFavorited 
+                ? { title: title }
+                : { title: title, url: url, description: description, category: "lesson" };
+            
+            // Show loading state
+            btn.style.opacity = "0.5";
+            btn.style.pointerEvents = "none";
+            
+            fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-WP-Nonce": "' . esc_js($rest_nonce) . '"
+                },
+                body: JSON.stringify(data),
+                credentials: "same-origin"
+            })
+            .then(function(response){ return response.json(); })
+            .then(function(result){
+                if (result.success) {
+                    var svg = btn.querySelector("svg");
+                    if (isFavorited) {
+                        btn.classList.remove("is-favorited");
+                        svg.setAttribute("fill", "none");
+                        svg.setAttribute("stroke", "#6b7280");
+                        btn.style.opacity = "0.6";
+                        btn.style.background = "transparent";
+                    } else {
+                        btn.classList.add("is-favorited");
+                        svg.setAttribute("fill", "#f04e23");
+                        svg.setAttribute("stroke", "#f04e23");
+                        btn.style.opacity = "1";
+                        btn.style.background = "rgba(240, 78, 35, 0.1)";
+                    }
+                } else {
+                    alert(result.message || "Failed to update favorite");
+                }
+            })
+            .catch(function(error){
+                console.error("Favorite error:", error);
+                alert("Error updating favorite");
+            })
+            .finally(function(){
+                btn.style.pointerEvents = "auto";
+            });
+        }
+        
+        // Add hover effects to favorite buttons
+        document.addEventListener("DOMContentLoaded", function() {
+            var favoriteBtns = document.querySelectorAll(".alm-favorite-btn-collection");
+            favoriteBtns.forEach(function(btn) {
+                btn.addEventListener("mouseenter", function() {
+                    if (!this.classList.contains("is-favorited")) {
+                        this.style.opacity = "1";
+                        this.style.background = "rgba(240, 78, 35, 0.1)";
+                        this.style.transform = "scale(1.1)";
+                    }
+                });
+                btn.addEventListener("mouseleave", function() {
+                    if (!this.classList.contains("is-favorited")) {
+                        this.style.opacity = "0.6";
+                        this.style.background = "transparent";
+                        this.style.transform = "scale(1)";
+                    }
+                });
+            });
+        });
+        </script>';
         
         return $return;
     }
@@ -3782,7 +3978,11 @@ class ALM_Shortcodes_Plugin {
             return '<p>No collections found.</p>';
         }
         
-        // Get membership level names
+        // Get membership level names - ensure class is loaded
+        if (!$this->ensure_alm_settings_loaded()) {
+            return '<p>Error: Membership settings not available.</p>';
+        }
+        
         $membership_levels = ALM_Admin_Settings::get_membership_levels();
         
         $return = '<div class="alm-collections-dropdown-wrapper">';
@@ -4389,6 +4589,327 @@ class ALM_Shortcodes_Plugin {
         }
         
         wp_send_json_success($lessons_list);
+    }
+    
+    /**
+     * Membership List Shortcode
+     * Display active subscriptions and memberships
+     */
+    public function membership_list_shortcode($atts, $content = NULL) {
+        // Check if step parameter exists (prevent execution if cancel flow is active)
+        if (!empty($_GET['step'])) {
+            return;
+        }
+
+        // Ensure required functions exist
+        if (!function_exists('memb_getContactId') || !function_exists('keap_get_contact_fields') || !function_exists('convert_infusionsoft_date') || !function_exists('je_return_billing_cycle')) {
+            return '<p class="center bold_red">Membership functions are not available. Please contact support.</p>';
+        }
+
+        global $install, $app;
+        
+        // Initialize Keap connection if needed
+        if (!isset($app) || !is_object($app)) {
+            // Try to include Keap connection
+            $keap_path = '/nas/content/live/' . (defined('INSTALL') ? INSTALL : $install) . '/keap_isdk/infusion_connect.php';
+            if (file_exists($keap_path)) {
+                include($keap_path);
+            } else {
+                return '<p class="center bold_red">Keap connection not available. Please contact support.</p>';
+            }
+        }
+
+        $returnFields = array('ContactId', 'Id', 'AutoCharge', 'BillingAmt', 'BillingCycle', 'LastBillDate', 'PaidThruDate', 'ProductId', 'StartDate', 'Status', 'BillingCycle', 'MerchantAccountId', 'MaxRetry', 'NumDaysBetweenRetry', 'PaymentGatewayId', 'ReasonStopped', 'SubscriptionPlanId', 'OriginatingOrderId', 'EndDate', 'NextBillDate');
+
+        $contact_id = memb_getContactId();
+        
+        if (!$contact_id) {
+            return '<p class="center bold_red">You must be logged in to view your memberships.</p>';
+        }
+
+        $ecd = keap_get_contact_fields($contact_id, array('_AcademyEligibleCancelDate'));
+        $eligible_cancel_date = convert_infusionsoft_date($ecd['_AcademyEligibleCancelDate'] ?? '');
+
+        if (!empty($_GET['id'])) {
+            $query = array('ContactId' => $contact_id, 'Status' => 'Active', 'Id' => intval($_GET['id']));
+        } else {
+            $query = array('ContactId' => $contact_id);
+        }
+
+        $subscriptions = $app->dsQuery("RecurringOrder", 100, 0, $query, $returnFields);
+
+        $has_1_year = function_exists('memb_hasAnyTags') ? memb_hasAnyTags(array(9813, 9815, 9817, 9819)) : false;
+        $academy_expiration_date = function_exists('memb_getContactField') ? memb_getContactField('_AcademyExpirationDate') : '';
+
+        if (!empty($subscriptions)) {
+            $return = "
+            <div class='rg-container hover-black'>
+        <table class='rg-table zebra' summary='Memberships'>
+            <caption class='rg-header'>
+                <span class='rg-dek'><p>You can scroll within this box to see all of your memberships.</p></span>
+            </caption>
+            <thead>
+                <tr>
+                    <th class='text'>Status</th>
+                    <th class='text'>Membership</th>
+                    <th class='text '>Amount</th>
+                    <th class='text'>Start Date</th>
+                    <th class='text'>Next Billing</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>";
+
+            krsort($subscriptions);
+
+            foreach ($subscriptions as $subscription) {
+                $id = $subscription['Id'];
+
+                $returnFields = array('ProductName', 'ProductPrice', 'Sku');
+                $pid = $subscription['ProductId'];
+                $query = array('Id' => $pid);
+
+                $next_bill_date = ($subscription['Status'] == 'Active' && $subscription['AutoCharge'] == 1) ? convert_infusionsoft_date($subscription['NextBillDate']) : 'Cancelled';
+                $next_bill_date_raw = $subscription['NextBillDate'];
+                $mysql_friendly_date = date('Y-m-d', strtotime($next_bill_date_raw));
+
+                $start_date = convert_infusionsoft_date($subscription['StartDate']);
+
+                $product = $app->dsQuery("Product", 1, 0, $query, $returnFields);
+                $product_name = $product[0]['ProductName'] ?? 'Unknown Product';
+                $product_name = ($product_name == 'JA_MONTHLY_STUDIO_DMP') ? 'Annual Studio Membership' : $product_name;
+
+                $product_sku = $product[0]['Sku'] ?? '';
+
+                $billing_amount = number_format($subscription['BillingAmt'], 2, '.', ',');
+                $billing_cycle = je_return_billing_cycle($subscription['BillingCycle']);
+
+                $payment_gateway = $subscription['PaymentGatewayId'];
+
+                $billing = ($subscription['AutoCharge'] == 1 && $subscription['Status'] == 'Active') ? '<strong style="color:green">Active</strong>' : '<strong style="color:red">Cancelled*</strong>';
+
+                $return .= "<tr>
+                <td>$billing</td>
+                <td>$product_name ($pid)</td>
+                <td>$$billing_amount/$billing_cycle</td>
+                <td>$start_date</td>
+                <td>$next_bill_date</td>";
+
+                // Academy PIDs that can show cancel option
+                $academy_pids = array(62332, 62334, 62285, 62293, 62323, 62321, 62319, 62317, 62315, 62313, 62291, 62289, 62287, 62283, 62281, 62279, 62259, 62257, 62251, 62249, 62243, 62241, 62239, 62237);
+
+                if ($subscription['Status'] == 'Active' && $subscription['AutoCharge'] == 1 && empty($_GET['step'])) {
+                    // Show cancel button with modal trigger
+                    if (in_array($pid, $academy_pids)) {
+                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel</a></td>";
+                    } elseif ($pid === 62350 || $pid === 62352) {
+                        $return .= "<td>Can cancel after<br />$eligible_cancel_date</td>";
+                    } else {
+                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel</a></td>";
+                    }
+                } elseif ($subscription['Status'] == 'Active' && $payment_gateway === 5 && $subscription['AutoCharge'] == 1 && empty($_GET['step'])) {
+                    // PayPal subscriptions
+                    if (in_array($pid, $academy_pids)) {
+                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel Membership</a></td>";
+                    } elseif ($pid === 62350 || $pid === 62352) {
+                        $return .= "<td>Can cancel after<br />$eligible_cancel_date</td>";
+                    } else {
+                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel</a></td>";
+                    }
+                } else {
+                    $return .= '<td></td>';
+                }
+
+                $return .= '</tr>';
+            }
+
+            $return .= '</tbody></table></div>';
+            
+            // Add Cancel Membership Modal
+            $return .= '
+            <div id="alm-cancel-membership-modal" class="alm-modal-overlay" style="display: none;">
+                <div class="alm-modal-content">
+                    <span class="alm-modal-close">&times;</span>
+                    <h2>Cancel Membership</h2>
+                    <div class="alm-modal-body">
+                        <p>Are you sure you want to cancel your membership?</p>
+                        <p><strong>Membership:</strong> <span id="alm-modal-product-name"></span></p>
+                        
+                        <div class="alm-cancel-disclaimer">
+                            <p><strong>Important Information:</strong></p>
+                            <ul>
+                                <li>There are <strong>no refunds</strong> for membership renewals that have already been processed.</li>
+                                <li>If any payments come in after you submit your cancellation request, they will be refunded if they meet our <a href="https://jazzedge.academy/terms/" target="_blank">terms and conditions</a>.</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alm-cancel-form-container">
+                            ' . do_shortcode('[fluentform id="47"]') . '
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <style>
+            .alm-modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 9999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .alm-modal-content {
+                background: #fff;
+                padding: 30px;
+                border-radius: 8px;
+                max-width: 600px;
+                max-height: 90vh;
+                width: 90%;
+                position: relative;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                overflow-y: auto;
+            }
+            .alm-modal-close {
+                position: absolute;
+                top: 10px;
+                right: 15px;
+                font-size: 28px;
+                font-weight: bold;
+                cursor: pointer;
+                color: #999;
+            }
+            .alm-modal-close:hover {
+                color: #000;
+            }
+            .alm-modal-content {
+                background: #fff;
+                padding: 30px;
+                border-radius: 8px;
+                max-width: 800px;
+                max-height: 90vh;
+                width: 90%;
+                position: relative;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                overflow-y: auto;
+                text-align: left;
+            }
+            .alm-modal-content h2 {
+                text-align: left;
+                margin-top: 0;
+                margin-bottom: 20px;
+            }
+            .alm-modal-body {
+                margin-top: 20px;
+                text-align: left;
+            }
+            .alm-modal-body p {
+                text-align: left;
+            }
+            .alm-cancel-disclaimer {
+                background: #fff4cc;
+                border: 1px solid #ffc107;
+                border-radius: 4px;
+                padding: 15px;
+                margin: 20px 0;
+            }
+            .alm-cancel-disclaimer p {
+                margin-top: 0;
+                margin-bottom: 10px;
+            }
+            .alm-cancel-disclaimer ul {
+                margin: 10px 0 0 20px;
+                padding: 0;
+            }
+            .alm-cancel-disclaimer li {
+                margin-bottom: 8px;
+            }
+            .alm-cancel-disclaimer a {
+                color: #0073aa;
+                text-decoration: underline;
+            }
+            .alm-cancel-disclaimer a:hover {
+                color: #005177;
+            }
+            .alm-cancel-form-container {
+                margin-top: 20px;
+            }
+            .alm-cancel-membership-btn {
+                color: #dc3232;
+                text-decoration: underline;
+                cursor: pointer;
+            }
+            .alm-cancel-membership-btn:hover {
+                color: #a00;
+            }
+            </style>
+            
+            <script>
+            jQuery(document).ready(function($) {
+                $(".alm-cancel-membership-btn").on("click", function(e) {
+                    e.preventDefault();
+                    var productName = $(this).data("product-name");
+                    var subscriptionId = $(this).data("subscription-id");
+                    var productId = $(this).data("product-id");
+                    
+                    $("#alm-modal-product-name").text(productName);
+                    $("#alm-cancel-membership-modal").show();
+                    
+                    // Populate hidden fields in FluentForm if they exist
+                    // Note: You may need to adjust these selectors based on your FluentForm field IDs
+                    $("#alm-cancel-membership-modal input[name*=\"subscription_id\"], #alm-cancel-membership-modal input[name*=\"subscription-id\"]").val(subscriptionId);
+                    $("#alm-cancel-membership-modal input[name*=\"product_id\"], #alm-cancel-membership-modal input[name*=\"product-id\"]").val(productId);
+                    $("#alm-cancel-membership-modal input[name*=\"product_name\"], #alm-cancel-membership-modal input[name*=\"product-name\"]").val(productName);
+                    
+                    // Scroll to top of modal
+                    $(".alm-modal-content").scrollTop(0);
+                });
+                
+                $(".alm-modal-close").on("click", function() {
+                    $("#alm-cancel-membership-modal").hide();
+                });
+                
+                $(document).on("click", ".alm-modal-overlay", function(e) {
+                    if ($(e.target).hasClass("alm-modal-overlay")) {
+                        $("#alm-cancel-membership-modal").hide();
+                    }
+                });
+                
+                // Handle form submission success - close modal after a delay
+                $(document).on("fluentform_submission_success", function(e, response) {
+                    // Close modal after 3 seconds if form submission is successful
+                    setTimeout(function() {
+                        $("#alm-cancel-membership-modal").hide();
+                    }, 3000);
+                });
+            });
+            </script>';
+
+        } else {
+            if (function_exists('memb_hasAnyTags')) {
+                if (memb_hasAnyTags(array(7754))) {
+                    return '<p class="center bold_red">You are part of a HomeSchoolPiano membership. Billing is handled through the master account.</p>';
+                }
+                if (memb_hasAnyTags(array(7746))) {
+                    return '<p class="center bold_red">You purchased through the HomeSchool Buyers Co-op. Please visit their site for your invoice and payment info.</p>';
+                }
+                if (memb_hasAnyTags(array(9661)) && empty($academy_expiration_date)) {
+                    return '<p class="center bold_red" style="font-size: 18pt;">You currently have a free trial to Jazzedge Academy. <br /><a href="/signup" class="hover-black ">Click here to upgrade your membership</a>.</p>';
+                }
+            }
+            
+            if (!empty($academy_expiration_date)) {
+                return '<div style="background:#fff4cc; text-align: center; padding: 15px;"><p>You have a non-recurring membership with access to Jazzedge Academy until: <strong>' . convert_infusionsoft_date($academy_expiration_date) . '</strong></p></div>';
+            }
+
+            $return = '<p class="center">You do not have any <u>active</u>, recurring, memberships in the system. Check your invoices for 1x payments. Please contact us if this is in error.</p><p class="center" style="font-size: 14pt; color: red;" >If you have access to the site, this likely means that you purchased a 1x, non-recurring membership.</p>';
+        }
+
+        return $return;
     }
 }
 

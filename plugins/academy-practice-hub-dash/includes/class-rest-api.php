@@ -617,6 +617,18 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
+        register_rest_route('aph/v1', '/admin/table-sample/(?P<table>[a-zA-Z0-9_]+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_table_sample'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/admin/clear-table/(?P<table>[a-zA-Z0-9_]+)', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_clear_table'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
     }
     
     /**
@@ -5383,6 +5395,178 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
         } catch (Exception $e) {
             return new WP_Error('timezone_debug_error', 'Error debugging timezone: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get sample data from a table
+     */
+    public function rest_get_table_sample($request) {
+        try {
+            global $wpdb;
+            
+            $table_key = $request->get_param('table');
+            
+            // Map table keys to actual table names
+            $table_map = array(
+                'practice_sessions' => $wpdb->prefix . 'jph_practice_sessions',
+                'practice_items' => $wpdb->prefix . 'jph_practice_items',
+                'user_stats' => $wpdb->prefix . 'jph_user_stats',
+                'user_badges' => $wpdb->prefix . 'jph_user_badges',
+                'gems_transactions' => $wpdb->prefix . 'jph_gems_transactions',
+                'lesson_favorites' => $wpdb->prefix . 'jph_lesson_favorites'
+            );
+            
+            if (!isset($table_map[$table_key])) {
+                return new WP_Error('invalid_table', 'Invalid table key', array('status' => 400));
+            }
+            
+            $table_name = $table_map[$table_key];
+            
+            // Check if table exists
+            if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'table_name' => $table_name,
+                    'exists' => false,
+                    'count' => 0,
+                    'sample_data' => array()
+                ));
+            }
+            
+            // Get total count
+            $count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+            
+            // Get sample data (limit 5 rows)
+            $sample_data = $wpdb->get_results("SELECT * FROM $table_name LIMIT 5", ARRAY_A);
+            
+            // Get table structure
+            $columns = $wpdb->get_results("DESCRIBE $table_name", ARRAY_A);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'table_name' => $table_name,
+                'exists' => true,
+                'count' => intval($count),
+                'sample_data' => $sample_data,
+                'columns' => array_column($columns, 'Field')
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('table_sample_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Clear a specific table
+     */
+    public function rest_clear_table($request) {
+        try {
+            global $wpdb;
+            
+            $table_key = $request->get_param('table');
+            
+            // Map table keys to actual table names and their clear operations
+            $table_map = array(
+                'practice_sessions' => array(
+                    'table' => $wpdb->prefix . 'jph_practice_sessions',
+                    'clear' => 'DELETE',
+                    'reset_stats' => true
+                ),
+                'practice_items' => array(
+                    'table' => $wpdb->prefix . 'jph_practice_items',
+                    'clear' => 'DELETE',
+                    'reset_stats' => false
+                ),
+                'user_stats' => array(
+                    'table' => $wpdb->prefix . 'jph_user_stats',
+                    'clear' => 'UPDATE',
+                    'reset_stats' => false
+                ),
+                'user_badges' => array(
+                    'table' => $wpdb->prefix . 'jph_user_badges',
+                    'clear' => 'DELETE',
+                    'reset_stats' => true
+                ),
+                'gems_transactions' => array(
+                    'table' => $wpdb->prefix . 'jph_gems_transactions',
+                    'clear' => 'DELETE',
+                    'reset_stats' => false
+                ),
+                'lesson_favorites' => array(
+                    'table' => $wpdb->prefix . 'jph_lesson_favorites',
+                    'clear' => 'DELETE',
+                    'reset_stats' => false
+                )
+            );
+            
+            if (!isset($table_map[$table_key])) {
+                return new WP_Error('invalid_table', 'Invalid table key', array('status' => 400));
+            }
+            
+            $table_config = $table_map[$table_key];
+            $table_name = $table_config['table'];
+            
+            // Check if table exists
+            if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => "Table $table_name does not exist"
+                ));
+            }
+            
+            $deleted_count = 0;
+            
+            if ($table_config['clear'] === 'DELETE') {
+                // Get count before deletion
+                $before_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+                
+                // Delete all records
+                $wpdb->query("DELETE FROM $table_name");
+                
+                $deleted_count = $before_count;
+                
+                // Reset related stats if needed
+                if ($table_config['reset_stats'] && $table_key === 'practice_sessions') {
+                    $wpdb->query("UPDATE {$wpdb->prefix}jph_user_stats SET total_sessions = 0, total_minutes = 0");
+                } elseif ($table_config['reset_stats'] && $table_key === 'user_badges') {
+                    $wpdb->query("UPDATE {$wpdb->prefix}jph_user_stats SET badges_earned = 0");
+                }
+                
+            } elseif ($table_config['clear'] === 'UPDATE' && $table_key === 'user_stats') {
+                // Reset user stats to defaults
+                $deleted_count = $wpdb->query("UPDATE $table_name SET 
+                    total_xp = 0,
+                    current_level = 1,
+                    current_streak = 0,
+                    longest_streak = 0,
+                    total_sessions = 0,
+                    total_minutes = 0,
+                    badges_earned = 0,
+                    gems_balance = 5,
+                    last_practice_date = NULL");
+            }
+            
+            $this->logger->info('Table cleared', array(
+                'table' => $table_name,
+                'rows_affected' => $deleted_count,
+                'admin_id' => get_current_user_id()
+            ));
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => "Cleared {$deleted_count} records from {$table_name}",
+                'rows_affected' => $deleted_count,
+                'table_name' => $table_name
+            ));
+            
+        } catch (Exception $e) {
+            $this->logger->error('Failed to clear table', array(
+                'error' => $e->getMessage(),
+                'table' => $table_key,
+                'admin_id' => get_current_user_id()
+            ));
+            return new WP_Error('clear_table_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

@@ -4330,15 +4330,6 @@ Remember: Plain text only, no formatting.');
                     <p><strong>DEVELOPMENT/TESTING TOOL:</strong> This will permanently delete ALL user data and cannot be undone!</p>
                     
                     <div class="clear-all-section">
-                        <p>This action will clear:</p>
-                        <ul>
-                            <li>📝 All practice sessions</li>
-                            <li>🎯 All practice items (custom items created by users)</li>
-                            <li>👥 All user statistics (XP, levels, streaks)</li>
-                            <li>🎖️ All earned badges (user badges)</li>
-                            <li>💎 All gem transactions and balances</li>
-                            <li>❤️ All lesson favorites</li>
-                        </ul>
                         <p><strong>Note:</strong> This will NOT delete badge definitions or plugin settings.</p>
                         
                         <button type="button" class="button button-danger jph-clear-all-btn" onclick="confirmClearAllUserData()">
@@ -4347,6 +4338,15 @@ Remember: Plain text only, no formatting.');
                     </div>
                     
                     <div id="danger-results" class="danger-results"></div>
+                    
+                    <div class="individual-tables-section" style="margin-top: 30px;">
+                        <h3 style="margin-top: 30px; border-top: 2px solid #dc3545; padding-top: 20px;">Clear Individual Tables</h3>
+                        <p>Clear specific database tables individually. Each section shows the table name, record count, and sample data.</p>
+                        
+                        <div id="table-sections-container">
+                            <!-- Table sections will be loaded here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -4586,6 +4586,126 @@ Remember: Plain text only, no formatting.');
             border-radius: 8px;
             min-height: 50px;
         }
+        
+        /* Individual Table Sections */
+        .individual-tables-section {
+            margin-top: 30px;
+        }
+        
+        .table-section {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .table-title {
+            margin: 0 0 5px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .table-count {
+            background: #0073aa;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        .table-name {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #495057;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 3px solid #0073aa;
+        }
+        
+        .table-sample {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .table-sample pre {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #495057;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .table-sample .empty {
+            color: #6c757d;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .table-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .btn-clear-table {
+            background: #dc3545 !important;
+            border-color: #dc3545 !important;
+            color: white !important;
+            font-weight: 500;
+        }
+        
+        .btn-clear-table:hover {
+            background: #c82333 !important;
+            border-color: #bd2130 !important;
+        }
+        
+        .table-result {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            min-height: 20px;
+        }
+        
+        .table-result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .table-result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .table-loading {
+            text-align: center;
+            padding: 30px;
+            color: #6c757d;
+        }
         </style>
         
         <script>
@@ -4752,12 +4872,131 @@ Remember: Plain text only, no formatting.');
                 success: function(response) {
                     if (response.success) {
                         jQuery('#danger-results').html('<p style="color: green;">✅ ' + response.message + '</p>');
+                        // Reload table sections after clearing
+                        loadTableSections();
                     } else {
                         jQuery('#danger-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
                     }
                 },
                 error: function() {
                     jQuery('#danger-results').html('<p style="color: red;">❌ Error clearing user data</p>');
+                }
+            });
+        }
+        
+        // Table configuration
+        const tableConfigs = [
+            { key: 'practice_sessions', icon: '📝', name: 'Practice Sessions', description: 'All logged practice sessions' },
+            { key: 'practice_items', icon: '🎯', name: 'Practice Items', description: 'Custom practice items created by users' },
+            { key: 'user_stats', icon: '👥', name: 'User Statistics', description: 'XP, levels, streaks, and other user stats' },
+            { key: 'user_badges', icon: '🎖️', name: 'Earned Badges', description: 'Badges earned by users (not badge definitions)' },
+            { key: 'gems_transactions', icon: '💎', name: 'Gems Transactions', description: 'All gem transactions and balances' },
+            { key: 'lesson_favorites', icon: '❤️', name: 'Lesson Favorites', description: 'User lesson favorites' }
+        ];
+        
+        // Load table sections on page load
+        jQuery(document).ready(function() {
+            loadTableSections();
+        });
+        
+        function loadTableSections() {
+            const container = jQuery('#table-sections-container');
+            container.html('<div class="table-loading">Loading table information...</div>');
+            
+            const promises = tableConfigs.map(function(config) {
+                return jQuery.ajax({
+                    url: '<?php echo rest_url('aph/v1/admin/table-sample/'); ?>' + config.key,
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    }
+                }).then(function(response) {
+                    if (response.success) {
+                        return {
+                            config: config,
+                            data: response
+                        };
+                    }
+                    return null;
+                }).catch(function() {
+                    return null;
+                });
+            });
+            
+            jQuery.when.apply(jQuery, promises).done(function() {
+                container.empty();
+                
+                const results = Array.prototype.slice.call(arguments);
+                results.forEach(function(result) {
+                    if (result && result.data) {
+                        const section = createTableSection(result.config, result.data);
+                        container.append(section);
+                    }
+                });
+            }).fail(function() {
+                container.html('<div class="table-result error">Error loading table information</div>');
+            });
+        }
+        
+        function createTableSection(config, data) {
+            const sampleDataHtml = data.sample_data && data.sample_data.length > 0 
+                ? '<pre>' + JSON.stringify(data.sample_data.slice(0, 3), null, 2) + '</pre>'
+                : '<div class="empty">No data in this table</div>';
+            
+            const existsHtml = data.exists 
+                ? '<div class="table-section">' +
+                    '<div class="table-header">' +
+                        '<div>' +
+                            '<h4 class="table-title">' + config.icon + ' ' + config.name + '</h4>' +
+                            '<p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">' + config.description + '</p>' +
+                        '</div>' +
+                        '<span class="table-count">' + data.count + ' records</span>' +
+                    '</div>' +
+                    '<div class="table-name">Table: ' + data.table_name + '</div>' +
+                    '<div class="table-sample">' + sampleDataHtml + '</div>' +
+                    '<div class="table-actions">' +
+                        '<button type="button" class="button btn-clear-table" onclick="clearTable(\'' + config.key + '\', this)">Clear ' + config.name + '</button>' +
+                        '<div class="table-result" id="result-' + config.key + '"></div>' +
+                    '</div>' +
+                '</div>'
+                : '<div class="table-section"><p style="color: #6c757d;">Table ' + config.name + ' does not exist in database.</p></div>';
+            
+            return existsHtml;
+        }
+        
+        function clearTable(tableKey, button) {
+            const tableConfig = tableConfigs.find(t => t.key === tableKey);
+            const tableName = tableConfig ? tableConfig.name : tableKey;
+            
+            if (!confirm('⚠️ Are you sure you want to clear all data from "' + tableName + '"?\n\nThis action CANNOT be undone!')) {
+                return;
+            }
+            
+            const resultDiv = jQuery('#result-' + tableKey);
+            resultDiv.removeClass('success error').html('Clearing...');
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('aph/v1/admin/clear-table/'); ?>' + tableKey,
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        resultDiv.addClass('success').html('✅ ' + response.message);
+                        // Reload this table section
+                        setTimeout(function() {
+                            loadTableSections();
+                        }, 1000);
+                    } else {
+                        resultDiv.addClass('error').html('❌ ' + (response.message || 'Failed to clear table'));
+                    }
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON && xhr.responseJSON.message 
+                        ? xhr.responseJSON.message 
+                        : 'Network error occurred';
+                    resultDiv.addClass('error').html('❌ ' + errorMsg);
                 }
             });
         }

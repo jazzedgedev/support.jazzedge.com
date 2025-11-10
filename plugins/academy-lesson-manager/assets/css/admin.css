@@ -344,3 +344,18 @@
 a[target="_blank"]:after {
     content: none;
 }
+
+/* Collection Lessons Table - Prevent title wrapping */
+.alm-collection-lessons table.wp-list-table td:nth-child(3) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: none;
+}
+
+.alm-collection-lessons table.wp-list-table td:nth-child(3) a {
+    white-space: normal;
+    word-wrap: break-word;
+    display: inline-block;
+    max-width: 100%;
+}

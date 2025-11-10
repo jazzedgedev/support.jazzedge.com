@@ -1231,12 +1231,13 @@ class JPH_Frontend {
                     </div>
                 </div>
                 
-                <!-- Last Lesson Viewed & Search Section -->
-                <div class="jph-lesson-search-section">
-                    <div class="lesson-search-grid">
-                        <!-- Last Lesson Viewed (Left Column) -->
-                        <div class="last-lesson-column">
-                            <h4>Continue Learning</h4>
+                <!-- Search Section - Professional 2-Column Layout -->
+                <div class="jph-search-section">
+                    <div class="search-section-grid">
+                        <!-- Left Column - Continue Learning & Dropdowns (40%) -->
+                        <div class="search-left-column">
+                            <h4 class="section-heading">Continue Learning</h4>
+                            
                             <?php
                             // Get last viewed lesson
                             $last_lesson = get_user_meta($user_id, 'last_viewed_lesson', true);
@@ -1248,9 +1249,9 @@ class JPH_Frontend {
                                     $lesson_title = esc_html(stripslashes($last_lesson_data['title']));
                                     $permalink = esc_url($last_lesson_data['permalink']);
                                     ?>
-                                    <div class="last-lesson-content">
+                                    <div class="last-lesson-card">
                                         <div class="last-lesson-icon">
-                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                                             </svg>
                                         </div>
@@ -1262,9 +1263,9 @@ class JPH_Frontend {
                                     <?php
                                 } else {
                                     ?>
-                                    <div class="last-lesson-content">
+                                    <div class="last-lesson-card">
                                         <div class="last-lesson-icon">
-                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                                             </svg>
                                         </div>
@@ -1277,9 +1278,9 @@ class JPH_Frontend {
                                 }
                             } else {
                                 ?>
-                                <div class="last-lesson-content">
+                                <div class="last-lesson-card">
                                     <div class="last-lesson-icon">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
                                         </svg>
                                     </div>
@@ -1290,122 +1291,91 @@ class JPH_Frontend {
                                 </div>
                                 <?php
                             }
-                        ?>
-                        
-                        <?php
-                        // Quick Favorites Dropdown - Grouped by category and alphabetized
-                        if (!empty($lesson_favorites)) {
-                            // Organize favorites by category
-                            $favorites_by_category = array();
-                            foreach ($lesson_favorites as $favorite_item) {
-                                if (empty($favorite_item['title']) || empty($favorite_item['url'])) {
-                                    continue;
-                                }
-                                $category = !empty($favorite_item['category']) ? $favorite_item['category'] : 'lesson';
-                                $title = stripslashes($favorite_item['title']);
-                                $resource_type = !empty($favorite_item['resource_type']) ? $favorite_item['resource_type'] : '';
-                                
-                                // Determine if this should be a Resource based on:
-                                // 1. resource_type is set (this indicates it's definitely a resource)
-                                // 2. Category is not 'lesson'
-                                // 3. Title contains resource indicators like "(Sheet Music)", "(PDF)", etc.
-                                $is_resource = false;
-                                if (!empty($resource_type)) {
-                                    $is_resource = true;
-                                } elseif ($category !== 'lesson') {
-                                    $is_resource = true;
-                                } else {
-                                    // Check title for resource indicators
-                                    $resource_indicators = array('(Sheet Music)', '(PDF)', '(Sheet)', '(Music)', '(Resource)');
-                                    foreach ($resource_indicators as $indicator) {
-                                        if (stripos($title, $indicator) !== false) {
-                                            $is_resource = true;
-                                            break;
-                                        }
+                            ?>
+                            
+                            <?php
+                            // Favorites Dropdown
+                            if (!empty($lesson_favorites)) {
+                                $favorites_by_category = array();
+                                foreach ($lesson_favorites as $favorite_item) {
+                                    if (empty($favorite_item['title']) || empty($favorite_item['url'])) {
+                                        continue;
                                     }
-                                }
-                                
-                                $display_category = $is_resource ? 'Resources' : 'Lessons';
-                                
-                                if (!isset($favorites_by_category[$display_category])) {
-                                    $favorites_by_category[$display_category] = array();
-                                }
-                                
-                                $favorites_by_category[$display_category][] = $favorite_item;
-                            }
-                            
-                            // Sort each category alphabetically by title
-                            foreach ($favorites_by_category as $cat => &$items) {
-                                usort($items, function($a, $b) {
-                                    return strcasecmp(stripslashes($a['title']), stripslashes($b['title']));
-                                });
-                            }
-                            unset($items);
-                            
-                            echo '<div class="quick-nav quick-nav-favorites">';
-                            echo '<label for="jph-favorites-dropdown" class="quick-nav-label">Favorites</label>';
-                            echo '<select id="jph-favorites-dropdown" class="quick-nav-select" style="width:100%;max-width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#ffffff;box-shadow:none;outline:none;">';
-                            echo '<option value="">Select a favorite…</option>';
-                            echo '<option value="' . esc_url(home_url('/my-favorites')) . '" data-view-all="true">📋 View all favorites</option>';
-                            
-                            // Display in order: Lessons first, then Resources
-                            $category_order = array('Lessons', 'Resources');
-                            foreach ($category_order as $category_name) {
-                                if (isset($favorites_by_category[$category_name]) && !empty($favorites_by_category[$category_name])) {
-                                    echo '<optgroup label="' . esc_attr($category_name) . '">';
-                                    foreach ($favorites_by_category[$category_name] as $favorite_item) {
-                                        $fav_title = esc_html(stripslashes($favorite_item['title']));
-                                        
-                                        // Build URL: if resource_link exists and url contains je_link.php, rebuild using resource_link
-                                        $fav_url = $favorite_item['url'];
-                                        if (!empty($favorite_item['resource_link'])) {
-                                            // Check if url contains je_link.php - if so, extract lesson ID and rebuild with resource_link
-                                            if (strpos($fav_url, 'je_link.php') !== false) {
-                                                // Extract lesson ID from existing URL
-                                                parse_str(parse_url($fav_url, PHP_URL_QUERY), $params);
-                                                if (!empty($params['id']) && !empty($favorite_item['resource_link'])) {
-                                                    // Rebuild URL with properly encoded resource_link
-                                                    $fav_url = 'https://jazzedge.academy/je_link.php?id=' . intval($params['id']) . '&link=' . urlencode($favorite_item['resource_link']);
-                                                }
-                                            } elseif (strpos($favorite_item['resource_link'], 'http://') !== 0 && strpos($favorite_item['resource_link'], 'https://') !== 0) {
-                                                // resource_link is a file path and url is direct S3 URL - use resource_link to rebuild
-                                                if (strpos($fav_url, 's3.amazonaws.com') !== false && strpos($fav_url, $favorite_item['resource_link']) === false) {
-                                                    // Rebuild S3 URL with proper resource_link
-                                                    $fav_url = 'https://s3.amazonaws.com/jazzedge-resources/' . $favorite_item['resource_link'];
-                                                }
+                                    $category = !empty($favorite_item['category']) ? $favorite_item['category'] : 'lesson';
+                                    $title = stripslashes($favorite_item['title']);
+                                    $resource_type = !empty($favorite_item['resource_type']) ? $favorite_item['resource_type'] : '';
+                                    
+                                    $is_resource = false;
+                                    if (!empty($resource_type)) {
+                                        $is_resource = true;
+                                    } elseif ($category !== 'lesson') {
+                                        $is_resource = true;
+                                    } else {
+                                        $resource_indicators = array('(Sheet Music)', '(PDF)', '(Sheet)', '(Music)', '(Resource)');
+                                        foreach ($resource_indicators as $indicator) {
+                                            if (stripos($title, $indicator) !== false) {
+                                                $is_resource = true;
+                                                break;
                                             }
                                         }
-                                        
-                                        $fav_url = esc_url($fav_url);
-                                        echo '<option value="' . $fav_url . '" title="' . $fav_title . '">' . $fav_title . '</option>';
                                     }
-                                    echo '</optgroup>';
+                                    
+                                    $display_category = $is_resource ? 'Resources' : 'Lessons';
+                                    
+                                    if (!isset($favorites_by_category[$display_category])) {
+                                        $favorites_by_category[$display_category] = array();
+                                    }
+                                    
+                                    $favorites_by_category[$display_category][] = $favorite_item;
                                 }
+                                
+                                foreach ($favorites_by_category as $cat => &$items) {
+                                    usort($items, function($a, $b) {
+                                        return strcasecmp(stripslashes($a['title']), stripslashes($b['title']));
+                                    });
+                                }
+                                unset($items);
+                                
+                                echo '<div class="favorites-dropdown-wrapper">';
+                                echo '<select id="jph-favorites-dropdown" class="standard-dropdown">';
+                                echo '<option value="">Select a favorite…</option>';
+                                echo '<option value="' . esc_url(home_url('/my-favorites')) . '" data-view-all="true">📋 View all favorites</option>';
+                                
+                                $category_order = array('Lessons', 'Resources');
+                                foreach ($category_order as $category_name) {
+                                    if (isset($favorites_by_category[$category_name]) && !empty($favorites_by_category[$category_name])) {
+                                        echo '<optgroup label="' . esc_attr($category_name) . '">';
+                                        foreach ($favorites_by_category[$category_name] as $favorite_item) {
+                                            $fav_title = esc_html(stripslashes($favorite_item['title']));
+                                            
+                                            $fav_url = $favorite_item['url'];
+                                            if (!empty($favorite_item['resource_link'])) {
+                                                if (strpos($fav_url, 'je_link.php') !== false) {
+                                                    parse_str(parse_url($fav_url, PHP_URL_QUERY), $params);
+                                                    if (!empty($params['id']) && !empty($favorite_item['resource_link'])) {
+                                                        $fav_url = 'https://jazzedge.academy/je_link.php?id=' . intval($params['id']) . '&link=' . urlencode($favorite_item['resource_link']);
+                                                    }
+                                                } elseif (strpos($favorite_item['resource_link'], 'http://') !== 0 && strpos($favorite_item['resource_link'], 'https://') !== 0) {
+                                                    if (strpos($fav_url, 's3.amazonaws.com') !== false && strpos($fav_url, $favorite_item['resource_link']) === false) {
+                                                        $fav_url = 'https://s3.amazonaws.com/jazzedge-resources/' . $favorite_item['resource_link'];
+                                                    }
+                                                }
+                                            }
+                                            
+                                            $fav_url = esc_url($fav_url);
+                                            echo '<option value="' . $fav_url . '" title="' . $fav_title . '">' . $fav_title . '</option>';
+                                        }
+                                        echo '</optgroup>';
+                                    }
+                                }
+                                
+                                echo '</select>';
+                                echo '</div>';
                             }
-                            
-                            echo '</select>';
-                            echo '</div>';
-                        }
                             ?>
-                        </div>
-                        
-                        <!-- Search Placeholder (Right Column) -->
-                        <div class="search-column">
-                            <h4>Search Lessons</h4>
-                            <div class="search-placeholder">
-                                <div class="search-icon">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                    </svg>
-                                </div>
-                                <div class="search-info">
-                                    <span class="search-label">Search functionality coming soon</span>
-                                    <span class="search-description">Find lessons, techniques, and topics</span>
-                                </div>
-                            </div>
+                            
                             <?php
-                            // Collections Dropdown (from Academy Lesson Manager collections)
-                            // Grouped by membership level
+                            // Collections Dropdown
                             global $wpdb;
                             $collections_table = $wpdb->prefix . 'alm_collections';
                             $collections = $wpdb->get_results(
@@ -1415,20 +1385,17 @@ class JPH_Frontend {
                             );
                             
                             if (!empty($collections)) {
-                                // Get membership level names
                                 $membership_levels = array();
                                 if (class_exists('ALM_Admin_Settings') && method_exists('ALM_Admin_Settings', 'get_membership_levels')) {
                                     $membership_levels = ALM_Admin_Settings::get_membership_levels();
                                 }
                                 
-                                echo '<div class="quick-nav quick-nav-collections">';
-                                echo '<label for="jph-collections-dropdown" class="quick-nav-label">Collections</label>';
-                                echo '<select id="jph-collections-dropdown" class="quick-nav-select" onchange="if(this.value) window.location.href=this.value;" style="width:100%;max-width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;background:#ffffff;box-shadow:none;outline:none;">';
+                                echo '<div class="collections-dropdown-wrapper">';
+                                echo '<select id="jph-collections-dropdown" class="standard-dropdown" onchange="if(this.value) window.location.href=this.value;">';
                                 echo '<option value="">Select a collection…</option>';
                                 
                                 $current_level = null;
                                 foreach ($collections as $collection_row) {
-                                    // Only include collections that have a post_id (are published/accessible)
                                     $post_id = intval($collection_row->post_id);
                                     if (!$post_id) { continue; }
                                     
@@ -1437,7 +1404,6 @@ class JPH_Frontend {
                                     
                                     $membership_level = intval($collection_row->membership_level);
                                     
-                                    // Find the membership level name by numeric value
                                     $level_name = 'Unknown';
                                     if (!empty($membership_levels)) {
                                         foreach ($membership_levels as $level_key => $level_data) {
@@ -1448,9 +1414,7 @@ class JPH_Frontend {
                                         }
                                     }
                                     
-                                    // Start new optgroup when membership level changes
                                     if ($current_level !== $membership_level) {
-                                        // Close previous optgroup if it exists
                                         if ($current_level !== null) {
                                             echo '</optgroup>';
                                         }
@@ -1462,7 +1426,6 @@ class JPH_Frontend {
                                     echo '<option value="' . esc_url($collection_url) . '" title="' . $collection_title . '">' . $collection_title . '</option>';
                                 }
                                 
-                                // Close last optgroup
                                 if ($current_level !== null) {
                                     echo '</optgroup>';
                                 }
@@ -1471,6 +1434,37 @@ class JPH_Frontend {
                                 echo '</div>';
                             }
                             ?>
+                        </div>
+                        
+                        <!-- Right Column - Search Lessons Prominent Section (60%) -->
+                        <div class="search-right-column">
+                            <div class="search-prominent-card">
+                                <div class="search-header">
+                                    <h4 class="search-heading">
+                                        <svg class="search-heading-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                        </svg>
+                                        Search Lessons
+                                    </h4>
+                                    <p class="search-subtitle">Find lessons, resources, and more instantly</p>
+                                </div>
+                                
+                                <div class="search-input-wrapper-prominent">
+                                    <?php
+                                    echo do_shortcode('[alm_lesson_search_compact view_all_url="/search" placeholder="Search lessons..." max_items="10"]');
+                                    ?>
+                                </div>
+                                
+                                <div class="search-tips">
+                                    <h5 class="search-tips-heading">💡 Search Tips</h5>
+                                    <ul class="search-tips-list">
+                                        <li>Try searching by <strong>lesson title</strong>, <strong>song name</strong>, or <strong>topic</strong></li>
+                                        <li>Use keywords like <strong>"chord"</strong>, <strong>"improvisation"</strong>, or <strong>"scales"</strong></li>
+                                        <li>Search for specific artists or songs you want to learn</li>
+                                        <li>Browse <strong>collections</strong> to discover curated lesson series</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4014,44 +4008,118 @@ class JPH_Frontend {
             line-height: 1.2;
         }
         
-        /* Last Lesson Viewed & Search Section Styles */
-        .jph-lesson-search-section {
+        /* ============================================
+           Search Section - Professional 2-Column Layout
+           ============================================ */
+        
+        /* Main Container */
+        .jph-search-section {
             background: white;
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 16px;
+            padding: 32px;
             margin: 30px 0 20px 0;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             border: 1px solid rgba(226, 232, 240, 0.8);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
-        .lesson-search-grid {
+        /* Grid Layout - 40% Left, 60% Right */
+        .search-section-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
+            grid-template-columns: 40% 60%;
+            gap: 40px;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            align-items: start;
+            box-sizing: border-box;
+        }
+        
+        /* Base Component Variables */
+        :root {
+            --input-border: 1px solid #e5e7eb;
+            --input-border-radius: 12px;
+            --input-padding: 12px 14px;
+            --input-bg: #ffffff;
+            --input-color: #1f2937;
+            --input-font-size: 15px;
+            --input-font-weight: 400;
+            --input-line-height: 1.5;
+            --spacing-xs: 12px;
+            --spacing-sm: 16px;
+            --spacing-md: 32px;
+            --card-bg: #f8fafc;
+            --border-color-hover: #d1d5db;
         }
 
-        .last-lesson-column h4,
-        .search-column h4 {
-            font-size: 1.1rem;
+        /* Section Headings */
+        .section-heading {
+            font-size: 16px;
             font-weight: 600;
             color: #1f2937;
-            margin: 0 0 15px 0;
+            margin: 0 0 var(--spacing-xs) 0;
+            line-height: 1.5;
+            padding: 0;
         }
 
-        .last-lesson-content {
+        /* Column Containers - Ensure containment */
+        .search-left-column,
+        .search-right-column {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        /* Base Input Component - ALL inputs inherit this */
+        .base-input-component {
+            width: 100%;
+            padding: var(--input-padding);
+            border: var(--input-border);
+            border-radius: var(--input-border-radius);
+            background: var(--input-bg);
+            color: var(--input-color);
+            font-size: var(--input-font-size);
+            font-weight: var(--input-font-weight);
+            line-height: var(--input-line-height);
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+        }
+
+        .base-input-component:hover {
+            border-color: var(--border-color-hover);
+        }
+
+        .base-input-component:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Last Lesson Card - Uses base styling */
+        .last-lesson-card {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 15px;
-            background: #f8fafc;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
+            gap: var(--spacing-xs);
+            padding: var(--input-padding);
+            border: var(--input-border);
+            border-radius: var(--input-border-radius);
+            background: var(--card-bg);
+            margin-bottom: var(--spacing-xs);
             transition: all 0.2s ease;
+            cursor: pointer;
+            box-sizing: border-box;
         }
 
-        .last-lesson-content:hover {
+        .last-lesson-card:hover {
             background: #f1f5f9;
-            transform: translateY(-1px);
+            border-color: var(--border-color-hover);
         }
 
         .last-lesson-icon {
@@ -4059,30 +4127,394 @@ class JPH_Frontend {
             height: 24px;
             color: #3b82f6;
             flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .last-lesson-icon svg {
+            width: 100%;
+            height: 100%;
         }
 
         .last-lesson-info {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 4px;
+            flex: 1;
+            min-width: 0;
         }
 
         .last-lesson-link {
             color: #1f2937;
             text-decoration: none;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: var(--input-font-size);
+            line-height: 1.4;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .last-lesson-link:hover {
             color: #3b82f6;
-            text-decoration: underline;
         }
 
         .last-lesson-label {
-            font-size: 0.85rem;
+            font-size: 13px;
             color: #6b7280;
-            font-weight: 500;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+
+        /* Wrapper Elements - Consistent Spacing */
+        .favorites-dropdown-wrapper,
+        .collections-dropdown-wrapper {
+            width: 100%;
+            margin: 0 0 var(--spacing-xs) 0;
+        }
+
+        .search-input-wrapper {
+            width: 100%;
+            margin: 0 0 var(--spacing-xs) 0;
+        }
+
+        /* Standard Dropdown - Extends base component */
+        .standard-dropdown {
+            width: 100%;
+            padding: var(--input-padding);
+            padding-right: 40px;
+            border: var(--input-border);
+            border-radius: var(--input-border-radius);
+            background: var(--input-bg);
+            color: var(--input-color);
+            font-size: var(--input-font-size);
+            font-weight: var(--input-font-weight);
+            line-height: var(--input-line-height);
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .standard-dropdown:hover {
+            border-color: var(--border-color-hover);
+            background-color: var(--input-bg);
+        }
+
+        .standard-dropdown:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+
+        .standard-dropdown option {
+            padding: 8px;
+            color: #1f2937;
+        }
+
+        /* Search Input - Extends base component */
+        .search-input-wrapper {
+            position: relative;
+        }
+
+        .search-input-wrapper #alm-lesson-search-compact {
+            width: 100%;
+        }
+
+        .search-input-wrapper #alm-lesson-search-compact input[type="search"] {
+            width: 100%;
+            padding: var(--input-padding);
+            border: var(--input-border);
+            border-radius: var(--input-border-radius);
+            background: var(--input-bg);
+            color: var(--input-color);
+            font-size: var(--input-font-size);
+            font-weight: var(--input-font-weight);
+            line-height: var(--input-line-height);
+            outline: none;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .search-input-wrapper #alm-lesson-search-compact input[type="search"]:hover {
+            border-color: var(--border-color-hover);
+            background-color: var(--input-bg);
+        }
+
+        .search-input-wrapper #alm-lesson-search-compact input[type="search"]:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+
+        .search-input-wrapper #alm-lesson-search-compact input[type="search"]::placeholder {
+            color: #9ca3af;
+        }
+
+        /* ============================================
+           Prominent Search Card - Right Column (60%)
+           Professional Design to Make It Pop
+           ============================================ */
+        
+        .search-prominent-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border: 2px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(59, 130, 246, 0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: visible;
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 95%;
+            margin-right: 16px;
+        }
+        
+        .search-prominent-card * {
+            box-sizing: border-box;
+        }
+
+        .search-prominent-card:hover {
+            box-shadow: 0 8px 30px rgba(59, 130, 246, 0.12), 0 0 0 1px rgba(59, 130, 246, 0.1);
+            transform: translateY(-2px);
+        }
+
+        /* Search Header */
+        .search-header {
+            margin-bottom: 24px;
+        }
+
+        .search-heading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0 0 8px 0;
+            line-height: 1.3;
+        }
+
+        .search-heading-icon {
+            width: 28px;
+            height: 28px;
+            color: #3b82f6;
+            flex-shrink: 0;
+        }
+
+        .search-subtitle {
+            font-size: 15px;
+            color: #6b7280;
+            margin: 0;
+            line-height: 1.5;
+            font-weight: 400;
+        }
+
+        /* Prominent Search Input - Force containment */
+        .search-input-wrapper-prominent {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin-bottom: 28px;
+            position: relative;
+            overflow: visible !important;
+            box-sizing: border-box !important;
+            display: block !important;
+        }
+
+        .search-input-wrapper-prominent #alm-lesson-search-compact {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            position: relative !important;
+            box-sizing: border-box !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        /* Ensure dropdown panel stays within bounds */
+        .search-input-wrapper-prominent #alm-lesson-search-compact > div {
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+        }
+
+        .search-input-wrapper-prominent #alm-lesson-search-compact input[type="search"],
+        .search-input-wrapper-prominent #alm-lesson-search-compact input {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            padding: 18px 48px 18px 20px !important;
+            border: 2px solid #e5e7eb !important;
+            border-radius: 14px !important;
+            background: #ffffff !important;
+            color: #1f2937 !important;
+            font-size: 16px !important;
+            font-weight: 400 !important;
+            line-height: 1.5 !important;
+            outline: none !important;
+            transition: all 0.3s ease;
+            box-sizing: border-box !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            margin: 0 !important;
+            display: block !important;
+        }
+
+        .search-input-wrapper-prominent #alm-lesson-search-compact input[type="search"]:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-input-wrapper-prominent #alm-lesson-search-compact input[type="search"]:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), 0 4px 16px rgba(59, 130, 246, 0.15);
+            outline: none;
+            transform: translateY(-1px);
+        }
+
+        .search-input-wrapper-prominent #alm-lesson-search-compact input[type="search"]::placeholder {
+            color: #9ca3af;
+            font-weight: 400;
+        }
+
+        /* Search Input Icon - Right Aligned Heroicon */
+        .search-input-wrapper-prominent #alm-lesson-search-compact::after {
+            content: '';
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            z-index: 10;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg fill='none' stroke='%236b7280' stroke-width='2' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+        }
+
+        /* Search Tips Section */
+        .search-tips {
+            background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
+            border: 1px solid #e0f2fe;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 0;
+        }
+
+        .search-tips-heading {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0 0 14px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-tips-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .search-tips-list li {
+            font-size: 14px;
+            color: #475467;
+            line-height: 1.6;
+            padding-left: 24px;
+            position: relative;
+        }
+
+        .search-tips-list li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .search-tips-list li strong {
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        /* ============================================
+           Responsive Design
+           ============================================ */
+        
+        @media (max-width: 768px) {
+            .jph-search-section {
+                padding: 24px;
+                border-radius: 12px;
+            }
+
+            .search-section-grid {
+                grid-template-columns: 1fr;
+                gap: 28px;
+            }
+
+            .search-prominent-card {
+                padding: 24px;
+                border-radius: 12px;
+                margin-right: 0;
+            }
+
+            .search-heading {
+                font-size: 20px;
+            }
+
+            .search-subtitle {
+                font-size: 14px;
+            }
+
+            .search-input-wrapper-prominent #alm-lesson-search-compact input[type="search"] {
+                padding: 16px 18px;
+                padding-left: 48px;
+                font-size: 15px;
+            }
+
+            .search-tips {
+                padding: 16px;
+            }
+
+            .search-tips-heading {
+                font-size: 15px;
+                margin-bottom: 12px;
+            }
+
+            .search-tips-list li {
+                font-size: 13px;
+            }
+
+            .section-heading {
+                font-size: 15px;
+            }
+
+            .last-lesson-card {
+                padding: 14px;
+            }
+
+            .standard-dropdown {
+                padding: 12px 14px;
+                font-size: 14px;
+            }
         }
 
         .search-placeholder {
@@ -4120,11 +4552,29 @@ class JPH_Frontend {
             color: #9ca3af;
         }
 
-        /* Responsive Design */
+        /* Responsive Design - Pixel Perfect */
         @media (max-width: 768px) {
             .lesson-search-grid {
                 grid-template-columns: 1fr;
-                gap: 20px;
+                gap: 24px;
+            }
+            
+            .section-heading {
+                font-size: 15px;
+                margin: 0 0 14px 0;
+            }
+            
+            .last-lesson-card {
+                padding: 14px 16px;
+                min-height: 76px;
+                margin-bottom: 14px;
+            }
+            
+            .favorites-dropdown-wrapper,
+            .collections-dropdown-wrapper,
+            .search-input-wrapper {
+                margin-top: 14px;
+                margin-bottom: 14px;
             }
         }
         
@@ -10241,30 +10691,29 @@ class JPH_Frontend {
             // Initialize tab functionality
             initTabs();
             
-            // Handle favorites dropdown - open in new tab without popup blocker
+            // Handle last lesson card click - make entire card clickable
+            $('.last-lesson-card').on('click', function(e) {
+                const link = $(this).find('.last-lesson-link');
+                if (link.length && !$(e.target).is('a')) {
+                    const url = link.attr('href');
+                    if (url) {
+                        window.open(url, link.attr('target') || '_self');
+                    }
+                }
+            });
+            
+            // Handle favorites dropdown - open in current window
             $('#jph-favorites-dropdown').on('change', function() {
                 const url = $(this).val();
                 if (url) {
                     const selectedOption = $(this).find('option:selected');
                     const isViewAll = selectedOption.data('view-all');
                     
-                    if (isViewAll) {
-                        // Navigate to favorites page in same window
-                        window.location.href = url;
-                    } else {
-                        // Create a temporary anchor element and click it
-                        // This method avoids Safari popup blockers
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.target = '_blank';
-                        link.rel = 'noopener noreferrer';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        
-                        // Reset dropdown
-                        $(this).val('');
-                    }
+                    // Navigate to selected favorite in same window
+                    window.location.href = url;
+                    
+                    // Reset dropdown
+                    $(this).val('');
                 }
             });
             
@@ -13271,7 +13720,7 @@ class JPH_Frontend {
             'show_stats' => 'true'
         ), $atts);
         
-        // Enqueue scripts and styles
+        // Enqueue scripts and styles - ensure jQuery is loaded
         wp_enqueue_script('jquery');
         
         ob_start();
@@ -13793,24 +14242,38 @@ class JPH_Frontend {
         </style>
         
         <script>
-        jQuery(document).ready(function($) {
-            let currentPage = 0;
-            let currentSort = '<?php echo esc_js($atts['sort_by']); ?>';
-            // Ensure default sort is descending for XP
-            if (currentSort === 'total_xp' && !currentSort.startsWith('-')) {
-                currentSort = '-' + currentSort;
-            }
-            let currentLimit = <?php echo intval($atts['limit']); ?>;
-            let isLoading = false;
+        (function() {
+            // Wait for jQuery to be available
+            let retryCount = 0;
+            const maxRetries = 50; // Max 5 seconds (50 * 100ms)
             
-            // Initialize leaderboard
-            loadLeaderboard();
-            loadUserPosition();
-            loadLeaderboardStats();
-            updateSortIndicators();
-            
-            // Back to Practice Hub function
-            window.goBackToHub = function() {
+            function initLeaderboard() {
+                if (typeof jQuery === 'undefined') {
+                    retryCount++;
+                    if (retryCount < maxRetries) {
+                        // jQuery not loaded yet, wait a bit and try again
+                        setTimeout(initLeaderboard, 100);
+                    } else {
+                        // jQuery failed to load - show error
+                        console.error('jQuery failed to load after ' + maxRetries + ' retries');
+                        document.getElementById('jph-leaderboard-error').style.display = 'block';
+                        document.getElementById('jph-leaderboard-loading').style.display = 'none';
+                    }
+                    return;
+                }
+                
+                jQuery(document).ready(function($) {
+                    let currentPage = 0;
+                    let currentSort = '<?php echo esc_js($atts['sort_by']); ?>';
+                    // Ensure default sort is descending for XP
+                    if (currentSort === 'total_xp' && !currentSort.startsWith('-')) {
+                        currentSort = '-' + currentSort;
+                    }
+                    let currentLimit = <?php echo intval($atts['limit']); ?>;
+                    let isLoading = false;
+                    
+                    // Back to Practice Hub function
+                    window.goBackToHub = function() {
                 // Try to find and focus the parent window (Practice Hub)
                 if (window.opener && !window.opener.closed) {
                     window.opener.focus();
@@ -13905,8 +14368,9 @@ class JPH_Frontend {
                             showError('Failed to load leaderboard');
                         }
                     },
-                    error: function() {
-                        showError('Failed to load leaderboard');
+                    error: function(xhr, status, error) {
+                        console.error('Leaderboard AJAX error:', status, error, xhr);
+                        showError('Failed to load leaderboard. Please check console for details.');
                     },
                     complete: function() {
                         isLoading = false;
@@ -14040,7 +14504,18 @@ class JPH_Frontend {
             function numberFormat(num) {
                 return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             }
-        });
+            
+            // Initialize leaderboard
+            loadLeaderboard();
+            loadUserPosition();
+            loadLeaderboardStats();
+            updateSortIndicators();
+                });
+            }
+            
+            // Start initialization
+            initLeaderboard();
+        })();
         </script>
         
         <?php

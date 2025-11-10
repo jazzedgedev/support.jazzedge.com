@@ -562,10 +562,10 @@ class ALM_Admin_Collections {
             echo '<thead>';
             echo '<tr>';
             echo '<th scope="col" style="width: 40px;">' . __('', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('ID', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Title', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Duration', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Synced Status', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" style="width: 60px;">' . __('ID', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" style="width: 40%;">' . __('Title', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" style="width: 100px;">' . __('Duration', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" style="width: 150px;">' . __('Synced Status', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Actions', 'academy-lesson-manager') . '</th>';
             echo '</tr>';
             echo '</thead>';

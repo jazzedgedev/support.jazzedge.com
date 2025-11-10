@@ -60,9 +60,13 @@ class ALM_Admin_Chapters {
                 return;
             }
             
-            // Handle other form submissions (add/edit)
-            $this->handle_form_submission();
-            return;
+            // Handle other form submissions (add/edit). Avoid intercepting the search form POST
+            // which does not include a form_action field.
+            if (isset($_POST['form_action']) && !empty($_POST['form_action'])) {
+                $this->handle_form_submission();
+                return;
+            }
+            // If none of the above POST actions apply, fall through to render the list page
         }
         
         echo '<div class="wrap">';

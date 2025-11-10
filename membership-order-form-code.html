@@ -1,0 +1,697 @@
+<!-- Membership Order Form - 3 Column Card Layout -->
+<!-- Copy this entire code block into Oxygen Builder Code Block element -->
+<!-- Uses Jazzedge Academy brand colors and dynamic pricing from admin settings -->
+
+<?php
+// Get pricing data
+$pricing = je_get_all_membership_pricing();
+
+// Essentials
+$essentials_yearly = $pricing['essentials']['yearly'] ?? array('price' => 175, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/JA_YEAR_ESSENTIALS', 'is_sale' => false, 'retail_price' => 175);
+
+// Studio
+$studio_monthly = $pricing['studio']['monthly'] ?? array('price' => 39, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/ja_monthly_studio_retail', 'is_sale' => false, 'retail_price' => 39);
+$studio_yearly = $pricing['studio']['yearly'] ?? array('price' => 390, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_studio', 'is_sale' => false, 'retail_price' => 390);
+
+// Premier
+$premier_monthly = $pricing['premier']['monthly'] ?? array('price' => 59, 'order_form' => '', 'is_sale' => false, 'retail_price' => 59);
+$premier_yearly = $pricing['premier']['yearly'] ?? array('price' => 649, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_premier_retail', 'is_sale' => false, 'retail_price' => 649);
+?>
+
+<div class="membership-order-form">
+    
+    <!-- Membership Cards Container -->
+    <div class="membership-cards">
+        
+        <!-- Essentials Card -->
+        <div class="membership-card essentials-card">
+            <div class="card-header">
+                <h3 class="card-title">Essentials</h3>
+                <div class="card-badge">Perfect Starter</div>
+            </div>
+            
+            <div class="card-pricing">
+                <div class="price">
+                    <span class="currency">$</span>
+                    <span class="amount"><?php echo number_format($essentials_yearly['price'], 0); ?></span>
+                    <?php if ($essentials_yearly['is_sale'] && $essentials_yearly['retail_price'] > $essentials_yearly['price']): ?>
+                    <span class="retail-price">$<?php echo number_format($essentials_yearly['retail_price'], 0); ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="billing-period">per year</div>
+                <?php if ($essentials_yearly['is_sale']): ?>
+                <div class="sale-badge">On Sale!</div>
+                <?php endif; ?>
+            </div>
+            
+            <div class="card-description">
+                <p>Start your jazz piano journey with essential resources and foundational content to build your skills.</p>
+            </div>
+            
+            <div class="card-features">
+                <ul>
+                    <li><span class="check-icon">✓</span> 30-Day Piano Playbook™</li>
+                    <li><span class="check-icon">✓</span> Academy Blueprints</li>
+                    <li><span class="check-icon">✓</span> Join our Community Calls</li>
+                    <li><span class="check-icon">✓</span> Essential Resources & Content</li>
+                </ul>
+            </div>
+            
+            <div class="card-cta">
+                <a href="<?php echo esc_url($essentials_yearly['order_form']); ?>" class="btn-get-access" target="_blank">Get Access - Essentials $<?php echo number_format($essentials_yearly['price'], 0); ?>/year</a>
+            </div>
+            
+            <div class="card-guarantee">
+                <span class="guarantee-icon">🛡️</span>
+                <span>30-Day Money-Back Guarantee</span>
+            </div>
+        </div>
+        
+        <!-- Studio Card -->
+        <div class="membership-card studio-card featured">
+            <div class="card-popular">Most Popular</div>
+            <div class="card-header">
+                <h3 class="card-title">Studio</h3>
+                <div class="card-badge">Build Your Skills</div>
+            </div>
+            
+            <!-- Pricing Toggle (for Studio only) -->
+            <div class="card-pricing-toggle">
+                <div class="pricing-toggle">
+                    <span class="toggle-label">Monthly</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pricing-toggle" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">Yearly</span>
+                </div>
+            </div>
+            
+            <div class="card-pricing">
+                <div class="price">
+                    <span class="currency">$</span>
+                    <span class="amount monthly-price"><?php echo number_format($studio_monthly['price'], 0); ?></span>
+                    <span class="amount yearly-price" style="display: none;"><?php echo number_format($studio_yearly['price'], 0); ?></span>
+                    <?php if ($studio_monthly['is_sale'] || $studio_yearly['is_sale']): ?>
+                    <span class="retail-price monthly-retail">$<?php echo number_format($studio_monthly['retail_price'], 0); ?></span>
+                    <span class="retail-price yearly-retail" style="display: none;">$<?php echo number_format($studio_yearly['retail_price'], 0); ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="billing-period">
+                    <span class="monthly-period">per month</span>
+                    <span class="yearly-period" style="display: none;">per year</span>
+                </div>
+                <div class="yearly-savings-message" style="display: none;">
+                    <span class="savings-badge">2 Months Free</span>
+                </div>
+                <?php if ($studio_monthly['is_sale'] || $studio_yearly['is_sale']): ?>
+                <div class="sale-badge">On Sale!</div>
+                <?php endif; ?>
+            </div>
+            
+            <div class="card-description">
+                <p>Imagine sitting down at the piano and effortlessly playing through arrangements that amaze your friends. With our extensive lesson library and structured learning paths, you'll build the skills to make that vision a reality.</p>
+            </div>
+            
+            <div class="card-features">
+                <ul>
+                    <li><span class="check-icon">✓</span> 5,840+ Lesson Chapters (and growing)</li>
+                    <li><span class="check-icon">✓</span> Live Coaching Every Other Week</li>
+                    <li><span class="check-icon">✓</span> Learning Paths & Practice Tracking</li>
+                    <li><span class="check-icon">✓</span> Jazzedge Practice Curriculum™</li>
+                    <li><span class="check-icon">✓</span> Access to All Studio Lessons</li>
+                </ul>
+            </div>
+            
+            <div class="card-cta">
+                <a href="<?php echo esc_url($studio_monthly['order_form']); ?>" class="btn-get-access monthly-link" target="_blank">Get Access - Studio $<?php echo number_format($studio_monthly['price'], 0); ?>/month</a>
+                <a href="<?php echo esc_url($studio_yearly['order_form']); ?>" class="btn-get-access yearly-link" style="display: none;" target="_blank">Get Access - Studio $<?php echo number_format($studio_yearly['price'], 0); ?>/year</a>
+            </div>
+            
+            <div class="card-guarantee">
+                <span class="guarantee-icon">🛡️</span>
+                <span>30-Day Money-Back Guarantee</span>
+            </div>
+        </div>
+        
+        <!-- Premier Card -->
+        <div class="membership-card premier-card">
+            <div class="card-header">
+                <h3 class="card-title">Premier</h3>
+                <div class="card-badge">Maximum Support</div>
+            </div>
+            
+            <div class="card-pricing">
+                <div class="price">
+                    <span class="currency">$</span>
+                    <span class="amount"><?php echo number_format($premier_yearly['price'], 0); ?></span>
+                    <?php if ($premier_yearly['is_sale'] && $premier_yearly['retail_price'] > $premier_yearly['price']): ?>
+                    <span class="retail-price">$<?php echo number_format($premier_yearly['retail_price'], 0); ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="billing-period">per year</div>
+                <?php if ($premier_yearly['is_sale']): ?>
+                <div class="sale-badge">On Sale!</div>
+                <?php endif; ?>
+            </div>
+            
+            <div class="card-description">
+                <p>Picture yourself after several arrangements are under your fingers—confidently improvising what you hear, playing with ease and musicality. Premier gives you personalized guidance from Willie, the creator of Jazzedge Academy, plus exclusive content to accelerate your progress.</p>
+            </div>
+            
+            <div class="card-features">
+                <ul>
+                    <li><span class="check-icon">✓</span> Everything in Studio</li>
+                    <li><span class="check-icon">✓</span> Live Coaching Every Week</li>
+                    <li><span class="check-icon">✓</span> 340+ Premier-Only Lessons</li>
+                    <li><span class="check-icon">✓</span> Super Simple Standards™ Collection</li>
+                    <li><span class="check-icon">✓</span> Live Classes with Jazzedge Academy Teachers</li>
+                    <li><span class="check-icon">✓</span> Direct Access to Willie - Ask Questions & Get Feedback</li>
+                    <li><span class="check-icon">✓</span> Personalized Practice Path Guidance</li>
+                    <li><span class="check-icon">✓</span> Learning Paths & Practice Tracking</li>
+                </ul>
+            </div>
+            
+            <div class="card-cta">
+                <a href="<?php echo esc_url($premier_yearly['order_form']); ?>" class="btn-get-access" target="_blank">Get Access - Premier $<?php echo number_format($premier_yearly['price'], 0); ?>/year</a>
+            </div>
+            
+            <div class="card-guarantee">
+                <span class="guarantee-icon">🛡️</span>
+                <span>30-Day Money-Back Guarantee</span>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Why Premier Section -->
+    <div class="why-premier-section">
+        <h3>Why Premier?</h3>
+        <p>Premier keeps you focused on the end goal: improving your playing. With structured practice paths, regular check-ins, and the guidance you need, you'll see measurable progress and avoid the frustration of getting stuck or losing momentum.</p>
+        <p><strong>It's more than just lessons—it's about making gains every time you sit down to practice.</strong></p>
+        <a href="#" class="btn-learn-more">Learn more about Premier</a>
+    </div>
+    
+</div>
+
+<style>
+/* Jazzedge Academy Brand Colors */
+:root {
+    --je-sherpa-blue: #004555;
+    --je-jungle-green: #239B90;
+    --je-pomegranate: #F04E23;
+    --je-ocean-green: #459E90;
+    --je-daintree: #002A34;
+    --je-finn: #6B2B60;
+}
+
+/* Membership Order Form Styles */
+.membership-order-form {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Pricing Toggle */
+.card-pricing-toggle {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0 30px 0;
+}
+
+.pricing-toggle {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: #f8f9fa;
+    padding: 10px 20px;
+    border-radius: 50px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.toggle-label {
+    font-weight: 600;
+    color: var(--je-daintree);
+    font-size: 14px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--je-jungle-green);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(22px);
+}
+
+/* Yearly Savings Message */
+.yearly-savings-message {
+    margin-top: 12px;
+}
+
+.savings-badge {
+    display: inline-block;
+    background: var(--je-jungle-green);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(35,155,144,0.2);
+}
+
+/* Membership Cards Container */
+.membership-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+    margin-bottom: 60px;
+}
+
+/* Individual Card Styles */
+.membership-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px 30px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 2px solid transparent;
+}
+
+.membership-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+}
+
+.studio-card.featured {
+    border: 2px solid var(--je-jungle-green);
+    transform: scale(1.05);
+}
+
+.studio-card.featured:hover {
+    transform: scale(1.05) translateY(-5px);
+}
+
+.card-popular {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, var(--je-jungle-green) 0%, var(--je-sherpa-blue) 100%);
+    color: white;
+    padding: 6px 20px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 12px rgba(35,155,144,0.3);
+}
+
+.card-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.card-title {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    color: var(--je-daintree);
+}
+
+.card-badge {
+    display: inline-block;
+    background: #e9ecef;
+    color: var(--je-daintree);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.card-pricing {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 30px;
+    border-bottom: 2px solid #e9ecef;
+    position: relative;
+}
+
+.price {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.currency {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--je-daintree);
+    margin-top: 8px;
+}
+
+.amount {
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--je-daintree);
+}
+
+.retail-price {
+    font-size: 24px;
+    color: #6c757d;
+    text-decoration: line-through;
+    margin-left: 8px;
+    font-weight: 400;
+}
+
+.billing-period {
+    font-size: 16px;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.sale-badge {
+    display: inline-block;
+    background: var(--je-pomegranate);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 8px;
+}
+
+.card-description {
+    margin-bottom: 30px;
+    min-height: 80px;
+}
+
+.card-description p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #495057;
+    margin: 0;
+}
+
+.card-features {
+    flex: 1;
+    margin-bottom: 30px;
+}
+
+.card-features ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.card-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #495057;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.card-features li:last-child {
+    border-bottom: none;
+}
+
+.check-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: var(--je-jungle-green);
+    color: white;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.card-cta {
+    margin-bottom: 20px;
+}
+
+.btn-get-access {
+    display: block;
+    width: 100%;
+    padding: 16px 32px;
+    background: linear-gradient(135deg, var(--je-jungle-green) 0%, var(--je-sherpa-blue) 100%);
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 700;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(35,155,144,0.3);
+    line-height: 1.4;
+}
+
+.btn-get-access:hover {
+    background: linear-gradient(135deg, var(--je-sherpa-blue) 0%, var(--je-daintree) 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(35,155,144,0.4);
+    color: white;
+}
+
+.studio-card .btn-get-access {
+    background: linear-gradient(135deg, var(--je-jungle-green) 0%, var(--je-sherpa-blue) 100%);
+    box-shadow: 0 4px 12px rgba(35,155,144,0.4);
+}
+
+.premier-card .btn-get-access {
+    background: linear-gradient(135deg, var(--je-finn) 0%, var(--je-pomegranate) 100%);
+    box-shadow: 0 4px 12px rgba(107,43,96,0.3);
+}
+
+.premier-card .btn-get-access:hover {
+    background: linear-gradient(135deg, var(--je-pomegranate) 0%, #d93e1a 100%);
+    box-shadow: 0 6px 20px rgba(240,78,35,0.4);
+}
+
+.card-guarantee {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #6c757d;
+    text-align: center;
+}
+
+.guarantee-icon {
+    font-size: 16px;
+}
+
+/* Why Premier Section */
+.why-premier-section {
+    max-width: 800px;
+    margin: 60px auto 0;
+    padding: 40px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 16px;
+    text-align: center;
+}
+
+.why-premier-section h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--je-daintree);
+    margin: 0 0 20px 0;
+}
+
+.why-premier-section p {
+    font-size: 17px;
+    line-height: 1.7;
+    color: #495057;
+    margin: 0 0 15px 0;
+}
+
+.why-premier-section p strong {
+    color: var(--je-daintree);
+    font-weight: 700;
+}
+
+.btn-learn-more {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 14px 28px;
+    background: var(--je-finn);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-learn-more:hover {
+    background: var(--je-pomegranate);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(240,78,35,0.3);
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .membership-cards {
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+    
+    .studio-card.featured {
+        transform: scale(1);
+    }
+    
+    .studio-card.featured:hover {
+        transform: translateY(-5px);
+    }
+}
+
+@media (max-width: 768px) {
+    .membership-order-form {
+        padding: 20px 15px;
+    }
+    
+    .membership-card {
+        padding: 30px 20px;
+    }
+    
+    .card-title {
+        font-size: 28px;
+    }
+    
+    .amount {
+        font-size: 52px;
+    }
+    
+    .pricing-toggle {
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 15px 20px;
+    }
+    
+    .why-premier-section {
+        padding: 30px 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .pricing-toggle {
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 10px 15px;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggle = document.getElementById('pricing-toggle');
+    const monthlyPrices = document.querySelectorAll('.monthly-price');
+    const yearlyPrices = document.querySelectorAll('.yearly-price');
+    const monthlyPeriods = document.querySelectorAll('.monthly-period');
+    const yearlyPeriods = document.querySelectorAll('.yearly-period');
+    const monthlyLinks = document.querySelectorAll('.monthly-link');
+    const yearlyLinks = document.querySelectorAll('.yearly-link');
+    const monthlyRetail = document.querySelectorAll('.monthly-retail');
+    const yearlyRetail = document.querySelectorAll('.yearly-retail');
+    const yearlySavingsMessage = document.querySelector('.yearly-savings-message');
+    
+    toggle.addEventListener('change', function() {
+        if (this.checked) {
+            // Show yearly pricing
+            monthlyPrices.forEach(price => price.style.display = 'none');
+            yearlyPrices.forEach(price => price.style.display = 'inline');
+            monthlyPeriods.forEach(period => period.style.display = 'none');
+            yearlyPeriods.forEach(period => period.style.display = 'inline');
+            monthlyLinks.forEach(link => {
+                if (!link.classList.contains('always-visible')) {
+                    link.style.display = 'none';
+                }
+            });
+            yearlyLinks.forEach(link => link.style.display = 'block');
+            monthlyRetail.forEach(retail => retail.style.display = 'none');
+            yearlyRetail.forEach(retail => retail.style.display = 'inline');
+            if (yearlySavingsMessage) {
+                yearlySavingsMessage.style.display = 'block';
+            }
+        } else {
+            // Show monthly pricing
+            monthlyPrices.forEach(price => price.style.display = 'inline');
+            yearlyPrices.forEach(price => price.style.display = 'none');
+            monthlyPeriods.forEach(period => period.style.display = 'inline');
+            yearlyPeriods.forEach(period => period.style.display = 'none');
+            monthlyLinks.forEach(link => link.style.display = 'block');
+            yearlyLinks.forEach(link => {
+                if (!link.classList.contains('always-visible')) {
+                    link.style.display = 'none';
+                }
+            });
+            monthlyRetail.forEach(retail => retail.style.display = 'inline');
+            yearlyRetail.forEach(retail => retail.style.display = 'none');
+            if (yearlySavingsMessage) {
+                yearlySavingsMessage.style.display = 'none';
+            }
+        }
+    });
+});
+</script>

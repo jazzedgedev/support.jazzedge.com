@@ -7764,8 +7764,8 @@ class JPH_Frontend {
             'show_stats' => 'true'
         ), $atts);
         
-        // Enqueue scripts and styles
-        wp_enqueue_script('jquery');
+        // Enqueue scripts and styles - ensure jQuery is loaded in footer
+        wp_enqueue_script('jquery', false, array(), false, true);
         
         ob_start();
         ?>
@@ -8286,21 +8286,30 @@ class JPH_Frontend {
         </style>
         
         <script>
-        jQuery(document).ready(function($) {
-            let currentPage = 0;
-            let currentSort = '<?php echo esc_js($atts['sort_by']); ?>';
-            // Ensure default sort is descending for XP
-            if (currentSort === 'total_xp' && !currentSort.startsWith('-')) {
-                currentSort = '-' + currentSort;
-            }
-            let currentLimit = <?php echo intval($atts['limit']); ?>;
-            let isLoading = false;
-            
-            // Initialize leaderboard
-            loadLeaderboard();
-            loadUserPosition();
-            loadLeaderboardStats();
-            updateSortIndicators();
+        (function() {
+            // Wait for jQuery to be available
+            function initLeaderboard() {
+                if (typeof jQuery === 'undefined') {
+                    // jQuery not loaded yet, wait a bit and try again
+                    setTimeout(initLeaderboard, 100);
+                    return;
+                }
+                
+                jQuery(document).ready(function($) {
+                    let currentPage = 0;
+                    let currentSort = '<?php echo esc_js($atts['sort_by']); ?>';
+                    // Ensure default sort is descending for XP
+                    if (currentSort === 'total_xp' && !currentSort.startsWith('-')) {
+                        currentSort = '-' + currentSort;
+                    }
+                    let currentLimit = <?php echo intval($atts['limit']); ?>;
+                    let isLoading = false;
+                    
+                    // Initialize leaderboard
+                    loadLeaderboard();
+                    loadUserPosition();
+                    loadLeaderboardStats();
+                    updateSortIndicators();
             
             // Back to Practice Hub function
             window.goBackToHub = function() {
@@ -8534,7 +8543,12 @@ class JPH_Frontend {
             function numberFormat(num) {
                 return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             }
-        });
+                });
+            }
+            
+            // Start initialization
+            initLeaderboard();
+        })();
         </script>
         
         <?php

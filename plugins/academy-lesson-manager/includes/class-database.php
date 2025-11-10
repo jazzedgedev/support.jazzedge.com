@@ -35,7 +35,12 @@ class ALM_Database {
         $this->tables = array(
             'collections' => $wpdb->prefix . 'alm_collections',
             'lessons' => $wpdb->prefix . 'alm_lessons',
-            'chapters' => $wpdb->prefix . 'alm_chapters'
+            'chapters' => $wpdb->prefix . 'alm_chapters',
+            'transcripts' => $wpdb->prefix . 'alm_transcripts',
+            'lesson_embeddings' => $wpdb->prefix . 'alm_lesson_embeddings',
+            'ai_paths' => $wpdb->prefix . 'alm_ai_paths',
+            'lesson_pathways' => $wpdb->prefix . 'alm_lesson_pathways',
+            'tags' => $wpdb->prefix . 'alm_tags'
         );
     }
     
@@ -46,12 +51,32 @@ class ALM_Database {
         $this->create_collections_table();
         $this->create_lessons_table();
         $this->create_chapters_table();
+        $this->create_transcripts_table();
+        $this->create_lesson_embeddings_table();
+        $this->create_ai_paths_table();
+        $this->create_lesson_pathways_table();
+        $this->create_tags_table();
         
         // Check and add membership_level columns if they don't exist
         $this->check_and_add_membership_columns();
         
         // Check and add menu_order column to lessons table if it doesn't exist
         $this->check_and_add_menu_order_column();
+        
+        // Check and add lesson_level and lesson_tags columns if they don't exist
+        $this->check_and_add_lesson_level_and_tags();
+        
+        // Check and add lesson_style column if it doesn't exist
+        $this->check_and_add_lesson_style();
+        
+        // Ensure lesson_pathways table exists (migration for existing installations)
+        $this->ensure_lesson_pathways_table();
+        
+        // Ensure tags table exists (migration for existing installations)
+        $this->ensure_tags_table();
+
+        // Ensure FULLTEXT indexes for search performance
+        $this->ensure_fulltext_indexes();
     }
     
     /**
@@ -81,6 +106,38 @@ class ALM_Database {
         $lessons_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'menu_order'");
         if (empty($lessons_columns)) {
             $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN menu_order int(11) DEFAULT 0 AFTER collection_id, ADD KEY menu_order (menu_order)");
+        }
+    }
+    
+    /**
+     * Check and add lesson_level and lesson_tags columns to lessons table
+     */
+    public function check_and_add_lesson_level_and_tags() {
+        $lessons_table = $this->tables['lessons'];
+        
+        // Check for lesson_level column
+        $level_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'lesson_level'");
+        if (empty($level_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN lesson_level enum('beginner','intermediate','advanced','pro') DEFAULT 'intermediate' AFTER membership_level, ADD KEY lesson_level (lesson_level)");
+        }
+        
+        // Check for lesson_tags column
+        $tags_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'lesson_tags'");
+        if (empty($tags_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN lesson_tags varchar(500) DEFAULT '' AFTER lesson_level");
+        }
+    }
+    
+    /**
+     * Check and add lesson_style column to lessons table
+     */
+    public function check_and_add_lesson_style() {
+        $lessons_table = $this->tables['lessons'];
+        
+        // Check for lesson_style column
+        $style_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'lesson_style'");
+        if (empty($style_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN lesson_style varchar(500) DEFAULT '' AFTER lesson_tags");
         }
     }
     
@@ -132,6 +189,9 @@ class ALM_Database {
                 song_lesson char(1) DEFAULT 'n',
                 slug varchar(255) DEFAULT '',
                 membership_level int(11) DEFAULT 2,
+                lesson_level enum('beginner','intermediate','advanced','pro') DEFAULT 'intermediate',
+                lesson_tags varchar(500) DEFAULT '',
+                lesson_style varchar(500) DEFAULT '',
                 created_at datetime DEFAULT CURRENT_TIMESTAMP,
                 updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (ID),
@@ -139,7 +199,8 @@ class ALM_Database {
                 KEY collection_id (collection_id),
                 KEY lesson_title (lesson_title),
                 KEY song_lesson (song_lesson),
-                KEY membership_level (membership_level)
+                KEY membership_level (membership_level),
+                KEY lesson_level (lesson_level)
             ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -179,6 +240,210 @@ class ALM_Database {
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+    }
+
+    /**
+     * Create transcripts table (stores parsed transcript text for each lesson)
+     */
+    private function create_transcripts_table() {
+        $table_name = $this->tables['transcripts'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            lesson_id int(11) NOT NULL,
+            source varchar(50) DEFAULT 'vtt',
+            content longtext,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            UNIQUE KEY uniq_lesson_source (lesson_id, source),
+            KEY lesson_id (lesson_id)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * Create lesson embeddings table (stores vector embeddings for lessons)
+     */
+    private function create_lesson_embeddings_table() {
+        $table_name = $this->tables['lesson_embeddings'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            lesson_id int(11) NOT NULL,
+            embedding longtext NOT NULL,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (lesson_id)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    /**
+     * Create lesson pathways junction table (allows lessons to belong to multiple pathways)
+     * Stores pathway assignments and rankings for AI recommendations
+     */
+    private function create_lesson_pathways_table() {
+        $table_name = $this->tables['lesson_pathways'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            lesson_id int(11) NOT NULL,
+            pathway VARCHAR(100) NOT NULL,
+            pathway_rank tinyint(1) DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            UNIQUE KEY unique_lesson_pathway (lesson_id, pathway),
+            KEY lesson_id (lesson_id),
+            KEY pathway (pathway),
+            KEY pathway_rank (pathway_rank),
+            KEY pathway_rank_composite (pathway, pathway_rank)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    /**
+     * Create AI paths table (stores AI-generated learning paths for users)
+     */
+    private function create_ai_paths_table() {
+        $table_name = $this->tables['ai_paths'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) NOT NULL,
+            search_query varchar(255) NOT NULL,
+            path_name varchar(255) DEFAULT '',
+            summary text,
+            recommended_path longtext,
+            alternative_lessons longtext,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            KEY user_id (user_id),
+            KEY search_query (search_query),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * Create tags table
+     */
+    private function create_tags_table() {
+        $table_name = $this->tables['tags'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            tag_name varchar(255) NOT NULL,
+            tag_slug varchar(255) NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            UNIQUE KEY tag_name (tag_name),
+            UNIQUE KEY tag_slug (tag_slug),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    /**
+     * Ensure tags table exists (for existing installations)
+     */
+    private function ensure_tags_table() {
+        $table_name = $this->tables['tags'];
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") == $table_name;
+        
+        if (!$table_exists) {
+            $this->create_tags_table();
+        }
+    }
+    
+    /**
+     * Ensure lesson_pathways table exists (for existing installations)
+     */
+    private function ensure_lesson_pathways_table() {
+        $table_name = $this->tables['lesson_pathways'];
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") == $table_name;
+        
+        if (!$table_exists) {
+            $this->create_lesson_pathways_table();
+        } else {
+            // Check if pathway column is ENUM and convert to VARCHAR for dynamic pathways
+            $this->convert_pathway_enum_to_varchar();
+        }
+    }
+    
+    /**
+     * Convert pathway column from ENUM to VARCHAR to support dynamic pathways
+     */
+    private function convert_pathway_enum_to_varchar() {
+        $table_name = $this->tables['lesson_pathways'];
+        
+        // Check current column type
+        $column_info = $this->wpdb->get_row($this->wpdb->prepare(
+            "SHOW COLUMNS FROM {$table_name} WHERE Field = %s",
+            'pathway'
+        ));
+        
+        if ($column_info && strpos($column_info->Type, 'enum') !== false) {
+            // Convert ENUM to VARCHAR(100) to allow dynamic pathways
+            $this->wpdb->query("ALTER TABLE {$table_name} MODIFY COLUMN pathway VARCHAR(100) NOT NULL");
+        }
+    }
+    
+    /**
+     * Ensure FULLTEXT indexes exist for lessons, chapters, and transcripts
+     */
+    private function ensure_fulltext_indexes() {
+        // Lessons FULLTEXT on title and description
+        $lessons_table = $this->tables['lessons'];
+        $has_ft_lessons = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(1) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'ft_lessons'",
+            $lessons_table
+        ));
+        if (intval($has_ft_lessons) === 0) {
+            // Some MySQL setups require InnoDB + proper collation; ignore errors gracefully
+            @$this->wpdb->query("ALTER TABLE $lessons_table ADD FULLTEXT KEY ft_lessons (lesson_title, lesson_description)");
+        }
+
+        // Chapters FULLTEXT on chapter_title
+        $chapters_table = $this->tables['chapters'];
+        $has_ft_chapters = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(1) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'ft_chapters'",
+            $chapters_table
+        ));
+        if (intval($has_ft_chapters) === 0) {
+            @$this->wpdb->query("ALTER TABLE $chapters_table ADD FULLTEXT KEY ft_chapters (chapter_title)");
+        }
+
+        // Transcripts FULLTEXT on content
+        $transcripts_table = $this->tables['transcripts'];
+        $has_ft_transcripts = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(1) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'ft_transcripts'",
+            $transcripts_table
+        ));
+        if (intval($has_ft_transcripts) === 0) {
+            @$this->wpdb->query("ALTER TABLE $transcripts_table ADD FULLTEXT KEY ft_transcripts (content)");
+        }
     }
     
     /**

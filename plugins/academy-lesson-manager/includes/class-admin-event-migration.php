@@ -580,16 +580,19 @@ class ALM_Admin_Event_Migration {
             );
         }
         
-        // Create chapter if replay Vimeo ID exists
+        // Get video URLs from event
         $replay_vimeo_id = get_post_meta($event_id, 'je_event_replay_vimeo_id', true);
-        if (!empty($replay_vimeo_id)) {
+        $bunny_url = get_post_meta($event_id, 'je_event_bunny_url', true);
+        
+        // Create chapter if either Vimeo ID or Bunny URL exists
+        if (!empty($replay_vimeo_id) || !empty($bunny_url)) {
             $chapter_data = array(
                 'lesson_id' => $lesson_id,
                 'chapter_title' => $lesson_title,
                 'menu_order' => 1,
-                'vimeo_id' => intval($replay_vimeo_id),
+                'vimeo_id' => !empty($replay_vimeo_id) ? intval($replay_vimeo_id) : 0,
                 'youtube_id' => '',
-                'bunny_url' => '',
+                'bunny_url' => !empty($bunny_url) ? sanitize_text_field($bunny_url) : '',
                 'duration' => 0,
                 'free' => 'n',
                 'slug' => sanitize_title($lesson_title),
@@ -974,16 +977,19 @@ class ALM_Admin_Event_Migration {
                 );
             }
             
-            // Create chapter if replay Vimeo ID exists
+            // Get video URLs from event
             $replay_vimeo_id = get_post_meta($event_id, 'je_event_replay_vimeo_id', true);
-            if (!empty($replay_vimeo_id)) {
+            $bunny_url = get_post_meta($event_id, 'je_event_bunny_url', true);
+            
+            // Create chapter if either Vimeo ID or Bunny URL exists
+            if (!empty($replay_vimeo_id) || !empty($bunny_url)) {
                 $chapter_data = array(
                     'lesson_id' => $lesson_id,
                     'chapter_title' => $lesson_title,
                     'menu_order' => 1,
-                    'vimeo_id' => intval($replay_vimeo_id),
+                    'vimeo_id' => !empty($replay_vimeo_id) ? intval($replay_vimeo_id) : 0,
                     'youtube_id' => '',
-                    'bunny_url' => '',
+                    'bunny_url' => !empty($bunny_url) ? sanitize_text_field($bunny_url) : '',
                     'duration' => 0,
                     'free' => 'n',
                     'slug' => sanitize_title($lesson_title),
