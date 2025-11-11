@@ -2,3 +2,4 @@
 node_modules/
 vendor/
 .env
+plugins.backup/php_errorlog
