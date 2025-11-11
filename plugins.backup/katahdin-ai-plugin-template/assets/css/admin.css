@@ -1,0 +1,152 @@
+/* Katahdin AI Plugin Template Admin Styles */
+
+.katahdin-plugin-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.katahdin-plugin-status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.katahdin-plugin-status.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.katahdin-plugin-status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.katahdin-plugin-status.pending {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.katahdin-plugin-button {
+    background: #0073aa;
+    color: #fff;
+    border: 1px solid #0073aa;
+    border-radius: 4px;
+    padding: 8px 16px;
+    text-decoration: none;
+    display: inline-block;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.katahdin-plugin-button:hover {
+    background: #005a87;
+    border-color: #005a87;
+    color: #fff;
+}
+
+.katahdin-plugin-button.secondary {
+    background: #f1f1f1;
+    color: #333;
+    border-color: #ccc;
+}
+
+.katahdin-plugin-button.secondary:hover {
+    background: #e1e1e1;
+    border-color: #999;
+    color: #333;
+}
+
+.katahdin-plugin-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.katahdin-plugin-debug {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.katahdin-plugin-debug pre {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 15px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 12px;
+    max-height: 500px;
+    overflow-y: auto;
+    line-height: 1.4;
+}
+
+.katahdin-plugin-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.katahdin-plugin-stat {
+    text-align: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+.katahdin-plugin-stat.success {
+    background: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.katahdin-plugin-stat.error {
+    background: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+.katahdin-plugin-stat.warning {
+    background: #fff3cd;
+    border-color: #ffeaa7;
+}
+
+.katahdin-plugin-stat strong {
+    display: block;
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+.katahdin-plugin-stat span {
+    font-size: 14px;
+    color: #666;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .katahdin-plugin-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .katahdin-plugin-card {
+        padding: 15px;
+    }
+    
+    .katahdin-plugin-button {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}

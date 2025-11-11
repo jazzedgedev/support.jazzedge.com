@@ -1,0 +1,56 @@
+/**
+ * Jazzedge Docs Admin Styles
+ */
+
+.jazzedge-docs-analytics {
+    margin-top: 20px;
+}
+
+.analytics-section {
+    margin-bottom: 30px;
+}
+
+.analytics-section h2 {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #ddd;
+}
+
+#jazzedge-doc-related-wrapper {
+    margin-top: 15px;
+}
+
+#jazzedge-doc-related-select {
+    width: 100%;
+    max-width: 500px;
+}
+
+#jazzedge-doc-related-list {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0 0 0;
+}
+
+#jazzedge-doc-related-list li {
+    padding: 8px;
+    background: #f9f9f9;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 4px;
+}
+
+#jazzedge-doc-related-list li:hover {
+    background: #f0f0f0;
+}
+
+.jazzedge-doc-remove-related {
+    color: #a00;
+    cursor: pointer;
+}
+
+.jazzedge-doc-remove-related:hover {
+    color: #dc3232;
+}
+

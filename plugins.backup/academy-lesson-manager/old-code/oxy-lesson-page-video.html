@@ -1,0 +1,28 @@
+<?php
+global $wpdb, $lesson_id, $chapter_id, $user_id, $video_src, $user_id;
+
+if ($chapter_id == 0) {
+    je_chapter_not_selected($lesson_id); // Redirect to the first chapter
+} elseif ($chapter_id > 0) {
+    $bunny_url = $wpdb->get_var("SELECT bunny_url FROM academy_chapters WHERE ID = $chapter_id");
+
+    if (!empty($bunny_url)) {
+        $video_source = $bunny_url;
+        $video_src = 'bun';
+    } else {
+        $vimeo_id = do_shortcode("[je_return_chapter_data return='vimeo_id']");
+        $youtube_id = do_shortcode("[je_return_chapter_data return='youtube_id']");
+        $video_src = !empty($youtube_id) ? 'ytb' : 'vim';
+        $video_source = !empty($youtube_id) ? 'https://youtu.be/' . $youtube_id : 'https://vimeo.com/' . $vimeo_id;
+    }
+
+    if ($user_id > 1){
+      echo do_shortcode("[fvplayer src='$video_source' splash='https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg']");
+    } else {
+      echo '<p style="color: red; font-weight: bold; font-size: 16px; padding: 10px; border: 1px solid red; background-color: #ffe6e6; text-align: center; border-radius: 5px;">Please login to view this video.</p>';
+
+    }
+} else {
+    echo '<p>No chapter selected.</p>';
+}
+?>

@@ -89,6 +89,28 @@ class ALM_Rest_API {
             'callback' => array($this, 'handle_get_tags'),
             'permission_callback' => '__return_true',
         ));
+        
+        // Essentials Library endpoints
+        register_rest_route('alm/v1', '/library/select', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array($this, 'handle_library_select'),
+            'permission_callback' => array($this, 'check_user_permission'),
+            'args' => array(
+                'lesson_id' => array('type' => 'integer', 'required' => true),
+            ),
+        ));
+        
+        register_rest_route('alm/v1', '/library/available', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => array($this, 'handle_library_available'),
+            'permission_callback' => array($this, 'check_user_permission'),
+        ));
+        
+        register_rest_route('alm/v1', '/library/lessons', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => array($this, 'handle_library_lessons'),
+            'permission_callback' => array($this, 'check_user_permission'),
+        ));
     }
     
     /**
@@ -319,6 +341,134 @@ class ALM_Rest_API {
         return rest_ensure_response($tags_array);
     }
     
+    /**
+     * Check if user is Essentials member
+     * 
+     * @param int $user_id User ID
+     * @return bool True if Essentials member
+     */
+    private function is_essentials_member($user_id) {
+        // Check if user has Essentials membership via Keap/Infusionsoft
+        // Essentials members should have membership level 1
+        // They should NOT have Studio (2) or Premier (3) access
+        
+        // First check if they have Studio or Premier (if so, they're not Essentials)
+        $studio_access = false;
+        $premier_access = false;
+        
+        if (function_exists('memb_hasAnyTags')) {
+            $studio_access = memb_hasAnyTags([9954,10136,9807,9827,9819,9956,10136]);
+            $premier_access = memb_hasAnyTags([9821,9813,10142]);
+        }
+        
+        // If they have Studio or Premier, they're not Essentials
+        if ($studio_access || $premier_access) {
+            return false;
+        }
+        
+        // Check for Essentials membership SKU
+        $essentials_skus = array('JA_YEAR_ESSENTIALS', 'ACADEMY_ESSENTIALS');
+        foreach ($essentials_skus as $sku) {
+            if (function_exists('memb_hasMembership') && memb_hasMembership($sku) === true) {
+                return true;
+            }
+        }
+        
+        // Fallback: Check if they have active membership but not Studio/Premier
+        // This assumes Essentials is the base paid membership
+        if (function_exists('je_return_active_member') && je_return_active_member() == 'true') {
+            // If they're an active member but don't have Studio/Premier, assume Essentials
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Handle library select endpoint
+     */
+    public function handle_library_select(WP_REST_Request $request) {
+        if (!class_exists('ALM_Essentials_Library')) {
+            return new WP_Error('library_unavailable', 'Library system not available', array('status' => 500));
+        }
+        
+        $user_id = get_current_user_id();
+        $lesson_id = $request->get_param('lesson_id');
+        
+        // Check if user is Essentials member
+        if (!$this->is_essentials_member($user_id)) {
+            return new WP_Error('unauthorized', 'This feature is available for Essentials members only', array('status' => 403));
+        }
+        
+        $library = new ALM_Essentials_Library();
+        $result = $library->add_lesson_to_library($user_id, $lesson_id);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        $available = $library->get_available_selections($user_id);
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Lesson added to your library!',
+            'available_count' => $available
+        ));
+    }
+    
+    /**
+     * Handle library available endpoint
+     */
+    public function handle_library_available(WP_REST_Request $request) {
+        if (!class_exists('ALM_Essentials_Library')) {
+            return new WP_Error('library_unavailable', 'Library system not available', array('status' => 500));
+        }
+        
+        $user_id = get_current_user_id();
+        $library = new ALM_Essentials_Library();
+        $available = $library->get_available_selections($user_id);
+        $next_grant = $library->get_next_grant_date($user_id);
+        
+        return rest_ensure_response(array(
+            'available_count' => $available,
+            'next_grant_date' => $next_grant
+        ));
+    }
+    
+    /**
+     * Handle library lessons endpoint
+     */
+    public function handle_library_lessons(WP_REST_Request $request) {
+        if (!class_exists('ALM_Essentials_Library')) {
+            return new WP_Error('library_unavailable', 'Library system not available', array('status' => 500));
+        }
+        
+        $user_id = get_current_user_id();
+        $library = new ALM_Essentials_Library();
+        $lessons = $library->get_user_library($user_id);
+        
+        $lessons_array = array();
+        foreach ($lessons as $lesson) {
+            $lesson_url = '';
+            if ($lesson->post_id) {
+                $lesson_url = get_permalink($lesson->post_id);
+            } elseif ($lesson->slug) {
+                $lesson_url = home_url('/lesson/' . $lesson->slug . '/');
+            }
+            
+            $lessons_array[] = array(
+                'id' => $lesson->ID,
+                'title' => stripslashes($lesson->lesson_title),
+                'description' => stripslashes($lesson->lesson_description),
+                'url' => $lesson_url,
+                'selected_at' => $lesson->selected_at,
+                'duration' => $lesson->duration
+            );
+        }
+        
+        return rest_ensure_response($lessons_array);
+    }
+    
 
     /**
      * Search lessons with filters and pagination
@@ -510,7 +660,7 @@ class ALM_Rest_API {
         $total = intval($this->wpdb->get_var($count_sql));
 
         // Query with collection title join (always include JOIN since we need collection_title)
-        $sql = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, l.duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources, c.collection_title{$select_relevance}
+        $sql = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, l.duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources, l.sample_video_url, c.collection_title{$select_relevance}
                 FROM {$lessons_table} l
                 LEFT JOIN {$collections_table} c ON c.ID = l.collection_id
                 {$where_sql}
@@ -624,7 +774,7 @@ class ALM_Rest_API {
             // 3. Then, $f_params again for the WHERE LIKE conditions
             // 4. Finally, $per_page and $offset
             
-            $sql2 = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, l.duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources,
+            $sql2 = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, l.duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources, l.sample_video_url,
                             c.collection_title, (" . $score_sql . ") AS score
                      FROM {$lessons_table} l
                      LEFT JOIN " . $this->database->get_table_name('chapters') . " c2 ON c2.lesson_id = l.ID
@@ -826,6 +976,7 @@ class ALM_Rest_API {
                 'lesson_style' => !empty($r->lesson_style) ? stripslashes($r->lesson_style) : '',
                 'slug' => $r->slug,
                 'permalink' => ($r->post_id ? get_permalink($r->post_id) : ''),
+                'sample_video_url' => !empty($r->sample_video_url) ? $r->sample_video_url : '',
                 'relevance' => isset($r->relevance) ? floatval($r->relevance) : null,
                 'has_resources' => (!empty($r->resources) && $r->resources !== 'N;')
             );

@@ -10,6 +10,9 @@ class ALM_Frontend_Search {
     }
 
     public function enqueue_assets() {
+        // Enqueue microtip CSS for tooltips
+        wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
+        
         // Minimal inline script; no separate file yet
         $handle = 'alm-lesson-search';
         wp_register_script($handle, false, array('wp-i18n'), ALM_VERSION, true);
@@ -21,6 +24,22 @@ class ALM_Frontend_Search {
         wp_enqueue_style($css_handle);
         $css = <<<'CSS'
 <style id="alm-search-results-css">
+/* Microtip Customization */
+:root {
+    --microtip-transition-duration: 0.15s;
+    --microtip-transition-delay: 0.1s;
+    --microtip-transition-easing: ease-out;
+    --microtip-font-size: 12px;
+    --microtip-font-weight: 600;
+    --microtip-text-transform: none;
+}
+
+/* Ensure tooltips appear above all other elements */
+[role="tooltip"]::before,
+[role="tooltip"]::after {
+    z-index: 9999 !important;
+}
+
 /* Search Page Container */
 .alm-search-page-container {
     max-width: 1200px;
@@ -1062,7 +1081,77 @@ document.addEventListener('DOMContentLoaded', function() {
         innerContent.style.height = '100%';
         innerContent.style.position = 'relative';
         
-        // Favorite star button - positioned top right (only show if user is logged in)
+        // Button container for top-right actions (favorite and video icon)
+        var topRightActions = document.createElement('div');
+        topRightActions.style.position = 'absolute';
+        topRightActions.style.top = '20px';
+        topRightActions.style.right = '20px';
+        topRightActions.style.display = 'flex';
+        topRightActions.style.gap = '8px';
+        topRightActions.style.alignItems = 'center';
+        topRightActions.style.zIndex = '10';
+        
+        // Video icon button (if sample URL exists) - positioned before favorite button
+        if (it.sample_video_url) {
+          var videoIconBtn = document.createElement('button');
+          videoIconBtn.type = 'button';
+          videoIconBtn.className = 'alm-video-sample-btn';
+          videoIconBtn.setAttribute('aria-label', 'View Sample Video');
+          videoIconBtn.setAttribute('data-microtip-position', 'top-left');
+          videoIconBtn.setAttribute('role', 'tooltip');
+          videoIconBtn.style.background = 'transparent';
+          videoIconBtn.style.border = 'none';
+          videoIconBtn.style.cursor = 'pointer';
+          videoIconBtn.style.padding = '8px';
+          videoIconBtn.style.borderRadius = '50%';
+          videoIconBtn.style.display = 'flex';
+          videoIconBtn.style.alignItems = 'center';
+          videoIconBtn.style.justifyContent = 'center';
+          videoIconBtn.style.transition = 'all 0.2s ease';
+          videoIconBtn.style.width = '36px';
+          videoIconBtn.style.height = '36px';
+          videoIconBtn.style.opacity = '0.6';
+          
+          // Heroicons play icon (for video preview)
+          var videoIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          videoIcon.setAttribute('width', '20');
+          videoIcon.setAttribute('height', '20');
+          videoIcon.setAttribute('viewBox', '0 0 24 24');
+          videoIcon.setAttribute('fill', 'none');
+          videoIcon.setAttribute('stroke', '#239B90');
+          videoIcon.setAttribute('stroke-width', '2');
+          videoIcon.setAttribute('stroke-linecap', 'round');
+          videoIcon.setAttribute('stroke-linejoin', 'round');
+          
+          // Heroicons play icon path
+          var playPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          playPath.setAttribute('d', 'M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z');
+          
+          videoIcon.appendChild(playPath);
+          videoIconBtn.appendChild(videoIcon);
+          
+          videoIconBtn.onmouseenter = function(){
+            this.style.opacity = '1';
+            this.style.background = 'rgba(35, 155, 144, 0.1)';
+            this.style.transform = 'scale(1.1)';
+          };
+          videoIconBtn.onmouseleave = function(){
+            this.style.opacity = '0.6';
+            this.style.background = 'transparent';
+            this.style.transform = 'scale(1)';
+          };
+          
+          // Prevent card link navigation when clicking video icon
+          videoIconBtn.onclick = function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            openSampleModal(it.sample_video_url, it.title || 'Sample Video');
+          };
+          
+          topRightActions.appendChild(videoIconBtn);
+        }
+        
+        // Favorite star button - positioned next to video icon (only show if user is logged in)
         if ({$is_user_logged_in}) {
           var favoriteBtn = document.createElement('button');
           favoriteBtn.type = 'button';
@@ -1070,9 +1159,9 @@ document.addEventListener('DOMContentLoaded', function() {
           favoriteBtn.setAttribute('data-title', it.title || '');
           favoriteBtn.setAttribute('data-url', it.permalink || '');
           favoriteBtn.setAttribute('data-description', it.description || '');
-          favoriteBtn.style.position = 'absolute';
-          favoriteBtn.style.top = '20px';
-          favoriteBtn.style.right = '20px';
+          favoriteBtn.setAttribute('aria-label', 'Add to Favorites');
+          favoriteBtn.setAttribute('data-microtip-position', 'top-left');
+          favoriteBtn.setAttribute('role', 'tooltip');
           favoriteBtn.style.background = 'transparent';
           favoriteBtn.style.border = 'none';
           favoriteBtn.style.cursor = 'pointer';
@@ -1081,7 +1170,6 @@ document.addEventListener('DOMContentLoaded', function() {
           favoriteBtn.style.display = 'flex';
           favoriteBtn.style.alignItems = 'center';
           favoriteBtn.style.justifyContent = 'center';
-          favoriteBtn.style.zIndex = '10';
           favoriteBtn.style.transition = 'all 0.2s ease';
           favoriteBtn.style.width = '36px';
           favoriteBtn.style.height = '36px';
@@ -1161,12 +1249,14 @@ document.addEventListener('DOMContentLoaded', function() {
                   starPath.setAttribute('stroke', '#6b7280');
                   btn.style.opacity = '0.6';
                   btn.style.background = 'transparent';
+                  btn.setAttribute('aria-label', 'Add to Favorites');
                 } else {
                   btn.classList.add('is-favorited');
                   starPath.setAttribute('fill', '#f04e23');
                   starPath.setAttribute('stroke', '#f04e23');
                   btn.style.opacity = '1';
                   btn.style.background = 'rgba(240, 78, 35, 0.1)';
+                  btn.setAttribute('aria-label', 'Remove from Favorites');
                 }
               } else {
                 alert(result.message || 'Failed to update favorite');
@@ -1214,6 +1304,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 btn.style.opacity = '1';
                 btn.style.background = 'rgba(240, 78, 35, 0.1)';
+                btn.setAttribute('aria-label', 'Remove from Favorites');
               }
             })
             .catch(function(error){
@@ -1224,18 +1315,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
           })(favoriteBtn, it.title);
           
-          innerContent.appendChild(favoriteBtn);
+          topRightActions.appendChild(favoriteBtn);
+        }
+        
+        // Append the top-right actions container
+        if (topRightActions.children.length > 0) {
+          innerContent.appendChild(topRightActions);
         }
         
         // Title - MUST be appended first
-        // Add padding-right to avoid clash with favorite button (36px button + 20px right + 8px margin = 64px)
-        // Only add padding if favorite button exists (user is logged in)
+        // Add padding-right to avoid clash with buttons (calculate based on number of buttons)
+        var buttonCount = (it.sample_video_url ? 1 : 0) + ({$is_user_logged_in} ? 1 : 0);
+        var paddingRight = buttonCount > 0 ? (buttonCount * 44) + 20 : '0'; // 36px button + 8px gap
         var title = document.createElement('h3');
         title.style.fontSize = '24px';
         title.style.fontWeight = '700';
         title.style.color = '#004555';
         title.style.margin = '0 0 16px 0';
-        title.style.paddingRight = {$is_user_logged_in} ? '64px' : '0';
+        title.style.paddingRight = paddingRight + 'px';
         title.style.lineHeight = '1.3';
         title.style.minHeight = '64px';
         title.textContent = it.title || 'Untitled Lesson';
@@ -1341,6 +1438,7 @@ document.addEventListener('DOMContentLoaded', function() {
         footer.appendChild(badgeContainer);
         
         innerContent.appendChild(footer);
+        
         cardContent.appendChild(innerContent);
         
         cardLink.appendChild(cardContent);
@@ -1349,6 +1447,116 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       
       results.appendChild(grid);
+    }
+
+    // Sample Video Modal Functions
+    function openSampleModal(videoUrl, title) {
+      // Create modal if it doesn't exist
+      var modal = document.getElementById('alm-sample-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'alm-sample-modal';
+        modal.style.cssText = 'display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); overflow: auto;';
+        
+        var modalContent = document.createElement('div');
+        modalContent.style.cssText = 'position: relative; background-color: #ffffff; margin: 5% auto; padding: 0; width: 90%; max-width: 900px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+        
+        var modalHeader = document.createElement('div');
+        modalHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #e9ecef;';
+        
+        var modalTitle = document.createElement('h2');
+        modalTitle.id = 'alm-sample-modal-title';
+        modalTitle.style.cssText = 'margin: 0; font-size: 20px; font-weight: 600; color: #004555;';
+        modalTitle.textContent = title;
+        
+        var closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.cssText = 'background: none; border: none; font-size: 32px; font-weight: 300; color: #6c757d; cursor: pointer; padding: 0; width: 32px; height: 32px; line-height: 1;';
+        closeBtn.onclick = closeSampleModal;
+        
+        modalHeader.appendChild(modalTitle);
+        modalHeader.appendChild(closeBtn);
+        
+        var modalBody = document.createElement('div');
+        modalBody.id = 'alm-sample-modal-body';
+        modalBody.style.cssText = 'padding: 24px;';
+        
+        modalContent.appendChild(modalHeader);
+        modalContent.appendChild(modalBody);
+        modal.appendChild(modalContent);
+        
+        // Close on background click
+        modal.onclick = function(e) {
+          if (e.target === modal) {
+            closeSampleModal();
+          }
+        };
+        
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape' && modal.style.display === 'block') {
+            closeSampleModal();
+          }
+        });
+        
+        document.body.appendChild(modal);
+      }
+      
+      // Convert video URL to embed format if needed
+      var embedUrl = convertToEmbedUrl(videoUrl);
+      
+      // Update modal content
+      document.getElementById('alm-sample-modal-title').textContent = title;
+      var modalBody = document.getElementById('alm-sample-modal-body');
+      modalBody.innerHTML = '<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;">' +
+        '<iframe src="' + escapeHtml(embedUrl) + '" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>' +
+        '</div>';
+      
+      // Show modal
+      modal.style.display = 'block';
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeSampleModal() {
+      var modal = document.getElementById('alm-sample-modal');
+      if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+        // Clear iframe to stop video playback
+        var modalBody = document.getElementById('alm-sample-modal-body');
+        if (modalBody) {
+          modalBody.innerHTML = '';
+        }
+      }
+    }
+    
+    function escapeHtml(text) {
+      var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+    
+    function convertToEmbedUrl(url) {
+      // Vimeo: https://vimeo.com/123456 -> https://player.vimeo.com/video/123456
+      var vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+      if (vimeoMatch) {
+        return 'https://player.vimeo.com/video/' + vimeoMatch[1];
+      }
+      
+      // YouTube: https://www.youtube.com/watch?v=abc123 -> https://www.youtube.com/embed/abc123
+      var youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+      if (youtubeMatch) {
+        return 'https://www.youtube.com/embed/' + youtubeMatch[1];
+      }
+      
+      // Bunny.net or other direct URLs - use as-is
+      return url;
     }
 
     function fetchData(){

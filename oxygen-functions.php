@@ -1480,6 +1480,36 @@ function je_has_lesson_access() {
         return 'true'; 
     }
 
+    // Check Essentials library access for Studio-level lessons
+    if ($user_membership_level_num == 1) {
+        // Get ALM lesson_id from post
+        $alm_lesson_id = null;
+        if (function_exists('get_field')) {
+            $alm_lesson_id = get_field('alm_lesson_id', $lesson_id);
+        }
+        if (empty($alm_lesson_id)) {
+            $alm_lesson_id = get_post_meta($lesson_id, 'alm_lesson_id', true);
+        }
+        
+        if ($alm_lesson_id) {
+            // Get lesson membership level
+            $lesson_level = $wpdb->get_var($wpdb->prepare(
+                "SELECT membership_level FROM {$wpdb->prefix}alm_lessons WHERE ID = %d",
+                intval($alm_lesson_id)
+            ));
+            
+            // If lesson is Studio level (2), check if in library
+            if (intval($lesson_level) == 2) {
+                if (class_exists('ALM_Essentials_Library')) {
+                    $library = new ALM_Essentials_Library();
+                    if ($library->has_lesson_in_library($user_id, intval($alm_lesson_id))) {
+                        return 'true';
+                    }
+                }
+            }
+        }
+    }
+
     if (in_array($user_membership_level, ['14daytrial', 'studio', 'lessons']) || $user_membership_level_num >= 2) { 
         return 'true'; 
     }

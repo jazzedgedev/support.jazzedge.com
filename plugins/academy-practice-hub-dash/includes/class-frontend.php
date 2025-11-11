@@ -1082,6 +1082,9 @@ class JPH_Frontend {
         wp_enqueue_script('jquery-ui-core');
         wp_enqueue_script('jquery-ui-dialog');
         
+        // Enqueue microtip CSS for tooltips
+        wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
+        
         ob_start();
         ?>
         <div class="jph-student-dashboard">
@@ -1371,6 +1374,48 @@ class JPH_Frontend {
                                 
                                 echo '</select>';
                                 echo '</div>';
+                            }
+                            
+                            // Essentials Library Dropdown (for Essentials members only)
+                            global $user_membership_level_num;
+                            if (!empty($user_membership_level_num) && $user_membership_level_num == 1) {
+                                if (class_exists('ALM_Essentials_Library')) {
+                                    $library = new ALM_Essentials_Library();
+                                    $library_lessons = $library->get_user_library($user_id);
+                                    
+                                    if (empty($library_lessons)) {
+                                        // Show button if library is empty
+                                        echo '<div class="essentials-library-dropdown-wrapper">';
+                                        echo '<a href="' . esc_url(home_url('/my-library')) . '" class="essentials-library-button" style="display: block; text-align: center; padding: var(--input-padding); text-decoration: none; color: #ffffff; background: #f04e23; border: 2px solid #f04e23; border-radius: var(--input-radius, 6px); cursor: pointer; font-weight: 600; transition: all 0.2s ease;">';
+                                        echo 'My Essentials Library';
+                                        echo '</a>';
+                                        echo '</div>';
+                                    } else {
+                                        // Show dropdown with "View/Add to my library" as first option
+                                        echo '<div class="essentials-library-dropdown-wrapper" style="position: relative; display: inline-block; width: 100%;">';
+                                        echo '<select id="jph-essentials-library-dropdown" class="standard-dropdown" onchange="if(this.value) window.location.href=this.value;">';
+                                        echo '<option value="">My Essentials Library…</option>';
+                                        echo '<option value="' . esc_url(home_url('/my-library')) . '">View/Add to my library</option>';
+                                        echo '<option value="" disabled>──────────</option>';
+                                        
+                                        foreach ($library_lessons as $lib_lesson) {
+                                            $lesson_url = '';
+                                            if ($lib_lesson->post_id) {
+                                                $lesson_url = get_permalink($lib_lesson->post_id);
+                                            } elseif ($lib_lesson->slug) {
+                                                $lesson_url = home_url('/lesson/' . $lib_lesson->slug . '/');
+                                            }
+                                            
+                                            if ($lesson_url) {
+                                                $lesson_title = esc_html(stripslashes($lib_lesson->lesson_title));
+                                                echo '<option value="' . esc_url($lesson_url) . '" title="' . $lesson_title . '">' . $lesson_title . '</option>';
+                                            }
+                                        }
+                                        
+                                        echo '</select>';
+                                        echo '</div>';
+                                    }
+                                }
                             }
                             ?>
                             
@@ -4025,6 +4070,106 @@ class JPH_Frontend {
             box-sizing: border-box;
             overflow: hidden;
         }
+        
+        /* Updates Section */
+        .jph-updates-section {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin: 30px 0 20px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .updates-header {
+            margin-bottom: 24px;
+        }
+        
+        .updates-header h3 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: #004555;
+        }
+        
+        .updates-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .update-item {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+        }
+        
+        .update-item:hover {
+            background: #f0f4f7;
+            border-color: #239B90;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.1);
+        }
+        
+        .update-title {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #004555;
+        }
+        
+        .update-title a {
+            color: #004555;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        
+        .update-title a:hover {
+            color: #239B90;
+        }
+        
+        .update-excerpt {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+        
+        .update-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        
+        .update-author {
+            font-weight: 500;
+        }
+        
+        .update-date {
+            color: #9ca3af;
+        }
+        
+        .updates-footer {
+            margin-top: 24px;
+            text-align: center;
+        }
+        
+        .updates-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7280;
+        }
+        
+        .updates-empty p {
+            margin: 0 0 20px 0;
+            font-size: 16px;
+        }
 
         /* Grid Layout - 40% Left, 60% Right */
         .search-section-grid {
@@ -4170,9 +4315,36 @@ class JPH_Frontend {
 
         /* Wrapper Elements - Consistent Spacing */
         .favorites-dropdown-wrapper,
+        .essentials-library-dropdown-wrapper,
         .collections-dropdown-wrapper {
             width: 100%;
             margin: 0 0 var(--spacing-xs) 0;
+        }
+        
+        .essentials-library-dropdown-wrapper {
+            margin: 0 0 var(--spacing-xs) 0;
+        }
+        
+        .essentials-library-button {
+            display: block;
+            text-align: center;
+            padding: var(--input-padding);
+            text-decoration: none;
+            color: #ffffff !important;
+            background: #f04e23;
+            border: 2px solid #f04e23;
+            border-radius: var(--input-radius, 6px);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .essentials-library-button:hover {
+            background: #d93e1a;
+            border-color: #d93e1a;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3);
         }
 
         .search-input-wrapper {
@@ -4571,6 +4743,7 @@ class JPH_Frontend {
             }
             
             .favorites-dropdown-wrapper,
+            .essentials-library-dropdown-wrapper,
             .collections-dropdown-wrapper,
             .search-input-wrapper {
                 margin-top: 14px;

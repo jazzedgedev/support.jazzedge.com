@@ -370,11 +370,18 @@ function pww_downloads_handle_download($request) {
         wp_die('No download URLs configured for this product.');
     }
     
-    // Increment count
-    $wpdb->update($logs_table, array(
+    // Increment count and set first_download_date if this is the first download
+    $update_data = array(
         'download_count' => $log->download_count + 1,
         'last_download_date' => current_time('mysql')
-    ), array('id' => $log->id));
+    );
+    
+    // Set first_download_date on first successful download
+    if (!$log->first_download_date) {
+        $update_data['first_download_date'] = current_time('mysql');
+    }
+    
+    $wpdb->update($logs_table, $update_data, array('id' => $log->id));
     
     // Log this successful download to history
     $download_url = count($urls) === 1 ? $urls[0]->bunny_url : 'Multiple files';
@@ -510,6 +517,57 @@ function pww_downloads_admin_page() {
         echo '<div class="notice notice-success"><p>Settings saved!</p></div>';
     }
     
+    // Handle reset downloads
+    if (isset($_POST['reset_downloads']) && check_admin_referer('pww_reset_downloads')) {
+        $user_id = intval($_POST['user_id']);
+        $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : null;
+        
+        if ($user_id > 0) {
+            $logs_table = $wpdb->prefix . 'pww_download_logs';
+            
+            if ($product_id) {
+                // Reset for specific product
+                $result = $wpdb->update(
+                    $logs_table,
+                    array(
+                        'download_count' => 0,
+                        'first_download_date' => null,
+                        'last_download_date' => null
+                    ),
+                    array('user_id' => $user_id, 'product_id' => $product_id),
+                    array('%d', '%s', '%s'),
+                    array('%d', '%d')
+                );
+                $message = 'Download count reset for user and product.';
+            } else {
+                // Reset for all products (bulk reset)
+                $result = $wpdb->update(
+                    $logs_table,
+                    array(
+                        'download_count' => 0,
+                        'first_download_date' => null,
+                        'last_download_date' => null
+                    ),
+                    array('user_id' => $user_id),
+                    array('%d', '%s', '%s'),
+                    array('%d')
+                );
+                $message = 'Download counts reset for all products for this user.';
+            }
+            
+            if ($result !== false) {
+                wp_redirect(admin_url('admin.php?page=pww-downloads&downloads_reset=1'));
+                exit;
+            } else {
+                echo '<div class="notice notice-error"><p>Error resetting downloads: ' . $wpdb->last_error . '</p></div>';
+            }
+        }
+    }
+    
+    if (isset($_GET['downloads_reset'])) {
+        echo '<div class="notice notice-success"><p>Download counts reset successfully!</p></div>';
+    }
+    
     $products = get_posts(array('post_type' => 'fluent-products', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC'));
     $webhook_url = rest_url('pww-downloads/v1/webhook');
     $log_file = WP_CONTENT_DIR . '/pww-downloads-log.txt';
@@ -625,6 +683,90 @@ function pww_downloads_admin_page() {
                 <?php endif; ?>
             </tbody>
         </table>
+        
+        <h2>Download Counts & Reset</h2>
+        <?php
+        $logs_table = $wpdb->prefix . 'pww_download_logs';
+        $download_counts = $wpdb->get_results(
+            "SELECT l.*, u.user_email, u.display_name, p.post_title 
+             FROM $logs_table l
+             LEFT JOIN {$wpdb->users} u ON l.user_id = u.ID 
+             LEFT JOIN {$wpdb->posts} p ON l.product_id = p.ID 
+             WHERE l.download_count > 0
+             ORDER BY l.last_download_date DESC 
+             LIMIT 50"
+        );
+        ?>
+        <div style="background: #fff; border: 1px solid #ccd0d4; padding: 15px; margin: 20px 0;">
+            <p>Users who have downloaded products. Use the reset buttons to allow them to download again.</p>
+            <?php if (empty($download_counts)): ?>
+                <p>No download counts to display.</p>
+            <?php else: ?>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Product</th>
+                            <th>Downloads</th>
+                            <th>First Download</th>
+                            <th>Last Download</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($download_counts as $count): ?>
+                        <tr>
+                            <td>
+                                <?php if ($count->user_email): ?>
+                                    <strong><?php echo esc_html($count->display_name ?: $count->user_email); ?></strong><br>
+                                    <small><?php echo esc_html($count->user_email); ?></small>
+                                <?php else: ?>
+                                    User ID: <?php echo esc_html($count->user_id); ?>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($count->post_title): ?>
+                                    <?php echo esc_html($count->post_title); ?>
+                                <?php else: ?>
+                                    Product ID: <?php echo esc_html($count->product_id); ?>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <strong><?php echo esc_html($count->download_count); ?></strong> / <?php echo esc_html(get_option('pww_downloads_max_downloads', 3)); ?>
+                            </td>
+                            <td>
+                                <?php echo $count->first_download_date ? esc_html(date_i18n('Y-m-d H:i', strtotime($count->first_download_date))) : 'N/A'; ?>
+                            </td>
+                            <td>
+                                <?php echo $count->last_download_date ? esc_html(date_i18n('Y-m-d H:i', strtotime($count->last_download_date))) : 'N/A'; ?>
+                            </td>
+                            <td>
+                                <form method="post" style="display: inline;" onsubmit="return confirm('Reset download count for this product?');">
+                                    <?php wp_nonce_field('pww_reset_downloads'); ?>
+                                    <input type="hidden" name="user_id" value="<?php echo esc_attr($count->user_id); ?>" />
+                                    <input type="hidden" name="product_id" value="<?php echo esc_attr($count->product_id); ?>" />
+                                    <button type="submit" name="reset_downloads" class="button button-small">Reset This Product</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                
+                <h3 style="margin-top: 30px;">Bulk Reset by User</h3>
+                <p>Reset download counts for all products for a specific user:</p>
+                <form method="post" style="max-width: 400px;">
+                    <?php wp_nonce_field('pww_reset_downloads'); ?>
+                    <p>
+                        <label for="bulk_reset_user_id"><strong>User ID:</strong></label><br>
+                        <input type="number" id="bulk_reset_user_id" name="user_id" class="regular-text" min="1" required />
+                    </p>
+                    <p>
+                        <button type="submit" name="reset_downloads" class="button button-primary" onclick="return confirm('Reset ALL download counts for this user? This will reset all products.');">Reset All Downloads for User</button>
+                    </p>
+                </form>
+            <?php endif; ?>
+        </div>
         
         <h2>Settings</h2>
         <form method="post">

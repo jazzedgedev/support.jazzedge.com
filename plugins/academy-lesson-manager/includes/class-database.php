@@ -40,7 +40,9 @@ class ALM_Database {
             'lesson_embeddings' => $wpdb->prefix . 'alm_lesson_embeddings',
             'ai_paths' => $wpdb->prefix . 'alm_ai_paths',
             'lesson_pathways' => $wpdb->prefix . 'alm_lesson_pathways',
-            'tags' => $wpdb->prefix . 'alm_tags'
+            'tags' => $wpdb->prefix . 'alm_tags',
+            'essentials_library' => $wpdb->prefix . 'alm_essentials_library',
+            'essentials_selections' => $wpdb->prefix . 'alm_essentials_selections'
         );
     }
     
@@ -56,6 +58,8 @@ class ALM_Database {
         $this->create_ai_paths_table();
         $this->create_lesson_pathways_table();
         $this->create_tags_table();
+        $this->create_essentials_library_table();
+        $this->create_essentials_selections_table();
         
         // Check and add membership_level columns if they don't exist
         $this->check_and_add_membership_columns();
@@ -68,6 +72,12 @@ class ALM_Database {
         
         // Check and add lesson_style column if it doesn't exist
         $this->check_and_add_lesson_style();
+        
+        // Check and add sample_video_url column if it doesn't exist
+        $this->check_and_add_sample_video_url();
+        
+        // Check and add sample_chapter_id column if it doesn't exist
+        $this->check_and_add_sample_chapter_id();
         
         // Ensure lesson_pathways table exists (migration for existing installations)
         $this->ensure_lesson_pathways_table();
@@ -138,6 +148,32 @@ class ALM_Database {
         $style_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'lesson_style'");
         if (empty($style_columns)) {
             $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN lesson_style varchar(500) DEFAULT '' AFTER lesson_tags");
+        }
+    }
+    
+    /**
+     * Check and add sample_video_url column to lessons table
+     */
+    public function check_and_add_sample_video_url() {
+        $lessons_table = $this->tables['lessons'];
+        
+        // Check for sample_video_url column
+        $sample_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'sample_video_url'");
+        if (empty($sample_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN sample_video_url varchar(500) DEFAULT '' AFTER lesson_style");
+        }
+    }
+    
+    /**
+     * Check and add sample_chapter_id column to lessons table
+     */
+    public function check_and_add_sample_chapter_id() {
+        $lessons_table = $this->tables['lessons'];
+        
+        // Check for sample_chapter_id column
+        $sample_chapter_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'sample_chapter_id'");
+        if (empty($sample_chapter_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN sample_chapter_id int(11) DEFAULT 0 AFTER sample_video_url");
         }
     }
     
@@ -470,6 +506,59 @@ class ALM_Database {
      */
     public function get_tables() {
         return $this->tables;
+    }
+    
+    /**
+     * Create essentials library table
+     */
+    private function create_essentials_library_table() {
+        $table_name = $this->tables['essentials_library'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) NOT NULL,
+            lesson_id int(11) NOT NULL,
+            selection_cycle int(11) DEFAULT 1,
+            selected_at datetime DEFAULT CURRENT_TIMESTAMP,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY unique_user_lesson (user_id, lesson_id),
+            KEY user_id (user_id),
+            KEY lesson_id (lesson_id),
+            KEY selection_cycle (selection_cycle)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    /**
+     * Create essentials selections table
+     */
+    private function create_essentials_selections_table() {
+        $table_name = $this->tables['essentials_selections'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) NOT NULL,
+            membership_start_date date DEFAULT NULL,
+            last_granted_date date DEFAULT NULL,
+            next_grant_date date DEFAULT NULL,
+            available_count int(11) DEFAULT 0,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY unique_user_id (user_id),
+            KEY user_id (user_id),
+            KEY next_grant_date (next_grant_date)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
     }
     
     /**

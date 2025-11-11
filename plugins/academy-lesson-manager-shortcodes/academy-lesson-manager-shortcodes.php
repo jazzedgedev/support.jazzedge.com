@@ -940,7 +940,20 @@ class ALM_Shortcodes_Plugin {
         $user_level = intval($atts['user_membership_level']);
         $lesson_level = intval($lesson->membership_level);
         
-        if ($user_level < $lesson_level) {
+        $has_access = $user_level >= $lesson_level;
+        
+        // Check Essentials library access for Studio-level lessons
+        if (!$has_access && $user_level == 1 && $lesson_level == 2) {
+            global $user_id;
+            if ($user_id && class_exists('ALM_Essentials_Library')) {
+                $library = new ALM_Essentials_Library();
+                if ($library->has_lesson_in_library($user_id, intval($atts['lesson_id']))) {
+                    $has_access = true;
+                }
+            }
+        }
+        
+        if (!$has_access) {
             return '<p style="color: red;">Access denied: Insufficient membership level</p>';
         }
         
@@ -1210,6 +1223,17 @@ class ALM_Shortcodes_Plugin {
         $lesson_level = intval($lesson->membership_level);
         $has_access = $user_level >= $lesson_level;
         
+        // Check Essentials library access for Studio-level lessons
+        if (!$has_access && $user_level == 1 && $lesson_level == 2) {
+            global $user_id;
+            if ($user_id && class_exists('ALM_Essentials_Library')) {
+                $library = new ALM_Essentials_Library();
+                if ($library->has_lesson_in_library($user_id, intval($atts['lesson_id']))) {
+                    $has_access = true;
+                }
+            }
+        }
+        
         // Get level names for restricted content messages
         $current_level_name = $this->get_membership_level_name($user_level);
         $required_level_name = $this->get_membership_level_name($lesson_level);
@@ -1420,20 +1444,39 @@ class ALM_Shortcodes_Plugin {
             
             $return .= '</div>';
         } elseif (!$has_access) {
-            // NO ACCESS: Show upgrade message only (no preview)
+            // NO ACCESS: Show sample video if available, otherwise show upgrade message
+            $sample_video_url = !empty($lesson->sample_video_url) ? $lesson->sample_video_url : '';
+            
             $return .= '<div class="alm-video-section">';
             $lesson_title = stripslashes($lesson->lesson_title);
             $return .= '<div class="alm-video-title-bar">';
             $return .= '<span class="alm-lesson-name">' . esc_html($lesson_title) . '</span>';
             $return .= '</div>';
-            $return .= '<div class="alm-video-placeholder">';
-            $return .= '<div class="alm-restricted-overlay">';
-            $return .= '<svg style="width: 48px; height: 48px; margin-bottom: 16px;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>';
-            $return .= '<h3 style="margin: 0 0 12px 0; font-size: 24px; color: #004555;">Premium Content</h3>';
-            $return .= '<p style="margin: 0 0 24px 0; font-size: 16px; color: #495057;">Get full access to video lessons, sheet music, backing tracks, and more</p>';
-            $return .= '<a href="/upgrade" class="alm-upgrade-button">Upgrade to ' . esc_html($required_level_name) . '</a>';
-            $return .= '</div>';
-            $return .= '</div>';
+            
+            if (!empty($sample_video_url)) {
+                // Show sample video with overlay message
+                $return .= '<div class="alm-video-placeholder" style="position: relative;">';
+                $return .= do_shortcode('[fvplayer src="' . esc_url($sample_video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
+                $return .= '<div class="alm-sample-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 30px; pointer-events: none;">';
+                $return .= '<div style="background: rgba(255,255,255,0.95); padding: 20px 30px; border-radius: 12px; text-align: center; max-width: 500px; pointer-events: auto;">';
+                $return .= '<svg style="width: 32px; height: 32px; margin-bottom: 12px; color: #239B90;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg>';
+                $return .= '<h3 style="margin: 0 0 8px 0; font-size: 18px; color: #004555; font-weight: 600;">Sample Video</h3>';
+                $return .= '<p style="margin: 0 0 16px 0; font-size: 14px; color: #495057;">This is a preview. Get full access to all video lessons, sheet music, backing tracks, and more.</p>';
+                $return .= '<a href="/upgrade" class="alm-upgrade-button" style="display: inline-block; padding: 12px 24px; background: #239B90; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">Upgrade to ' . esc_html($required_level_name) . '</a>';
+                $return .= '</div>';
+                $return .= '</div>';
+                $return .= '</div>';
+            } else {
+                // No sample video - show upgrade message only
+                $return .= '<div class="alm-video-placeholder">';
+                $return .= '<div class="alm-restricted-overlay">';
+                $return .= '<svg style="width: 48px; height: 48px; margin-bottom: 16px;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>';
+                $return .= '<h3 style="margin: 0 0 12px 0; font-size: 24px; color: #004555;">Premium Content</h3>';
+                $return .= '<p style="margin: 0 0 24px 0; font-size: 16px; color: #495057;">Get full access to video lessons, sheet music, backing tracks, and more</p>';
+                $return .= '<a href="/upgrade" class="alm-upgrade-button">Upgrade to ' . esc_html($required_level_name) . '</a>';
+                $return .= '</div>';
+                $return .= '</div>';
+            }
             $return .= '</div>';
             
             // Add restricted actions section
@@ -1695,6 +1738,8 @@ class ALM_Shortcodes_Plugin {
                 return $return;
             }
             
+            global $wpdb, $user_id;
+            
             $user_level = intval($atts['user_membership_level']);
             $lesson_level = intval($lesson->membership_level);
             $required_level_name = ALM_Admin_Settings::get_membership_level_name($lesson_level);
@@ -1705,6 +1750,34 @@ class ALM_Shortcodes_Plugin {
             $return .= 'User Level: ' . $user_level . ' (' . esc_html($user_level_name) . ')<br>';
             $return .= 'Lesson Level: ' . $lesson_level . ' (' . esc_html($required_level_name) . ')<br>';
             $return .= 'Has Access: ' . ($has_access ? 'YES' : 'NO') . '<br>';
+            
+            // Essentials Library Debug Info
+            if ($user_level == 1 && $lesson_level == 2) {
+                $return .= '<br><strong>Essentials Library Check:</strong><br>';
+                $return .= 'User ID: ' . ($user_id ? esc_html($user_id) : 'NOT SET') . '<br>';
+                $return .= 'ALM Lesson ID: ' . esc_html($atts['lesson_id']) . '<br>';
+                
+                // Get post ID
+                $post_id = !empty($lesson->post_id) ? $lesson->post_id : get_the_ID();
+                $return .= 'Post ID: ' . esc_html($post_id) . '<br>';
+                
+                // Check if in library
+                if ($user_id && class_exists('ALM_Essentials_Library')) {
+                    $library = new ALM_Essentials_Library();
+                    $in_library = $library->has_lesson_in_library($user_id, intval($atts['lesson_id']));
+                    $return .= 'In Library: ' . ($in_library ? 'YES' : 'NO') . '<br>';
+                    
+                    // Direct database check
+                    $db_check = $wpdb->get_var($wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}alm_essentials_library WHERE user_id = %d AND lesson_id = %d",
+                        $user_id, intval($atts['lesson_id'])
+                    ));
+                    $return .= 'Database Check: ' . ($db_check ? 'FOUND (ID: ' . $db_check . ')' : 'NOT FOUND') . '<br>';
+                } else {
+                    $return .= 'Library Check: ' . (class_exists('ALM_Essentials_Library') ? 'Class exists' : 'Class NOT FOUND') . '<br>';
+                }
+            }
+            
             $return .= '</div>';
         }
         
@@ -1731,8 +1804,8 @@ class ALM_Shortcodes_Plugin {
                 $return .= '<p class="alm-card-description">' . esc_html(stripslashes($collection->collection_description)) . '</p>';
             }
             
-            // Lesson navigation dropdown (restricted)
-            if (!empty($collection_lessons) && count($collection_lessons) > 1 && $has_access) {
+            // Lesson navigation dropdown (always show if collection has multiple lessons)
+            if (!empty($collection_lessons) && count($collection_lessons) > 1) {
                 $return .= '<div class="alm-lesson-nav">';
                 $return .= '<select class="alm-lesson-selector" onchange="javascript:location.href = this.value;">';
                 $return .= '<option value="">Lessons...</option>';
@@ -2030,7 +2103,20 @@ class ALM_Shortcodes_Plugin {
         $user_level = intval($atts['user_membership_level']);
         $lesson_level = intval($lesson->membership_level);
         
-        if ($user_level < $lesson_level) {
+        $has_access = $user_level >= $lesson_level;
+        
+        // Check Essentials library access for Studio-level lessons
+        if (!$has_access && $user_level == 1 && $lesson_level == 2) {
+            global $user_id;
+            if ($user_id && class_exists('ALM_Essentials_Library')) {
+                $library = new ALM_Essentials_Library();
+                if ($library->has_lesson_in_library($user_id, intval($atts['lesson_id']))) {
+                    $has_access = true;
+                }
+            }
+        }
+        
+        if (!$has_access) {
             return '<p style="color: red;">Access denied: Insufficient membership level</p>';
         }
         

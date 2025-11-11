@@ -61,10 +61,18 @@ class Academy_Lesson_Manager {
         // Ensure database tables are up to date (for existing installations)
         $this->ensure_database_tables();
         
+        // Initialize frontend library
+        if (class_exists('ALM_Frontend_Library')) {
+            new ALM_Frontend_Library();
+        }
+        
         // Initialize admin
         if (is_admin()) {
             $this->init_admin();
         }
+        
+        // Register cron job for Essentials selections
+        $this->register_cron_jobs();
     }
     
     /**
@@ -95,6 +103,9 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-frontend-search.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-ai.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-ai-recommender.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-essentials-library.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-frontend-library.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-essentials-users.php';
     }
     
     /**
@@ -145,6 +156,10 @@ class Academy_Lesson_Manager {
         
         // Note: Frontend AJAX handlers (favorites management) are registered in constructor
         
+        // Add AJAX handlers for Essentials library
+        add_action('wp_ajax_alm_add_to_library', array($this, 'ajax_add_to_library'));
+        add_action('wp_ajax_alm_get_library_status', array($this, 'ajax_get_library_status'));
+        
         // Add WordPress hooks for reverse sync
         add_action('save_post', array($this, 'handle_post_save'));
         add_action('delete_post', array($this, 'handle_post_delete'));
@@ -156,6 +171,7 @@ class Academy_Lesson_Manager {
         new ALM_Admin_Chapters();
         new ALM_Admin_Settings();
         new ALM_Admin_Event_Migration();
+        new ALM_Admin_Essentials_Users();
     }
     
     /**
@@ -218,6 +234,15 @@ class Academy_Lesson_Manager {
             'academy-manager-settings',
             array($this, 'admin_page_settings')
         );
+        
+        add_submenu_page(
+            'academy-manager',
+            __('Essentials Users', 'academy-lesson-manager'),
+            __('Essentials Users', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-essentials-users',
+            array($this, 'admin_page_essentials_users')
+        );
     }
     
     /**
@@ -251,6 +276,11 @@ class Academy_Lesson_Manager {
     public function admin_page_settings() {
         $admin_settings = new ALM_Admin_Settings();
         $admin_settings->render_settings_page();
+    }
+    
+    public function admin_page_essentials_users() {
+        $admin_essentials_users = new ALM_Admin_Essentials_Users();
+        $admin_essentials_users->render_page();
     }
     
     /**
@@ -2418,11 +2448,158 @@ class Academy_Lesson_Manager {
     }
     
     /**
+     * Register cron jobs
+     */
+    private function register_cron_jobs() {
+        // Schedule daily check for Essentials selections
+        if (!wp_next_scheduled('alm_check_essentials_selections')) {
+            wp_schedule_event(time(), 'daily', 'alm_check_essentials_selections');
+        }
+        
+        add_action('alm_check_essentials_selections', array($this, 'cron_check_essentials_selections'));
+    }
+    
+    /**
+     * Cron job to check and grant Essentials selections
+     */
+    public function cron_check_essentials_selections() {
+        if (class_exists('ALM_Essentials_Library')) {
+            $library = new ALM_Essentials_Library();
+            $library->process_all_members();
+        }
+    }
+    
+    /**
+     * Check if user is Essentials member
+     * 
+     * @param int $user_id User ID
+     * @return bool True if Essentials member
+     */
+    private function is_essentials_member($user_id) {
+        // Check if user has Essentials membership via Keap/Infusionsoft
+        // Essentials members should have membership level 1
+        // They should NOT have Studio (2) or Premier (3) access
+        
+        // First check if they have Studio or Premier (if so, they're not Essentials)
+        $studio_access = false;
+        $premier_access = false;
+        
+        if (function_exists('memb_hasAnyTags')) {
+            $studio_access = memb_hasAnyTags([9954,10136,9807,9827,9819,9956,10136]);
+            $premier_access = memb_hasAnyTags([9821,9813,10142]);
+        }
+        
+        // If they have Studio or Premier, they're not Essentials
+        if ($studio_access || $premier_access) {
+            return false;
+        }
+        
+        // Check for Essentials membership SKU
+        $essentials_skus = array('JA_YEAR_ESSENTIALS', 'ACADEMY_ESSENTIALS');
+        foreach ($essentials_skus as $sku) {
+            if (function_exists('memb_hasMembership') && memb_hasMembership($sku) === true) {
+                return true;
+            }
+        }
+        
+        // Fallback: Check if they have active membership but not Studio/Premier
+        // This assumes Essentials is the base paid membership
+        if (function_exists('je_return_active_member') && je_return_active_member() == 'true') {
+            // If they're an active member but don't have Studio/Premier, assume Essentials
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * AJAX handler for adding lesson to library
+     */
+    public function ajax_add_to_library() {
+        check_ajax_referer('alm_library_nonce', 'nonce');
+        
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => 'You must be logged in.'));
+            return;
+        }
+        
+        $user_id = get_current_user_id();
+        
+        // Check if user is Essentials member
+        if (!$this->is_essentials_member($user_id)) {
+            wp_send_json_error(array('message' => 'This feature is available for Essentials members only.'));
+            return;
+        }
+        
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        
+        if (!$lesson_id) {
+            wp_send_json_error(array('message' => 'Invalid lesson ID.'));
+            return;
+        }
+        
+        if (!class_exists('ALM_Essentials_Library')) {
+            wp_send_json_error(array('message' => 'Library system not available.'));
+            return;
+        }
+        
+        $library = new ALM_Essentials_Library();
+        $result = $library->add_lesson_to_library($user_id, $lesson_id);
+        
+        if (is_wp_error($result)) {
+            wp_send_json_error(array('message' => $result->get_error_message()));
+            return;
+        }
+        
+        // Get updated available count
+        $available = $library->get_available_selections($user_id);
+        
+        wp_send_json_success(array(
+            'message' => 'Lesson added to your library!',
+            'available_count' => $available
+        ));
+    }
+    
+    /**
+     * AJAX handler for getting library status
+     */
+    public function ajax_get_library_status() {
+        check_ajax_referer('alm_library_nonce', 'nonce');
+        
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => 'You must be logged in.'));
+            return;
+        }
+        
+        $user_id = get_current_user_id();
+        
+        if (!class_exists('ALM_Essentials_Library')) {
+            wp_send_json_error(array('message' => 'Library system not available.'));
+            return;
+        }
+        
+        $library = new ALM_Essentials_Library();
+        $available = $library->get_available_selections($user_id);
+        $next_grant = $library->get_next_grant_date($user_id);
+        
+        wp_send_json_success(array(
+            'available_count' => $available,
+            'next_grant_date' => $next_grant
+        ));
+    }
+    
+    /**
      * Plugin deactivation
      */
     public function deactivate() {
         // Clean up if needed
         delete_option('alm_plugin_activated');
+        
+        // Clear scheduled cron
+        $timestamp = wp_next_scheduled('alm_check_essentials_selections');
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, 'alm_check_essentials_selections');
+        }
     }
 }
 

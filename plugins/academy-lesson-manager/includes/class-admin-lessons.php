@@ -95,6 +95,9 @@ class ALM_Admin_Lessons {
             case 'remove_from_course':
                 $this->handle_remove_from_course($id);
                 break;
+            case 'duplicate':
+                $this->handle_duplicate($id);
+                break;
             default:
                 $this->render_list_page();
                 break;
@@ -131,6 +134,9 @@ class ALM_Admin_Lessons {
                     break;
                 case 'deleted':
                     echo '<div class="notice notice-success"><p>' . __('Lesson deleted successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'duplicated':
+                    echo '<div class="notice notice-success"><p>' . __('Lesson duplicated successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
                 case 'fixed':
                     echo '<div class="notice notice-success"><p>' . __('WordPress post created successfully for this lesson.', 'academy-lesson-manager') . '</p></div>';
@@ -210,6 +216,7 @@ class ALM_Admin_Lessons {
         $membership_filter = isset($_GET['membership_level']) ? intval($_GET['membership_level']) : 0;
         $collection_filter = isset($_GET['collection_filter']) ? sanitize_text_field($_GET['collection_filter']) : '';
         $resources_filter = isset($_GET['resources_filter']) ? sanitize_text_field($_GET['resources_filter']) : '';
+        $sample_filter = isset($_GET['sample_filter']) ? sanitize_text_field($_GET['sample_filter']) : '';
         $pathway_filter = isset($_GET['pathway_filter']) ? sanitize_key($_GET['pathway_filter']) : '';
         $skill_level_filter = isset($_GET['skill_level_filter']) ? sanitize_key($_GET['skill_level_filter']) : '';
         $tag_filter = isset($_GET['tag']) ? sanitize_text_field($_GET['tag']) : '';
@@ -244,6 +251,13 @@ class ALM_Admin_Lessons {
             $where_conditions[] = "(resources IS NOT NULL AND resources != '' AND resources != 'N;')";
         } elseif ($resources_filter === 'no_resources') {
             $where_conditions[] = "(resources IS NULL OR resources = '' OR resources = 'N;')";
+        }
+        
+        // Filter for lessons with/without samples
+        if ($sample_filter === 'has_sample') {
+            $where_conditions[] = "(l.sample_video_url IS NOT NULL AND l.sample_video_url != '' AND l.sample_video_url != '0') OR (l.sample_chapter_id IS NOT NULL AND l.sample_chapter_id > 0)";
+        } elseif ($sample_filter === 'no_sample') {
+            $where_conditions[] = "((l.sample_video_url IS NULL OR l.sample_video_url = '' OR l.sample_video_url = '0') AND (l.sample_chapter_id IS NULL OR l.sample_chapter_id = 0))";
         }
         
         // Filter by skill level
@@ -314,7 +328,7 @@ class ALM_Admin_Lessons {
         $this->render_statistics();
         
         // Render search form (outside bulk actions form)
-        $this->render_search_form($search, $membership_filter, $collection_filter, $resources_filter, $pathway_filter, $skill_level_filter, $tag_filter, $style_filter);
+        $this->render_search_form($search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $tag_filter, $style_filter);
         
         // Open bulk actions form
         echo '<form method="post" action="" id="bulk-actions-form">';
@@ -425,7 +439,7 @@ class ALM_Admin_Lessons {
         echo '</form>';
         
         // Render pagination controls (below table, outside form to avoid nested forms)
-        $this->render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $pathway_filter, $skill_level_filter, $order_by, $order);
+        $this->render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $order_by, $order);
         
         // JavaScript for quick pathway addition
         $pathways_json = json_encode(ALM_Admin_Settings::get_pathways());
@@ -540,7 +554,7 @@ class ALM_Admin_Lessons {
     /**
      * Render search form
      */
-    private function render_search_form($search, $membership_filter = 0, $collection_filter = '', $resources_filter = '', $pathway_filter = '', $skill_level_filter = '', $tag_filter = '', $style_filter = '') {
+    private function render_search_form($search, $membership_filter = 0, $collection_filter = '', $resources_filter = '', $sample_filter = '', $pathway_filter = '', $skill_level_filter = '', $tag_filter = '', $style_filter = '') {
         echo '<div class="alm-search-filters" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">';
         echo '<style>
         .alm-search-filters .alm-filter-row {
@@ -680,6 +694,16 @@ class ALM_Admin_Lessons {
         echo '<option value="no_resources" ' . selected($resources_filter, 'no_resources', false) . '>' . sprintf(__('No Resources (%d)', 'academy-lesson-manager'), $no_resources_count) . '</option>';
         echo '</select>';
         
+        // Sample filter
+        echo '<label for="sample-filter" style="margin-left: 8px;">' . __('Sample:', 'academy-lesson-manager') . '</label>';
+        echo '<select id="sample-filter" name="sample_filter" onchange="this.form.submit()">';
+        echo '<option value="">' . __('All', 'academy-lesson-manager') . '</option>';
+        $has_sample_count = $this->get_lesson_count_with_samples();
+        $no_sample_count = $this->get_lesson_count_without_samples();
+        echo '<option value="has_sample" ' . selected($sample_filter, 'has_sample', false) . '>' . sprintf(__('Has Sample (%d)', 'academy-lesson-manager'), $has_sample_count) . '</option>';
+        echo '<option value="no_sample" ' . selected($sample_filter, 'no_sample', false) . '>' . sprintf(__('No Sample (%d)', 'academy-lesson-manager'), $no_sample_count) . '</option>';
+        echo '</select>';
+        
         // Style filter
         echo '<label for="style-filter" style="margin-left: 8px;">' . __('Style:', 'academy-lesson-manager') . '</label>';
         echo '<select id="style-filter" name="style_filter" onchange="this.form.submit()">';
@@ -717,7 +741,7 @@ class ALM_Admin_Lessons {
         }
         
         // Clear filters button
-        if ($membership_filter > 0 || !empty($collection_filter) || !empty($resources_filter) || !empty($pathway_filter) || !empty($skill_level_filter) || !empty($tag_filter) || !empty($style_filter)) {
+        if ($membership_filter > 0 || !empty($collection_filter) || !empty($resources_filter) || !empty($sample_filter) || !empty($pathway_filter) || !empty($skill_level_filter) || !empty($tag_filter) || !empty($style_filter)) {
             echo '<div class="alm-filter-row">';
             echo '<a href="?page=academy-manager-lessons' . (!empty($search) ? '&search=' . urlencode($search) : '') . '" class="button button-clear">' . __('Clear All Filters', 'academy-lesson-manager') . '</a>';
             echo '</div>';
@@ -907,6 +931,9 @@ class ALM_Admin_Lessons {
         echo '<div style="display: flex; gap: 5px; flex-wrap: nowrap;">';
         echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '" class="button button-small" title="' . __('Edit Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-edit"></span></a>';
         
+        // Add Duplicate button
+        echo '<a href="?page=academy-manager-lessons&action=duplicate&id=' . $lesson->ID . '" class="button button-small" onclick="return confirm(\'' . __('Duplicate this lesson? This will copy all lesson data including chapters.', 'academy-lesson-manager') . '\')" title="' . __('Duplicate Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-page"></span></a>';
+        
         // Add View Post button if post exists
         if ($lesson->post_id && get_post($lesson->post_id)) {
             echo '<a href="' . get_edit_post_link($lesson->post_id) . '" class="button button-small" target="_blank" title="' . __('View WordPress Post', 'academy-lesson-manager') . '"><span class="dashicons dashicons-external"></span></a>';
@@ -999,6 +1026,9 @@ class ALM_Admin_Lessons {
                     break;
                 case 'deleted':
                     echo '<div class="notice notice-success"><p>' . __('Lesson deleted successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'duplicated':
+                    echo '<div class="notice notice-success"><p>' . __('Lesson duplicated successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
                 case 'fixed':
                     echo '<div class="notice notice-success"><p>' . __('Lesson data re-synced successfully.', 'academy-lesson-manager') . '</p></div>';
@@ -1136,6 +1166,103 @@ class ALM_Admin_Lessons {
         echo '<th scope="row"><label for="vtt">' . __('VTT File', 'academy-lesson-manager') . '</label></th>';
         echo '<td><input type="text" id="vtt" name="vtt" value="' . esc_attr($lesson->vtt) . '" class="regular-text" /></td>';
         echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="sample_video_type">' . __('Sample Video', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        
+        // Get current sample settings
+        $sample_video_url = isset($lesson->sample_video_url) ? $lesson->sample_video_url : '';
+        $sample_chapter_id = isset($lesson->sample_chapter_id) ? intval($lesson->sample_chapter_id) : 0;
+        $sample_type = $sample_chapter_id > 0 ? 'chapter' : 'url';
+        
+        // Get chapters for this lesson
+        $chapters_table = $this->database->get_table_name('chapters');
+        $chapters = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT ID, chapter_title, bunny_url, vimeo_id, youtube_id FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
+            $id
+        ));
+        
+        // Radio buttons for type selection
+        echo '<div style="margin-bottom: 15px;">';
+        echo '<label style="margin-right: 20px;">';
+        echo '<input type="radio" name="sample_video_type" value="url" ' . checked($sample_type, 'url', false) . ' onchange="almToggleSampleType()" />';
+        echo ' ' . __('Direct URL', 'academy-lesson-manager');
+        echo '</label>';
+        echo '<label>';
+        echo '<input type="radio" name="sample_video_type" value="chapter" ' . checked($sample_type, 'chapter', false) . ' onchange="almToggleSampleType()" />';
+        echo ' ' . __('Use Chapter', 'academy-lesson-manager');
+        echo '</label>';
+        echo '</div>';
+        
+        // URL input (shown when type is 'url')
+        echo '<div id="alm-sample-url-container" style="' . ($sample_type === 'url' ? '' : 'display: none;') . '">';
+        echo '<input type="url" id="sample_video_url" name="sample_video_url" value="' . esc_attr($sample_video_url) . '" class="regular-text" placeholder="https://..." />';
+        echo '<p class="description">' . __('Enter a direct URL for a sample/preview video (e.g., Bunny.net URL).', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        // Chapter dropdown (shown when type is 'chapter')
+        echo '<div id="alm-sample-chapter-container" style="' . ($sample_type === 'chapter' ? '' : 'display: none;') . '">';
+        if (!empty($chapters)) {
+            echo '<select id="sample_chapter_id" name="sample_chapter_id" class="regular-text">';
+            echo '<option value="0">' . __('Select a chapter...', 'academy-lesson-manager') . '</option>';
+            foreach ($chapters as $chapter) {
+                $has_video = !empty($chapter->bunny_url) || ($chapter->vimeo_id > 0) || !empty($chapter->youtube_id);
+                $video_info = array();
+                if (!empty($chapter->bunny_url)) $video_info[] = 'Bunny';
+                if ($chapter->vimeo_id > 0) $video_info[] = 'Vimeo';
+                if (!empty($chapter->youtube_id)) $video_info[] = 'YouTube';
+                $video_label = $has_video ? ' (' . implode(', ', $video_info) . ')' : ' (' . __('No video', 'academy-lesson-manager') . ')';
+                
+                $selected = ($sample_chapter_id == $chapter->ID) ? 'selected' : '';
+                echo '<option value="' . esc_attr($chapter->ID) . '" ' . $selected . '>' . esc_html(stripslashes($chapter->chapter_title)) . $video_label . '</option>';
+            }
+            echo '</select>';
+            if ($sample_chapter_id > 0) {
+                $selected_chapter = null;
+                foreach ($chapters as $chapter) {
+                    if ($chapter->ID == $sample_chapter_id) {
+                        $selected_chapter = $chapter;
+                        break;
+                    }
+                }
+                if ($selected_chapter) {
+                    $chapter_video_url = $this->get_chapter_video_url($selected_chapter);
+                    if ($chapter_video_url) {
+                        echo '<p class="description" style="margin-top: 8px; color: #46b450;">';
+                        echo '<strong>' . __('Using chapter video:', 'academy-lesson-manager') . '</strong> ' . esc_html(stripslashes($selected_chapter->chapter_title));
+                        echo '<br><span style="font-size: 12px;">' . esc_html($chapter_video_url) . '</span>';
+                        echo '</p>';
+                    }
+                }
+            }
+            echo '<p class="description">' . __('Select a chapter to use as the sample video. The chapter\'s video URL (Bunny, Vimeo, or YouTube) will be used.', 'academy-lesson-manager') . '</p>';
+        } else {
+            echo '<p class="description" style="color: #dc3232;">' . __('No chapters available. Add chapters to this lesson first.', 'academy-lesson-manager') . '</p>';
+        }
+        echo '</div>';
+        
+        echo '</td>';
+        echo '</tr>';
+        
+        // JavaScript to toggle between URL and Chapter inputs
+        echo '<script>
+        function almToggleSampleType() {
+            var type = document.querySelector(\'input[name="sample_video_type"]:checked\').value;
+            var urlContainer = document.getElementById(\'alm-sample-url-container\');
+            var chapterContainer = document.getElementById(\'alm-sample-chapter-container\');
+            
+            if (type === \'url\') {
+                urlContainer.style.display = \'block\';
+                chapterContainer.style.display = \'none\';
+                document.getElementById(\'sample_chapter_id\').value = \'0\';
+            } else {
+                urlContainer.style.display = \'none\';
+                chapterContainer.style.display = \'block\';
+                document.getElementById(\'sample_video_url\').value = \'\';
+            }
+        }
+        </script>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="membership_level">' . __('Membership Level', 'academy-lesson-manager') . '</label></th>';
@@ -1634,6 +1761,31 @@ class ALM_Admin_Lessons {
             exit;
         }
         
+        // Handle sample video (URL or chapter)
+        $sample_video_type = sanitize_text_field($_POST['sample_video_type'] ?? 'url');
+        $sample_video_url = '';
+        $sample_chapter_id = 0;
+        
+        if ($sample_video_type === 'chapter') {
+            $sample_chapter_id = intval($_POST['sample_chapter_id'] ?? 0);
+            // If chapter is selected, get its video URL
+            if ($sample_chapter_id > 0) {
+                $chapters_table = $this->database->get_table_name('chapters');
+                $chapter = $this->wpdb->get_row($this->wpdb->prepare(
+                    "SELECT * FROM {$chapters_table} WHERE ID = %d",
+                    $sample_chapter_id
+                ));
+                if ($chapter) {
+                    $chapter_video_url = $this->get_chapter_video_url($chapter);
+                    if ($chapter_video_url) {
+                        $sample_video_url = $chapter_video_url;
+                    }
+                }
+            }
+        } else {
+            $sample_video_url = esc_url_raw($_POST['sample_video_url'] ?? '');
+        }
+        
         $data = array(
             'post_id' => intval($_POST['post_id']),
             'collection_id' => $collection_id,
@@ -1643,6 +1795,8 @@ class ALM_Admin_Lessons {
             'duration' => intval($_POST['duration']),
             'song_lesson' => sanitize_text_field($_POST['song_lesson']),
             'vtt' => sanitize_text_field($_POST['vtt']),
+            'sample_video_url' => $sample_video_url,
+            'sample_chapter_id' => $sample_chapter_id,
             'slug' => sanitize_text_field($_POST['slug']),
             'membership_level' => intval($_POST['membership_level']),
             'lesson_level' => sanitize_text_field($_POST['lesson_level']),
@@ -1677,6 +1831,31 @@ class ALM_Admin_Lessons {
     }
     
     /**
+     * Get chapter video URL (prioritizes bunny_url, then vimeo_id, then youtube_id)
+     * 
+     * @param object $chapter Chapter object
+     * @return string|false Video URL or false if no video
+     */
+    private function get_chapter_video_url($chapter) {
+        // Priority: bunny_url > vimeo_id > youtube_id
+        if (!empty($chapter->bunny_url)) {
+            return $chapter->bunny_url;
+        }
+        
+        if (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
+            // Vimeo URL format: https://vimeo.com/{vimeo_id}
+            return 'https://vimeo.com/' . intval($chapter->vimeo_id);
+        }
+        
+        if (!empty($chapter->youtube_id)) {
+            // YouTube URL format: https://www.youtube.com/watch?v={youtube_id}
+            return 'https://www.youtube.com/watch?v=' . esc_attr($chapter->youtube_id);
+        }
+        
+        return false;
+    }
+    
+    /**
      * Update an existing lesson
      */
     private function update_lesson() {
@@ -1689,6 +1868,31 @@ class ALM_Admin_Lessons {
             exit;
         }
         
+        // Handle sample video (URL or chapter)
+        $sample_video_type = sanitize_text_field($_POST['sample_video_type'] ?? 'url');
+        $sample_video_url = '';
+        $sample_chapter_id = 0;
+        
+        if ($sample_video_type === 'chapter') {
+            $sample_chapter_id = intval($_POST['sample_chapter_id'] ?? 0);
+            // If chapter is selected, get its video URL
+            if ($sample_chapter_id > 0) {
+                $chapters_table = $this->database->get_table_name('chapters');
+                $chapter = $this->wpdb->get_row($this->wpdb->prepare(
+                    "SELECT * FROM {$chapters_table} WHERE ID = %d",
+                    $sample_chapter_id
+                ));
+                if ($chapter) {
+                    $chapter_video_url = $this->get_chapter_video_url($chapter);
+                    if ($chapter_video_url) {
+                        $sample_video_url = $chapter_video_url;
+                    }
+                }
+            }
+        } else {
+            $sample_video_url = esc_url_raw($_POST['sample_video_url'] ?? '');
+        }
+        
         $data = array(
             'post_id' => intval($_POST['post_id']),
             'collection_id' => $collection_id,
@@ -1698,6 +1902,8 @@ class ALM_Admin_Lessons {
             'duration' => intval($_POST['duration']),
             'song_lesson' => sanitize_text_field($_POST['song_lesson']),
             'vtt' => sanitize_text_field($_POST['vtt']),
+            'sample_video_url' => $sample_video_url,
+            'sample_chapter_id' => $sample_chapter_id,
             'slug' => sanitize_text_field($_POST['slug']),
             'membership_level' => intval($_POST['membership_level']),
             'lesson_level' => sanitize_text_field($_POST['lesson_level']),
@@ -1866,6 +2072,101 @@ class ALM_Admin_Lessons {
             exit;
         } else {
             wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager&action=edit&id=' . $collection_id)));
+            exit;
+        }
+    }
+    
+    /**
+     * Handle duplicating a lesson
+     */
+    private function handle_duplicate($lesson_id) {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        // Get the original lesson
+        $original_lesson = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$this->table_name} WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$original_lesson) {
+            wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager-lessons')));
+            exit;
+        }
+        
+        // Prepare data for new lesson - copy all fields
+        $new_title = stripslashes($original_lesson->lesson_title) . ' COPY';
+        $data = array(
+            'post_id' => 0, // Don't copy WordPress post
+            'collection_id' => intval($original_lesson->collection_id),
+            'lesson_title' => $new_title,
+            'lesson_description' => $original_lesson->lesson_description,
+            'post_date' => $original_lesson->post_date,
+            'duration' => intval($original_lesson->duration),
+            'song_lesson' => $original_lesson->song_lesson,
+            'vtt' => $original_lesson->vtt,
+            'sample_video_url' => $original_lesson->sample_video_url,
+            'sample_chapter_id' => 0, // Reset sample chapter reference
+            'slug' => sanitize_title($new_title),
+            'membership_level' => intval($original_lesson->membership_level),
+            'lesson_level' => $original_lesson->lesson_level,
+            'lesson_tags' => $original_lesson->lesson_tags,
+            'lesson_style' => $original_lesson->lesson_style,
+            'resources' => $original_lesson->resources,
+        );
+        
+        // Insert the new lesson
+        $result = $this->wpdb->insert($this->table_name, $data);
+        
+        if ($result) {
+            $new_lesson_id = $this->wpdb->insert_id;
+            
+            // Copy all chapters
+            $chapters_table = $this->database->get_table_name('chapters');
+            $chapters = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT * FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
+                $lesson_id
+            ));
+            
+            foreach ($chapters as $chapter) {
+                $chapter_data = array(
+                    'lesson_id' => $new_lesson_id,
+                    'chapter_title' => $chapter->chapter_title,
+                    'chapter_description' => $chapter->chapter_description,
+                    'bunny_url' => $chapter->bunny_url,
+                    'vimeo_id' => intval($chapter->vimeo_id),
+                    'youtube_id' => $chapter->youtube_id,
+                    'duration' => intval($chapter->duration),
+                    'menu_order' => intval($chapter->menu_order),
+                    'resources' => $chapter->resources,
+                );
+                $this->wpdb->insert($chapters_table, $chapter_data);
+            }
+            
+            // Copy all pathways
+            $pathways_table = $this->database->get_table_name('lesson_pathways');
+            $pathways = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT pathway, pathway_rank FROM {$pathways_table} WHERE lesson_id = %d",
+                $lesson_id
+            ));
+            
+            foreach ($pathways as $pathway) {
+                $this->wpdb->insert(
+                    $pathways_table,
+                    array(
+                        'lesson_id' => $new_lesson_id,
+                        'pathway' => $pathway->pathway,
+                        'pathway_rank' => intval($pathway->pathway_rank)
+                    ),
+                    array('%d', '%s', '%d')
+                );
+            }
+            
+            wp_redirect(add_query_arg('message', 'duplicated', admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . $new_lesson_id)));
+            exit;
+        } else {
+            wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager-lessons')));
             exit;
         }
     }
@@ -2423,6 +2724,26 @@ class ALM_Admin_Lessons {
     }
     
     /**
+     * Get count of lessons with samples
+     */
+    private function get_lesson_count_with_samples() {
+        $count = $this->wpdb->get_var(
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE (sample_video_url IS NOT NULL AND sample_video_url != '' AND sample_video_url != '0') OR (sample_chapter_id IS NOT NULL AND sample_chapter_id > 0)"
+        );
+        return intval($count);
+    }
+    
+    /**
+     * Get count of lessons without samples
+     */
+    private function get_lesson_count_without_samples() {
+        $count = $this->wpdb->get_var(
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE ((sample_video_url IS NULL OR sample_video_url = '' OR sample_video_url = '0') AND (sample_chapter_id IS NULL OR sample_chapter_id = 0))"
+        );
+        return intval($count);
+    }
+    
+    /**
      * Render column visibility controls
      */
     private function render_column_visibility_controls() {
@@ -2584,7 +2905,7 @@ class ALM_Admin_Lessons {
     /**
      * Render pagination controls (below table)
      */
-    private function render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $pathway_filter, $skill_level_filter, $order_by, $order) {
+    private function render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $order_by, $order) {
         if ($total_pages <= 1) {
             return; // No pagination needed
         }
@@ -2607,6 +2928,9 @@ class ALM_Admin_Lessons {
         }
         if (!empty($resources_filter)) {
             $query_args['resources_filter'] = $resources_filter;
+        }
+        if (!empty($sample_filter)) {
+            $query_args['sample_filter'] = $sample_filter;
         }
         if (!empty($pathway_filter)) {
             $query_args['pathway_filter'] = $pathway_filter;

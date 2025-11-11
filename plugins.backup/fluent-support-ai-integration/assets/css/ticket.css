@@ -1,0 +1,240 @@
+/**
+ * Ticket CSS for Fluent Support AI Integration
+ */
+
+.fluent-support-ai-interface {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.fluent-support-ai-interface h4 {
+    margin: 0 0 15px 0;
+    color: #23282d;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.ai-interface-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.ai-prompt-dropdown {
+    min-width: 200px;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    background: #fff;
+    font-size: 14px;
+}
+
+.ai-prompt-dropdown:focus {
+    border-color: #0073aa;
+    box-shadow: 0 0 0 1px #0073aa;
+    outline: none;
+}
+
+#generate-ai-reply {
+    background: #0073aa;
+    border-color: #0073aa;
+    color: #fff;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#generate-ai-reply:hover {
+    background: #005a87;
+    border-color: #005a87;
+}
+
+#generate-ai-reply:disabled {
+    background: #ccc;
+    border-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.ai-loading {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    color: #666;
+    font-size: 14px;
+}
+
+.ai-loading .spinner {
+    float: none;
+    margin: 0;
+    width: 16px;
+    height: 16px;
+}
+
+.ai-loading-text {
+    font-style: italic;
+}
+
+/* Message Styles */
+.ai-message {
+    margin-top: 10px;
+    padding: 10px 15px;
+    border-radius: 3px;
+    font-weight: 500;
+    animation: slideIn 0.3s ease;
+}
+
+.ai-message-success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.ai-message-error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .ai-interface-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .ai-prompt-dropdown {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    #generate-ai-reply {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Integration with Fluent Support Styles */
+.fluent-support-ai-interface {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .fluent-support-ai-interface {
+        background: #1e1e1e;
+        border-color: #3c434a;
+        color: #f0f0f1;
+    }
+    
+    .fluent-support-ai-interface h4 {
+        color: #f0f0f1;
+    }
+    
+    .ai-prompt-dropdown {
+        background: #2c3338;
+        border-color: #3c434a;
+        color: #f0f0f1;
+    }
+    
+    .ai-prompt-dropdown:focus {
+        border-color: #72aee6;
+        box-shadow: 0 0 0 1px #72aee6;
+    }
+    
+    .ai-message-success {
+        background: #1e4a1e;
+        color: #a7d4a7;
+        border-color: #2d5a2d;
+    }
+    
+    .ai-message-error {
+        background: #4a1e1e;
+        color: #d4a7a7;
+        border-color: #5a2d2d;
+    }
+}
+
+/* Accessibility Improvements */
+.ai-prompt-dropdown:focus,
+#generate-ai-reply:focus {
+    outline: 2px solid #0073aa;
+    outline-offset: 2px;
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+    .fluent-support-ai-interface {
+        border-width: 2px;
+    }
+    
+    .ai-prompt-dropdown,
+    #generate-ai-reply {
+        border-width: 2px;
+    }
+}
+
+/* Katahdin AI Footer Branding */
+.katahdin-ai-footer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #ddd;
+    text-align: center;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.katahdin-ai-footer:hover {
+    opacity: 1;
+}
+
+.katahdin-ai-footer small {
+    color: #666;
+    font-size: 11px;
+}
+
+.katahdin-ai-footer .katahdin-link {
+    color: #0073aa;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.katahdin-ai-footer .katahdin-link:hover {
+    color: #005a87;
+    text-decoration: underline;
+}
+
+.katahdin-ai-footer img {
+    transition: transform 0.2s ease;
+}
+
+.katahdin-ai-footer .katahdin-link:hover img {
+    transform: scale(1.1);
+}
+
+/* Print Styles */
+@media print {
+    .fluent-support-ai-interface {
+        display: none;
+    }
+}
