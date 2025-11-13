@@ -402,6 +402,127 @@ class ALM_Shortcodes_Plugin {
                         <button class="button button-small copy-shortcode" data-shortcode="[alm_membership_list]">Copy</button>
                     </div>
                 </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Collections Page</h3>
+                    <p>Display membership levels with collections and lesson hours</p>
+                    <div class="shortcode-example">
+                        <code>[alm_collections_page]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_collections_page]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Lesson Search</h3>
+                    <p>Full-featured lesson search page with filters</p>
+                    <div class="shortcode-example">
+                        <code>[alm_lesson_search]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_lesson_search]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Lesson Search Compact</h3>
+                    <p>Compact lesson search widget</p>
+                    <div class="shortcode-example">
+                        <code>[alm_lesson_search_compact]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_lesson_search_compact]">Copy</button>
+                    </div>
+                </div>
+            </div>
+            
+            <h2 style="margin-top: 40px;">Practice Hub Shortcodes</h2>
+            
+            <div class="alm-shortcodes-grid">
+                <div class="alm-shortcode-card">
+                    <h3>Leaderboard</h3>
+                    <p>Display top practice session leaderboard</p>
+                    <div class="shortcode-example">
+                        <code>[jph_leaderboard]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_leaderboard]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Leaderboard Widget</h3>
+                    <p>Compact leaderboard widget</p>
+                    <div class="shortcode-example">
+                        <code>[jph_leaderboard_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_leaderboard_widget]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Dashboard</h3>
+                    <p>Full practice hub dashboard</p>
+                    <div class="shortcode-example">
+                        <code>[jph_dashboard]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_dashboard]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Stats Widget</h3>
+                    <p>Display user practice statistics</p>
+                    <div class="shortcode-example">
+                        <code>[jph_stats_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_stats_widget]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Recent Practice Widget</h3>
+                    <p>Show recent practice sessions</p>
+                    <div class="shortcode-example">
+                        <code>[jph_recent_practice_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_recent_practice_widget]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Practice Items Widget</h3>
+                    <p>Display practice items list</p>
+                    <div class="shortcode-example">
+                        <code>[jph_practice_items_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_practice_items_widget]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Progress Chart Widget</h3>
+                    <p>Visual progress chart display</p>
+                    <div class="shortcode-example">
+                        <code>[jph_progress_chart_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_progress_chart_widget]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Badges Widget</h3>
+                    <p>Display user badges and achievements</p>
+                    <div class="shortcode-example">
+                        <code>[jph_badges_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_badges_widget]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Gems Widget</h3>
+                    <p>Display user gems/points</p>
+                    <div class="shortcode-example">
+                        <code>[jph_gems_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_gems_widget]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Streak Widget</h3>
+                    <p>Display practice streak information</p>
+                    <div class="shortcode-example">
+                        <code>[jph_streak_widget]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_streak_widget]">Copy</button>
+                    </div>
+                </div>
             </div>
             
             <h2>Shortcode Details</h2>
@@ -636,6 +757,126 @@ class ALM_Shortcodes_Plugin {
             </ul>
             <h4>Example Usage:</h4>
             <pre><code>[alm_user_notes_manager]</code></pre>
+            
+            <h3>alm_collections_page</h3>
+            <p>Displays membership levels (Essentials, Studio, Premier) with collection counts and total lesson hours</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Features:</h4>
+            <ul>
+                <li>Shows three membership tiers with collection counts and total hours</li>
+                <li>Premier level shows "Access to All Collections" badge</li>
+                <li>Collections dropdown for each membership level</li>
+                <li>Responsive card layout</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[alm_collections_page]</code></pre>
+            
+            <h3>alm_lesson_search</h3>
+            <p>Full-featured lesson search page with advanced filtering options</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Features:</h4>
+            <ul>
+                <li>Search by lesson title, description, collection, chapters, and transcripts</li>
+                <li>Filter by skill level (Beginner, Intermediate, Advanced, Pro)</li>
+                <li>Filter by tags, lesson style, and membership level</li>
+                <li>Pagination support</li>
+                <li>Favorite lessons functionality</li>
+                <li>Responsive card-based layout</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[alm_lesson_search]</code></pre>
+            
+            <h3>alm_lesson_search_compact</h3>
+            <p>Compact lesson search widget with minimal interface</p>
+            <h4>Parameters:</h4>
+            <ul>
+                <li><strong>view_all_url</strong> (optional): URL to full search page</li>
+                <li><strong>placeholder</strong> (optional): Placeholder text for search input</li>
+                <li><strong>max_items</strong> (optional): Maximum results to display (default: 10)</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[alm_lesson_search_compact]</code></pre>
+            <pre><code>[alm_lesson_search_compact view_all_url="/search" placeholder="Search lessons..." max_items="5"]</code></pre>
+            
+            <h2 style="margin-top: 40px;">Practice Hub Shortcode Details</h2>
+            
+            <h3>jph_leaderboard</h3>
+            <p>Displays the top practice session leaderboard with user rankings</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Features:</h4>
+            <ul>
+                <li>Shows top users by practice time</li>
+                <li>Displays user display names and practice statistics</li>
+                <li>Opens in new tab when clicked</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_leaderboard]</code></pre>
+            
+            <h3>jph_leaderboard_widget</h3>
+            <p>Compact leaderboard widget for sidebars or smaller spaces</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_leaderboard_widget]</code></pre>
+            
+            <h3>jph_dashboard</h3>
+            <p>Full practice hub dashboard with all user statistics and widgets</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_dashboard]</code></pre>
+            
+            <h3>jph_stats_widget</h3>
+            <p>Display user practice statistics in a widget format</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_stats_widget]</code></pre>
+            
+            <h3>jph_recent_practice_widget</h3>
+            <p>Shows recent practice sessions for the current user</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_recent_practice_widget]</code></pre>
+            
+            <h3>jph_practice_items_widget</h3>
+            <p>Displays a list of practice items</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_practice_items_widget]</code></pre>
+            
+            <h3>jph_progress_chart_widget</h3>
+            <p>Visual progress chart displaying practice progress over time</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_progress_chart_widget]</code></pre>
+            
+            <h3>jph_badges_widget</h3>
+            <p>Display user badges and achievements</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_badges_widget]</code></pre>
+            
+            <h3>jph_gems_widget</h3>
+            <p>Display user gems/points balance</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_gems_widget]</code></pre>
+            
+            <h3>jph_streak_widget</h3>
+            <p>Display practice streak information (consecutive days practiced)</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_streak_widget]</code></pre>
         </div>
         
         <style>

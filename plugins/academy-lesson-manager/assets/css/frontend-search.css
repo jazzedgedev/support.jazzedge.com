@@ -42,15 +42,20 @@
 }
 
 .alm-lesson-collection-badge {
-    background: #004555;
-    color: #ffffff;
-    padding: 16px 24px;
-    font-size: 14px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin: 0;
-    border-radius: 16px 16px 0 0;
+    background: #004555 !important;
+    color: #ffffff !important;
+    padding: 16px 24px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    height: 76px !important;
+    min-height: 76px !important;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
 }
 
 .alm-lesson-inner-content {
@@ -69,7 +74,7 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    z-index: 10;
+    z-index: 100;
 }
 
 .alm-video-sample-btn {
@@ -198,5 +203,78 @@
 
 .alm-lesson-duration-empty {
     flex: 1;
+}
+
+/* List View Styles */
+.alm-search-results-list .alm-lesson-card-course {
+    flex-direction: row;
+    height: auto;
+    min-height: 80px;
+    max-height: none;
+    align-items: center;
+}
+
+.alm-search-results-list .alm-lesson-card-link {
+    flex-direction: row;
+    height: auto;
+    width: 100%;
+}
+
+.alm-search-results-list .alm-lesson-card-content {
+    flex-direction: row;
+    height: auto;
+    width: 100%;
+}
+
+.alm-search-results-list .alm-lesson-collection-badge {
+    display: none !important;
+}
+
+.alm-search-results-list .alm-lesson-inner-content {
+    flex-direction: row;
+    padding: 16px 20px;
+    flex: 1;
+    gap: 20px;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.alm-search-results-list .alm-lesson-title {
+    padding-right: 0;
+    min-height: auto;
+    flex: 1;
+    margin-bottom: 0;
+    margin-top: 0;
+}
+
+.alm-search-results-list .alm-lesson-description {
+    display: none !important;
+}
+
+.alm-search-results-list .alm-lesson-footer {
+    margin-top: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.alm-search-results-list .alm-lesson-duration {
+    margin-top: 0;
+}
+
+.alm-search-results-list .alm-lesson-badge-container {
+    margin-top: 0;
+}
+
+.alm-search-results-list .alm-lesson-top-actions {
+    position: relative;
+    top: auto;
+    right: auto;
+    order: -1;
+    margin-right: 12px;
+    z-index: 100;
 }
 

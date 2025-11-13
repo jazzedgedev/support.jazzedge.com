@@ -1179,7 +1179,7 @@ class ALM_Admin_Lessons {
         // Get chapters for this lesson
         $chapters_table = $this->database->get_table_name('chapters');
         $chapters = $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT ID, chapter_title, bunny_url, vimeo_id, youtube_id FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
+            "SELECT ID, chapter_title, bunny_url, vimeo_id, youtube_id, duration FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
             $id
         ));
         
@@ -1214,8 +1214,15 @@ class ALM_Admin_Lessons {
                 if (!empty($chapter->youtube_id)) $video_info[] = 'YouTube';
                 $video_label = $has_video ? ' (' . implode(', ', $video_info) . ')' : ' (' . __('No video', 'academy-lesson-manager') . ')';
                 
+                // Format duration
+                $duration = intval($chapter->duration);
+                $duration_label = '';
+                if ($duration > 0) {
+                    $duration_label = ' (' . ALM_Helpers::format_duration_short($duration) . ')';
+                }
+                
                 $selected = ($sample_chapter_id == $chapter->ID) ? 'selected' : '';
-                echo '<option value="' . esc_attr($chapter->ID) . '" ' . $selected . '>' . esc_html(stripslashes($chapter->chapter_title)) . $video_label . '</option>';
+                echo '<option value="' . esc_attr($chapter->ID) . '" ' . $selected . '>' . esc_html(stripslashes($chapter->chapter_title)) . $video_label . $duration_label . '</option>';
             }
             echo '</select>';
             if ($sample_chapter_id > 0) {

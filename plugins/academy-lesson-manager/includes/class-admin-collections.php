@@ -565,6 +565,7 @@ class ALM_Admin_Collections {
             echo '<th scope="col" style="width: 60px;">' . __('ID', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col" style="width: 40%;">' . __('Title', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col" style="width: 100px;">' . __('Duration', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" style="width: 100px;">' . __('Has Sample', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col" style="width: 150px;">' . __('Synced Status', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Actions', 'academy-lesson-manager') . '</th>';
             echo '</tr>';
@@ -574,11 +575,27 @@ class ALM_Admin_Collections {
             foreach ($lessons as $lesson) {
                 $sync_status = $this->check_lesson_sync_status($lesson);
                 
+                // Check if lesson has a sample video
+                $has_sample = false;
+                $sample_video_url = isset($lesson->sample_video_url) ? $lesson->sample_video_url : '';
+                $sample_chapter_id = isset($lesson->sample_chapter_id) ? intval($lesson->sample_chapter_id) : 0;
+                
+                if ((!empty($sample_video_url) && $sample_video_url !== '0') || $sample_chapter_id > 0) {
+                    $has_sample = true;
+                }
+                
                 echo '<tr data-lesson-id="' . $lesson->ID . '">';
                 echo '<td><span class="dashicons dashicons-menu" style="cursor: move; color: #999;"></span></td>';
                 echo '<td>' . $lesson->ID . '</td>';
                 echo '<td><a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '">' . esc_html(stripslashes($lesson->lesson_title)) . '</a></td>';
                 echo '<td>' . ALM_Helpers::format_duration($lesson->duration) . '</td>';
+                echo '<td style="text-align: center;">';
+                if ($has_sample) {
+                    echo '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>';
+                } else {
+                    echo '<span style="color: #999;">' . __('No', 'academy-lesson-manager') . '</span>';
+                }
+                echo '</td>';
                 echo '<td>';
                 if ($sync_status['status'] === 'synced') {
                     echo '<span style="color: #46b450; font-weight: bold;">✓ ' . __('Synced', 'academy-lesson-manager') . '</span>';

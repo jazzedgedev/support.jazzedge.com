@@ -33,6 +33,28 @@ class ALM_Helpers {
     }
     
     /**
+     * Format duration in seconds to shorter format (MM:SS or H:MM:SS)
+     * 
+     * @param int $seconds Duration in seconds
+     * @return string Formatted duration (e.g., "5:30" or "1:05:30")
+     */
+    public static function format_duration_short($seconds) {
+        if (empty($seconds) || $seconds <= 0) {
+            return '0:00';
+        }
+        
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        $secs = $seconds % 60;
+        
+        if ($hours > 0) {
+            return sprintf('%d:%02d:%02d', $hours, $minutes, $secs);
+        } else {
+            return sprintf('%d:%02d', $minutes, $secs);
+        }
+    }
+    
+    /**
      * Get collection title by collection ID
      * 
      * @param int $collection_id Collection ID

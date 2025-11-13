@@ -673,23 +673,6 @@ class ALM_Rest_API {
 
         $prepared = $this->wpdb->prepare($sql, $query_params);
         
-        // Build readable SQL for debugging by manually substituting parameters
-        $debug_sql = $sql;
-        $param_index = 0;
-        // Replace placeholders in order: %s, %d, %f
-        $debug_sql = preg_replace_callback('/(%[sdbf])/', function($matches) use (&$query_params, &$param_index) {
-            if ($param_index >= count($query_params)) {
-                return $matches[0]; // No more params
-            }
-            $param = $query_params[$param_index++];
-            if (is_string($param)) {
-                return "'" . addslashes($param) . "'";
-            } elseif (is_int($param) || is_float($param)) {
-                return (string) $param;
-            }
-            return $matches[0];
-        }, $debug_sql);
-        
         // Execute main query - get results as objects
         $rows = $this->wpdb->get_results($prepared, OBJECT);
 
@@ -801,120 +784,8 @@ class ALM_Rest_API {
             $f_bind[] = $per_page; $f_bind[] = $offset;
             $prepared2 = $this->wpdb->prepare($sql2, $f_bind);
             
-            // Build readable SQL for fuzzy fallback
-            // The WHERE clause structure: $f_params_full (filters) come first, then $f_params (LIKE conditions) in $like_sql
-            // But $like_sql is built from $like_parts which already have placeholders, so we need to substitute them separately
-            
-            // First, substitute parameters in score_sql (uses $f_params)
-            $score_sql_debug = $score_sql;
-            $score_param_idx = 0;
-            foreach ($score_parts as $part) {
-                if (strpos($part, '%s') !== false && $score_param_idx < count($f_params)) {
-                    $param_val = $f_params[$score_param_idx++];
-                    $score_sql_debug = str_replace($part, str_replace('%s', "'" . addslashes($param_val) . "'", $part), $score_sql_debug);
-                }
-            }
-            
-            // Build WHERE clause manually by substituting each part
-            // The structure is: $f_where contains filter conditions (with placeholders from $f_params_full) and $like_sql (with placeholders from $f_params)
-            // We need to identify which part is $like_sql and substitute it separately
-            $where_debug_parts = array();
-            $where_param_idx = 0;
-            
-            foreach ($f_where as $where_part) {
-                // Check if this is the $like_sql part (contains multiple OR conditions)
-                if (strpos($where_part, ' OR ') !== false || (substr_count($where_part, 'LIKE') > 1)) {
-                    // This is the $like_sql part - substitute from $f_params
-                    $like_debug = $where_part;
-                    $like_param_idx = 0;
-                    $like_debug = preg_replace_callback('/(%[sdbf])/', function($matches) use (&$f_params, &$like_param_idx) {
-                        if ($like_param_idx >= count($f_params)) {
-                            return $matches[0];
-                        }
-                        $param = $f_params[$like_param_idx++];
-                        if (is_string($param)) {
-                            return "'" . addslashes($param) . "'";
-                        } elseif (is_int($param) || is_float($param)) {
-                            return (string) $param;
-                        }
-                        return $matches[0];
-                    }, $like_debug);
-                    $where_debug_parts[] = $like_debug;
-                } elseif (strpos($where_part, '%s') !== false || strpos($where_part, '%d') !== false) {
-                    // This is a filter condition with placeholder - substitute from $f_params_full
-                    if ($where_param_idx < count($f_params_full)) {
-                        $param = $f_params_full[$where_param_idx++];
-                        if (strpos($where_part, '%s') !== false) {
-                            $where_debug_parts[] = str_replace('%s', "'" . addslashes($param) . "'", $where_part);
-                        } elseif (strpos($where_part, '%d') !== false) {
-                            $where_debug_parts[] = str_replace('%d', (string) $param, $where_part);
-                        } else {
-                            $where_debug_parts[] = $where_part;
-                        }
-                    } else {
-                        // Shouldn't happen, but keep as is
-                        $where_debug_parts[] = $where_part;
-                    }
-                } else {
-                    // No placeholders, keep as is (e.g., "1=1")
-                    $where_debug_parts[] = $where_part;
-                }
-            }
-            
-            $where_debug = 'WHERE ' . implode(' AND ', $where_debug_parts);
-            
-            // Build final debug SQL
-            $debug_sql = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, l.duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.slug, l.vtt, l.resources, c.collection_title, (" . $score_sql_debug . ") AS score
-                     FROM {$lessons_table} l
-                     LEFT JOIN " . $this->database->get_table_name('chapters') . " c2 ON c2.lesson_id = l.ID
-                     LEFT JOIN " . $this->database->get_table_name('transcripts') . " t ON t.lesson_id = l.ID
-                     LEFT JOIN {$collections_table} c ON c.ID = l.collection_id
-                     {$where_debug}
-                     GROUP BY l.ID
-                     ORDER BY score DESC, l.post_date DESC
-                     LIMIT {$per_page} OFFSET {$offset}";
-            
-            // Execute query - get results as objects
-            // First, let's verify the prepared query has the right parameters
-            error_log('ALM Search Fuzzy Fallback: f_params count: ' . count($f_params));
-            error_log('ALM Search Fuzzy Fallback: f_params_full count: ' . count($f_params_full));
-            error_log('ALM Search Fuzzy Fallback: f_bind count: ' . count($f_bind));
-            error_log('ALM Search Fuzzy Fallback: f_bind: ' . print_r($f_bind, true));
-            
             // Execute the query
             $rows = $this->wpdb->get_results($prepared2, OBJECT);
-            
-            // Debug: Check what was actually executed
-            $actual_query = $this->wpdb->last_query;
-            error_log('ALM Search Fuzzy Fallback: Actual executed query: ' . $actual_query);
-            error_log('ALM Search Fuzzy Fallback: Rows returned: ' . (is_array($rows) ? count($rows) : 'not an array'));
-            
-            // If query works in phpMyAdmin but returns no rows here, try executing it directly
-            if (empty($rows) && !$this->wpdb->last_error) {
-                error_log('ALM Search Fuzzy Fallback: Query executed but returned no rows. Trying direct execution...');
-                // Try executing the query directly without prepare() to see if that works
-                $direct_query = str_replace(array('%s', '%d'), array("'%s'", '%d'), $sql2);
-                foreach ($f_bind as $i => $param) {
-                    if (is_string($param)) {
-                        $direct_query = preg_replace('/%s/', "'" . addslashes($param) . "'", $direct_query, 1);
-                    } elseif (is_int($param) || is_float($param)) {
-                        $direct_query = preg_replace('/%d/', (string) $param, $direct_query, 1);
-                    }
-                }
-                error_log('ALM Search Fuzzy Fallback: Direct query: ' . $direct_query);
-                $direct_rows = $this->wpdb->get_results($direct_query, OBJECT);
-                error_log('ALM Search Fuzzy Fallback: Direct query returned: ' . (is_array($direct_rows) ? count($direct_rows) : 'not an array'));
-                if (!empty($direct_rows)) {
-                    // If direct query works, use those results
-                    $rows = $direct_rows;
-                    error_log('ALM Search Fuzzy Fallback: Using direct query results');
-                }
-            }
-            
-            // Debug: Check if query failed
-            if ($this->wpdb->last_error) {
-                error_log('ALM Search Fuzzy Fallback Error: ' . $this->wpdb->last_error);
-            }
             
             // Recalculate total for fuzzy fallback results
             // We need to count the results from the fuzzy query to get accurate pagination
@@ -924,40 +795,26 @@ class ALM_Rest_API {
                 $count_sql2 = "SELECT COUNT(DISTINCT l.ID) {$count_from} {$where_sql2}";
                 $count_params2 = array_merge($f_params_full, $f_params);
                 $total = intval($this->wpdb->get_var($this->wpdb->prepare($count_sql2, $count_params2)));
-                error_log('ALM Search Fuzzy Fallback: Total count: ' . $total);
             } else {
                 // If still no results, keep total at 0
                 $total = 0;
-                // Debug: Log when no rows returned
-                error_log('ALM Search Fuzzy Fallback: No rows returned after query execution');
-                error_log('ALM Search Fuzzy Fallback: Rows type: ' . gettype($rows));
-                error_log('ALM Search Fuzzy Fallback: Rows value: ' . print_r($rows, true));
-                error_log('ALM Search Fuzzy Fallback: Last error: ' . ($this->wpdb->last_error ?: 'none'));
-                error_log('ALM Search Fuzzy Fallback: Last query: ' . $this->wpdb->last_query);
             }
         }
 
-        // Get membership level names
+        // Get membership level names (cache to avoid repeated lookups)
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-settings.php';
+        $membership_level_cache = array();
         
         // Shape response
         $items = array();
         
-        // Debug: Log if rows is empty or not an array
-        if (empty($rows)) {
-            error_log('ALM Search: $rows is empty. Total: ' . $total);
-            error_log('ALM Search: Query was: ' . ($this->wpdb->last_query ?? 'N/A'));
-            error_log('ALM Search: Last error: ' . ($this->wpdb->last_error ?? 'N/A'));
-        } elseif (!is_array($rows)) {
-            error_log('ALM Search: $rows is not an array. Type: ' . gettype($rows));
-            error_log('ALM Search: Rows value: ' . print_r($rows, true));
-        } else {
-            error_log('ALM Search: Found ' . count($rows) . ' rows');
-        }
-        
         foreach ($rows as $r) {
             $membership_level = intval($r->membership_level);
-            $membership_level_name = ALM_Admin_Settings::get_membership_level_name($membership_level);
+            // Cache membership level names to avoid repeated lookups
+            if (!isset($membership_level_cache[$membership_level])) {
+                $membership_level_cache[$membership_level] = ALM_Admin_Settings::get_membership_level_name($membership_level);
+            }
+            $membership_level_name = $membership_level_cache[$membership_level];
             
             $items[] = array(
                 'id' => intval($r->ID),
@@ -984,27 +841,13 @@ class ALM_Rest_API {
 
         // AI re-ranking hook (no-op by default)
         $items = ALM_AI::rerank_items($items, $q);
-
-        // Always add debug SQL (set it if not already set from fuzzy fallback)
-        if (!isset($debug_sql)) {
-            $debug_sql = 'No SQL query executed (no search query or error occurred)';
-        }
         
         $response = array(
             'items' => $items,
             'total' => $total,
             'page' => $page,
             'per_page' => $per_page,
-            'total_pages' => $per_page > 0 ? (int) ceil($total / $per_page) : 1,
-            'debug' => array(
-                'sql' => $debug_sql,
-                'query' => $q,
-                'lesson_level' => $lesson_level,
-                'total_found' => $total,
-                'items_returned' => count($items),
-                'params_count' => count($query_params ?? $params ?? array()),
-                'where_clause' => $where_sql ?? 'No WHERE clause'
-            )
+            'total_pages' => $per_page > 0 ? (int) ceil($total / $per_page) : 1
         );
 
         return new WP_REST_Response($response, 200);

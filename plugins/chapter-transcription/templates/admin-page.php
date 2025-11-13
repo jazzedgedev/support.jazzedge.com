@@ -293,24 +293,9 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
                                 </a>
                                 
                                 <?php if (isset($chapter->mp4_exists) && $chapter->mp4_exists): ?>
-                                    <?php
-                                    // Get file info for confirmation
-                                    $video_downloader = new Transcription_Video_Downloader();
-                                    $mp4_filename = $video_downloader->generate_filename($chapter->lesson_id, $chapter->ID, $chapter->chapter_title, 'mp4');
-                                    $mp4_path = $video_downloader->get_output_directory() . $mp4_filename;
-                                    $file_size_mb = file_exists($mp4_path) ? round(filesize($mp4_path) / 1024 / 1024, 2) : 0;
-                                    $confirm_message = sprintf(
-                                        'File: %s\nSize: %.2f MB\nDuration: %s\nEstimated Cost: $%.4f\n\nContinue with transcription?',
-                                        basename($mp4_path),
-                                        $file_size_mb,
-                                        $chapter->duration > 0 ? gmdate('H:i:s', $chapter->duration) : 'Unknown',
-                                        $estimated_cost
-                                    );
-                                    ?>
                                     <button type="button" 
                                             class="button button-primary button-small ct-transcribe-btn" 
-                                            data-chapter-id="<?php echo esc_attr($chapter->ID); ?>"
-                                            onclick="return confirm('<?php echo esc_js($confirm_message); ?>');">
+                                            data-chapter-id="<?php echo esc_attr($chapter->ID); ?>">
                                         <?php echo $has_transcript ? '🔄 Re-transcribe' : '🎤 Transcribe'; ?>
                                     </button>
                                     <div class="ct-transcription-status" style="margin-top: 5px; font-size: 12px;"></div>

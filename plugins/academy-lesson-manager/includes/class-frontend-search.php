@@ -109,9 +109,8 @@ CSS;
         $favorites_add_url_js = esc_js(rest_url('aph/v1/lesson-favorites'));
         $favorites_remove_url_js = esc_js(rest_url('aph/v1/lesson-favorites/remove'));
         $favorites_check_url_js = esc_js(rest_url('aph/v1/lesson-favorites/check'));
+        $favorites_get_all_url_js = esc_js(rest_url('aph/v1/lesson-favorites'));
         $tags_url_js = esc_js(rest_url('alm/v1/tags'));
-        $current_user_id = get_current_user_id();
-        $show_debug_js = ($current_user_id > 0 && $current_user_id < 2005) ? 'true' : 'false';
         $is_user_logged_in = is_user_logged_in() ? 'true' : 'false';
         // Note: Level preference URLs removed - we no longer persist level selection
         
@@ -144,9 +143,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var initialTag = urlParams.get('tag') || '';
     var initialStyle = urlParams.get('lesson_style') || '';
     var initialMembershipLevel = urlParams.get('membership_level') || '';
-    var showDebug = {$show_debug_js}; // Show debug if user ID < 2005
     
-    var state = { q: initialQ, page: initialPage, per_page: initialPerPage, lesson_level: initialLevel, tag: initialTag, lesson_style: initialStyle, membership_level: initialMembershipLevel };
+    // Get view preference from localStorage or default to 'grid'
+    var initialView = localStorage.getItem('alm_search_view') || 'grid';
+    var state = { q: initialQ, page: initialPage, per_page: initialPerPage, lesson_level: initialLevel, tag: initialTag, lesson_style: initialStyle, membership_level: initialMembershipLevel, view: initialView };
     
     // Create styled search container
     var searchContainer = document.createElement('div');
@@ -670,105 +670,6 @@ document.addEventListener('DOMContentLoaded', function() {
     form.appendChild(searchRow);
     form.appendChild(filtersRow);
     
-    // SQL Query Debug Panel (will be appended after pager, below pagination)
-    var sqlDebugPanel = document.createElement('div');
-    sqlDebugPanel.id = 'alm-sql-debug-panel';
-    sqlDebugPanel.style.display = 'none';
-    sqlDebugPanel.style.marginTop = '20px';
-    sqlDebugPanel.style.marginBottom = '20px';
-    sqlDebugPanel.style.padding = '16px';
-    sqlDebugPanel.style.background = '#f8f9fa';
-    sqlDebugPanel.style.border = '1px solid #dee2e6';
-    sqlDebugPanel.style.borderRadius = '8px';
-    sqlDebugPanel.style.fontFamily = 'monospace';
-    sqlDebugPanel.style.fontSize = '12px';
-    
-    var sqlTitleRow = document.createElement('div');
-    sqlTitleRow.style.display = 'flex';
-    sqlTitleRow.style.alignItems = 'center';
-    sqlTitleRow.style.justifyContent = 'space-between';
-    sqlTitleRow.style.marginBottom = '12px';
-    
-    var sqlTitle = document.createElement('div');
-    sqlTitle.style.fontWeight = '700';
-    sqlTitle.style.fontSize = '13px';
-    sqlTitle.style.color = '#374151';
-    sqlTitle.textContent = 'SQL Query Executed:';
-    sqlTitleRow.appendChild(sqlTitle);
-    
-    var sqlCopyBtn = document.createElement('button');
-    sqlCopyBtn.type = 'button';
-    sqlCopyBtn.style.padding = '6px 16px';
-    sqlCopyBtn.style.fontSize = '12px';
-    sqlCopyBtn.style.fontWeight = '600';
-    sqlCopyBtn.style.background = '#239B90';
-    sqlCopyBtn.style.color = '#ffffff';
-    sqlCopyBtn.style.border = 'none';
-    sqlCopyBtn.style.borderRadius = '6px';
-    sqlCopyBtn.style.cursor = 'pointer';
-    sqlCopyBtn.style.transition = 'all 0.2s ease';
-    sqlCopyBtn.style.fontFamily = 'inherit';
-    sqlCopyBtn.textContent = 'Copy SQL';
-    
-    sqlCopyBtn.onmouseenter = function(){
-      this.style.background = '#1a7a6f';
-      this.style.transform = 'scale(1.05)';
-    };
-    sqlCopyBtn.onmouseleave = function(){
-      this.style.background = '#239B90';
-      this.style.transform = 'scale(1)';
-    };
-    
-    var sqlQueryText = document.createElement('div');
-    sqlQueryText.id = 'alm-sql-query-text';
-    sqlQueryText.style.whiteSpace = 'pre-wrap';
-    sqlQueryText.style.wordBreak = 'break-word';
-    sqlQueryText.style.color = '#1f2937';
-    sqlQueryText.style.lineHeight = '1.6';
-    sqlQueryText.style.maxHeight = '300px';
-    sqlQueryText.style.overflow = 'auto';
-    sqlQueryText.style.background = '#ffffff';
-    sqlQueryText.style.padding = '12px';
-    sqlQueryText.style.borderRadius = '4px';
-    sqlQueryText.style.border = '1px solid #dee2e6';
-    
-    sqlCopyBtn.onclick = function(){
-      var sqlText = document.getElementById('alm-sql-query-text').textContent;
-      navigator.clipboard.writeText(sqlText).then(function(){
-        sqlCopyBtn.textContent = 'Copied!';
-        sqlCopyBtn.style.background = '#10b981';
-        setTimeout(function(){
-          sqlCopyBtn.textContent = 'Copy SQL';
-          sqlCopyBtn.style.background = '#239B90';
-        }, 2000);
-      }).catch(function(err){
-        console.error('Failed to copy:', err);
-        sqlCopyBtn.textContent = 'Failed';
-        setTimeout(function(){
-          sqlCopyBtn.textContent = 'Copy SQL';
-        }, 2000);
-      });
-    };
-    
-    sqlTitleRow.appendChild(sqlCopyBtn);
-    sqlDebugPanel.appendChild(sqlTitleRow);
-    sqlDebugPanel.appendChild(sqlQueryText);
-    
-    // Function to display SQL query (accessible globally)
-    // Show if user ID < 2005
-    window.displaySQLQuery = function(sql) {
-      if (!showDebug) {
-        if (sqlDebugPanel) {
-          sqlDebugPanel.style.display = 'none';
-        }
-        return;
-      }
-      if (sqlDebugPanel && sqlQueryText) {
-        sqlDebugPanel.style.display = 'block';
-        sqlQueryText.textContent = sql || 'No SQL query available';
-      }
-    };
-    
     var results = document.createElement('div');
     results.style.marginTop = '0';
     
@@ -877,17 +778,149 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     };
     
-    // Button container to keep buttons horizontal
+    // Button container to keep buttons horizontal with page numbers
     var buttonContainer = document.createElement('div');
     buttonContainer.style.display = 'flex';
     buttonContainer.style.justifyContent = 'center';
     buttonContainer.style.alignItems = 'center';
-    buttonContainer.style.gap = '12px';
+    buttonContainer.style.gap = '8px';
+    buttonContainer.style.flexWrap = 'wrap';
+    
+    // Store reference to button container for updating page numbers
+    window.almUpdatePagination = function(totalPages, currentPageNum) {
+      // Clear existing page numbers (keep prev/next buttons)
+      var existingPageNumbers = buttonContainer.querySelectorAll('.alm-page-number');
+      existingPageNumbers.forEach(function(btn) {
+        btn.remove();
+      });
+      
+      // Add page number buttons
+      if (totalPages > 1) {
+        var maxVisible = 7; // Show up to 7 page numbers
+        var startPage = 1;
+        var endPage = totalPages;
+        
+        // Calculate which pages to show
+        if (totalPages > maxVisible) {
+          if (currentPageNum <= 4) {
+            // Show first pages
+            endPage = maxVisible;
+          } else if (currentPageNum >= totalPages - 3) {
+            // Show last pages
+            startPage = totalPages - maxVisible + 1;
+          } else {
+            // Show pages around current
+            startPage = currentPageNum - 3;
+            endPage = currentPageNum + 3;
+          }
+        }
+        
+        // Create a temporary container for page numbers
+        var pageNumbersContainer = document.createElement('div');
+        pageNumbersContainer.style.display = 'contents'; // Makes it invisible in layout
+        
+        // Add first page if not in range
+        if (startPage > 1) {
+          var firstBtn = createPageNumberBtn(1, currentPageNum, totalPages);
+          pageNumbersContainer.appendChild(firstBtn);
+          if (startPage > 2) {
+            var ellipsis1 = document.createElement('span');
+            ellipsis1.textContent = '...';
+            ellipsis1.style.padding = '0 8px';
+            ellipsis1.style.color = '#6c757d';
+            pageNumbersContainer.appendChild(ellipsis1);
+          }
+        }
+        
+        // Add page number buttons in ascending order
+        for (var i = startPage; i <= endPage; i++) {
+          var pageBtn = createPageNumberBtn(i, currentPageNum, totalPages);
+          pageNumbersContainer.appendChild(pageBtn);
+        }
+        
+        // Add last page if not in range
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            var ellipsis2 = document.createElement('span');
+            ellipsis2.textContent = '...';
+            ellipsis2.style.padding = '0 8px';
+            ellipsis2.style.color = '#6c757d';
+            pageNumbersContainer.appendChild(ellipsis2);
+          }
+          var lastBtn = createPageNumberBtn(totalPages, currentPageNum, totalPages);
+          pageNumbersContainer.appendChild(lastBtn);
+        }
+        
+        // Insert the container after prevBtn
+        buttonContainer.insertBefore(pageNumbersContainer, nextBtn);
+      }
+    };
+    
+    function createPageNumberBtn(pageNum, currentPage, totalPages) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'alm-page-number';
+      btn.textContent = pageNum;
+      btn.style.padding = '10px 16px';
+      btn.style.fontSize = '15px';
+      btn.style.fontWeight = '600';
+      btn.style.border = '2px solid';
+      btn.style.borderRadius = '8px';
+      btn.style.cursor = 'pointer';
+      btn.style.transition = 'all 0.2s ease';
+      btn.style.minWidth = '44px';
+      
+      if (pageNum === currentPage) {
+        btn.style.background = '#239B90';
+        btn.style.borderColor = '#239B90';
+        btn.style.color = '#ffffff';
+      } else {
+        btn.style.background = '#ffffff';
+        btn.style.borderColor = '#e9ecef';
+        btn.style.color = '#004555';
+      }
+      
+      btn.onclick = function() {
+        if (pageNum !== currentPage) {
+          state.page = pageNum;
+          var url = new URL(window.location.href);
+          url.searchParams.set('page', pageNum);
+          window.history.pushState({}, '', url.toString());
+          fetchData();
+        }
+      };
+      
+      btn.onmouseenter = function() {
+        if (pageNum !== currentPage) {
+          this.style.background = '#f8f9fa';
+          this.style.borderColor = '#239B90';
+          this.style.color = '#239B90';
+        }
+      };
+      
+      btn.onmouseleave = function() {
+        if (pageNum !== currentPage) {
+          this.style.background = '#ffffff';
+          this.style.borderColor = '#e9ecef';
+          this.style.color = '#004555';
+        }
+      };
+      
+      return btn;
+    }
+    
     buttonContainer.appendChild(prevBtn);
+    // Page numbers will be inserted here by almUpdatePagination
     buttonContainer.appendChild(nextBtn);
     pager.appendChild(buttonContainer);
     
+    // Store current data for view toggle
+    var currentData = null;
+    
     function renderItems(data){
+      // Store data for view toggle
+      currentData = data;
+      
       results.innerHTML = '';
       var items = data.items || [];
       var total = data.total || 0;
@@ -930,8 +963,82 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       resultsHeader.appendChild(leftContent);
       
-      // Right side: lessons per page dropdown
+      // Right side: view toggle and lessons per page dropdown
       if (total > 0) {
+        var rightContainer = document.createElement('div');
+        rightContainer.style.display = 'flex';
+        rightContainer.style.alignItems = 'center';
+        rightContainer.style.gap = '16px';
+        
+        // View toggle buttons (List/Grid)
+        var viewToggleContainer = document.createElement('div');
+        viewToggleContainer.style.display = 'flex';
+        viewToggleContainer.style.alignItems = 'center';
+        viewToggleContainer.style.gap = '4px';
+        viewToggleContainer.style.border = '1px solid #ced4da';
+        viewToggleContainer.style.borderRadius = '6px';
+        viewToggleContainer.style.overflow = 'hidden';
+        viewToggleContainer.style.background = '#ffffff';
+        
+        // List view button
+        var listViewBtn = document.createElement('button');
+        listViewBtn.type = 'button';
+        listViewBtn.className = 'alm-view-toggle-btn';
+        listViewBtn.setAttribute('data-view', 'list');
+        listViewBtn.style.padding = '6px 10px';
+        listViewBtn.style.border = 'none';
+        listViewBtn.style.background = state.view === 'list' ? '#239B90' : 'transparent';
+        listViewBtn.style.color = state.view === 'list' ? '#ffffff' : '#6c757d';
+        listViewBtn.style.cursor = 'pointer';
+        listViewBtn.style.transition = 'all 0.2s ease';
+        listViewBtn.style.display = 'flex';
+        listViewBtn.style.alignItems = 'center';
+        listViewBtn.style.justifyContent = 'center';
+        listViewBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>';
+        listViewBtn.onclick = function() {
+          state.view = 'list';
+          localStorage.setItem('alm_search_view', 'list');
+          listViewBtn.style.background = '#239B90';
+          listViewBtn.style.color = '#ffffff';
+          gridViewBtn.style.background = 'transparent';
+          gridViewBtn.style.color = '#6c757d';
+          if (currentData) {
+            renderItems(currentData);
+          }
+        };
+        
+        // Grid view button
+        var gridViewBtn = document.createElement('button');
+        gridViewBtn.type = 'button';
+        gridViewBtn.className = 'alm-view-toggle-btn';
+        gridViewBtn.setAttribute('data-view', 'grid');
+        gridViewBtn.style.padding = '6px 10px';
+        gridViewBtn.style.border = 'none';
+        gridViewBtn.style.background = state.view === 'grid' ? '#239B90' : 'transparent';
+        gridViewBtn.style.color = state.view === 'grid' ? '#ffffff' : '#6c757d';
+        gridViewBtn.style.cursor = 'pointer';
+        gridViewBtn.style.transition = 'all 0.2s ease';
+        gridViewBtn.style.display = 'flex';
+        gridViewBtn.style.alignItems = 'center';
+        gridViewBtn.style.justifyContent = 'center';
+        gridViewBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125Z" /></svg>';
+        gridViewBtn.onclick = function() {
+          state.view = 'grid';
+          localStorage.setItem('alm_search_view', 'grid');
+          gridViewBtn.style.background = '#239B90';
+          gridViewBtn.style.color = '#ffffff';
+          listViewBtn.style.background = 'transparent';
+          listViewBtn.style.color = '#6c757d';
+          if (currentData) {
+            renderItems(currentData);
+          }
+        };
+        
+        viewToggleContainer.appendChild(listViewBtn);
+        viewToggleContainer.appendChild(gridViewBtn);
+        rightContainer.appendChild(viewToggleContainer);
+        
+        // Per page dropdown
         var perPageContainer = document.createElement('div');
         perPageContainer.style.display = 'flex';
         perPageContainer.style.alignItems = 'center';
@@ -962,8 +1069,8 @@ document.addEventListener('DOMContentLoaded', function() {
         perPageSelect.style.backgroundSize = '16px';
         perPageSelect.style.minWidth = '70px';
         
-        // Multiples of 3: 24, 48, 72
-        var perPageOptions = [24, 48, 72];
+        // Per page options: 12, 24, 48, 72
+        var perPageOptions = [12, 24, 48, 72];
         // Use state.per_page to ensure dropdown matches current selection
         var currentPerPage = state.per_page || perPage;
         perPageOptions.forEach(function(optionValue) {
@@ -995,19 +1102,37 @@ document.addEventListener('DOMContentLoaded', function() {
         
         perPageContainer.appendChild(perPageLabel);
         perPageContainer.appendChild(perPageSelect);
-        resultsHeader.appendChild(perPageContainer);
+        rightContainer.appendChild(perPageContainer);
+        resultsHeader.appendChild(rightContainer);
       }
       
       results.appendChild(resultsHeader);
       
-      // Create grid container with 3 columns
-      var grid = document.createElement('div');
-      grid.className = 'alm-search-results-grid';
-      grid.style.display = 'grid';
-      grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
-      grid.style.gap = '30px';
-      grid.style.marginTop = '0';
-      grid.style.padding = '0 0 60px 0';
+      // Create container (grid or list based on view preference)
+      var container = document.createElement('div');
+      container.className = 'alm-search-results-container';
+      
+      if (state.view === 'list') {
+        // List view - single column
+        container.className = 'alm-search-results-list';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '16px';
+        container.style.marginTop = '0';
+        container.style.padding = '0 0 60px 0';
+      } else {
+        // Grid view - 3 columns
+        container.className = 'alm-search-results-grid';
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        container.style.gap = '30px';
+        container.style.marginTop = '0';
+        container.style.padding = '0 0 60px 0';
+      }
+      
+      // Store favorite buttons for batch processing
+      var favoriteButtons = [];
+      var favoriteButtonMap = {};
       
       items.forEach(function(it){
         var card = document.createElement('div');
@@ -1230,49 +1355,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
           };
           
-          // Check if already favorited
-          (function(btn, title){
-            if (!title) return;
-            
-            fetch('{$favorites_check_url_js}', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': '{$rest_nonce_js}'
-              },
-              body: JSON.stringify({ title: title }),
-              credentials: 'same-origin'
-            })
-            .then(function(response){
-              // Handle 403 gracefully - user not logged in or no permission
-              if (response.status === 403) {
-                return { success: false, favorited: false };
-              }
-              if (!response.ok) {
-                return { success: false, favorited: false };
-              }
-              return response.json();
-            })
-            .then(function(result){
-              if (result.success && result.is_favorited) {
-                btn.classList.add('is-favorited');
-                var icon = btn.querySelector('svg path');
-                if (icon) {
-                  icon.setAttribute('fill', '#f04e23');
-                  icon.setAttribute('stroke', '#f04e23');
-                }
-                btn.style.opacity = '1';
-                btn.style.background = 'rgba(240, 78, 35, 0.1)';
-                btn.setAttribute('aria-label', 'Remove from Favorites');
-              }
-            })
-            .catch(function(error){
-              // Silently handle errors - don't log expected 403s
-              if (error.name !== 'TypeError') {
-                console.error('Check favorite error:', error);
-              }
-            });
-          })(favoriteBtn, it.title);
+          // Store button for batch favorite checking
+          if (it.title) {
+            favoriteButtons.push(favoriteBtn);
+            favoriteButtonMap[it.title] = favoriteBtn;
+          }
           
           topRightActions.appendChild(favoriteBtn);
         }
@@ -1359,10 +1446,142 @@ document.addEventListener('DOMContentLoaded', function() {
         
         cardLink.appendChild(cardContent);
         card.appendChild(cardLink);
-        grid.appendChild(card);
+        
+        // Apply list view styles if needed
+        if (state.view === 'list') {
+          card.style.display = 'flex';
+          card.style.flexDirection = 'row';
+          card.style.height = 'auto';
+          card.style.minHeight = '80px';
+          card.style.maxHeight = 'none';
+          card.style.alignItems = 'center';
+          
+          // Make cardLink flex row
+          cardLink.style.flexDirection = 'row';
+          cardLink.style.height = 'auto';
+          cardLink.style.width = '100%';
+          
+          // Make cardContent flex row
+          cardContent.style.flexDirection = 'row';
+          cardContent.style.height = 'auto';
+          cardContent.style.width = '100%';
+          
+          // Hide collection badge in list view
+          if (collectionBadge) {
+            collectionBadge.style.display = 'none';
+          }
+          
+          // Hide description in list view
+          if (desc) {
+            desc.style.display = 'none';
+          }
+          
+          // Adjust inner content for horizontal layout
+          innerContent.style.flexDirection = 'row';
+          innerContent.style.padding = '16px 20px';
+          innerContent.style.flex = '1';
+          innerContent.style.gap = '20px';
+          innerContent.style.alignItems = 'center';
+          innerContent.style.justifyContent = 'space-between';
+          innerContent.style.width = '100%';
+          
+          // Title should be on left, take more space
+          title.style.paddingRight = '0';
+          title.style.minHeight = 'auto';
+          title.style.flex = '1';
+          title.style.marginBottom = '0';
+          title.style.marginTop = '0';
+          
+          // Footer should be on right, aligned with title
+          footer.style.marginTop = '0';
+          footer.style.flexDirection = 'row';
+          footer.style.alignItems = 'center';
+          footer.style.gap = '12px';
+          footer.style.flexShrink = '0';
+          footer.style.marginLeft = 'auto';
+          
+          // Adjust top actions position - move to left side
+          topRightActions.style.position = 'relative';
+          topRightActions.style.top = 'auto';
+          topRightActions.style.right = 'auto';
+          topRightActions.style.order = '-1';
+          topRightActions.style.marginRight = '12px';
+          topRightActions.style.zIndex = '100';
+          
+          // Change tooltip position to right for list view
+          var videoBtn = card.querySelector('.alm-video-sample-btn');
+          if (videoBtn) {
+            videoBtn.setAttribute('data-microtip-position', 'right');
+            videoBtn.style.position = 'relative';
+            videoBtn.style.zIndex = '101';
+          }
+          var favBtn = card.querySelector('.alm-favorite-btn');
+          if (favBtn) {
+            favBtn.setAttribute('data-microtip-position', 'right');
+            favBtn.style.position = 'relative';
+            favBtn.style.zIndex = '101';
+          }
+        }
+        
+        container.appendChild(card);
       });
       
-      results.appendChild(grid);
+      results.appendChild(container);
+      
+      // Batch check all favorites at once (only if user is logged in and we have buttons)
+      if ({$is_user_logged_in} && favoriteButtons.length > 0) {
+        fetch('{$favorites_get_all_url_js}', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': '{$rest_nonce_js}'
+          },
+          credentials: 'same-origin'
+        })
+        .then(function(response){
+          // Handle 403 gracefully - user not logged in or no permission
+          if (response.status === 403) {
+            return { success: false, favorites: [] };
+          }
+          if (!response.ok) {
+            return { success: false, favorites: [] };
+          }
+          return response.json();
+        })
+        .then(function(result){
+          if (result.success && result.favorites && Array.isArray(result.favorites)) {
+            // Create a Set of favorited titles for fast lookup
+            var favoritedTitles = new Set();
+            result.favorites.forEach(function(fav){
+              if (fav.title) {
+                favoritedTitles.add(fav.title);
+              }
+            });
+            
+            // Apply favorite state to all buttons at once
+            favoriteButtons.forEach(function(btn){
+              var title = btn.getAttribute('data-title');
+              if (title && favoritedTitles.has(title)) {
+                btn.classList.add('is-favorited');
+                var icon = btn.querySelector('svg path');
+                if (icon) {
+                  icon.setAttribute('fill', '#f04e23');
+                  icon.setAttribute('stroke', '#f04e23');
+                }
+                btn.style.opacity = '1';
+                btn.style.background = 'rgba(240, 78, 35, 0.1)';
+                btn.setAttribute('aria-label', 'Remove from Favorites');
+              }
+            });
+          }
+        })
+        .catch(function(error){
+          // Silently handle errors - don't log expected 403s
+          if (error.name !== 'TypeError') {
+            console.error('Batch favorite check error:', error);
+          }
+        });
+      }
     }
 
     // Sample Video Modal Functions
@@ -1534,13 +1753,6 @@ document.addEventListener('DOMContentLoaded', function() {
       fetch(url.toString()).then(function(r){ return r.json(); }).then(function(data){
         renderItems(data);
         
-        // Display SQL query if available and user ID < 2005
-        if (showDebug && data.debug && data.debug.sql) {
-          displaySQLQuery(data.debug.sql);
-        } else if (sqlDebugPanel) {
-          sqlDebugPanel.style.display = 'none';
-        }
-        
         var totalPages = data.total_pages || 1;
         var currentPageNum = data.page || state.page;
         var total = data.total || 0;
@@ -1551,6 +1763,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         prevBtn.disabled = currentPageNum <= 1;
         nextBtn.disabled = currentPageNum >= totalPages || !data.items || data.items.length === 0;
+        
+        // Update page number buttons
+        if (window.almUpdatePagination) {
+          window.almUpdatePagination(totalPages, currentPageNum);
+        }
         
         // Update pagination count display below buttons (centered)
         var pagerCount = pager.querySelector('.alm-pager-count');
@@ -1626,8 +1843,6 @@ document.addEventListener('DOMContentLoaded', function() {
     searchContainer.appendChild(form);
     searchContainer.appendChild(results);
     searchContainer.appendChild(pager);
-    // Append debug panel after pager (below pagination)
-    searchContainer.appendChild(sqlDebugPanel);
     root.appendChild(searchContainer);
 
     // Set level dropdown from URL parameter (or default to "All Levels")
