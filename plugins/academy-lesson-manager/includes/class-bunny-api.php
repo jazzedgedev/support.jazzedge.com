@@ -72,6 +72,7 @@ class ALM_Bunny_API {
      */
     public function get_video_metadata($video_id) {
         if (empty($this->library_id) || empty($this->api_key)) {
+            error_log("ALM Bunny API: Library ID or API key not set");
             return false;
         }
         
@@ -88,6 +89,15 @@ class ALM_Bunny_API {
         $response = wp_remote_get($url, $args);
         
         if (is_wp_error($response)) {
+            error_log("ALM Bunny API: Error fetching metadata - " . $response->get_error_message());
+            return false;
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code !== 200) {
+            error_log("ALM Bunny API: Metadata request returned status {$status_code}");
+            $body = wp_remote_retrieve_body($response);
+            error_log("ALM Bunny API: Response body: " . substr($body, 0, 500));
             return false;
         }
         
@@ -95,6 +105,7 @@ class ALM_Bunny_API {
         $data = json_decode($body, true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log("ALM Bunny API: JSON decode error - " . json_last_error_msg());
             return false;
         }
         

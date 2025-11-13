@@ -124,6 +124,51 @@ class ALM_Shortcodes_Plugin {
     }
     
     /**
+     * Get VTT subtitle URL for a chapter
+     * 
+     * @param int $chapter_id Chapter ID
+     * @return string|false VTT file URL or false if not found
+     */
+    private function get_chapter_subtitle_url($chapter_id) {
+        global $wpdb;
+        
+        if (empty($chapter_id)) {
+            return false;
+        }
+        
+        // Get VTT filename from transcripts table
+        $vtt_file = $wpdb->get_var($wpdb->prepare(
+            "SELECT vtt_file FROM {$wpdb->prefix}alm_transcripts WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+            $chapter_id
+        ));
+        
+        if (empty($vtt_file)) {
+            return false;
+        }
+        
+        // Construct full URL to VTT file
+        // VTT files are stored in /wp-content/alm_transcripts/ folder
+        // Try wp-content first (as specified by user), then fallback to WordPress root
+        $vtt_path_wpcontent = WP_CONTENT_DIR . '/alm_transcripts/' . $vtt_file;
+        $vtt_path_root = ABSPATH . 'alm_transcripts/' . $vtt_file;
+        
+        // Check which location has the file
+        if (file_exists($vtt_path_wpcontent)) {
+            $vtt_url = content_url('alm_transcripts/' . $vtt_file);
+        } elseif (file_exists($vtt_path_root)) {
+            // Fallback: files in WordPress root (ABSPATH/alm_transcripts/)
+            // Construct URL relative to site root
+            $vtt_url = site_url('alm_transcripts/' . $vtt_file);
+        } else {
+            // File doesn't exist, but we'll still return the URL in case it's accessible
+            // Default to wp-content location
+            $vtt_url = content_url('alm_transcripts/' . $vtt_file);
+        }
+        
+        return $vtt_url;
+    }
+    
+    /**
      * Get user's membership level
      * This is a placeholder - you'll need to implement this based on your membership system
      */
@@ -196,6 +241,7 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('alm_mark_complete', array($this, 'mark_complete_shortcode'));
         add_shortcode('alm_collection_complete', array($this, 'collection_complete_shortcode'));
         add_shortcode('alm_collections_dropdown', array($this, 'collections_dropdown_shortcode'));
+        add_shortcode('alm_collections_page', array($this, 'collections_page_shortcode'));
         add_shortcode('alm_favorites_management', array($this, 'favorites_management_shortcode'));
         add_shortcode('alm_user_notes_manager', array($this, 'user_notes_manager_shortcode'));
         add_shortcode('alm_membership_list', array($this, 'membership_list_shortcode'));
@@ -995,8 +1041,21 @@ class ALM_Shortcodes_Plugin {
             return '<p style="color: red;">Error: No video URL found for this chapter</p>';
         }
         
-        // Use fvplayer shortcode with splash screen
-        return do_shortcode('[fvplayer src="' . esc_url($video_url) . '" width="100%" height="400" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
+        // Get VTT subtitle URL if available
+        $subtitle_url = $this->get_chapter_subtitle_url($final_chapter_id);
+        
+        // Build FV Player shortcode
+        $shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" height="400" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"';
+        
+        // Add subtitles if VTT file exists
+        if ($subtitle_url) {
+            $shortcode .= ' subtitles="' . esc_url($subtitle_url) . '"';
+        }
+        
+        $shortcode .= ']';
+        
+        // Use fvplayer shortcode with splash screen and subtitles
+        return do_shortcode($shortcode);
     }
     
     public function lesson_chapters_shortcode($atts) {
@@ -1361,7 +1420,21 @@ class ALM_Shortcodes_Plugin {
             $progress_badge_value = $total_chapters > 0 ? intval(($completed_chapters / $total_chapters) * 100) : 0;
             $return .= '<div class="alm-progress-badge">' . $progress_badge_value . '% Complete</div>';
             $return .= '</div>';
-            $return .= do_shortcode('[fvplayer src="' . esc_url($video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
+            
+            // Get VTT subtitle URL if available
+            $subtitle_url = $this->get_chapter_subtitle_url($current_chapter->ID);
+            
+            // Build FV Player shortcode
+            $shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"';
+            
+            // Add subtitles if VTT file exists
+            if ($subtitle_url) {
+                $shortcode .= ' subtitles="' . esc_url($subtitle_url) . '"';
+            }
+            
+            $shortcode .= ']';
+            
+            $return .= do_shortcode($shortcode);
             
             // Add buttons and progress in 3-column layout - Mobile responsive with inline styles
             $return .= '<style>
@@ -4121,6 +4194,447 @@ class ALM_Shortcodes_Plugin {
         $return .= '</div>';
         
         return $return;
+    }
+    
+    /**
+     * Collections Page Shortcode
+     * Displays information about lesson collections and membership levels
+     */
+    public function collections_page_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'title' => 'Lesson Collections',
+            'show_all_dropdown' => 'true',
+            'show_level_dropdowns' => 'true'
+        ), $atts);
+        
+        global $wpdb;
+        
+        // Get all collections with membership levels
+        $all_collections = $wpdb->get_results(
+            "SELECT ID, collection_title, membership_level, post_id FROM {$wpdb->prefix}alm_collections WHERE post_id > 0 ORDER BY membership_level ASC, collection_title ASC"
+        );
+        
+        // Get membership level names
+        if (!$this->ensure_alm_settings_loaded()) {
+            return '<p>Error: Membership settings not available.</p>';
+        }
+        
+        $membership_levels = ALM_Admin_Settings::get_membership_levels();
+        
+        // Count collections by membership level
+        $level_counts = array();
+        $level_collections = array();
+        
+        foreach ($all_collections as $coll) {
+            if (empty($coll->post_id)) continue;
+            
+            $membership_level = intval($coll->membership_level);
+            
+            if (!isset($level_counts[$membership_level])) {
+                $level_counts[$membership_level] = 0;
+                $level_collections[$membership_level] = array();
+            }
+            
+            $level_counts[$membership_level]++;
+            $coll_url = get_permalink($coll->post_id);
+            if ($coll_url) {
+                $level_collections[$membership_level][] = array(
+                    'id' => $coll->ID,
+                    'title' => stripslashes($coll->collection_title),
+                    'url' => $coll_url
+                );
+            }
+        }
+        
+        // Get level names
+        $level_names = array();
+        foreach ($membership_levels as $level_key => $level_data) {
+            $level_names[$level_data['numeric']] = $level_data['name'];
+        }
+        
+        // Calculate total lesson hours for each membership level
+        $level_hours = array();
+        $lessons_table = $wpdb->prefix . 'alm_lessons';
+        
+        // Essentials (level 1) - gets lessons with membership_level <= 1
+        $essentials_total_seconds = $wpdb->get_var(
+            "SELECT SUM(duration) FROM {$lessons_table} WHERE membership_level <= 1 AND duration > 0"
+        );
+        $level_hours[1] = $essentials_total_seconds ? round($essentials_total_seconds / 3600, 0) : 0;
+        
+        // Studio (level 2) - gets lessons with membership_level <= 2
+        $studio_total_seconds = $wpdb->get_var(
+            "SELECT SUM(duration) FROM {$lessons_table} WHERE membership_level <= 2 AND duration > 0"
+        );
+        $level_hours[2] = $studio_total_seconds ? round($studio_total_seconds / 3600, 0) : 0;
+        
+        // Premier (level 3) - gets all lessons (membership_level <= 3)
+        $premier_total_seconds = $wpdb->get_var(
+            "SELECT SUM(duration) FROM {$lessons_table} WHERE membership_level <= 3 AND duration > 0"
+        );
+        $level_hours[3] = $premier_total_seconds ? round($premier_total_seconds / 3600, 0) : 0;
+        
+        ob_start();
+        ?>
+        <div class="alm-collections-page">
+            <style>
+                .alm-collections-page {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    padding: 40px 20px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                }
+                
+                .alm-collections-intro {
+                    text-align: center;
+                    margin-bottom: 50px;
+                }
+                
+                .alm-collections-intro h1 {
+                    font-size: 2.5em;
+                    color: #1f2937;
+                    margin: 0 0 20px 0;
+                    font-weight: 700;
+                }
+                
+                .alm-collections-intro p {
+                    font-size: 1.2em;
+                    color: #64748b;
+                    line-height: 1.6;
+                    max-width: 800px;
+                    margin: 0 auto;
+                }
+                
+                .alm-main-dropdown-section {
+                    background: linear-gradient(135deg, #004555 0%, #006b7a 50%, #239B90 100%);
+                    border-radius: 16px;
+                    padding: 40px;
+                    margin-bottom: 50px;
+                    box-shadow: 0 10px 30px rgba(0, 69, 85, 0.3);
+                }
+                
+                .alm-main-dropdown-section h2 {
+                    color: white;
+                    font-size: 1.8em;
+                    margin: 0 0 20px 0;
+                    text-align: center;
+                    font-weight: 700;
+                }
+                
+                .alm-main-dropdown-wrapper {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 20px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                }
+                
+                .alm-main-dropdown-wrapper select {
+                    width: 100%;
+                    padding: 16px 20px;
+                    font-size: 1.1em;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 8px;
+                    background: white;
+                    color: #1f2937;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                
+                .alm-main-dropdown-wrapper select:hover {
+                    border-color: #239B90;
+                    box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+                }
+                
+                .alm-main-dropdown-wrapper select:focus {
+                    outline: none;
+                    border-color: #239B90;
+                    box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.2);
+                }
+                
+                .alm-membership-levels {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 30px;
+                    margin-bottom: 40px;
+                    align-items: start;
+                }
+                
+                .alm-level-card {
+                    background: white;
+                    border-radius: 16px;
+                    padding: 30px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+                    border: 2px solid #e5e7eb;
+                    transition: all 0.3s ease;
+                    position: relative;
+                    overflow: visible;
+                    min-height: 320px;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .alm-level-card::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 5px;
+                    background: linear-gradient(90deg, #004555, #239B90);
+                }
+                
+                .alm-level-card.essentials::before {
+                    background: linear-gradient(90deg, #004555, #239B90);
+                }
+                
+                .alm-level-card.studio::before {
+                    background: linear-gradient(90deg, #6B2B60, #8B4A7A);
+                }
+                
+                .alm-level-card.premier::before {
+                    background: linear-gradient(90deg, #F04E23, #D93E1A);
+                }
+                
+                .alm-level-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+                }
+                
+                .alm-level-header {
+                    margin-bottom: 20px;
+                }
+                
+                .alm-level-header h3 {
+                    font-size: 1.8em;
+                    color: #1f2937;
+                    margin: 0 0 10px 0;
+                    font-weight: 700;
+                }
+                
+                .alm-level-count {
+                    display: inline-block;
+                    background: #f1f5f9;
+                    color: #475569;
+                    padding: 6px 14px;
+                    border-radius: 20px;
+                    font-size: 0.9em;
+                    font-weight: 600;
+                    margin-top: 10px;
+                }
+                
+                .alm-premier-card-wrapper {
+                    position: relative;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .alm-premier-access-badge {
+                    display: inline-block;
+                    background: linear-gradient(135deg, #F04E23 0%, #D93E1A 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-size: 0.85em;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    box-shadow: 0 2px 8px rgba(240, 78, 35, 0.3);
+                    text-align: center;
+                    width: calc(100% - 20px);
+                    box-sizing: border-box;
+                    position: absolute;
+                    top: -18px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    z-index: 10;
+                }
+                
+                .alm-level-description {
+                    color: #64748b;
+                    line-height: 1.6;
+                    margin-bottom: 20px;
+                    font-size: 1em;
+                    flex-grow: 1;
+                }
+                
+                .alm-level-dropdown-wrapper {
+                    margin-top: auto;
+                }
+                
+                .alm-level-dropdown-wrapper select {
+                    width: 100%;
+                    padding: 12px 16px;
+                    font-size: 1em;
+                    border: 2px solid #e5e7eb;
+                    border-radius: 8px;
+                    background: white;
+                    color: #1f2937;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                
+                .alm-level-dropdown-wrapper select:hover {
+                    border-color: #239B90;
+                }
+                
+                .alm-level-dropdown-wrapper select:focus {
+                    outline: none;
+                    border-color: #239B90;
+                    box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+                }
+                
+                .alm-premier-note {
+                    background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+                    border: 2px solid #F04E23;
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin-top: 30px;
+                    text-align: center;
+                }
+                
+                .alm-premier-note p {
+                    margin: 0;
+                    color: #8B4513;
+                    font-weight: 600;
+                    font-size: 1.1em;
+                }
+                
+                .alm-premier-note p strong {
+                    color: #F04E23;
+                }
+                
+                @media (max-width: 768px) {
+                    .alm-collections-page {
+                        padding: 20px 15px;
+                    }
+                    
+                    .alm-collections-intro h1 {
+                        font-size: 2em;
+                    }
+                    
+                    .alm-collections-intro p {
+                        font-size: 1.1em;
+                    }
+                    
+                    .alm-main-dropdown-section {
+                        padding: 30px 20px;
+                    }
+                    
+                    .alm-membership-levels {
+                        grid-template-columns: 1fr;
+                        gap: 20px;
+                    }
+                    
+                    .alm-level-card {
+                        padding: 25px;
+                    }
+                }
+            </style>
+            
+            <div class="alm-collections-intro">
+                <h1><?php echo esc_html($atts['title']); ?></h1>
+                <p>Lesson collections are our structured courses that guide you through comprehensive learning paths. Each collection contains multiple lessons organized to help you master specific topics, techniques, or songs systematically.</p>
+            </div>
+            
+            <?php if ($atts['show_all_dropdown'] === 'true'): ?>
+            <div class="alm-main-dropdown-section">
+                <h2>Browse All Collections</h2>
+                <div class="alm-main-dropdown-wrapper">
+                    <?php echo $this->collections_dropdown_shortcode(array('placeholder' => 'Select a collection to explore...')); ?>
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <div class="alm-membership-levels">
+                <?php
+                // Essentials (level 1)
+                $essentials_count = $level_counts[1] ?? 0;
+                $essentials_collections = $level_collections[1] ?? array();
+                ?>
+                <div class="alm-level-card essentials">
+                    <div class="alm-level-header">
+                        <h3>Essentials</h3>
+                        <span class="alm-level-count"><?php echo $essentials_count; ?> Collection<?php echo $essentials_count !== 1 ? 's' : ''; ?> • <?php echo number_format($level_hours[1]); ?>hrs</span>
+                    </div>
+                    <div class="alm-level-description">
+                        <p>Perfect for beginners and those looking to build a solid foundation. Essentials collections cover fundamental concepts and techniques to get you started on your musical journey.</p>
+                    </div>
+                    <?php if ($atts['show_level_dropdowns'] === 'true' && !empty($essentials_collections)): ?>
+                    <div class="alm-level-dropdown-wrapper">
+                        <select onchange="if(this.value) window.location.href = this.value;">
+                            <option value="">Browse Collections...</option>
+                            <?php foreach ($essentials_collections as $coll): ?>
+                                <option value="<?php echo esc_url($coll['url']); ?>"><?php echo esc_html($coll['title']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
+                <?php
+                // Studio (level 2)
+                $studio_count = $level_counts[2] ?? 0;
+                $studio_collections = $level_collections[2] ?? array();
+                ?>
+                <div class="alm-level-card studio">
+                    <div class="alm-level-header">
+                        <h3>Studio</h3>
+                        <span class="alm-level-count"><?php echo $studio_count; ?> Collection<?php echo $studio_count !== 1 ? 's' : ''; ?> • <?php echo number_format($level_hours[2]); ?>hrs</span>
+                    </div>
+                    <div class="alm-level-description">
+                        <p>Take your skills to the next level with Studio collections. These intermediate to advanced courses dive deeper into techniques, theory, and repertoire to help you grow as a musician.</p>
+                    </div>
+                    <?php if ($atts['show_level_dropdowns'] === 'true' && !empty($studio_collections)): ?>
+                    <div class="alm-level-dropdown-wrapper">
+                        <select onchange="if(this.value) window.location.href = this.value;">
+                            <option value="">Browse Collections...</option>
+                            <?php foreach ($studio_collections as $coll): ?>
+                                <option value="<?php echo esc_url($coll['url']); ?>"><?php echo esc_html($coll['title']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
+                <?php
+                // Premier (level 3)
+                $premier_count = $level_counts[3] ?? 0;
+                $premier_collections = $level_collections[3] ?? array();
+                $total_accessible = $essentials_count + $studio_count + $premier_count;
+                ?>
+                <div class="alm-premier-card-wrapper">
+                    <div class="alm-premier-access-badge">Access to All Collections</div>
+                    <div class="alm-level-card premier">
+                        <div class="alm-level-header">
+                            <h3>Premier</h3>
+                            <span class="alm-level-count"><?php echo $premier_count; ?> Premier Collection<?php echo $premier_count !== 1 ? 's' : ''; ?> • <?php echo number_format($level_hours[3]); ?>hrs</span>
+                        </div>
+                    <div class="alm-level-description">
+                        <p>Our most comprehensive membership tier. Premier collections feature advanced techniques, master classes, and exclusive content for serious students.</p>
+                    </div>
+                    <?php if ($atts['show_level_dropdowns'] === 'true' && !empty($premier_collections)): ?>
+                    <div class="alm-level-dropdown-wrapper">
+                        <select onchange="if(this.value) window.location.href = this.value;">
+                            <option value="">Browse Collections...</option>
+                            <?php foreach ($premier_collections as $coll): ?>
+                                <option value="<?php echo esc_url($coll['url']); ?>"><?php echo esc_html($coll['title']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alm-premier-note">
+                <p><strong>Premier Membership = Complete Access</strong><br>
+                Premier members have access to <strong>all <?php echo $total_accessible; ?> collections</strong> across Essentials, Studio, and Premier levels. Upgrade to Premier to unlock everything.</p>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
     }
     
     /**

@@ -1,0 +1,344 @@
+/* JE Event Manager Admin Styles */
+
+.je-event-manager {
+    margin: 20px 0;
+}
+
+.jeem-toolbar {
+    margin: 20px 0;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.jeem-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.jeem-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.jeem-event-count {
+    color: #666;
+    font-size: 13px;
+}
+
+.jeem-column-panel {
+    margin: 20px 0;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.jeem-column-panel h3 {
+    margin-top: 0;
+}
+
+.jeem-column-panel h4 {
+    margin: 15px 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.jeem-column-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.jeem-column-list label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.jeem-column-list input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.jeem-events-container {
+    margin: 20px 0;
+}
+
+.jeem-events-table {
+    background: #fff;
+}
+
+.jeem-events-table th.column-actions {
+    width: 200px;
+}
+
+.jeem-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.jeem-action-buttons .button {
+    margin: 0;
+}
+
+.post-state {
+    color: #666;
+    font-weight: normal;
+    font-size: 11px;
+}
+
+/* Modal Styles */
+.jeem-modal {
+    display: none;
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.jeem-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 0;
+    border: 1px solid #888;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.jeem-modal-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    cursor: pointer;
+}
+
+.jeem-modal-close:hover,
+.jeem-modal-close:focus {
+    color: #000;
+}
+
+.jeem-modal-header {
+    padding: 20px 25px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+.jeem-modal-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    color: #23282d;
+}
+
+.jeem-modal-description {
+    margin: 0;
+    color: #666;
+    font-size: 13px;
+}
+
+.jeem-modal form {
+    padding: 25px;
+}
+
+.jeem-form-section {
+    margin-bottom: 25px;
+}
+
+.jeem-form-section:last-of-type {
+    margin-bottom: 0;
+}
+
+.jeem-form-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #23282d;
+}
+
+.jeem-modal form label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #23282d;
+}
+
+.jeem-modal form .required {
+    color: #dc3232;
+}
+
+.jeem-modal form .description {
+    display: block;
+    margin-top: 5px;
+    font-size: 13px;
+    color: #666;
+}
+
+.jeem-modal form input[type="text"],
+.jeem-modal form input[type="datetime-local"],
+.jeem-modal form input[type="number"] {
+    width: 100%;
+    max-width: 100%;
+}
+
+.jeem-modal form select {
+    margin-left: 10px;
+}
+
+.jeem-modal-footer {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* Date/Time Picker Styles */
+.jeem-datetime-picker {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.jeem-date-input-wrapper,
+.jeem-time-input-wrapper {
+    position: relative;
+}
+
+.jeem-date-input-wrapper .jeem-date-icon {
+    position: absolute;
+    right: 10px;
+    top: 32px;
+    color: #666;
+    pointer-events: none;
+}
+
+.jeem-datepicker {
+    padding-right: 35px;
+    cursor: pointer;
+}
+
+.jeem-interval-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.jeem-interval-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.jeem-interval-select {
+    flex: 1;
+    min-width: 120px;
+}
+
+.jeem-count-hint {
+    margin-left: 8px;
+    color: #666;
+    font-size: 12px;
+}
+
+.jeem-form-preview {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.jeem-form-preview h3 {
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.jeem-preview-content {
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 12px;
+    color: #666;
+}
+
+.jeem-preview-content ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.jeem-preview-content li {
+    margin: 5px 0;
+}
+
+/* Loading State */
+.jeem-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Notices */
+.jeem-notice {
+    margin: 15px 0;
+    padding: 10px 15px;
+    border-left: 4px solid #00a0d2;
+    background: #fff;
+}
+
+.jeem-notice.error {
+    border-left-color: #dc3232;
+}
+
+.jeem-notice.success {
+    border-left-color: #46b450;
+}
+
+/* Pagination */
+.jeem-pagination {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.jeem-pagination .page-numbers {
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 0 2px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #0073aa;
+    text-decoration: none;
+}
+
+.jeem-pagination .page-numbers:hover {
+    background: #f5f5f5;
+}
+
+.jeem-pagination .page-numbers.current {
+    background: #0073aa;
+    color: #fff;
+    border-color: #0073aa;
+}
+
+.jeem-pagination .page-numbers.dots {
+    border: none;
+    background: transparent;
+}
+

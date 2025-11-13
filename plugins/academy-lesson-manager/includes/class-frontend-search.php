@@ -13,6 +13,14 @@ class ALM_Frontend_Search {
         // Enqueue microtip CSS for tooltips
         wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
         
+        // Enqueue frontend search CSS
+        wp_enqueue_style(
+            'alm-frontend-search-css',
+            plugins_url('assets/css/frontend-search.css', dirname(__FILE__)),
+            array(),
+            ALM_VERSION
+        );
+        
         // Minimal inline script; no separate file yet
         $handle = 'alm-lesson-search';
         wp_register_script($handle, false, array('wp-i18n'), ALM_VERSION, true);
@@ -1004,38 +1012,11 @@ document.addEventListener('DOMContentLoaded', function() {
       items.forEach(function(it){
         var card = document.createElement('div');
         card.className = 'alm-lesson-card-course';
-        card.style.background = 'linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%)';
-        card.style.borderRadius = '16px';
-        card.style.overflow = 'hidden';
-        card.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.08)';
-        card.style.transition = 'all 0.3s ease';
-        card.style.border = '2px solid #e9ecef';
-        card.style.position = 'relative';
-        card.style.display = 'flex';
-        card.style.flexDirection = 'column';
-        card.style.height = '100%';
-        
-        card.onmouseenter = function(){
-          this.style.transform = 'translateY(-8px) scale(1.02)';
-          this.style.boxShadow = '0 12px 35px rgba(35, 155, 144, 0.25)';
-          this.style.borderColor = '#239B90';
-          this.style.background = 'linear-gradient(to bottom, #ffffff 0%, #f0f8f7 100%)';
-        };
-        card.onmouseleave = function(){
-          this.style.transform = '';
-          this.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.08)';
-          this.style.borderColor = '#e9ecef';
-          this.style.background = 'linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%)';
-        };
         
         var cardLink = document.createElement(it.permalink ? 'a' : 'div');
         if (it.permalink) {
           cardLink.href = it.permalink;
-          cardLink.style.textDecoration = 'none';
-          cardLink.style.color = 'inherit';
-          cardLink.style.display = 'flex';
-          cardLink.style.flexDirection = 'column';
-          cardLink.style.height = '100%';
+          cardLink.className = 'alm-lesson-card-link';
           // Allow buttons to prevent navigation
           cardLink.onclick = function(e){
             // If click is on a button, prevent navigation
@@ -1045,51 +1026,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           };
         } else {
-          cardLink.style.pointerEvents = 'none';
-          cardLink.style.opacity = '0.7';
+          cardLink.className = 'alm-lesson-card-link alm-lesson-card-link-disabled';
         }
         
         var cardContent = document.createElement('div');
-        cardContent.style.padding = '0';
-        cardContent.style.display = 'flex';
-        cardContent.style.flexDirection = 'column';
-        cardContent.style.height = '100%';
-        cardContent.style.flex = '1';
+        cardContent.className = 'alm-lesson-card-content';
         
-        // Collection name badge at top - Dark Jazzedge blue background with white text
+        // Collection name badge at top - Dark Jazzedge blue background with white text (uniform larger size)
         if (it.collection_title) {
           var collectionBadge = document.createElement('div');
-          collectionBadge.style.background = '#004555';
-          collectionBadge.style.color = '#ffffff';
-          collectionBadge.style.padding = '12px 24px';
-          collectionBadge.style.fontSize = '13px';
-          collectionBadge.style.fontWeight = '600';
-          collectionBadge.style.textTransform = 'uppercase';
-          collectionBadge.style.letterSpacing = '0.5px';
-          collectionBadge.style.margin = '0';
-          collectionBadge.style.borderRadius = '16px 16px 0 0';
+          collectionBadge.className = 'alm-lesson-collection-badge';
           collectionBadge.textContent = it.collection_title;
           cardContent.appendChild(collectionBadge);
         }
         
         // Inner content wrapper with padding
         var innerContent = document.createElement('div');
-        innerContent.style.padding = '32px';
-        innerContent.style.display = 'flex';
-        innerContent.style.flexDirection = 'column';
-        innerContent.style.flex = '1';
-        innerContent.style.height = '100%';
-        innerContent.style.position = 'relative';
+        innerContent.className = 'alm-lesson-inner-content';
         
         // Button container for top-right actions (favorite and video icon)
         var topRightActions = document.createElement('div');
-        topRightActions.style.position = 'absolute';
-        topRightActions.style.top = '20px';
-        topRightActions.style.right = '20px';
-        topRightActions.style.display = 'flex';
-        topRightActions.style.gap = '8px';
-        topRightActions.style.alignItems = 'center';
-        topRightActions.style.zIndex = '10';
+        topRightActions.className = 'alm-lesson-top-actions';
         
         // Video icon button (if sample URL exists) - positioned before favorite button
         if (it.sample_video_url) {
@@ -1099,18 +1056,6 @@ document.addEventListener('DOMContentLoaded', function() {
           videoIconBtn.setAttribute('aria-label', 'View Sample Video');
           videoIconBtn.setAttribute('data-microtip-position', 'top-left');
           videoIconBtn.setAttribute('role', 'tooltip');
-          videoIconBtn.style.background = 'transparent';
-          videoIconBtn.style.border = 'none';
-          videoIconBtn.style.cursor = 'pointer';
-          videoIconBtn.style.padding = '8px';
-          videoIconBtn.style.borderRadius = '50%';
-          videoIconBtn.style.display = 'flex';
-          videoIconBtn.style.alignItems = 'center';
-          videoIconBtn.style.justifyContent = 'center';
-          videoIconBtn.style.transition = 'all 0.2s ease';
-          videoIconBtn.style.width = '36px';
-          videoIconBtn.style.height = '36px';
-          videoIconBtn.style.opacity = '0.6';
           
           // Heroicons play icon (for video preview)
           var videoIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1129,17 +1074,6 @@ document.addEventListener('DOMContentLoaded', function() {
           
           videoIcon.appendChild(playPath);
           videoIconBtn.appendChild(videoIcon);
-          
-          videoIconBtn.onmouseenter = function(){
-            this.style.opacity = '1';
-            this.style.background = 'rgba(35, 155, 144, 0.1)';
-            this.style.transform = 'scale(1.1)';
-          };
-          videoIconBtn.onmouseleave = function(){
-            this.style.opacity = '0.6';
-            this.style.background = 'transparent';
-            this.style.transform = 'scale(1)';
-          };
           
           // Prevent card link navigation when clicking video icon
           videoIconBtn.onclick = function(e){
@@ -1162,18 +1096,6 @@ document.addEventListener('DOMContentLoaded', function() {
           favoriteBtn.setAttribute('aria-label', 'Add to Favorites');
           favoriteBtn.setAttribute('data-microtip-position', 'top-left');
           favoriteBtn.setAttribute('role', 'tooltip');
-          favoriteBtn.style.background = 'transparent';
-          favoriteBtn.style.border = 'none';
-          favoriteBtn.style.cursor = 'pointer';
-          favoriteBtn.style.padding = '8px';
-          favoriteBtn.style.borderRadius = '50%';
-          favoriteBtn.style.display = 'flex';
-          favoriteBtn.style.alignItems = 'center';
-          favoriteBtn.style.justifyContent = 'center';
-          favoriteBtn.style.transition = 'all 0.2s ease';
-          favoriteBtn.style.width = '36px';
-          favoriteBtn.style.height = '36px';
-          favoriteBtn.style.opacity = '0.6';
           
           // Star icon SVG (outline)
           var starIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1190,20 +1112,6 @@ document.addEventListener('DOMContentLoaded', function() {
           starIcon.appendChild(starPath);
           favoriteBtn.appendChild(starIcon);
           
-          // Hover effect
-          favoriteBtn.onmouseenter = function(){
-            this.style.opacity = '1';
-            this.style.background = 'rgba(240, 78, 35, 0.1)';
-            this.style.transform = 'scale(1.1)';
-          };
-          favoriteBtn.onmouseleave = function(){
-            if (!this.classList.contains('is-favorited')) {
-              this.style.opacity = '0.6';
-              this.style.background = 'transparent';
-              this.style.transform = 'scale(1)';
-            }
-          };
-          
           // Click handler to toggle favorite
           favoriteBtn.onclick = function(e){
             e.preventDefault();
@@ -1219,6 +1127,33 @@ document.addEventListener('DOMContentLoaded', function() {
               return;
             }
             
+            // Optimistic UI update - change immediately before AJAX
+            var icon = btn.querySelector('svg path');
+            if (isFavorited) {
+              // Removing favorite - change to unfilled immediately
+              btn.classList.remove('is-favorited');
+              if (icon) {
+                icon.setAttribute('fill', 'none');
+                icon.setAttribute('stroke', '#6b7280');
+              }
+              btn.style.opacity = '0.6';
+              btn.style.background = 'transparent';
+              btn.setAttribute('aria-label', 'Add to Favorites');
+            } else {
+              // Adding favorite - change to filled immediately
+              btn.classList.add('is-favorited');
+              if (icon) {
+                icon.setAttribute('fill', '#f04e23');
+                icon.setAttribute('stroke', '#f04e23');
+              }
+              btn.style.opacity = '1';
+              btn.style.background = 'rgba(240, 78, 35, 0.1)';
+              btn.setAttribute('aria-label', 'Remove from Favorites');
+            }
+            
+            // Disable button during request to prevent double-clicks
+            btn.style.pointerEvents = 'none';
+            
             var endpoint = isFavorited 
               ? '{$favorites_remove_url_js}'
               : '{$favorites_add_url_js}';
@@ -1226,10 +1161,6 @@ document.addEventListener('DOMContentLoaded', function() {
             var data = isFavorited 
               ? { title: title }
               : { title: title, url: url, description: description, category: 'lesson' };
-            
-            // Show loading state
-            btn.style.opacity = '0.5';
-            btn.style.pointerEvents = 'none';
             
             fetch(endpoint, {
               method: 'POST',
@@ -1242,28 +1173,56 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(function(response){ return response.json(); })
             .then(function(result){
-              if (result.success) {
+              if (!result.success) {
+                // Revert UI change if request failed
                 if (isFavorited) {
-                  btn.classList.remove('is-favorited');
-                  starPath.setAttribute('fill', 'none');
-                  starPath.setAttribute('stroke', '#6b7280');
-                  btn.style.opacity = '0.6';
-                  btn.style.background = 'transparent';
-                  btn.setAttribute('aria-label', 'Add to Favorites');
-                } else {
+                  // Was removing, but failed - restore to favorited state
                   btn.classList.add('is-favorited');
-                  starPath.setAttribute('fill', '#f04e23');
-                  starPath.setAttribute('stroke', '#f04e23');
+                  if (icon) {
+                    icon.setAttribute('fill', '#f04e23');
+                    icon.setAttribute('stroke', '#f04e23');
+                  }
                   btn.style.opacity = '1';
                   btn.style.background = 'rgba(240, 78, 35, 0.1)';
                   btn.setAttribute('aria-label', 'Remove from Favorites');
+                } else {
+                  // Was adding, but failed - restore to unfavorited state
+                  btn.classList.remove('is-favorited');
+                  if (icon) {
+                    icon.setAttribute('fill', 'none');
+                    icon.setAttribute('stroke', '#6b7280');
+                  }
+                  btn.style.opacity = '0.6';
+                  btn.style.background = 'transparent';
+                  btn.setAttribute('aria-label', 'Add to Favorites');
                 }
-              } else {
                 alert(result.message || 'Failed to update favorite');
               }
             })
             .catch(function(error){
               console.error('Favorite error:', error);
+              // Revert UI change on error
+              if (isFavorited) {
+                // Was removing, but error - restore to favorited state
+                btn.classList.add('is-favorited');
+                if (icon) {
+                  icon.setAttribute('fill', '#f04e23');
+                  icon.setAttribute('stroke', '#f04e23');
+                }
+                btn.style.opacity = '1';
+                btn.style.background = 'rgba(240, 78, 35, 0.1)';
+                btn.setAttribute('aria-label', 'Remove from Favorites');
+              } else {
+                // Was adding, but error - restore to unfavorited state
+                btn.classList.remove('is-favorited');
+                if (icon) {
+                  icon.setAttribute('fill', 'none');
+                  icon.setAttribute('stroke', '#6b7280');
+                }
+                btn.style.opacity = '0.6';
+                btn.style.background = 'transparent';
+                btn.setAttribute('aria-label', 'Add to Favorites');
+              }
               alert('Error updating favorite');
             })
             .finally(function(){
@@ -1295,7 +1254,7 @@ document.addEventListener('DOMContentLoaded', function() {
               return response.json();
             })
             .then(function(result){
-              if (result.success && result.favorited) {
+              if (result.success && result.is_favorited) {
                 btn.classList.add('is-favorited');
                 var icon = btn.querySelector('svg path');
                 if (icon) {
@@ -1328,62 +1287,36 @@ document.addEventListener('DOMContentLoaded', function() {
         var buttonCount = (it.sample_video_url ? 1 : 0) + ({$is_user_logged_in} ? 1 : 0);
         var paddingRight = buttonCount > 0 ? (buttonCount * 44) + 20 : '0'; // 36px button + 8px gap
         var title = document.createElement('h3');
-        title.style.fontSize = '24px';
-        title.style.fontWeight = '700';
-        title.style.color = '#004555';
-        title.style.margin = '0 0 16px 0';
+        title.className = 'alm-lesson-title';
         title.style.paddingRight = paddingRight + 'px';
-        title.style.lineHeight = '1.3';
-        title.style.minHeight = '64px';
         title.textContent = it.title || 'Untitled Lesson';
         innerContent.appendChild(title);
         
         // Description (if available) - MUST be appended after title
         if (it.description) {
           var desc = document.createElement('div');
-          desc.style.fontSize = '15px';
-          desc.style.color = '#495057';
-          desc.style.lineHeight = '1.7';
-          desc.style.margin = '0 0 20px 0';
-          desc.style.maxHeight = '76px';
-          desc.style.overflow = 'hidden';
-          desc.style.display = '-webkit-box';
-          desc.style.webkitLineClamp = '3';
-          desc.style.webkitBoxOrient = 'vertical';
+          desc.className = 'alm-lesson-description';
           desc.textContent = it.description;
           innerContent.appendChild(desc);
         }
         
         // Bottom section with duration and membership level - push to bottom
         var footer = document.createElement('div');
-        footer.style.display = 'flex';
-        footer.style.justifyContent = 'space-between';
-        footer.style.alignItems = 'center';
-        footer.style.marginTop = 'auto';
-        footer.style.paddingTop = '15px';
+        footer.className = 'alm-lesson-footer';
         
         // Duration
         var durationContainer = document.createElement('div');
         var dStr = fmtDur(it.duration);
         if (dStr) {
-          durationContainer.style.display = 'flex';
-          durationContainer.style.alignItems = 'center';
-          durationContainer.style.gap = '6px';
-          durationContainer.style.color = '#6c757d';
-          durationContainer.style.fontSize = '14px';
-          durationContainer.style.fontWeight = '600';
-          durationContainer.style.marginTop = '0';
+          durationContainer.className = 'alm-lesson-duration';
           durationContainer.innerHTML = '<span class="dashicons dashicons-clock" style="font-size: 16px; width: 16px; height: 16px;"></span> ' + dStr;
         } else {
-          durationContainer.style.flex = '1';
+          durationContainer.className = 'alm-lesson-duration-empty';
         }
         
         // Badge container for membership and skill level
         var badgeContainer = document.createElement('div');
-        badgeContainer.style.display = 'flex';
-        badgeContainer.style.alignItems = 'center';
-        badgeContainer.style.gap = '8px';
-        badgeContainer.style.flexWrap = 'wrap';
+        badgeContainer.className = 'alm-lesson-badge-container';
         
         // Skill Level Badge
         if (it.lesson_level) {
@@ -1403,16 +1336,8 @@ document.addEventListener('DOMContentLoaded', function() {
           var skillLevelColor = skillLevelColors[it.lesson_level] || '#666';
           
           var skillLevelBadge = document.createElement('div');
-          skillLevelBadge.style.display = 'inline-flex';
-          skillLevelBadge.style.alignItems = 'center';
-          skillLevelBadge.style.gap = '4px';
+          skillLevelBadge.className = 'alm-lesson-skill-badge';
           skillLevelBadge.style.background = skillLevelColor;
-          skillLevelBadge.style.color = '#ffffff';
-          skillLevelBadge.style.padding = '6px 12px';
-          skillLevelBadge.style.borderRadius = '20px';
-          skillLevelBadge.style.fontSize = '12px';
-          skillLevelBadge.style.fontWeight = '600';
-          skillLevelBadge.style.letterSpacing = '0.3px';
           skillLevelBadge.textContent = skillLevelName;
           badgeContainer.appendChild(skillLevelBadge);
         }
@@ -1420,16 +1345,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Membership Level Badge
         if (it.membership_level_name && it.membership_level_name !== 'Unknown') {
           var membershipBadge = document.createElement('div');
-          membershipBadge.style.display = 'inline-flex';
-          membershipBadge.style.alignItems = 'center';
-          membershipBadge.style.gap = '8px';
-          membershipBadge.style.background = 'rgba(240, 78, 35, 0.9)';
-          membershipBadge.style.color = '#ffffff';
-          membershipBadge.style.padding = '6px 12px';
-          membershipBadge.style.borderRadius = '20px';
-          membershipBadge.style.fontSize = '12px';
-          membershipBadge.style.fontWeight = '600';
-          membershipBadge.style.letterSpacing = '0.3px';
+          membershipBadge.className = 'alm-lesson-membership-badge';
           membershipBadge.textContent = it.membership_level_name;
           badgeContainer.appendChild(membershipBadge);
         }

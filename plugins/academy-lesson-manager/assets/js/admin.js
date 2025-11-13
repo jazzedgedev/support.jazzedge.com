@@ -212,16 +212,4 @@ jQuery(document).ready(function($) {
     }
     
     improveAccessibility();
-    
-    // Performance monitoring
-    function logPerformance() {
-        if (window.console && window.console.time) {
-            console.time('ALM Page Load');
-            $(window).on('load', function() {
-                console.timeEnd('ALM Page Load');
-            });
-        }
-    }
-    
-    logPerformance();
 });

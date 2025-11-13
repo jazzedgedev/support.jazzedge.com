@@ -1116,4 +1116,5 @@ class ALM_Admin_Settings {
         wp_redirect(add_query_arg('message', 'tag_deleted', admin_url('admin.php?page=academy-manager-settings&tab=tags')));
         exit;
     }
+    
 }

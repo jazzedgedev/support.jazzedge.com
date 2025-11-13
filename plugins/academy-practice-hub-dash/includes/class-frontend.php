@@ -1786,7 +1786,7 @@ class JPH_Frontend {
                                     }
                                     
                                     // Use the complete events shortcode logic
-                                    $count = 5; // Show 5 events in events tab
+                                    $count = 10; // Show 10 events in events tab
                                     $teacher = '';
                                     $level = $user_level;
                                     $etype = '';
@@ -12646,17 +12646,8 @@ class JPH_Frontend {
             
             // Leaderboard tab management
             window.openLeaderboard = function() {
-                // Calculate center position
-                const width = 1200;
-                const height = 800;
-                const left = (screen.width - width) / 2;
-                const top = (screen.height - height) / 2;
-                
-                const leaderboardWindow = window.open('/leaderboard', 'jph-leaderboard', 
-                    `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`);
-                if (leaderboardWindow) {
-                    leaderboardWindow.focus();
-                }
+                // Open leaderboard in a new tab
+                window.open('https://jazzedge.academy/leaderboard', '_blank');
             };
             
             // Initialize stats handlers
@@ -13893,6 +13884,9 @@ class JPH_Frontend {
             'show_stats' => 'true'
         ), $atts);
         
+        // Ensure minimum limit of 50 for Practice Leaderboard
+        $atts['limit'] = max(50, intval($atts['limit']));
+        
         // Enqueue scripts and styles - ensure jQuery is loaded
         wp_enqueue_script('jquery');
         
@@ -14445,16 +14439,10 @@ class JPH_Frontend {
                     let currentLimit = <?php echo intval($atts['limit']); ?>;
                     let isLoading = false;
                     
-                    // Back to Practice Hub function
-                    window.goBackToHub = function() {
-                // Try to find and focus the parent window (Practice Hub)
-                if (window.opener && !window.opener.closed) {
-                    window.opener.focus();
-                    window.close();
-                } else {
-                    // Fallback: open Practice Hub in current window
-                    window.location.href = '/practice-hub';
-                }
+            // Back to Practice Hub function
+            window.goBackToHub = function() {
+                // Navigate to Practice Hub in the same tab
+                window.location.href = 'https://jazzedge.academy/practice-hub';
             };
             
             // Ranking help function
@@ -14702,7 +14690,7 @@ class JPH_Frontend {
     public function render_leaderboard_widget($atts) {
         // Parse shortcode attributes
         $atts = shortcode_atts(array(
-            'limit' => '10',
+            'limit' => '50',
             'sort_by' => 'total_xp',
             'sort_order' => 'desc',
             'show' => 'rank,name,xp,level',

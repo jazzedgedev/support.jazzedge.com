@@ -79,6 +79,9 @@ class ALM_Database {
         // Check and add sample_chapter_id column if it doesn't exist
         $this->check_and_add_sample_chapter_id();
         
+        // Check and add chapter_id column to transcripts table if it doesn't exist
+        $this->check_and_add_chapter_id_column();
+        
         // Ensure lesson_pathways table exists (migration for existing installations)
         $this->ensure_lesson_pathways_table();
         
@@ -174,6 +177,30 @@ class ALM_Database {
         $sample_chapter_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'sample_chapter_id'");
         if (empty($sample_chapter_columns)) {
             $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN sample_chapter_id int(11) DEFAULT 0 AFTER sample_video_url");
+        }
+    }
+    
+    /**
+     * Check and add chapter_id column to transcripts table
+     */
+    public function check_and_add_chapter_id_column() {
+        $transcripts_table = $this->tables['transcripts'];
+        
+        // Check if table exists first
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$transcripts_table}'") == $transcripts_table;
+        if (!$table_exists) {
+            return; // Table doesn't exist yet, will be created with column
+        }
+        
+        // Check for chapter_id column
+        $chapter_id_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $transcripts_table LIKE 'chapter_id'");
+        if (empty($chapter_id_columns)) {
+            // Add chapter_id column
+            $this->wpdb->query("ALTER TABLE $transcripts_table ADD COLUMN chapter_id int(11) DEFAULT 0 AFTER lesson_id, ADD KEY chapter_id (chapter_id)");
+            
+            // Drop old unique key if it exists and create new composite key
+            $this->wpdb->query("ALTER TABLE $transcripts_table DROP INDEX IF EXISTS uniq_lesson_source");
+            $this->wpdb->query("ALTER TABLE $transcripts_table ADD UNIQUE KEY uniq_lesson_chapter_source (lesson_id, chapter_id, source)");
         }
     }
     
@@ -289,13 +316,15 @@ class ALM_Database {
         $sql = "CREATE TABLE $table_name (
             ID int(11) NOT NULL AUTO_INCREMENT,
             lesson_id int(11) NOT NULL,
+            chapter_id int(11) DEFAULT 0,
             source varchar(50) DEFAULT 'vtt',
             content longtext,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (ID),
-            UNIQUE KEY uniq_lesson_source (lesson_id, source),
-            KEY lesson_id (lesson_id)
+            UNIQUE KEY uniq_lesson_chapter_source (lesson_id, chapter_id, source),
+            KEY lesson_id (lesson_id),
+            KEY chapter_id (chapter_id)
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');

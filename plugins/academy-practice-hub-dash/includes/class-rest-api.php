@@ -792,6 +792,11 @@ class JPH_REST_API {
         // Update the practice session with XP earned
         $this->database->update_practice_session_xp($session_id, $xp_earned);
         
+        // Update total minutes in stats (add to existing total)
+        $current_stats = $gamification->get_user_stats($user_id);
+        $new_total_minutes = ($current_stats['total_minutes'] ?? 0) + intval($duration);
+        $this->database->update_user_stats($user_id, array('total_minutes' => $new_total_minutes));
+        
         // Update streak
         $gamification->update_streak($user_id);
         
@@ -4813,7 +4818,8 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 return $validation;
             }
             
-            $limit = max(1, min(100, intval($limit)));
+            // Ensure minimum limit of 50 for Practice Leaderboard
+            $limit = max(50, min(100, intval($limit)));
             $offset = max(0, intval($offset));
             
             // Try to get from cache first

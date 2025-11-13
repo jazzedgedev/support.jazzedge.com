@@ -1,0 +1,25 @@
+.ct-transcription-status {
+    min-width: 200px;
+}
+
+.ct-status-loading,
+.ct-status-processing {
+    color: #2271b1;
+    font-weight: 600;
+}
+
+.ct-status-success {
+    color: #46b450;
+    font-weight: 600;
+}
+
+.ct-status-error {
+    color: #dc3232;
+    font-weight: 600;
+}
+
+.ct-transcribe-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+

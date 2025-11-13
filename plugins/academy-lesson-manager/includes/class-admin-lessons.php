@@ -2334,7 +2334,7 @@ class ALM_Admin_Lessons {
                 echo '<td>' . ($chapter->free === 'y' ? __('Yes', 'academy-lesson-manager') : __('No', 'academy-lesson-manager')) . '</td>';
                 echo '<td>';
                 echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small">' . __('Edit', 'academy-lesson-manager') . '</a> ';
-                echo '<a href="?page=academy-manager-lessons&action=delete-chapter&chapter_id=' . $chapter->ID . '&lesson_id=' . $lesson_id . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')" style="color: #dc3232;">' . __('Delete', 'academy-lesson-manager') . '</a>';
+                echo ' <a href="?page=academy-manager-lessons&action=delete-chapter&chapter_id=' . $chapter->ID . '&lesson_id=' . $lesson_id . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')" style="color: #dc3232;">' . __('Delete', 'academy-lesson-manager') . '</a>';
                 echo '</td>';
                 echo '</tr>';
             }

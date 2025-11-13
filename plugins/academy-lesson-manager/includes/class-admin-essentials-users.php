@@ -48,8 +48,6 @@ class ALM_Admin_Essentials_Users {
             return;
         }
         
-        // Log that we're in handle_actions
-        error_log("ALM handle_actions called. POST data: " . print_r($_POST, true));
         
         // Reset available count - check for button OR hidden field
         if ((isset($_POST['alm_reset_selections']) || (isset($_POST['user_id']) && isset($_POST['reset_count']))) && isset($_POST['user_id'])) {
