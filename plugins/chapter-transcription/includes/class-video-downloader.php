@@ -503,7 +503,6 @@ class Transcription_Video_Downloader {
             $mp3_mtime = filemtime($mp3_path);
             // If MP3 is newer or same age as MP4, use it
             if ($mp3_mtime >= $mp4_mtime) {
-                error_log('Transcription: Using existing MP3 file: ' . basename($mp3_path));
                 return $mp3_path;
             }
         }
@@ -519,18 +518,9 @@ class Transcription_Video_Downloader {
                       " -vn -acodec libmp3lame -ab 128k -ar 44100 -y " . 
                       escapeshellarg($mp3_path) . " 2>&1";
         
-        error_log('Transcription: Converting to audio: ' . basename($mp4_path) . ' -> ' . basename($mp3_path));
         $output = shell_exec($ffmpeg_cmd);
         
         if (file_exists($mp3_path)) {
-            $original_size = filesize($mp4_path) / 1024 / 1024;
-            $audio_size = filesize($mp3_path) / 1024 / 1024;
-            error_log(sprintf(
-                'Transcription: Audio conversion complete. Original: %.2f MB, Audio: %.2f MB (%.1f%% reduction)',
-                $original_size,
-                $audio_size,
-                (1 - ($audio_size / $original_size)) * 100
-            ));
             return $mp3_path;
         }
         

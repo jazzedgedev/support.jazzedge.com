@@ -36,14 +36,39 @@ class ALM_Frontend_Library {
     public function render_library_page($atts = array()) {
         // Only show to logged-in users
         if (!is_user_logged_in()) {
-            return '<div class="alm-library-login-required">Please log in to access your lesson library.</div>';
+            $login_url = wp_login_url(get_permalink());
+            return '<div class="alm-library-message-card alm-library-login-required">
+                <div class="alm-library-message-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                </div>
+                <div class="alm-library-message-content">
+                    <h3 class="alm-library-message-title">Login Required</h3>
+                    <p class="alm-library-message-text">Please log in to access your lesson library.</p>
+                    <a href="' . esc_url($login_url) . '" class="alm-library-message-button">Log In</a>
+                </div>
+            </div>';
         }
         
         $user_id = get_current_user_id();
         
         // Check if user is Essentials member
         if (!$this->is_essentials_member($user_id)) {
-            return '<div class="alm-library-access-denied">This feature is available for Essentials members only.</div>';
+            return '<div class="alm-library-message-card alm-library-access-denied">
+                <div class="alm-library-message-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                </div>
+                <div class="alm-library-message-content">
+                    <h3 class="alm-library-message-title">Essentials Membership Required</h3>
+                    <p class="alm-library-message-text">This feature is available for Essentials members only.</p>
+                </div>
+            </div>';
         }
         
         // Enqueue scripts and styles
@@ -77,8 +102,8 @@ class ALM_Frontend_Library {
         // Get user's library
         $user_library = $this->library->get_user_library($user_id);
         
-        // Get search term
-        $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
+        // Get search term - use wp_unslash to remove any slashes WordPress might add
+        $search = isset($_GET['search']) ? sanitize_text_field(wp_unslash($_GET['search'])) : '';
         
         // Get paged from query var (for pretty permalinks) or GET parameter
         $paged = get_query_var('paged');
@@ -106,7 +131,7 @@ class ALM_Frontend_Library {
         ?>
         <div class="alm-essentials-library-page">
             <div class="alm-library-header">
-                <h1 aria-label="My Essentials Library - Lessons you've selected from the Studio library" data-microtip-position="top" role="tooltip">My Essentials Library</h1>
+                <h1>My Essentials Library</h1>
                 <div class="alm-library-stats">
                     <div class="alm-stat-item">
                         <span class="alm-stat-label">Available Selections:</span>
@@ -114,7 +139,14 @@ class ALM_Frontend_Library {
                     </div>
                     <?php if ($next_grant): ?>
                     <div class="alm-stat-item">
-                        <span class="alm-stat-label">Next Selection:</span>
+                        <span class="alm-stat-label" aria-label="You receive a new selection every 30 days, for a total of 12 selections per membership year. Unused selections accumulate and stay in your account." data-microtip-position="top" data-microtip-size="large" role="tooltip">
+                            Next Selection:
+                            <svg class="alm-stat-tooltip-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="16" x2="12" y2="12"></line>
+                                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                            </svg>
+                        </span>
                         <span class="alm-stat-value"><?php echo esc_html(date('F j, Y', strtotime($next_grant))); ?></span>
                     </div>
                     <?php endif; ?>
@@ -131,9 +163,9 @@ class ALM_Frontend_Library {
                 <p class="alm-library-description">Choose <?php echo $available > 1 ? 'one of your ' . $available . ' available selections' : 'your available selection'; ?> from the Studio library below.</p>
                 
                 <form method="get" class="alm-library-search-form">
-                    <div style="position: relative; flex: 1; min-width: 0;">
+                    <div>
                         <input type="search" name="search" value="<?php echo esc_attr($search); ?>" placeholder="Search lessons..." class="alm-library-search-input">
-                        <div style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; pointer-events: none; background-image: url('data:image/svg+xml,%3Csvg fill=\'none\' stroke=\'%236b7280\' stroke-width=\'2\' viewBox=\'0 0 24 24\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z\'/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: center; background-size: contain;"></div>
+                        <div class="alm-library-search-icon"></div>
                     </div>
                     <button type="submit" class="alm-library-search-button">Search</button>
                     <?php if ($search): ?>
@@ -154,22 +186,66 @@ class ALM_Frontend_Library {
                     ?>
                     <div class="alm-lesson-card" data-lesson-id="<?php echo esc_attr($lesson->ID); ?>">
                         <div class="alm-lesson-card-content">
+                            <?php if (!empty($lesson->collection_title)): ?>
+                            <div class="alm-lesson-collection-badge">
+                                <?php echo esc_html(stripslashes($lesson->collection_title)); ?>
+                            </div>
+                            <?php endif; ?>
+                            
                             <div class="alm-lesson-inner-content">
-                                <?php if ($is_in_library && !empty($lesson->sample_video_url)): ?>
-                                <button type="button" class="alm-sample-icon-btn alm-view-sample" data-video-url="<?php echo esc_attr($lesson->sample_video_url); ?>" data-lesson-title="<?php echo esc_attr(stripslashes($lesson->lesson_title)); ?>" title="View Sample Video">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                                    </svg>
-                                </button>
-                                <?php endif; ?>
+                                <?php 
+                                // Top-right actions container (video icon button - show for all lessons with sample videos)
+                                // Check for sample_video_url or sample_chapter_id
+                                $has_sample_video_url = !empty($lesson->sample_video_url) && $lesson->sample_video_url !== '0';
+                                $has_sample_chapter = !empty($lesson->sample_chapter_id) && intval($lesson->sample_chapter_id) > 0;
+                                $has_video = $has_sample_video_url || $has_sample_chapter;
                                 
-                                <?php if (!empty($lesson->collection_title)): ?>
-                                <div class="alm-lesson-collection">
-                                    <?php echo esc_html(stripslashes($lesson->collection_title)); ?>
+                                // Get the actual sample video URL to use
+                                $sample_video_url_to_use = '';
+                                if ($has_sample_video_url) {
+                                    $sample_video_url_to_use = $lesson->sample_video_url;
+                                } elseif ($has_sample_chapter) {
+                                    // If using sample_chapter_id, we need to get the chapter video URL
+                                    // For now, we'll need to fetch it or use a placeholder
+                                    // The modal will handle the chapter-based sample
+                                    global $wpdb;
+                                    $chapters_table = $wpdb->prefix . 'alm_chapters';
+                                    $chapter = $wpdb->get_row($wpdb->prepare(
+                                        "SELECT bunny_url, vimeo_id, youtube_id FROM {$chapters_table} WHERE ID = %d",
+                                        intval($lesson->sample_chapter_id)
+                                    ));
+                                    if ($chapter) {
+                                        if (!empty($chapter->bunny_url)) {
+                                            $sample_video_url_to_use = $chapter->bunny_url;
+                                        } elseif (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
+                                            $sample_video_url_to_use = 'https://vimeo.com/' . intval($chapter->vimeo_id);
+                                        } elseif (!empty($chapter->youtube_id)) {
+                                            $sample_video_url_to_use = 'https://www.youtube.com/watch?v=' . esc_attr($chapter->youtube_id);
+                                        }
+                                    }
+                                }
+                                
+                                $button_count = $has_video ? 1 : 0;
+                                ?>
+                                
+                                <?php if ($has_video && !empty($sample_video_url_to_use)): ?>
+                                <div class="alm-lesson-top-actions">
+                                    <button type="button" class="alm-video-sample-btn alm-view-sample" data-video-url="<?php echo esc_attr($sample_video_url_to_use); ?>" data-lesson-title="<?php echo esc_attr(stripslashes($lesson->lesson_title)); ?>" aria-label="Watch Free Sample Video" title="Watch Free Sample Video">
+                                        <span class="alm-sample-badge">FREE SAMPLE</span>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                                        </svg>
+                                    </button>
                                 </div>
                                 <?php endif; ?>
                                 
-                                <h3 class="alm-lesson-title"><?php echo esc_html(stripslashes($lesson->lesson_title)); ?></h3>
+                                <?php 
+                                // Calculate padding-right for title based on button count
+                                // Video sample button is now wider with "FREE SAMPLE" text (~120px)
+                                $title_padding = $button_count > 0 ? ($button_count * 130) + 20 : 0;
+                                ?>
+                                
+                                <h3 class="alm-lesson-title" style="<?php echo $title_padding > 0 ? 'padding-right: ' . $title_padding . 'px;' : ''; ?>"><?php echo esc_html(stripslashes($lesson->lesson_title)); ?></h3>
                                 
                                 <?php if (!empty($lesson->lesson_description)): ?>
                                 <div class="alm-lesson-description">

@@ -106,6 +106,8 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-essentials-library.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-frontend-library.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-essentials-users.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-lesson-samples.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-membership-pricing.php';
     }
     
     /**
@@ -160,6 +162,10 @@ class Academy_Lesson_Manager {
         add_action('wp_ajax_alm_add_to_library', array($this, 'ajax_add_to_library'));
         add_action('wp_ajax_alm_get_library_status', array($this, 'ajax_get_library_status'));
         
+        // Add AJAX handlers for lesson samples (delegates to ALM_Admin_Lesson_Samples)
+        add_action('wp_ajax_alm_set_intro_sample', array($this, 'ajax_set_intro_sample'));
+        add_action('wp_ajax_alm_set_shortest_sample', array($this, 'ajax_set_shortest_sample'));
+        
         // Add WordPress hooks for reverse sync
         add_action('save_post', array($this, 'handle_post_save'));
         add_action('delete_post', array($this, 'handle_post_delete'));
@@ -172,6 +178,7 @@ class Academy_Lesson_Manager {
         new ALM_Admin_Settings();
         new ALM_Admin_Event_Migration();
         new ALM_Admin_Essentials_Users();
+        new ALM_Admin_Membership_Pricing();
     }
     
     /**
@@ -243,6 +250,15 @@ class Academy_Lesson_Manager {
             'academy-manager-essentials-users',
             array($this, 'admin_page_essentials_users')
         );
+        
+        add_submenu_page(
+            'academy-manager',
+            __('Lesson Samples Manager', 'academy-lesson-manager'),
+            __('Lesson Samples Manager', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-lesson-samples',
+            array($this, 'admin_page_lesson_samples')
+        );
     }
     
     /**
@@ -281,6 +297,11 @@ class Academy_Lesson_Manager {
     public function admin_page_essentials_users() {
         $admin_essentials_users = new ALM_Admin_Essentials_Users();
         $admin_essentials_users->render_page();
+    }
+    
+    public function admin_page_lesson_samples() {
+        $admin_lesson_samples = new ALM_Admin_Lesson_Samples();
+        $admin_lesson_samples->render_page();
     }
     
     /**
@@ -2586,6 +2607,24 @@ class Academy_Lesson_Manager {
             'available_count' => $available,
             'next_grant_date' => $next_grant
         ));
+    }
+    
+    /**
+     * AJAX handler for setting introduction as sample
+     * Delegates to ALM_Admin_Lesson_Samples class
+     */
+    public function ajax_set_intro_sample() {
+        $samples_manager = new ALM_Admin_Lesson_Samples();
+        $samples_manager->ajax_set_intro_sample();
+    }
+    
+    /**
+     * AJAX handler for setting shortest chapter as sample
+     * Delegates to ALM_Admin_Lesson_Samples class
+     */
+    public function ajax_set_shortest_sample() {
+        $samples_manager = new ALM_Admin_Lesson_Samples();
+        $samples_manager->ajax_set_shortest_sample();
     }
     
     /**

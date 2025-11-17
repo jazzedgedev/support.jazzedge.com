@@ -1565,7 +1565,7 @@
 }
 
 .alm-lesson-card-content {
-    padding: 32px;
+    padding: 0;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -1573,12 +1573,31 @@
 }
 
 .alm-lesson-number {
-    font-size: 12px;
-    font-weight: 800;
-    color: #239B90;
+    background: #d4e8e5;
+    color: #004555;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+    margin: 0;
+    border-radius: 16px 0 16px 0;
+    display: inline-block;
+    width: auto;
+    box-sizing: border-box;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 5;
+}
+
+.alm-lesson-inner-content {
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100%;
+    position: relative;
 }
 
 .alm-lesson-title {
@@ -2027,5 +2046,146 @@
         max-width: 100% !important;
         min-width: 0 !important;
         box-sizing: border-box !important;
+    }
+}
+
+/* Site Feedback Entries Styles */
+.alm-feedback-entries {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    padding: 40px;
+    margin: 30px 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.alm-feedback-entries h3 {
+    margin: 0 0 32px 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #004555;
+    text-align: center;
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.alm-feedback-entries h3::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 4px;
+    background: linear-gradient(90deg, #239B90 0%, #004555 100%);
+    border-radius: 2px;
+}
+
+.alm-feedback-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.alm-feedback-entry {
+    background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid #e9ecef;
+    border-left: 5px solid #239B90;
+    transition: all 0.3s ease;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.alm-feedback-entry::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #239B90 0%, #004555 100%);
+    border-radius: 12px 12px 0 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.alm-feedback-entry:hover {
+    background: linear-gradient(to bottom, #f0f8f7 0%, #ffffff 100%);
+    box-shadow: 0 6px 20px rgba(35, 155, 144, 0.15);
+    transform: translateY(-2px);
+    border-color: #239B90;
+}
+
+.alm-feedback-entry:hover::before {
+    opacity: 1;
+}
+
+.alm-feedback-date {
+    font-size: 12px;
+    color: #6c757d;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.alm-feedback-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #212529;
+    padding: 0;
+    margin: 0;
+    white-space: pre-wrap;
+    text-align: left;
+    word-wrap: break-word;
+}
+
+.alm-feedback-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6c757d;
+    font-size: 16px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    border: 2px dashed #dee2e6;
+    font-weight: 500;
+}
+
+.alm-feedback-message::before {
+    content: '📝';
+    display: block;
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+    .alm-feedback-entries {
+        padding: 24px 20px;
+        margin: 20px 10px;
+    }
+    
+    .alm-feedback-entries h3 {
+        font-size: 22px;
+        margin-bottom: 24px;
+    }
+    
+    .alm-feedback-list {
+        gap: 20px;
+    }
+    
+    .alm-feedback-entry {
+        padding: 20px;
+    }
+    
+    .alm-feedback-text {
+        font-size: 14px;
     }
 }

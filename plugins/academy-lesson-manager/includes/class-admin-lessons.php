@@ -1167,8 +1167,8 @@ class ALM_Admin_Lessons {
         echo '<td><input type="text" id="vtt" name="vtt" value="' . esc_attr($lesson->vtt) . '" class="regular-text" /></td>';
         echo '</tr>';
         
-        echo '<tr>';
-        echo '<th scope="row"><label for="sample_video_type">' . __('Sample Video', 'academy-lesson-manager') . '</label></th>';
+        echo '<tr id="sample-video-section">';
+        echo '<th scope="row" id="sample-video"><label for="sample_video_type">' . __('Sample Video', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         
         // Get current sample settings

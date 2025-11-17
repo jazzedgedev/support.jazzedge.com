@@ -37,8 +37,55 @@ jQuery(document).ready(function($) {
         });
     });
     
+    // Handle download & transcribe button clicks
+    $(document).on('click', '.ct-download-transcribe-btn', function(e) {
+        e.preventDefault();
+        
+        var $button = $(this);
+        var chapterId = $button.data('chapter-id');
+        var $row = $button.closest('tr');
+        var $statusCell = $row.find('.ct-download-transcribe-status');
+        
+        // Disable button and show loading
+        $button.prop('disabled', true).text('⏳ Processing...');
+        $statusCell.html('<span class="ct-status-loading">⏳ Downloading video...</span>');
+        
+        // Start download & transcribe via AJAX
+        $.ajax({
+            url: ctAdmin.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'ct_download_and_transcribe',
+                chapter_id: chapterId,
+                nonce: ctAdmin.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $statusCell.html('<span class="ct-status-loading">⏳ ' + (response.data.message || 'Processing...') + '</span>');
+                    // Start polling for transcription status (download is done, transcription is starting)
+                    setTimeout(function() {
+                        pollTranscriptionStatus(chapterId, $button, $statusCell);
+                    }, 2000);
+                } else {
+                    $button.prop('disabled', false).text('⬇️🎤 Download & Transcribe');
+                    $statusCell.html('<span class="ct-status-error">❌ ' + (response.data && response.data.message || 'Failed to start') + '</span>');
+                }
+            },
+            error: function() {
+                $button.prop('disabled', false).text('⬇️🎤 Download & Transcribe');
+                $statusCell.html('<span class="ct-status-error">❌ Network error. Please try again.</span>');
+            }
+        });
+    });
+    
     // Poll for transcription status
     function pollTranscriptionStatus(chapterId, $button, $statusCell) {
+        // Store original button text to restore it
+        var originalButtonText = $button.data('original-text') || $button.text();
+        if (!$button.data('original-text')) {
+            $button.data('original-text', originalButtonText);
+        }
+        
         var pollInterval = setInterval(function() {
             $.ajax({
                 url: ctAdmin.ajaxUrl,
@@ -55,16 +102,54 @@ jQuery(document).ready(function($) {
                         
                         if (status === 'completed') {
                             clearInterval(pollInterval);
-                            $button.prop('disabled', false).text('🔄 Re-transcribe');
-                            $statusCell.html('<span class="ct-status-success">✓ ' + message + '</span>');
-                            // Reload page after 2 seconds to show updated transcript status
+                            // Restore original button text or use appropriate text
+                            var isDownloadTranscribe = $button.hasClass('ct-download-transcribe-btn');
+                            $button.prop('disabled', false);
+                            if (isDownloadTranscribe) {
+                                $button.text('⬇️🎤 Download & Transcribe');
+                            } else {
+                                $button.text('🔄 Re-transcribe');
+                            }
+                            $statusCell.html('<span class="ct-status-success" style="color: #46b450; font-weight: 600; font-size: 13px;">✓ Transcription completed successfully!</span>');
+                            
+                            // Show admin notice
+                            if ($('.ct-transcription-success-notice').length === 0) {
+                                $('body').prepend('<div class="notice notice-success is-dismissible ct-transcription-success-notice" style="position: fixed; top: 32px; left: 160px; right: 20px; z-index: 100000; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"><p><strong>Transcription Complete!</strong> Chapter ' + chapterId + ' has been transcribed successfully. ' + (message ? message : '') + '</p><button type="button" class="notice-dismiss"><span class="screen-reader-text">Dismiss this notice.</span></button></div>');
+                                
+                                // Auto-dismiss after 5 seconds
+                                setTimeout(function() {
+                                    $('.ct-transcription-success-notice').fadeOut(300, function() {
+                                        $(this).remove();
+                                    });
+                                }, 5000);
+                                
+                                // Handle manual dismiss
+                                $(document).on('click', '.ct-transcription-success-notice .notice-dismiss', function() {
+                                    $(this).closest('.notice').fadeOut(300, function() {
+                                        $(this).remove();
+                                    });
+                                });
+                            }
+                            
+                            // Reload page after 3 seconds to show updated transcript status
                             setTimeout(function() {
                                 location.reload();
-                            }, 2000);
+                            }, 3000);
                         } else if (status === 'failed') {
                             clearInterval(pollInterval);
-                            $button.prop('disabled', false).text('🎤 Transcribe');
+                            var failedText = $button.data('original-text') || '🎤 Transcribe';
+                            $button.prop('disabled', false).text(failedText);
                             $statusCell.html('<span class="ct-status-error">❌ ' + message + '</span>');
+                        } else if (status === 'queued') {
+                            var queueText = '⏳ Waiting in queue...';
+                            if (response.data.queue_position && response.data.queue_total) {
+                                queueText = '⏳ In queue (' + response.data.queue_position + ' of ' + response.data.queue_total + ')';
+                            }
+                            if (message) {
+                                queueText += ' - ' + message;
+                            }
+                            $statusCell.html('<span class="ct-status-processing">' + queueText + '</span>');
+                            $button.text('⏳ Queued...');
                         } else if (status === 'processing') {
                             // Update status message with elapsed time
                             var statusText = '⏳ Processing...';
@@ -99,7 +184,8 @@ jQuery(document).ready(function($) {
         setTimeout(function() {
             clearInterval(pollInterval);
             if ($button.prop('disabled')) {
-                $button.prop('disabled', false).text('🎤 Transcribe');
+                var timeoutText = $button.data('original-text') || '🎤 Transcribe';
+                $button.prop('disabled', false).text(timeoutText);
                 $statusCell.html('<span class="ct-status-error">⏱️ Timeout - Check status manually</span>');
             }
         }, 30 * 60 * 1000);
@@ -457,6 +543,80 @@ jQuery(document).ready(function($) {
             },
             error: function() {
                 $logContent.html('<em>Error loading logs</em>');
+            }
+        });
+    });
+    
+    // Export debug log button
+    $(document).on('click', '.ct-export-debug', function() {
+        var $button = $(this);
+        var chapterId = $button.data('chapter-id');
+        
+        $button.prop('disabled', true).text('⏳ Exporting...');
+        
+        $.ajax({
+            url: ctAdmin.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'ct_export_debug_log',
+                chapter_id: chapterId,
+                nonce: ctAdmin.nonce
+            },
+            success: function(response) {
+                if (response.success && response.data.debug_log) {
+                    // Create a textarea with the debug log for easy copying
+                    var $modal = $('<div>').css({
+                        'position': 'fixed',
+                        'top': '50%',
+                        'left': '50%',
+                        'transform': 'translate(-50%, -50%)',
+                        'background': '#fff',
+                        'padding': '20px',
+                        'border': '2px solid #2271b1',
+                        'border-radius': '5px',
+                        'box-shadow': '0 4px 20px rgba(0,0,0,0.3)',
+                        'z-index': '100000',
+                        'max-width': '90%',
+                        'max-height': '90%',
+                        'overflow': 'auto'
+                    });
+                    
+                    var $title = $('<h3>').text('Debug Log for Chapter ' + chapterId).css({'margin-top': '0'});
+                    var $textarea = $('<textarea>').val(response.data.debug_log).css({
+                        'width': '100%',
+                        'height': '400px',
+                        'font-family': 'monospace',
+                        'font-size': '12px',
+                        'padding': '10px',
+                        'border': '1px solid #ddd',
+                        'margin-top': '10px'
+                    });
+                    var $closeBtn = $('<button>').text('Close').addClass('button').css({'margin-top': '10px'});
+                    var $copyBtn = $('<button>').text('Copy to Clipboard').addClass('button button-primary').css({'margin-top': '10px', 'margin-left': '10px'});
+                    
+                    $copyBtn.on('click', function() {
+                        $textarea.select();
+                        document.execCommand('copy');
+                        $copyBtn.text('✓ Copied!').prop('disabled', true);
+                        setTimeout(function() {
+                            $copyBtn.text('Copy to Clipboard').prop('disabled', false);
+                        }, 2000);
+                    });
+                    
+                    $closeBtn.on('click', function() {
+                        $modal.remove();
+                    });
+                    
+                    $modal.append($title).append($textarea).append($('<div>').append($copyBtn).append($closeBtn));
+                    $('body').append($modal);
+                } else {
+                    alert('Failed to export debug log: ' + (response.data || 'Unknown error'));
+                }
+                $button.prop('disabled', false).text('📤 Export Debug');
+            },
+            error: function() {
+                alert('Error exporting debug log');
+                $button.prop('disabled', false).text('📤 Export Debug');
             }
         });
     });

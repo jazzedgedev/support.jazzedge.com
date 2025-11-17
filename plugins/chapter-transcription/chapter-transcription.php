@@ -26,10 +26,32 @@ define('CT_PLUGIN_FILE', __FILE__);
 class Chapter_Transcription {
     
     /**
+     * @var string Queue table name
+     */
+    private $queue_table;
+    
+    /**
      * Constructor
      */
     public function __construct() {
+        global $wpdb;
+        $this->queue_table = isset($wpdb) ? $wpdb->prefix . 'alm_transcription_jobs' : null;
         add_action('plugins_loaded', array($this, 'init'));
+    }
+    
+    /**
+     * Plugin activation hook
+     */
+    public static function activate() {
+        self::create_queue_table();
+    }
+    
+    /**
+     * Plugin deactivation hook
+     */
+    public static function deactivate() {
+        wp_clear_scheduled_hook('ct_process_transcription_queue');
+        delete_transient('ct_queue_lock');
     }
     
     /**
@@ -38,6 +60,11 @@ class Chapter_Transcription {
     public function init() {
         // Include required files
         $this->include_files();
+        $this->maybe_initialize_queue_table();
+        
+        add_filter('cron_schedules', array($this, 'register_queue_schedule'));
+        add_action('ct_process_transcription_queue', array($this, 'process_transcription_queue'));
+        $this->ensure_queue_schedule();
         
         // Initialize admin
         if (is_admin()) {
@@ -71,13 +98,12 @@ class Chapter_Transcription {
         add_action('wp_ajax_ct_check_bulk_status', array($this, 'ajax_check_bulk_status'));
         add_action('wp_ajax_ct_trigger_bulk_download', array($this, 'ajax_trigger_bulk_download'));
         add_action('wp_ajax_ct_process_single_download', array($this, 'ajax_process_single_download'));
-        add_action('wp_ajax_ct_run_transcription_direct', array($this, 'ajax_run_transcription_direct'));
-        add_action('wp_ajax_nopriv_ct_run_transcription_direct', array($this, 'ajax_run_transcription_direct')); // Allow non-logged-in requests for background processing
         add_action('wp_ajax_ct_get_debug_log', array($this, 'ajax_get_debug_log'));
         add_action('wp_ajax_ct_clear_all_stuck', array($this, 'ajax_clear_all_stuck'));
+        add_action('wp_ajax_ct_download_and_transcribe', array($this, 'ajax_download_and_transcribe'));
+        add_action('wp_ajax_ct_export_debug_log', array($this, 'ajax_export_debug_log'));
+        add_action('wp_ajax_ct_bulk_download_and_transcribe', array($this, 'ajax_bulk_download_and_transcribe'));
         
-        // Cron hook for background transcription
-        add_action('ct_run_transcription', array($this, 'run_transcription_cron'));
         add_action('ct_process_bulk_download', array($this, 'process_bulk_download_cron'), 10, 3);
         add_action('ct_process_bulk_transcribe', array($this, 'process_bulk_transcribe_cron'), 10, 3);
     }
@@ -86,7 +112,7 @@ class Chapter_Transcription {
      * Enqueue admin scripts
      */
     public function enqueue_admin_scripts($hook) {
-        if ($hook !== 'toplevel_page_chapter-transcription') {
+        if ($hook !== 'toplevel_page_chapter-transcription' && $hook !== 'transcription_page_chapter-transcription-chapters') {
             return;
         }
         
@@ -200,6 +226,16 @@ class Chapter_Transcription {
             array($this, 'admin_page'),
             'dashicons-microphone',
             30
+        );
+        
+        // Add Chapters submenu
+        add_submenu_page(
+            'chapter-transcription',
+            'Chapters',
+            'Chapters',
+            'manage_options',
+            'chapter-transcription-chapters',
+            array($this, 'admin_page_chapters')
         );
     }
     
@@ -374,6 +410,8 @@ class Chapter_Transcription {
         $total_cost = $cost_logger->get_total_cost();
         $cost_log = $cost_logger->get_recent_logs(10);
         
+        $queue_stats = $this->get_queue_stats();
+        
         // Pass pagination data to template
         $pagination_data = array(
             'current_page' => $current_page,
@@ -456,158 +494,48 @@ class Chapter_Transcription {
             wp_send_json_error('Invalid chapter ID');
         }
         
-        // Set status to processing with detailed info
-        $this->update_transcription_status($chapter_id, 'processing', 'Initializing transcription process...', time());
+        $enqueue = $this->enqueue_transcription_job($chapter_id, 'transcribe');
         
-        // Try multiple methods to ensure execution
-        $nonce = wp_create_nonce('ct_transcription_nonce');
-        
-        // Method 1: Non-blocking HTTP request (may not work in all environments)
-        $response = wp_remote_post(admin_url('admin-ajax.php'), array(
-            'timeout' => 0.01,
-            'blocking' => false,
-            'sslverify' => false,
-            'body' => array(
-                'action' => 'ct_run_transcription_direct',
-                'chapter_id' => $chapter_id,
-                'nonce' => $nonce
-            )
-        ));
-        
-        // Method 2: Schedule via cron as backup
-        $scheduled = wp_schedule_single_event(time() + 2, 'ct_run_transcription', array($chapter_id));
-        
-        // Method 3: Also try a slightly delayed cron (in case first one fails)
-        wp_schedule_single_event(time() + 5, 'ct_run_transcription', array($chapter_id));
-        
-        if ($scheduled !== false && (!defined('DISABLE_WP_CRON') || !DISABLE_WP_CRON)) {
-            // Try to trigger cron immediately
-            spawn_cron();
+        if (!$enqueue['success']) {
+            wp_send_json_error($enqueue['message']);
         }
         
-        // Log what method we're using
-        if (is_wp_error($response)) {
-            error_log('Transcription: Direct execution request failed, relying on cron. Error: ' . $response->get_error_message());
-        } else {
-            error_log('Transcription: Started via direct execution (non-blocking) for chapter ' . $chapter_id);
-        }
-        
-        // Method 4: For web context, also try a curl-based approach as ultimate fallback
-        // This will execute in the background even if wp_remote_post fails
-        $this->trigger_background_transcription($chapter_id, $nonce);
-        
-        // Method 5: For local development, also try a synchronous test request to verify handler works
-        // This helps debug if background requests are being ignored
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            // Test if the handler is reachable (but don't wait for response)
-            $test_response = wp_remote_post(admin_url('admin-ajax.php'), array(
-                'timeout' => 2,
-                'blocking' => false,
-                'sslverify' => false,
-                'body' => array(
-                    'action' => 'ct_test_handler',
-                    'chapter_id' => $chapter_id,
-                    'nonce' => $nonce
-                )
-            ));
-        }
-        
-        // Send response immediately
         wp_send_json_success(array(
-            'message' => 'Transcription started',
-            'chapter_id' => $chapter_id
+            'message' => $enqueue['message'],
+            'chapter_id' => $chapter_id,
+            'job_id' => isset($enqueue['job_id']) ? intval($enqueue['job_id']) : null
         ));
     }
     
     /**
-     * Trigger background transcription using curl (more reliable fallback)
+     * AJAX handler: Download and transcribe in one operation
      */
-    private function trigger_background_transcription($chapter_id, $nonce) {
-        $url = admin_url('admin-ajax.php');
-        $post_data = array(
-            'action' => 'ct_run_transcription_direct',
-            'chapter_id' => $chapter_id,
-            'nonce' => $nonce
-        );
+    public function ajax_download_and_transcribe() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
         
-        // Use curl if available (more reliable than wp_remote_post for background tasks)
-        if (function_exists('curl_init')) {
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post_data));
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 1);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
-            curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-                'Content-Type: application/x-www-form-urlencoded'
-            ));
-            
-            $result = curl_exec($ch);
-            $curl_error = curl_error($ch);
-            $curl_info = curl_getinfo($ch);
-            curl_close($ch);
-            
-            error_log('Transcription: Triggered via curl for chapter ' . $chapter_id . '. HTTP Code: ' . $curl_info['http_code'] . ($curl_error ? '. Error: ' . $curl_error : ''));
-            
-            if ($curl_error) {
-                error_log('Transcription: cURL error details: ' . $curl_error);
-            }
-        } else {
-            error_log('Transcription: cURL not available, cannot trigger background transcription');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
         }
+        
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        
+        if (!$chapter_id) {
+            wp_send_json_error('Invalid chapter ID');
+        }
+        
+        $enqueue = $this->enqueue_transcription_job($chapter_id, 'download_transcribe');
+        
+        if (!$enqueue['success']) {
+            wp_send_json_error(array('message' => $enqueue['message']));
+        }
+        
+        wp_send_json_success(array(
+            'message' => $enqueue['message'],
+            'chapter_id' => $chapter_id,
+            'job_id' => isset($enqueue['job_id']) ? intval($enqueue['job_id']) : null
+        ));
     }
     
-    /**
-     * AJAX handler: Run transcription directly (fallback if cron fails)
-     */
-    public function ajax_run_transcription_direct() {
-        // Log that this handler was called (critical for debugging)
-        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-        error_log('Transcription: ajax_run_transcription_direct called for chapter ' . $chapter_id);
-        
-        // For local development - minimal security checks
-        // Just verify we have a chapter_id (basic validation)
-        if (!$chapter_id) {
-            error_log('Transcription: Invalid chapter ID for direct execution');
-            status_header(400);
-            exit;
-        }
-        
-        // Close connection to browser immediately so request doesn't timeout
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-            error_log('Transcription: Connection closed via fastcgi_finish_request for chapter ' . $chapter_id);
-        } else {
-            // Fallback for non-FastCGI environments
-            ignore_user_abort(true);
-            if (ob_get_level()) {
-                ob_end_clean();
-            }
-            header('Connection: close');
-            header('Content-Length: 0');
-            header('Content-Type: text/plain');
-            flush();
-            error_log('Transcription: Connection closed via headers for chapter ' . $chapter_id);
-        }
-        
-        // Small delay to ensure connection is closed
-        usleep(100000); // 0.1 seconds
-        
-        error_log('Transcription: About to call run_transcription_cron for chapter ' . $chapter_id);
-        
-        // Run transcription
-        try {
-            $this->run_transcription_cron($chapter_id);
-            error_log('Transcription: run_transcription_cron completed for chapter ' . $chapter_id);
-        } catch (Exception $e) {
-            error_log('Transcription: Exception in run_transcription_cron for chapter ' . $chapter_id . ': ' . $e->getMessage());
-        } catch (Error $e) {
-            error_log('Transcription: Fatal error in run_transcription_cron for chapter ' . $chapter_id . ': ' . $e->getMessage());
-        }
-        
-        exit;
-    }
     
     /**
      * AJAX handler: Check transcription status
@@ -637,6 +565,14 @@ class Chapter_Transcription {
         // Add current elapsed time if processing
         if ($status['status'] === 'processing' && isset($status['started_at'])) {
             $status['elapsed_seconds'] = time() - $status['started_at'];
+        }
+        
+        if ($status['status'] === 'queued') {
+            $queue_info = $this->get_queue_position_for_chapter($chapter_id);
+            if ($queue_info) {
+                $status['queue_position'] = $queue_info['position'];
+                $status['queue_total'] = $queue_info['total'];
+            }
         }
         
         wp_send_json_success($status);
@@ -688,6 +624,110 @@ class Chapter_Transcription {
             'log_entries' => $log_entries,
             'file_exists' => true,
             'file_path' => $log_file
+        ));
+    }
+    
+    /**
+     * AJAX handler: Export debug log for a chapter (copyable format)
+     */
+    public function ajax_export_debug_log() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        
+        if (!$chapter_id) {
+            wp_send_json_error('Invalid chapter ID');
+        }
+        
+        global $wpdb;
+        
+        // Get chapter info
+        $chapter = $wpdb->get_row($wpdb->prepare(
+            "SELECT c.*, l.lesson_title FROM {$wpdb->prefix}alm_chapters c
+             LEFT JOIN {$wpdb->prefix}alm_lessons l ON c.lesson_id = l.ID
+             WHERE c.ID = %d",
+            $chapter_id
+        ));
+        
+        $debug_output = "=== CHAPTER TRANSCRIPTION DEBUG LOG ===\n\n";
+        $debug_output .= "Chapter ID: " . $chapter_id . "\n";
+        if ($chapter) {
+            $debug_output .= "Lesson: " . $chapter->lesson_title . " (ID: " . $chapter->lesson_id . ")\n";
+            $debug_output .= "Chapter Title: " . $chapter->chapter_title . "\n";
+            $debug_output .= "Video Source: " . (!empty($chapter->bunny_url) ? 'Bunny CDN' : ($chapter->vimeo_id > 0 ? 'Vimeo (ID: ' . $chapter->vimeo_id . ')' : 'None')) . "\n";
+        }
+        $debug_output .= "Export Time: " . date('Y-m-d H:i:s T') . "\n\n";
+        
+        // Get Whisper API error details if available
+        $whisper_error = get_transient('ct_whisper_error_' . $chapter_id);
+        if ($whisper_error) {
+            $debug_output .= "=== WHISPER API ERROR DETAILS ===\n";
+            foreach ($whisper_error as $key => $value) {
+                if (is_array($value)) {
+                    $value = json_encode($value, JSON_PRETTY_PRINT);
+                }
+                $debug_output .= ucfirst(str_replace('_', ' ', $key)) . ": " . $value . "\n";
+            }
+            $debug_output .= "\n";
+        }
+        
+        // Get transcription status
+        $status = get_transient('ct_transcription_' . $chapter_id);
+        if ($status) {
+            $debug_output .= "=== TRANSCRIPTION STATUS ===\n";
+            foreach ($status as $key => $value) {
+                if ($key === 'started_at' || $key === 'completed_at' || $key === 'failed_at') {
+                    $value = $value ? date('Y-m-d H:i:s', $value) : 'N/A';
+                }
+                $debug_output .= ucfirst(str_replace('_', ' ', $key)) . ": " . $value . "\n";
+            }
+            $debug_output .= "\n";
+        }
+        
+        // Get recent log entries from debug.log
+        $log_file = WP_CONTENT_DIR . '/debug.log';
+        if (file_exists($log_file) && filesize($log_file) > 0) {
+            $file = file($log_file);
+            $relevant_lines = array();
+            
+            // Get last 100 lines that mention this chapter or Whisper
+            foreach ($file as $line) {
+                if (stripos($line, 'chapter ' . $chapter_id) !== false || 
+                    stripos($line, 'WHISPER') !== false ||
+                    (stripos($line, 'Transcription') !== false && stripos($line, (string)$chapter_id) !== false)) {
+                    $relevant_lines[] = trim($line);
+                }
+            }
+            
+            if (!empty($relevant_lines)) {
+                $debug_output .= "=== RECENT LOG ENTRIES (Last " . count($relevant_lines) . " relevant lines) ===\n";
+                $debug_output .= implode("\n", array_slice($relevant_lines, -50)); // Last 50 lines
+                $debug_output .= "\n\n";
+            }
+        }
+        
+        // Check if MP3 file still exists (should be deleted)
+        $video_downloader = new Transcription_Video_Downloader();
+        if ($chapter) {
+            $mp3_filename = $video_downloader->generate_filename($chapter->lesson_id, $chapter_id, $chapter->chapter_title, 'mp3');
+            $mp3_path = $video_downloader->get_output_directory() . $mp3_filename;
+            if (file_exists($mp3_path)) {
+                $debug_output .= "=== WARNING ===\n";
+                $debug_output .= "MP3 file still exists (should be deleted): " . $mp3_path . "\n";
+                $debug_output .= "File size: " . round(filesize($mp3_path) / 1024 / 1024, 2) . " MB\n";
+                $debug_output .= "Last modified: " . date('Y-m-d H:i:s', filemtime($mp3_path)) . "\n\n";
+            }
+        }
+        
+        $debug_output .= "=== END DEBUG LOG ===\n";
+        
+        wp_send_json_success(array(
+            'debug_log' => $debug_output,
+            'chapter_id' => $chapter_id
         ));
     }
     
@@ -803,15 +843,33 @@ class Chapter_Transcription {
         // Since they run in background, we can start them all at once
         error_log('Bulk transcribe: Starting ' . count($chapter_ids) . ' transcriptions');
         
+        $queued = 0;
+        $queue_errors = array();
+        
         foreach ($chapter_ids as $index => $chapter_id) {
-            // Start each transcription immediately
-            $this->start_transcription_for_bulk($chapter_id, $bulk_id);
+            $result = $this->start_transcription_for_bulk($chapter_id, $bulk_id);
+            if ($result['success']) {
+                $queued++;
+            } else {
+                $queue_errors[$chapter_id] = $result['message'];
+                $operation_data['failed']++;
+                if (!isset($operation_data['errors'])) {
+                    $operation_data['errors'] = array();
+                }
+                $operation_data['errors'][$chapter_id] = $result['message'];
+            }
         }
+        
+        set_transient('ct_bulk_' . $bulk_id, $operation_data, 7200);
         
         wp_send_json_success(array(
             'bulk_id' => $bulk_id,
             'total' => count($chapter_ids),
-            'message' => 'Started ' . count($chapter_ids) . ' transcriptions'
+            'queued' => $queued,
+            'errors' => $queue_errors,
+            'message' => $queued === count($chapter_ids)
+                ? 'Queued all transcriptions'
+                : sprintf('Queued %d/%d transcriptions', $queued, count($chapter_ids))
         ));
     }
     
@@ -819,36 +877,16 @@ class Chapter_Transcription {
      * Start a single transcription for bulk operation
      */
     private function start_transcription_for_bulk($chapter_id, $bulk_id) {
-        // Set status
-        $this->update_transcription_status($chapter_id, 'processing', 'Initializing transcription process...', time());
+        $this->update_transcription_status($chapter_id, 'queued', 'Queued via bulk operation...');
+        $result = $this->enqueue_transcription_job($chapter_id, 'transcribe', array('bulk_id' => $bulk_id));
         
-        // Use direct execution (same as individual transcriptions)
-        $nonce = wp_create_nonce('ct_transcription_nonce');
-        
-        // Method 1: Non-blocking HTTP request
-        $response = wp_remote_post(admin_url('admin-ajax.php'), array(
-            'timeout' => 0.01,
-            'blocking' => false,
-            'sslverify' => false,
-            'body' => array(
-                'action' => 'ct_run_transcription_direct',
-                'chapter_id' => $chapter_id,
-                'nonce' => $nonce
-            )
-        ));
-        
-        // Method 2: Schedule via cron as backup
-        wp_schedule_single_event(time() + 2, 'ct_run_transcription', array($chapter_id));
-        wp_schedule_single_event(time() + 5, 'ct_run_transcription', array($chapter_id));
-        
-        if (!defined('DISABLE_WP_CRON') || !DISABLE_WP_CRON) {
-            spawn_cron();
+        if ($result['success']) {
+            error_log('Bulk transcribe: Chapter ' . $chapter_id . ' queued successfully');
+        } else {
+            error_log('Bulk transcribe: Failed to queue chapter ' . $chapter_id . ' - ' . $result['message']);
         }
         
-        // Method 3: cURL fallback
-        $this->trigger_background_transcription($chapter_id, $nonce);
-        
-        error_log('Bulk transcribe: Started transcription for chapter ' . $chapter_id);
+        return $result;
     }
     
     /**
@@ -979,36 +1017,19 @@ class Chapter_Transcription {
         
         error_log(sprintf('Bulk transcribe: Processing chapter %d (%d of %d)', $chapter_id, $index + 1, $operation_data['total']));
         
-        // Start transcription using the same direct execution method as individual transcriptions
-        $this->update_transcription_status($chapter_id, 'processing', 'Initializing transcription process...', time());
+        $this->update_transcription_status($chapter_id, 'queued', 'Queued via bulk operation...');
+        $enqueue = $this->enqueue_transcription_job($chapter_id, 'transcribe', array('bulk_id' => $bulk_id));
         
-        // Use direct execution (same as individual transcriptions)
-        $nonce = wp_create_nonce('ct_transcription_nonce');
-        
-        // Method 1: Non-blocking HTTP request
-        $response = wp_remote_post(admin_url('admin-ajax.php'), array(
-            'timeout' => 0.01,
-            'blocking' => false,
-            'sslverify' => false,
-            'body' => array(
-                'action' => 'ct_run_transcription_direct',
-                'chapter_id' => $chapter_id,
-                'nonce' => $nonce
-            )
-        ));
-        
-        // Method 2: Schedule via cron as backup
-        wp_schedule_single_event(time() + 2, 'ct_run_transcription', array($chapter_id));
-        wp_schedule_single_event(time() + 5, 'ct_run_transcription', array($chapter_id));
-        
-        if (!defined('DISABLE_WP_CRON') || !DISABLE_WP_CRON) {
-            spawn_cron();
+        if (!$enqueue['success']) {
+            if (!isset($operation_data['errors'])) {
+                $operation_data['errors'] = array();
+            }
+            $operation_data['errors'][$chapter_id] = $enqueue['message'];
+            $operation_data['failed'] = isset($operation_data['failed']) ? $operation_data['failed'] + 1 : 1;
+            error_log('Bulk transcribe: Failed to queue chapter ' . $chapter_id . ' - ' . $enqueue['message']);
+        } else {
+            error_log('Bulk transcribe: Chapter ' . $chapter_id . ' queued successfully via bulk processor');
         }
-        
-        // Method 3: cURL fallback
-        $this->trigger_background_transcription($chapter_id, $nonce);
-        
-        error_log('Bulk transcribe: Started transcription for chapter ' . $chapter_id);
         
         // Check if more items to process
         if ($index + 1 < count($operation_data['chapter_ids'])) {
@@ -1129,35 +1150,28 @@ class Chapter_Transcription {
     public function run_transcription_cron($chapter_id) {
         $start_time = time();
         
-        // For local dev - skip duplicate check since multiple calls are expected
-        // Just check if it's been stuck for a very long time (>10 minutes) to avoid infinite loops
+        // Check if it's been stuck for a very long time (>10 minutes) to avoid infinite loops
         $existing_status = get_transient('ct_transcription_' . $chapter_id);
         if ($existing_status && isset($existing_status['status']) && $existing_status['status'] === 'processing') {
             $elapsed = isset($existing_status['started_at']) ? (time() - $existing_status['started_at']) : 0;
             // Only skip if it's been running for more than 10 minutes (likely stuck or actually processing)
             if ($elapsed > 600) {
-                error_log('Transcription: Chapter ' . $chapter_id . ' has been processing for ' . $elapsed . ' seconds, skipping duplicate run');
+                error_log('Transcription: Chapter ' . $chapter_id . ' stuck for ' . $elapsed . 's, skipping');
                 return;
             }
-            // If it's been less than 10 minutes, allow it to run (might be a retry or the previous one failed)
-            error_log('Transcription: Chapter ' . $chapter_id . ' status exists but allowing run (elapsed: ' . $elapsed . 's)');
         }
         
         // Update status
         $this->update_transcription_status($chapter_id, 'processing', 'Starting transcription process...', $start_time);
         
-        error_log('Transcription: run_transcription_cron called for chapter ' . $chapter_id . ' at ' . date('Y-m-d H:i:s'));
-        
         // Run transcription with error handling
         try {
-            error_log('Transcription: About to call transcribe_video for chapter ' . $chapter_id);
             $result = $this->transcribe_video($chapter_id, true);
-            error_log('Transcription: transcribe_video returned for chapter ' . $chapter_id . '. Success: ' . ($result['success'] ? 'yes' : 'no'));
         } catch (Exception $e) {
-            error_log('Transcription: Exception in transcribe_video for chapter ' . $chapter_id . ': ' . $e->getMessage());
+            error_log('Transcription: Exception for chapter ' . $chapter_id . ': ' . $e->getMessage());
             $result = array('success' => false, 'message' => 'Exception: ' . $e->getMessage());
         } catch (Error $e) {
-            error_log('Transcription: Fatal error in transcribe_video for chapter ' . $chapter_id . ': ' . $e->getMessage());
+            error_log('Transcription: Fatal error for chapter ' . $chapter_id . ': ' . $e->getMessage());
             $result = array('success' => false, 'message' => 'Fatal error: ' . $e->getMessage());
         }
         
@@ -1174,6 +1188,8 @@ class Chapter_Transcription {
             // Update bulk operation if this was part of one
             $this->update_bulk_transcription_status($chapter_id, false);
         }
+        
+        return $result;
     }
     
     /**
@@ -1202,14 +1218,16 @@ class Chapter_Transcription {
         
         set_transient('ct_transcription_' . $chapter_id, $status_data, 3600);
         
-        // Also log to error log for debugging
-        error_log(sprintf(
-            'Transcription Status [Chapter %d]: %s - %s (Elapsed: %d seconds)',
-            $chapter_id,
-            strtoupper($status),
-            $message,
-            isset($status_data['elapsed_seconds']) ? $status_data['elapsed_seconds'] : 0
-        ));
+        // Only log errors and completions, not every processing step
+        if ($status === 'failed' || $status === 'completed') {
+            error_log(sprintf(
+                'Transcription [Chapter %d]: %s - %s (%ds)',
+                $chapter_id,
+                strtoupper($status),
+                $message,
+                isset($status_data['elapsed_seconds']) ? $status_data['elapsed_seconds'] : 0
+            ));
+        }
     }
     
     /**
@@ -1347,7 +1365,7 @@ class Chapter_Transcription {
             $this->update_transcription_status($chapter_id, 'processing', 'Converting video to audio for faster transcription...');
         }
         
-        error_log('Transcription: Converting MP4 to audio for chapter ' . $chapter_id);
+        // Log only if conversion is needed (not using existing file)
         $audio_path = $video_downloader->convert_to_audio($mp4_path);
         
         if (!$audio_path || !file_exists($audio_path)) {
@@ -1420,21 +1438,47 @@ class Chapter_Transcription {
         }
         
         // Transcribe with Whisper (with retry logic and progress updates)
-        $transcription_result = $whisper_client->transcribe_file($file_to_transcribe, $chapter_id, 3, function($status, $message) use ($chapter_id, $async) {
-            if ($async) {
-                $this->update_transcription_status($chapter_id, 'processing', $message);
-            }
-        });
-        
-        // Clean up temporary audio file if we created one (always, even on error)
-        // Store the path before we potentially return early
+        // Store the path before we potentially return early - ensure cleanup in all cases
         $audio_file_to_delete = $temp_audio_file ? $file_to_transcribe : null;
         
+        try {
+            $transcription_result = $whisper_client->transcribe_file($file_to_transcribe, $chapter_id, 3, function($status, $message) use ($chapter_id, $async) {
+                if ($async) {
+                    $this->update_transcription_status($chapter_id, 'processing', $message);
+                }
+            });
+        } catch (Exception $e) {
+            // Clean up on exception
+            if ($audio_file_to_delete && file_exists($audio_file_to_delete)) {
+                @unlink($audio_file_to_delete);
+            }
+            $error_msg = 'Exception during transcription: ' . $e->getMessage();
+            error_log('Transcription: ' . $error_msg);
+            if ($async) {
+                $this->update_transcription_status($chapter_id, 'failed', $error_msg);
+            }
+            return array('success' => false, 'message' => $error_msg);
+        } catch (Error $e) {
+            // Clean up on fatal error
+            if ($audio_file_to_delete && file_exists($audio_file_to_delete)) {
+                @unlink($audio_file_to_delete);
+            }
+            $error_msg = 'Fatal error during transcription: ' . $e->getMessage();
+            error_log('Transcription: ' . $error_msg);
+            if ($async) {
+                $this->update_transcription_status($chapter_id, 'failed', $error_msg);
+            }
+            return array('success' => false, 'message' => $error_msg);
+        }
+        
+        // Clean up temporary audio file if we created one (always, even on error)
         if (!$transcription_result['success']) {
             // Clean up before returning error
             if ($audio_file_to_delete && file_exists($audio_file_to_delete)) {
-                @unlink($audio_file_to_delete);
-                error_log('Transcription: Deleted temporary audio file after error: ' . basename($audio_file_to_delete));
+                $deleted = @unlink($audio_file_to_delete);
+                if (!$deleted) {
+                    error_log('Transcription: WARNING - Failed to delete temporary audio file: ' . basename($audio_file_to_delete));
+                }
             }
             
             if ($async) {
@@ -1466,8 +1510,6 @@ class Chapter_Transcription {
         
         if (!$vtt_success) {
             error_log('Transcription: Failed to generate VTT file for chapter ' . $chapter_id);
-        } else {
-            error_log('Transcription: VTT file generated for chapter ' . $chapter_id . ' (' . $segment_count . ' segments)');
         }
         
         // Get VTT filename only (no path, so it can be used anywhere)
@@ -1592,6 +1634,399 @@ class Chapter_Transcription {
             
             return array('success' => true, 'message' => 'Transcript saved successfully. VTT file generated.');
         }
+    }
+
+    /**
+     * Create queue table if it doesn't exist
+     */
+    private static function create_queue_table() {
+        global $wpdb;
+        
+        if (!isset($wpdb)) {
+            return;
+        }
+        
+        $table_name = $wpdb->prefix . 'alm_transcription_jobs';
+        $charset_collate = $wpdb->get_charset_collate();
+        
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        
+        $sql = "CREATE TABLE {$table_name} (
+            ID bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            chapter_id bigint(20) unsigned NOT NULL,
+            lesson_id bigint(20) unsigned NOT NULL,
+            job_type varchar(50) NOT NULL DEFAULT 'transcribe',
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            priority int(11) NOT NULL DEFAULT 10,
+            attempts tinyint(3) unsigned NOT NULL DEFAULT 0,
+            message text NULL,
+            payload longtext NULL,
+            created_at datetime NOT NULL,
+            started_at datetime NULL,
+            completed_at datetime NULL,
+            PRIMARY KEY  (ID),
+            KEY status (status),
+            KEY chapter_id (chapter_id),
+            KEY lesson_id (lesson_id)
+        ) {$charset_collate};";
+        
+        dbDelta($sql);
+    }
+    
+    /**
+     * Ensure queue table exists (handles upgrades without reactivation)
+     */
+    private function maybe_initialize_queue_table() {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $table_exists = $wpdb->get_var($wpdb->prepare(
+            "SHOW TABLES LIKE %s",
+            $this->queue_table
+        ));
+        
+        if ($table_exists !== $this->queue_table) {
+            self::create_queue_table();
+        }
+    }
+    
+    /**
+     * Register custom cron schedule
+     */
+    public function register_queue_schedule($schedules) {
+        if (!isset($schedules['ct_queue_minute'])) {
+            $schedules['ct_queue_minute'] = array(
+                'interval' => 60,
+                'display' => __('Every Minute', 'chapter-transcription')
+            );
+        }
+        
+        return $schedules;
+    }
+    
+    /**
+     * Ensure recurring queue processor is scheduled
+     */
+    private function ensure_queue_schedule() {
+        if (!wp_next_scheduled('ct_process_transcription_queue')) {
+            wp_schedule_event(time() + 60, 'ct_queue_minute', 'ct_process_transcription_queue');
+        }
+    }
+    
+    /**
+     * Schedule a near-term queue runner
+     */
+    private function schedule_queue_runner($delay = 10) {
+        $timestamp = time() + max(5, intval($delay));
+        wp_schedule_single_event($timestamp, 'ct_process_transcription_queue');
+    }
+    
+    /**
+     * Queue lock helpers
+     */
+    private function is_queue_locked() {
+        return (bool) get_transient('ct_queue_lock');
+    }
+    
+    private function lock_queue() {
+        set_transient('ct_queue_lock', 1, 2 * MINUTE_IN_SECONDS);
+    }
+    
+    private function unlock_queue() {
+        delete_transient('ct_queue_lock');
+    }
+    
+    /**
+     * Enqueue a transcription job
+     */
+    private function enqueue_transcription_job($chapter_id, $job_type = 'transcribe', $metadata = array()) {
+        global $wpdb;
+        
+        if (!$chapter_id) {
+            return array('success' => false, 'message' => 'Invalid chapter ID');
+        }
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $chapter = $wpdb->get_row($wpdb->prepare(
+            "SELECT ID, lesson_id FROM {$wpdb->prefix}alm_chapters WHERE ID = %d",
+            $chapter_id
+        ));
+        
+        if (!$chapter) {
+            return array('success' => false, 'message' => 'Chapter not found');
+        }
+        
+        $existing_job_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$this->queue_table} WHERE chapter_id = %d AND status IN ('pending', 'processing') LIMIT 1",
+            $chapter_id
+        ));
+        
+        if ($existing_job_id) {
+            $this->update_transcription_status($chapter_id, 'queued', 'Chapter already queued for transcription');
+            $this->schedule_queue_runner(5);
+            return array(
+                'success' => true,
+                'message' => 'Chapter is already queued for transcription.',
+                'job_id' => intval($existing_job_id)
+            );
+        }
+        
+        $payload = !empty($metadata) ? wp_json_encode($metadata) : null;
+        
+        $inserted = $wpdb->insert(
+            $this->queue_table,
+            array(
+                'chapter_id' => $chapter_id,
+                'lesson_id' => $chapter->lesson_id,
+                'job_type' => $job_type,
+                'status' => 'pending',
+                'priority' => 10,
+                'attempts' => 0,
+                'message' => '',
+                'payload' => $payload,
+                'created_at' => current_time('mysql')
+            ),
+            array('%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s')
+        );
+        
+        if ($inserted === false) {
+            return array('success' => false, 'message' => 'Failed to enqueue transcription job.');
+        }
+        
+        $this->update_transcription_status($chapter_id, 'queued', 'Queued for processing');
+        $this->schedule_queue_runner(5);
+        
+        return array(
+            'success' => true,
+            'message' => 'Chapter added to transcription queue.',
+            'job_id' => $wpdb->insert_id
+        );
+    }
+    
+    /**
+     * Process pending transcription jobs
+     */
+    public function process_transcription_queue() {
+        if ($this->is_queue_locked()) {
+            return;
+        }
+        
+        $this->lock_queue();
+        $jobs_processed = 0;
+        
+        while ($jobs_processed < 1) {
+            $job = $this->claim_next_job();
+            if (!$job) {
+                break;
+            }
+            
+            $result = $this->run_queued_job($job);
+            $this->finalize_job($job, $result);
+            $jobs_processed++;
+        }
+        
+        $this->unlock_queue();
+        set_transient('ct_queue_last_run', time(), 12 * HOUR_IN_SECONDS);
+        
+        if ($this->queue_has_pending()) {
+            $this->schedule_queue_runner(15);
+        }
+    }
+    
+    /**
+     * Claim the next pending job
+     */
+    private function claim_next_job() {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $job = $wpdb->get_row("SELECT * FROM {$this->queue_table} WHERE status = 'pending' ORDER BY priority DESC, ID ASC LIMIT 1");
+        
+        if (!$job) {
+            return false;
+        }
+        
+        $updated = $wpdb->update(
+            $this->queue_table,
+            array(
+                'status' => 'processing',
+                'started_at' => current_time('mysql'),
+                'attempts' => intval($job->attempts) + 1
+            ),
+            array(
+                'ID' => $job->ID,
+                'status' => 'pending'
+            ),
+            array('%s', '%s', '%d'),
+            array('%d', '%s')
+        );
+        
+        if (!$updated) {
+            return false;
+        }
+        
+        $job->status = 'processing';
+        $job->started_at = current_time('mysql');
+        $job->attempts = intval($job->attempts) + 1;
+        
+        return $job;
+    }
+    
+    /**
+     * Execute a queued job
+     */
+    private function run_queued_job($job) {
+        $chapter_id = intval($job->chapter_id);
+        $metadata = !empty($job->payload) ? json_decode($job->payload, true) : array();
+        
+        try {
+            if ($job->job_type === 'download_transcribe') {
+                $this->update_transcription_status($chapter_id, 'processing', 'Downloading video before transcription...');
+                $download_result = $this->download_video($chapter_id);
+                
+                if (!$download_result['success']) {
+                    $this->update_transcription_status($chapter_id, 'failed', 'Download failed: ' . $download_result['message'], time(), null, time());
+                    return array('success' => false, 'message' => 'Download failed: ' . $download_result['message']);
+                }
+            }
+            
+            $result = $this->run_transcription_cron($chapter_id);
+            
+            if (is_array($result)) {
+                return $result;
+            }
+            
+            return array('success' => false, 'message' => 'Unknown transcription result.');
+        } catch (Exception $e) {
+            $error = 'Queue worker exception: ' . $e->getMessage();
+            error_log('Transcription Queue: ' . $error);
+            $this->update_transcription_status($chapter_id, 'failed', $error);
+            return array('success' => false, 'message' => $error);
+        } catch (Error $e) {
+            $error = 'Queue worker fatal error: ' . $e->getMessage();
+            error_log('Transcription Queue: ' . $error);
+            $this->update_transcription_status($chapter_id, 'failed', $error);
+            return array('success' => false, 'message' => $error);
+        }
+    }
+    
+    /**
+     * Finalize a job after processing
+     */
+    private function finalize_job($job, $result) {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $wpdb->update(
+            $this->queue_table,
+            array(
+                'status' => $result['success'] ? 'completed' : 'failed',
+                'completed_at' => current_time('mysql'),
+                'message' => isset($result['message']) ? $result['message'] : ''
+            ),
+            array('ID' => $job->ID),
+            array('%s', '%s', '%s'),
+            array('%d')
+        );
+    }
+    
+    /**
+     * Determine if there are pending jobs
+     */
+    private function queue_has_pending() {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $pending = $wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'pending'");
+        return intval($pending) > 0;
+    }
+    
+    /**
+     * Retrieve queue statistics for admin display
+     */
+    private function get_queue_stats() {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $stats = array(
+            'pending' => 0,
+            'processing' => 0,
+            'completed_24h' => 0,
+            'failed_24h' => 0,
+            'locked' => $this->is_queue_locked(),
+            'next_run' => wp_next_scheduled('ct_process_transcription_queue'),
+            'last_run' => get_transient('ct_queue_last_run'),
+            'recent_jobs' => array()
+        );
+        
+        if ($this->queue_table && $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $this->queue_table)) === $this->queue_table) {
+            $stats['pending'] = intval($wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'pending'"));
+            $stats['processing'] = intval($wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'processing'"));
+            $stats['completed_24h'] = intval($wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'completed' AND completed_at >= (NOW() - INTERVAL 24 HOUR)"));
+            $stats['failed_24h'] = intval($wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'failed' AND completed_at >= (NOW() - INTERVAL 24 HOUR)"));
+            $stats['recent_jobs'] = $wpdb->get_results("
+                SELECT ID, chapter_id, job_type, status, message, created_at, started_at, completed_at
+                FROM {$this->queue_table}
+                ORDER BY ID DESC
+                LIMIT 5
+            ");
+        }
+        
+        return $stats;
+    }
+    
+    /**
+     * Calculate queue position for a chapter
+     */
+    private function get_queue_position_for_chapter($chapter_id) {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $job = $wpdb->get_row($wpdb->prepare(
+            "SELECT ID, priority FROM {$this->queue_table} WHERE chapter_id = %d AND status = 'pending' LIMIT 1",
+            $chapter_id
+        ));
+        
+        if (!$job) {
+            return null;
+        }
+        
+        $ahead = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->queue_table} 
+             WHERE status = 'pending' 
+             AND (priority > %d OR (priority = %d AND ID < %d))",
+            $job->priority,
+            $job->priority,
+            $job->ID
+        ));
+        
+        $total_pending = $wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'pending'");
+        
+        return array(
+            'position' => intval($ahead) + 1,
+            'total' => intval($total_pending)
+        );
     }
     
     /**
@@ -1778,7 +2213,137 @@ class Chapter_Transcription {
         
         return array('success' => true, 'message' => $message);
     }
+    
+    /**
+     * Chapters bulk management page
+     */
+    public function admin_page_chapters() {
+        // Pagination settings
+        $allowed_per_page = array(5, 15, 20, 25, 30, 50);
+        $per_page = isset($_GET['per_page']) && in_array(intval($_GET['per_page']), $allowed_per_page) 
+            ? intval($_GET['per_page']) 
+            : 50;
+        $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+        $offset = ($current_page - 1) * $per_page;
+        
+        // Hide transcribed filter
+        $hide_transcribed = isset($_GET['hide_transcribed']) && $_GET['hide_transcribed'] === '1';
+        
+        // Build WHERE clause
+        global $wpdb;
+        $where_clause = "c.lesson_id > 0 AND ((c.bunny_url != '' AND c.bunny_url IS NOT NULL) OR c.vimeo_id > 0)";
+        
+        // Add hide transcribed filter
+        if ($hide_transcribed) {
+            $where_clause .= " AND NOT EXISTS (
+                SELECT 1 FROM {$wpdb->prefix}alm_transcripts t 
+                WHERE t.chapter_id = c.ID
+            )";
+        }
+        
+        // Get total count
+        $total_items = $wpdb->get_var("
+            SELECT COUNT(*)
+            FROM {$wpdb->prefix}alm_chapters c
+            WHERE {$where_clause}
+        ");
+        
+        $total_pages = ceil($total_items / $per_page);
+        
+        // Get chapters
+        $chapters = $wpdb->get_results($wpdb->prepare("
+            SELECT c.*, l.lesson_title
+            FROM {$wpdb->prefix}alm_chapters c
+            LEFT JOIN {$wpdb->prefix}alm_lessons l ON c.lesson_id = l.ID
+            WHERE {$where_clause}
+            ORDER BY c.ID ASC
+            LIMIT %d OFFSET %d
+        ", $per_page, $offset));
+        
+        // Check which chapters have transcripts
+        $chapter_ids = array_map(function($c) { return $c->ID; }, $chapters);
+        $transcripted_chapters = array();
+        if (!empty($chapter_ids)) {
+            $placeholders = implode(',', array_fill(0, count($chapter_ids), '%d'));
+            $transcripted = $wpdb->get_col($wpdb->prepare("
+                SELECT DISTINCT chapter_id
+                FROM {$wpdb->prefix}alm_transcripts
+                WHERE chapter_id IN ($placeholders)
+            ", $chapter_ids));
+            $transcripted_chapters = array_flip($transcripted);
+        }
+        
+        // Include template
+        $template_data = array(
+            'chapters' => $chapters,
+            'transcripted_chapters' => $transcripted_chapters,
+            'pagination' => array(
+                'current_page' => $current_page,
+                'total_pages' => $total_pages,
+                'total_items' => $total_items,
+                'per_page' => $per_page
+            ),
+            'hide_transcribed' => $hide_transcribed,
+            'allowed_per_page' => $allowed_per_page
+        );
+        
+        include plugin_dir_path(__FILE__) . 'templates/chapters-page.php';
+    }
+    
+    /**
+     * AJAX handler for bulk download and transcribe
+     */
+    public function ajax_bulk_download_and_transcribe() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        $chapter_ids = isset($_POST['chapter_ids']) ? array_map('intval', $_POST['chapter_ids']) : array();
+        
+        if (empty($chapter_ids)) {
+            wp_send_json_error('No chapters selected');
+        }
+        
+        // Limit to prevent timeouts
+        if (count($chapter_ids) > 50) {
+            wp_send_json_error('Maximum 50 chapters at a time');
+        }
+        
+        $results = array();
+        $success_count = 0;
+        $error_count = 0;
+        
+        foreach ($chapter_ids as $chapter_id) {
+            $this->update_transcription_status($chapter_id, 'queued', 'Queued for download & transcription');
+            $enqueue = $this->enqueue_transcription_job($chapter_id, 'download_transcribe');
+            
+            if ($enqueue['success']) {
+                $success_count++;
+            } else {
+                $error_count++;
+            }
+            
+            $results[] = array(
+                'chapter_id' => $chapter_id,
+                'success' => $enqueue['success'],
+                'message' => $enqueue['message']
+            );
+        }
+        
+        wp_send_json_success(array(
+            'message' => sprintf('Processed %d chapters: %d successful, %d failed', count($chapter_ids), $success_count, $error_count),
+            'results' => $results,
+            'success_count' => $success_count,
+            'error_count' => $error_count
+        ));
+    }
 }
+
+// Register activation/deactivation hooks
+register_activation_hook(CT_PLUGIN_FILE, array('Chapter_Transcription', 'activate'));
+register_deactivation_hook(CT_PLUGIN_FILE, array('Chapter_Transcription', 'deactivate'));
 
 // Initialize the plugin
 new Chapter_Transcription();

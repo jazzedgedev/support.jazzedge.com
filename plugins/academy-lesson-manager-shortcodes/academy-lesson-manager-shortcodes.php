@@ -54,6 +54,7 @@ class ALM_Shortcodes_Plugin {
         add_action('wp_ajax_alm_update_note', array($this, 'ajax_update_note'));
         add_action('wp_ajax_alm_delete_note', array($this, 'ajax_delete_note'));
         add_action('wp_ajax_alm_get_lessons_list', array($this, 'ajax_get_lessons_list'));
+        add_action('wp_ajax_alm_process_shortcode', array($this, 'ajax_process_shortcode'));
         
         // Create ALM notes table on activation
         add_action('init', array($this, 'create_alm_notes_table'));
@@ -245,6 +246,8 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('alm_favorites_management', array($this, 'favorites_management_shortcode'));
         add_shortcode('alm_user_notes_manager', array($this, 'user_notes_manager_shortcode'));
         add_shortcode('alm_membership_list', array($this, 'membership_list_shortcode'));
+        add_shortcode('academy_pricing_table', array($this, 'pricing_table_shortcode'));
+        add_shortcode('site_feedback_entries', array($this, 'site_feedback_entries_shortcode'));
         
         // Add debugging
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -404,11 +407,29 @@ class ALM_Shortcodes_Plugin {
                 </div>
                 
                 <div class="alm-shortcode-card">
+                    <h3>Pricing Table</h3>
+                    <p>Display membership pricing table with Essentials, Studio, and Premier options</p>
+                    <div class="shortcode-example">
+                        <code>[academy_pricing_table]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[academy_pricing_table]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
                     <h3>Collections Page</h3>
                     <p>Display membership levels with collections and lesson hours</p>
                     <div class="shortcode-example">
                         <code>[alm_collections_page]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[alm_collections_page]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Site Feedback Entries</h3>
+                    <p>Display user's site feedback submissions sorted by most recent</p>
+                    <div class="shortcode-example">
+                        <code>[site_feedback_entries]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[site_feedback_entries]">Copy</button>
                     </div>
                 </div>
                 
@@ -1771,15 +1792,87 @@ class ALM_Shortcodes_Plugin {
                 // Show sample video with overlay message
                 $return .= '<div class="alm-video-placeholder" style="position: relative;">';
                 $return .= do_shortcode('[fvplayer src="' . esc_url($sample_video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
-                $return .= '<div class="alm-sample-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 30px; pointer-events: none;">';
-                $return .= '<div style="background: rgba(255,255,255,0.95); padding: 20px 30px; border-radius: 12px; text-align: center; max-width: 500px; pointer-events: auto;">';
+                // Overlay positioned to not interfere with video controls at bottom (leave ~100px for controls)
+                $return .= '<div class="alm-sample-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 100px; background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; pointer-events: none; z-index: 1;">';
+                $return .= '<div style="background: rgba(255,255,255,0.95); padding: 20px 30px; border-radius: 12px; text-align: center; max-width: 500px; pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: relative;">';
+                // Close button
+                $return .= '<button type="button" class="alm-sample-overlay-close" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 24px; font-weight: 300; color: #6c757d; cursor: pointer; padding: 0; width: 30px; height: 30px; line-height: 1; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;" title="Close">&times;</button>';
                 $return .= '<svg style="width: 32px; height: 32px; margin-bottom: 12px; color: #239B90;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg>';
                 $return .= '<h3 style="margin: 0 0 8px 0; font-size: 18px; color: #004555; font-weight: 600;">Sample Video</h3>';
                 $return .= '<p style="margin: 0 0 16px 0; font-size: 14px; color: #495057;">This is a preview. Get full access to all video lessons, sheet music, backing tracks, and more.</p>';
-                $return .= '<a href="/upgrade" class="alm-upgrade-button" style="display: inline-block; padding: 12px 24px; background: #239B90; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">Upgrade to ' . esc_html($required_level_name) . '</a>';
+                $return .= '<div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">';
+                $return .= '<button type="button" class="alm-play-sample-btn" style="display: inline-block; padding: 12px 24px; background: #239B90; color: #ffffff; border: none; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s;">Play Sample</button>';
+                $return .= '<a href="/upgrade" class="alm-upgrade-button" style="display: inline-block; padding: 12px 24px; background: #ff6b35; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">Upgrade to ' . esc_html($required_level_name) . '</a>';
                 $return .= '</div>';
                 $return .= '</div>';
                 $return .= '</div>';
+                $return .= '</div>';
+                
+                // Add CSS for close button hover
+                $return .= '<style>
+                .alm-sample-overlay-close:hover {
+                    background: rgba(0,0,0,0.1) !important;
+                    color: #000 !important;
+                }
+                .alm-play-sample-btn:hover {
+                    background: #1d7a70 !important;
+                    transform: translateY(-1px);
+                }
+                </style>';
+                
+                // Add JavaScript to handle overlay dismissal and video play
+                $return .= '<script>
+                jQuery(document).ready(function($) {
+                    var $overlay = $(".alm-sample-overlay");
+                    var $closeBtn = $(".alm-sample-overlay-close");
+                    var $playBtn = $(".alm-play-sample-btn");
+                    
+                    // Close overlay function
+                    function closeOverlay() {
+                        $overlay.fadeOut(300, function() {
+                            $(this).remove();
+                        });
+                    }
+                    
+                    // Close button click
+                    $closeBtn.on("click", function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        closeOverlay();
+                    });
+                    
+                    // Play sample button click
+                    $playBtn.on("click", function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        closeOverlay();
+                        
+                        // Try to trigger video play after a short delay
+                        setTimeout(function() {
+                            // Look for fvplayer play button and click it
+                            var $playButton = $(".fvplayer-play-button, .fvplayer .play-button, .fvplayer button[aria-label*=\"Play\"], .fvplayer .fv-controls-play");
+                            if ($playButton.length > 0) {
+                                $playButton.first().trigger("click");
+                            } else {
+                                // Fallback: try to find and click any play button in the video container
+                                var $videoContainer = $(".alm-video-placeholder");
+                                var $playBtn = $videoContainer.find("button:contains(\'Play\'), .play, [class*=\"play\"]").first();
+                                if ($playBtn.length > 0) {
+                                    $playBtn.trigger("click");
+                                }
+                            }
+                        }, 350);
+                    });
+                    
+                    // Close on Escape key
+                    $(document).on("keydown.almSampleOverlay", function(e) {
+                        if (e.key === "Escape" && $overlay.is(":visible")) {
+                            closeOverlay();
+                            $(document).off("keydown.almSampleOverlay");
+                        }
+                    });
+                });
+                </script>';
             } else {
                 // No sample video - show upgrade message only
                 $return .= '<div class="alm-video-placeholder">';
@@ -3851,37 +3944,112 @@ class ALM_Shortcodes_Plugin {
                 }
             }
 
+            // Get REST endpoints and nonce for favorites - prepare for JS interpolation (define early)
+            if (!isset($rest_nonce_js)) {
+                $rest_nonce_js = esc_js(wp_create_nonce('wp_rest'));
+                $favorites_add_url_js = esc_js(rest_url('aph/v1/lesson-favorites'));
+                $favorites_remove_url_js = esc_js(rest_url('aph/v1/lesson-favorites/remove'));
+                $favorites_get_all_url_js = esc_js(rest_url('aph/v1/lesson-favorites'));
+                // Also define without _js suffix for later use
+                $rest_nonce = wp_create_nonce('wp_rest');
+                $favorites_add_url = rest_url('aph/v1/lesson-favorites');
+                $favorites_remove_url = rest_url('aph/v1/lesson-favorites/remove');
+                $favorites_get_all_url = rest_url('aph/v1/lesson-favorites');
+            }
+            
             // Card wrapper (position relative to allow bottom-right badges)
-            $return .= '<div class="alm-lesson-card-course' . ($is_completed ? ' alm-completed' : '') . '" style="position: relative;">';
+            $favorited_class = $is_favorited ? ' alm-favorited' : '';
+            $return .= '<div class="alm-lesson-card-course' . ($is_completed ? ' alm-completed' : '') . $favorited_class . '" style="position: relative;">';
             
             // Link to lesson if post exists
             if ($lesson->post_id) {
                 $lesson_url = get_permalink($lesson->post_id);
-                $return .= '<a href="' . esc_url($lesson_url) . '" class="alm-lesson-card-link">';
+                $return .= '<a href="' . esc_url($lesson_url) . '" class="alm-lesson-card-link" onclick="if(event.target.closest(\'button.alm-video-sample-btn, button.alm-favorite-btn-collection\')) { event.preventDefault(); event.stopPropagation(); return false; }">';
                 $return .= '<div class="alm-lesson-card-content" style="position: relative;">';
             } else {
                 $return .= '<div class="alm-lesson-card-content" style="position: relative;">';
             }
             
-            // Favorite button - positioned top right
-            $lesson_title = esc_attr(stripslashes($lesson->lesson_title));
-            $lesson_description = !empty($lesson->lesson_description) ? esc_attr(stripslashes($lesson->lesson_description)) : '';
-            $lesson_url_for_fav = $lesson->post_id ? esc_url(get_permalink($lesson->post_id)) : '';
+            // Lesson number badge at top
+            $return .= '<div class="alm-lesson-number">' . __('Lesson', 'academy-lesson-manager') . ' ' . $lesson_number . '</div>';
             
-            $return .= '<button type="button" class="alm-favorite-btn-collection' . ($is_favorited ? ' is-favorited' : '') . '" 
-                data-title="' . $lesson_title . '" 
-                data-url="' . $lesson_url_for_fav . '" 
-                data-description="' . $lesson_description . '"
-                onclick="almToggleCollectionFavorite(event, this); return false;"
-                style="position: absolute; top: 20px; right: 20px; background: ' . ($is_favorited ? 'rgba(240, 78, 35, 0.1)' : 'transparent') . '; border: none; cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 10; transition: all 0.2s ease; width: 36px; height: 36px; opacity: ' . ($is_favorited ? '1' : '0.6') . ';">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="' . ($is_favorited ? '#f04e23' : 'none') . '" stroke="' . ($is_favorited ? '#f04e23' : '#6b7280') . '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            // Inner content wrapper with padding
+            $return .= '<div class="alm-lesson-inner-content">';
+            
+            // Top-right actions container - moved down 20px
+            $return .= '<div class="alm-lesson-top-actions" style="position: absolute; top: 40px; right: 20px; display: flex; gap: 8px; align-items: center; z-index: 100; pointer-events: auto;">';
+            
+            // Check for sample video
+            $has_sample_video_url = !empty($lesson->sample_video_url) && $lesson->sample_video_url !== '0';
+            $has_sample_chapter = !empty($lesson->sample_chapter_id) && intval($lesson->sample_chapter_id) > 0;
+            $sample_video_url_to_use = '';
+            
+            if ($has_sample_video_url) {
+                $sample_video_url_to_use = $lesson->sample_video_url;
+            } elseif ($has_sample_chapter) {
+                // Get chapter video URL
+                $chapter = $wpdb->get_row($wpdb->prepare(
+                    "SELECT bunny_url, vimeo_id, youtube_id FROM {$wpdb->prefix}alm_chapters WHERE ID = %d",
+                    intval($lesson->sample_chapter_id)
+                ));
+                if ($chapter) {
+                    if (!empty($chapter->bunny_url)) {
+                        $sample_video_url_to_use = $chapter->bunny_url;
+                    } elseif (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
+                        $sample_video_url_to_use = 'https://vimeo.com/' . intval($chapter->vimeo_id);
+                    } elseif (!empty($chapter->youtube_id)) {
+                        $sample_video_url_to_use = 'https://www.youtube.com/watch?v=' . esc_attr($chapter->youtube_id);
+                    }
+                }
+            }
+            
+            // Video icon button (if sample URL exists) - positioned before favorite button
+            if (!empty($sample_video_url_to_use)) {
+                $lesson_title_for_modal = esc_js(stripslashes($lesson->lesson_title));
+                $sample_url_js = esc_js($sample_video_url_to_use);
+                $return .= '<button type="button" class="alm-video-sample-btn" 
+                    aria-label="Watch Free Sample Video"
+                    onclick="event.preventDefault(); event.stopPropagation(); openSampleModal(\'' . $sample_url_js . '\', \'' . $lesson_title_for_modal . '\'); return false;"
+                    title="Watch Free Sample Video">
+                    <span class="alm-sample-badge">FREE SAMPLE</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#239B90" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                    </svg>
+                </button>';
+            }
+            
+            // Favorite button - positioned next to video icon
+            $lesson_title_js = esc_js(stripslashes($lesson->lesson_title));
+            $lesson_description_js = !empty($lesson->lesson_description) ? esc_js(stripslashes($lesson->lesson_description)) : '';
+            $lesson_url_for_fav_js = $lesson->post_id ? esc_js(get_permalink($lesson->post_id)) : '';
+            $is_favorited_class = $is_favorited ? ' is-favorited' : '';
+            $favorite_fill = $is_favorited ? '#f04e23' : 'none';
+            $favorite_stroke = $is_favorited ? '#f04e23' : '#6b7280';
+            $favorite_bg = $is_favorited ? 'rgba(240, 78, 35, 0.1)' : 'transparent';
+            $favorite_opacity = $is_favorited ? '1' : '0.6';
+            
+            $return .= '<button type="button" class="alm-favorite-btn-collection' . $is_favorited_class . '" 
+                data-title="' . esc_attr(stripslashes($lesson->lesson_title)) . '" 
+                data-url="' . esc_attr($lesson_url_for_fav_js) . '" 
+                data-description="' . esc_attr($lesson_description_js) . '"
+                aria-label="Add as favorite"
+                onclick="event.preventDefault(); event.stopPropagation(); (function(){var btn=this;var isFavorited=btn.classList.contains(\'is-favorited\');var title=\'' . $lesson_title_js . '\';var url=\'' . $lesson_url_for_fav_js . '\';var description=\'' . $lesson_description_js . '\';if(!url){alert(\'This lesson is not available\');return;}var icon=btn.querySelector(\'svg path\');if(isFavorited){btn.classList.remove(\'is-favorited\');if(icon){icon.setAttribute(\'fill\',\'none\');icon.setAttribute(\'stroke\',\'#6b7280\');}btn.style.opacity=\'0.6\';btn.style.background=\'transparent\';btn.setAttribute(\'aria-label\',\'Add to Favorites\');}else{btn.classList.add(\'is-favorited\');if(icon){icon.setAttribute(\'fill\',\'#f04e23\');icon.setAttribute(\'stroke\',\'#f04e23\');}btn.style.opacity=\'1\';btn.style.background=\'rgba(240, 78, 35, 0.1)\';btn.setAttribute(\'aria-label\',\'Remove from Favorites\');}btn.style.pointerEvents=\'none\';var endpoint=isFavorited?\'' . $favorites_remove_url_js . '\':\'' . $favorites_add_url_js . '\';var data=isFavorited?{title:title}:{title:title,url:url,description:description,category:\'lesson\'};fetch(endpoint,{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-WP-Nonce\':\'' . $rest_nonce_js . '\'},body:JSON.stringify(data),credentials:\'same-origin\'}).then(function(response){return response.json();}).then(function(result){if(!result.success){if(isFavorited){btn.classList.add(\'is-favorited\');if(icon){icon.setAttribute(\'fill\',\'#f04e23\');icon.setAttribute(\'stroke\',\'#f04e23\');}btn.style.opacity=\'1\';btn.style.background=\'rgba(240, 78, 35, 0.1)\';btn.setAttribute(\'aria-label\',\'Remove from Favorites\');}else{btn.classList.remove(\'is-favorited\');if(icon){icon.setAttribute(\'fill\',\'none\');icon.setAttribute(\'stroke\',\'#6b7280\');}btn.style.opacity=\'0.6\';btn.style.background=\'transparent\';btn.setAttribute(\'aria-label\',\'Add to Favorites\');}alert(result.message||\'Failed to update favorite\');}btn.style.pointerEvents=\'auto\';}).catch(function(error){console.error(\'Error:\',error);if(isFavorited){btn.classList.add(\'is-favorited\');if(icon){icon.setAttribute(\'fill\',\'#f04e23\');icon.setAttribute(\'stroke\',\'#f04e23\');}btn.style.opacity=\'1\';btn.style.background=\'rgba(240, 78, 35, 0.1)\';btn.setAttribute(\'aria-label\',\'Remove from Favorites\');}else{btn.classList.remove(\'is-favorited\');if(icon){icon.setAttribute(\'fill\',\'none\');icon.setAttribute(\'stroke\',\'#6b7280\');}btn.style.opacity=\'0.6\';btn.style.background=\'transparent\';btn.setAttribute(\'aria-label\',\'Add to Favorites\');}btn.style.pointerEvents=\'auto\';alert(\'Network error. Please try again.\');});}).call(this); return false;"
+                style="background: ' . $favorite_bg . '; border: none; cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; width: 36px; height: 36px; opacity: ' . $favorite_opacity . ';">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="' . $favorite_fill . '" stroke="' . $favorite_stroke . '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
             </button>';
             
-            // Lesson number and title
-            $return .= '<div class="alm-lesson-number">' . __('Lesson', 'academy-lesson-manager') . ' ' . $lesson_number . '</div>';
-            $return .= '<h3 class="alm-lesson-title" style="padding-right: 64px;">' . esc_html(stripslashes($lesson->lesson_title)) . '</h3>';
+            $return .= '</div>'; // Close alm-lesson-top-actions
+            
+            // Calculate padding-right for title based on button count
+            // Video sample button is wider (~120px) with FREE SAMPLE text, favorite button is ~44px
+            $has_video = !empty($sample_video_url_to_use);
+            $has_favorite = true; // Favorite button always shown if logged in
+            $title_padding = ($has_video ? 120 : 0) + ($has_favorite ? 44 : 0) + 20; // Add 20px extra spacing
+            
+            // Lesson title - moved down 20px with margin-top
+            $return .= '<h3 class="alm-lesson-title" style="padding-right: ' . $title_padding . 'px; margin-top: 20px;">' . esc_html(stripslashes($lesson->lesson_title)) . '</h3>';
             
             // Lesson description
             if (!empty($lesson->lesson_description)) {
@@ -3927,13 +4095,16 @@ class ALM_Shortcodes_Plugin {
             
             // Resource badge icon on the right
             if ($has_resources) {
-                $return .= '<div class="alm-lesson-resource-badge" title="Resources available" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #f0f8f7; border: 1px solid #d4e8e5; color: #239B90; pointer-events: none;">';
+                $return .= '<div class="alm-lesson-resource-badge" 
+                    title="Lesson has resources" 
+                    style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #f0f8f7; border: 1px solid #d4e8e5; color: #239B90; pointer-events: none;">';
                 $return .= '<svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" /></svg>';
                 $return .= '</div>';
             }
             
             $return .= '</div>'; // Close bottom section flex container
 
+            $return .= '</div>'; // Close alm-lesson-inner-content
             $return .= '</div>'; // Close alm-lesson-card-content
             
             if ($lesson->post_id) {
@@ -3946,98 +4117,493 @@ class ALM_Shortcodes_Plugin {
         $return .= '</div>'; // Close alm-lessons-grid-course
         $return .= '</div>'; // Close alm-course-listing
         
-        // Add JavaScript for favorite functionality
-        $rest_nonce = wp_create_nonce('wp_rest');
-        $favorites_add_url = rest_url('aph/v1/lesson-favorites');
-        $favorites_remove_url = rest_url('aph/v1/lesson-favorites/remove');
-        
-        $return .= '<script>
-        function almToggleCollectionFavorite(event, btn) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            var isFavorited = btn.classList.contains("is-favorited");
-            var title = btn.getAttribute("data-title");
-            var url = btn.getAttribute("data-url");
-            var description = btn.getAttribute("data-description");
-            var starPath = btn.querySelector("svg path");
-            
-            if (!url) {
-                alert("This lesson is not available");
-                return;
-            }
-            
-            var endpoint = isFavorited 
-                ? "' . esc_js($favorites_remove_url) . '"
-                : "' . esc_js($favorites_add_url) . '";
-            
-            var data = isFavorited 
-                ? { title: title }
-                : { title: title, url: url, description: description, category: "lesson" };
-            
-            // Show loading state
-            btn.style.opacity = "0.5";
-            btn.style.pointerEvents = "none";
-            
-            fetch(endpoint, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-WP-Nonce": "' . esc_js($rest_nonce) . '"
-                },
-                body: JSON.stringify(data),
-                credentials: "same-origin"
-            })
-            .then(function(response){ return response.json(); })
-            .then(function(result){
-                if (result.success) {
-                    var svg = btn.querySelector("svg");
-                    if (isFavorited) {
-                        btn.classList.remove("is-favorited");
-                        svg.setAttribute("fill", "none");
-                        svg.setAttribute("stroke", "#6b7280");
-                        btn.style.opacity = "0.6";
-                        btn.style.background = "transparent";
-                    } else {
-                        btn.classList.add("is-favorited");
-                        svg.setAttribute("fill", "#f04e23");
-                        svg.setAttribute("stroke", "#f04e23");
-                        btn.style.opacity = "1";
-                        btn.style.background = "rgba(240, 78, 35, 0.1)";
-                    }
-                } else {
-                    alert(result.message || "Failed to update favorite");
-                }
-            })
-            .catch(function(error){
-                console.error("Favorite error:", error);
-                alert("Error updating favorite");
-            })
-            .finally(function(){
-                btn.style.pointerEvents = "auto";
-            });
+        // Add CSS for video sample button with FREE SAMPLE badge and favorited background
+        $return .= '<style>
+        /* Orange border for favorited lessons */
+        .alm-lesson-card-course.alm-favorited {
+            border-color: #f04e23 !important;
+            border-width: 2px !important;
+        }
+        .alm-video-sample-btn {
+            position: relative;
+            background: linear-gradient(135deg, #239B90 0%, #004555 100%) !important;
+            border: 2px solid #239B90 !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            width: auto !important;
+            height: auto !important;
+            opacity: 1 !important;
+            box-shadow: 0 2px 8px rgba(35, 155, 144, 0.2) !important;
         }
         
-        // Add hover effects to favorite buttons
-        document.addEventListener("DOMContentLoaded", function() {
-            var favoriteBtns = document.querySelectorAll(".alm-favorite-btn-collection");
-            favoriteBtns.forEach(function(btn) {
-                btn.addEventListener("mouseenter", function() {
-                    if (!this.classList.contains("is-favorited")) {
-                        this.style.opacity = "1";
-                        this.style.background = "rgba(240, 78, 35, 0.1)";
-                        this.style.transform = "scale(1.1)";
+        .alm-video-sample-btn:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.4) !important;
+            background: linear-gradient(135deg, #004555 0%, #239B90 100%) !important;
+        }
+        
+        .alm-sample-badge {
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            color: white !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            white-space: nowrap !important;
+        }
+        
+        .alm-video-sample-btn svg {
+            width: 18px !important;
+            height: 18px !important;
+            stroke: white !important;
+            flex-shrink: 0 !important;
+        }
+        </style>';
+        
+        // Add JavaScript for sample video modal (using same approach as search page)
+        $return .= '<script>
+        function openSampleModal(videoUrl, title) {
+            // Create modal if it doesn\'t exist
+            var modal = document.getElementById("alm-sample-modal");
+            if (!modal) {
+                modal = document.createElement("div");
+                modal.id = "alm-sample-modal";
+                modal.style.cssText = "display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); overflow: auto;";
+                
+                var modalContent = document.createElement("div");
+                modalContent.style.cssText = "position: relative; background-color: #ffffff; margin: 5% auto; padding: 0; width: 90%; max-width: 900px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);";
+                
+                var modalHeader = document.createElement("div");
+                modalHeader.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #e9ecef;";
+                
+                var modalTitle = document.createElement("h2");
+                modalTitle.id = "alm-sample-modal-title";
+                modalTitle.style.cssText = "margin: 0; font-size: 20px; font-weight: 600; color: #004555;";
+                modalTitle.textContent = title;
+                
+                var closeBtn = document.createElement("button");
+                closeBtn.type = "button";
+                closeBtn.innerHTML = "&times;";
+                closeBtn.style.cssText = "background: none; border: none; font-size: 32px; font-weight: 300; color: #6c757d; cursor: pointer; padding: 0; width: 32px; height: 32px; line-height: 1;";
+                closeBtn.onclick = closeSampleModal;
+                
+                modalHeader.appendChild(modalTitle);
+                modalHeader.appendChild(closeBtn);
+                
+                var modalBody = document.createElement("div");
+                modalBody.id = "alm-sample-modal-body";
+                modalBody.style.cssText = "padding: 24px;";
+                
+                modalContent.appendChild(modalHeader);
+                modalContent.appendChild(modalBody);
+                modal.appendChild(modalContent);
+                
+                // Close on background click
+                modal.onclick = function(e) {
+                    if (e.target === modal) {
+                        closeSampleModal();
+                    }
+                };
+                
+                // Close on Escape key
+                document.addEventListener("keydown", function(e) {
+                    if (e.key === "Escape" && modal.style.display === "block") {
+                        closeSampleModal();
                     }
                 });
-                btn.addEventListener("mouseleave", function() {
-                    if (!this.classList.contains("is-favorited")) {
-                        this.style.opacity = "0.6";
-                        this.style.background = "transparent";
-                        this.style.transform = "scale(1)";
+                
+                document.body.appendChild(modal);
+            }
+            
+            // Convert video URL to embed format if needed
+            var embedUrl = convertToEmbedUrl(videoUrl);
+            
+            // Update modal content
+            document.getElementById("alm-sample-modal-title").textContent = title;
+            var modalBody = document.getElementById("alm-sample-modal-body");
+            modalBody.innerHTML = "<div style=\"position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;\">" +
+                "<iframe src=\"" + escapeHtml(embedUrl) + "\" style=\"position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;\" allowfullscreen></iframe>" +
+                "</div>";
+            
+            // Show modal
+            modal.style.display = "block";
+            document.body.style.overflow = "hidden";
+        }
+        
+        function closeSampleModal() {
+            var modal = document.getElementById("alm-sample-modal");
+            if (modal) {
+                modal.style.display = "none";
+                document.body.style.overflow = "";
+                // Clear iframe to stop video playback
+                var modalBody = document.getElementById("alm-sample-modal-body");
+                if (modalBody) {
+                    modalBody.innerHTML = "";
+                }
+            }
+        }
+        
+        function escapeHtml(text) {
+            var map = {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                "\\"": "&quot;",
+                "\'": "&#039;"
+            };
+            return text.replace(/[&<>"\']/g, function(m) { return map[m]; });
+        }
+        
+        function convertToEmbedUrl(url) {
+            // Vimeo: https://vimeo.com/123456 -> https://player.vimeo.com/video/123456
+            var vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+            if (vimeoMatch) {
+                return "https://player.vimeo.com/video/" + vimeoMatch[1];
+            }
+            
+            // YouTube: https://www.youtube.com/watch?v=abc123 -> https://www.youtube.com/embed/abc123
+            var youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+            if (youtubeMatch) {
+                return "https://www.youtube.com/embed/" + youtubeMatch[1];
+            }
+            
+            // Bunny.net or other direct URLs - use as-is
+            return url;
+        }
+        </script>';
+        
+        // Add JavaScript for favorite functionality with performance optimizations
+        $is_user_logged_in = is_user_logged_in() ? 'true' : 'false';
+        
+        $return .= '<script>
+        (function() {
+            // Favorites cache management
+            var favoritesCache = {
+                key: "alm_lesson_favorites_cache",
+                timestampKey: "alm_lesson_favorites_timestamp",
+                maxAge: 5 * 60 * 1000, // 5 minutes
+                
+                get: function() {
+                    try {
+                        var cached = sessionStorage.getItem(this.key);
+                        var timestamp = sessionStorage.getItem(this.timestampKey);
+                        if (cached && timestamp) {
+                            var age = Date.now() - parseInt(timestamp, 10);
+                            if (age < this.maxAge) {
+                                return JSON.parse(cached);
+                            }
+                        }
+                    } catch (e) {
+                        // Ignore storage errors
                     }
+                    return null;
+                },
+                
+                set: function(favorites) {
+                    try {
+                        sessionStorage.setItem(this.key, JSON.stringify(favorites));
+                        sessionStorage.setItem(this.timestampKey, Date.now().toString());
+                    } catch (e) {
+                        // Ignore storage errors
+                    }
+                },
+                
+                clear: function() {
+                    try {
+                        sessionStorage.removeItem(this.key);
+                        sessionStorage.removeItem(this.timestampKey);
+                    } catch (e) {
+                        // Ignore storage errors
+                    }
+                }
+            };
+            
+            // Fetch favorites EARLY (as soon as page loads, if user is logged in)
+            var favoritesPromise = null;
+            if (' . $is_user_logged_in . ') {
+                favoritesPromise = fetch("' . esc_js($favorites_get_all_url) . '", {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-WP-Nonce": "' . esc_js($rest_nonce) . '"
+                    },
+                    credentials: "same-origin"
+                })
+                .then(function(response){
+                    if (response.status === 403) {
+                        return [];
+                    }
+                    if (!response.ok) {
+                        return [];
+                    }
+                    return response.json();
+                })
+                .then(function(result){
+                    if (result.success && result.favorites && Array.isArray(result.favorites)) {
+                        // Cache the favorites
+                        favoritesCache.set(result.favorites);
+                        return result.favorites;
+                    }
+                    return [];
+                })
+                .catch(function(error){
+                    if (error.name !== "TypeError") {
+                        console.error("Favorites fetch error:", error);
+                    }
+                    return [];
+                });
+            }
+            
+            // Function to apply favorites to buttons
+            function applyFavoritesToButtons(favorites) {
+                if (!favorites || !Array.isArray(favorites)) {
+                    return;
+                }
+                
+                // Create a Set of favorited titles for fast lookup
+                var favoritedTitles = new Set();
+                favorites.forEach(function(fav){
+                    if (fav.title) {
+                        favoritedTitles.add(fav.title);
+                    }
+                });
+                
+                // Apply favorite state to all buttons at once
+                var favoriteBtns = document.querySelectorAll(".alm-favorite-btn-collection");
+                favoriteBtns.forEach(function(btn){
+                    var title = btn.getAttribute("data-title");
+                    if (title && favoritedTitles.has(title)) {
+                        btn.classList.add("is-favorited");
+                        var icon = btn.querySelector("svg path");
+                        if (icon) {
+                            icon.setAttribute("fill", "#f04e23");
+                            icon.setAttribute("stroke", "#f04e23");
+                        }
+                        btn.style.opacity = "1";
+                        btn.style.background = "rgba(240, 78, 35, 0.1)";
+                        btn.setAttribute("aria-label", "Remove from Favorites");
+                        
+                        // Add favorited class to parent card
+                        var card = btn.closest(".alm-lesson-card-course");
+                        if (card) {
+                            card.classList.add("alm-favorited");
+                        }
+                    }
+                });
+            }
+            
+            // Apply favorites when DOM is ready
+            document.addEventListener("DOMContentLoaded", function() {
+                // First, try to use cached favorites for instant display
+                var cachedFavorites = favoritesCache.get();
+                if (cachedFavorites) {
+                    applyFavoritesToButtons(cachedFavorites);
+                }
+                
+                // Then, update from API promise (if it\'s still pending or use the result)
+                if (favoritesPromise) {
+                    favoritesPromise.then(function(favorites){
+                        if (favorites && favorites.length > 0) {
+                            applyFavoritesToButtons(favorites);
+                        }
+                    });
+                }
+            });
+            
+            // Toggle favorite function with optimistic UI updates
+            window.almToggleCollectionFavorite = function(event, btn) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                var isFavorited = btn.classList.contains("is-favorited");
+                var title = btn.getAttribute("data-title");
+                var url = btn.getAttribute("data-url");
+                var description = btn.getAttribute("data-description");
+                var icon = btn.querySelector("svg path");
+                
+                if (!url) {
+                    alert("This lesson is not available");
+                    return;
+                }
+                
+                // Get parent card for background styling
+                var card = btn.closest(".alm-lesson-card-course");
+                
+                // Optimistic UI update - change immediately before AJAX
+                if (isFavorited) {
+                    // Removing favorite - change to unfilled immediately
+                    btn.classList.remove("is-favorited");
+                    if (icon) {
+                        icon.setAttribute("fill", "none");
+                        icon.setAttribute("stroke", "#6b7280");
+                    }
+                    btn.style.opacity = "0.6";
+                    btn.style.background = "transparent";
+                    btn.setAttribute("aria-label", "Add to Favorites");
+                    // Remove favorited background from card
+                    if (card) {
+                        card.classList.remove("alm-favorited");
+                    }
+                } else {
+                    // Adding favorite - change to filled immediately
+                    btn.classList.add("is-favorited");
+                    if (icon) {
+                        icon.setAttribute("fill", "#f04e23");
+                        icon.setAttribute("stroke", "#f04e23");
+                    }
+                    btn.style.opacity = "1";
+                    btn.style.background = "rgba(240, 78, 35, 0.1)";
+                    btn.setAttribute("aria-label", "Remove from Favorites");
+                    // Add favorited background to card
+                    if (card) {
+                        card.classList.add("alm-favorited");
+                    }
+                }
+                
+                // Disable button during request to prevent double-clicks
+                btn.style.pointerEvents = "none";
+                
+                var endpoint = isFavorited 
+                    ? "' . esc_js($favorites_remove_url) . '"
+                    : "' . esc_js($favorites_add_url) . '";
+                
+                var data = isFavorited 
+                    ? { title: title }
+                    : { title: title, url: url, description: description, category: "lesson" };
+                
+                fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-WP-Nonce": "' . esc_js($rest_nonce) . '"
+                    },
+                    body: JSON.stringify(data),
+                    credentials: "same-origin"
+                })
+                .then(function(response){ return response.json(); })
+                .then(function(result){
+                    if (!result.success) {
+                        // Revert UI change if request failed
+                        if (isFavorited) {
+                            // Was removing, but failed - restore to favorited state
+                            btn.classList.add("is-favorited");
+                            if (icon) {
+                                icon.setAttribute("fill", "#f04e23");
+                                icon.setAttribute("stroke", "#f04e23");
+                            }
+                            btn.style.opacity = "1";
+                            btn.style.background = "rgba(240, 78, 35, 0.1)";
+                            btn.setAttribute("aria-label", "Remove from Favorites");
+                            // Restore favorited background to card
+                            if (card) {
+                                card.classList.add("alm-favorited");
+                            }
+                        } else {
+                            // Was adding, but failed - restore to unfavorited state
+                            btn.classList.remove("is-favorited");
+                            if (icon) {
+                                icon.setAttribute("fill", "none");
+                                icon.setAttribute("stroke", "#6b7280");
+                            }
+                            btn.style.opacity = "0.6";
+                            btn.style.background = "transparent";
+                            btn.setAttribute("aria-label", "Add to Favorites");
+                            // Remove favorited background from card
+                            if (card) {
+                                card.classList.remove("alm-favorited");
+                            }
+                        }
+                        alert(result.message || "Failed to update favorite");
+                    } else {
+                        // Success - update cache by fetching fresh favorites
+                        favoritesCache.clear();
+                        // Fetch fresh favorites in background to update cache
+                        fetch("' . esc_js($favorites_get_all_url) . '", {
+                            method: "GET",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-WP-Nonce": "' . esc_js($rest_nonce) . '"
+                            },
+                            credentials: "same-origin"
+                        })
+                        .then(function(response){
+                            if (response.status === 403 || !response.ok) {
+                                return [];
+                            }
+                            return response.json();
+                        })
+                        .then(function(result){
+                            if (result.success && result.favorites && Array.isArray(result.favorites)) {
+                                favoritesCache.set(result.favorites);
+                            }
+                        })
+                        .catch(function(error){
+                            // Silently fail cache update
+                        });
+                    }
+                })
+                .catch(function(error){
+                    console.error("Favorite error:", error);
+                    // Revert UI change on error
+                    if (isFavorited) {
+                        btn.classList.add("is-favorited");
+                        if (icon) {
+                            icon.setAttribute("fill", "#f04e23");
+                            icon.setAttribute("stroke", "#f04e23");
+                        }
+                        btn.style.opacity = "1";
+                        btn.style.background = "rgba(240, 78, 35, 0.1)";
+                        btn.setAttribute("aria-label", "Remove from Favorites");
+                        // Restore favorited background to card
+                        if (card) {
+                            card.classList.add("alm-favorited");
+                        }
+                    } else {
+                        btn.classList.remove("is-favorited");
+                        if (icon) {
+                            icon.setAttribute("fill", "none");
+                            icon.setAttribute("stroke", "#6b7280");
+                        }
+                        btn.style.opacity = "0.6";
+                        btn.style.background = "transparent";
+                        btn.setAttribute("aria-label", "Add to Favorites");
+                        // Remove favorited background from card
+                        if (card) {
+                            card.classList.remove("alm-favorited");
+                        }
+                    }
+                    alert("Error updating favorite");
+                })
+                .finally(function(){
+                    btn.style.pointerEvents = "auto";
+                });
+            };
+            
+            // Add hover effects to favorite buttons
+            document.addEventListener("DOMContentLoaded", function() {
+                var favoriteBtns = document.querySelectorAll(".alm-favorite-btn-collection");
+                favoriteBtns.forEach(function(btn) {
+                    btn.addEventListener("mouseenter", function() {
+                        if (!this.classList.contains("is-favorited")) {
+                            this.style.opacity = "1";
+                            this.style.background = "rgba(240, 78, 35, 0.1)";
+                            this.style.transform = "scale(1.1)";
+                        }
+                    });
+                    btn.addEventListener("mouseleave", function() {
+                        if (!this.classList.contains("is-favorited")) {
+                            this.style.opacity = "0.6";
+                            this.style.background = "transparent";
+                            this.style.transform = "scale(1)";
+                        }
+                    });
                 });
             });
-        });
+        })();
         </script>';
         
         return $return;
@@ -4896,17 +5462,28 @@ class ALM_Shortcodes_Plugin {
         $notes = $wpdb->get_results($wpdb->prepare(
             "SELECT n.*, 
                     l.lesson_title,
+                    l.post_id AS lesson_post_id,
                     p.post_title
              FROM {$table_name} n
              LEFT JOIN {$wpdb->prefix}alm_lessons l ON n.lesson_id = l.ID
              LEFT JOIN {$wpdb->posts} p ON n.post_id = p.ID
              WHERE n.user_id = %d
-             ORDER BY n.updated_at DESC",
+             ORDER BY n.created_at DESC",
             $user_id
         ));
         
         $nonce = wp_create_nonce('alm_notes_crud_nonce');
         $ajax_url = admin_url('admin-ajax.php');
+        
+        // Check if user has old notes (for jump button)
+        $has_old_notes = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM academy_user_notes 
+             WHERE user_id = %d 
+               AND user_notes IS NOT NULL 
+               AND TRIM(user_notes) != ''
+               AND deleted_at IS NULL",
+            $user_id
+        )) > 0;
         
         $return = '<div class="alm-notes-manager">';
         $return .= '<div class="alm-notes-header">';
@@ -4916,10 +5493,34 @@ class ALM_Shortcodes_Plugin {
         $return .= '<button class="alm-btn-export-csv" style="background: #6b7280; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; margin-right: 12px;">';
         $return .= '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
         $return .= 'Export CSV</button>';
-        $return .= '<button class="alm-btn-create-note" style="background: #229B90; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px;">+ New Note</button>';
+        $return .= '<button class="alm-btn-create-note" style="background: #229B90; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; margin-right: 12px;">+ New Note</button>';
         $return .= '</div>';
         $return .= '</div>';
         $return .= '</div>';
+        
+        // Sort buttons
+        if (!empty($notes)) {
+            $return .= '<div class="alm-notes-sort-controls" style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 12px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; flex-wrap: wrap;">';
+            $return .= '<span style="font-size: 14px; font-weight: 500; color: #374151; margin-right: 8px;">Sort by:</span>';
+            $return .= '<button class="alm-btn-sort" data-sort="created-desc" style="background: #229B90; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">';
+            $return .= '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>';
+            $return .= 'Date Created (Newest)</button>';
+            $return .= '<button class="alm-btn-sort" data-sort="created-asc" style="background: white; color: #374151; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">';
+            $return .= '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" /></svg>';
+            $return .= 'Date Created (Oldest)</button>';
+            $return .= '<button class="alm-btn-sort" data-sort="updated-desc" style="background: white; color: #374151; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">';
+            $return .= '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>';
+            $return .= 'Last Updated (Newest)</button>';
+            $return .= '<button class="alm-btn-sort" data-sort="updated-asc" style="background: white; color: #374151; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">';
+            $return .= '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" /></svg>';
+            $return .= 'Last Updated (Oldest)</button>';
+            if ($has_old_notes) {
+                $return .= '<button class="alm-btn-jump-archive" style="background: #6b7280; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; margin-left: auto;">';
+                $return .= '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>';
+                $return .= 'Jump to Archived Notes</button>';
+            }
+            $return .= '</div>';
+        }
         
         // Create/Edit form (hidden by default)
         $return .= '<div class="alm-note-form-container" style="display: none; margin-top: 20px; padding: 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">';
@@ -4954,14 +5555,36 @@ class ALM_Shortcodes_Plugin {
                 $note_preview = wp_strip_all_tags($note->notes_content);
                 $note_preview = mb_strimwidth($note_preview, 0, 150, '...');
                 
-                $return .= '<div class="alm-note-item" data-note-id="' . $note->id . '" data-lesson-id="' . ($note->lesson_id ? $note->lesson_id : '') . '" data-created-at="' . esc_attr($created_date) . '" data-updated-at="' . esc_attr($note_date) . '" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 12px; transition: all 0.2s ease;">';
+                $created_timestamp = strtotime($note->created_at);
+                $updated_timestamp = strtotime($note->updated_at);
+                $return .= '<div class="alm-note-item" data-note-id="' . $note->id . '" data-lesson-id="' . ($note->lesson_id ? $note->lesson_id : '') . '" data-created-at="' . esc_attr($created_date) . '" data-updated-at="' . esc_attr($note_date) . '" data-created-timestamp="' . esc_attr($created_timestamp) . '" data-updated-timestamp="' . esc_attr($updated_timestamp) . '" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 12px; transition: all 0.2s ease;">';
                 
                 // Note header
                 $return .= '<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">';
                 $return .= '<div style="flex: 1;">';
-                $note_title = !empty($note->title) ? $note->title : (!empty($note->lesson_title) ? $note->lesson_title : (!empty($note->post_title) ? $note->post_title : __('General Note', 'academy-lesson-manager')));
-                $return .= '<div style="font-weight: 600; color: #111827; margin-bottom: 4px; font-size: 16px;">' . esc_html($note_title) . '</div>';
-                $return .= '<div style="font-size: 12px; color: #6b7280;">' . esc_html($note_date) . '</div>';
+                $note_title = !empty($note->title) ? stripslashes($note->title) : (!empty($note->lesson_title) ? stripslashes($note->lesson_title) : (!empty($note->post_title) ? stripslashes($note->post_title) : __('General Note', 'academy-lesson-manager')));
+                
+                // Determine lesson/post URL - prioritize post_id from note, then lesson_post_id
+                $lesson_url = '';
+                if (!empty($note->post_id)) {
+                    $lesson_url = get_permalink($note->post_id);
+                } elseif (!empty($note->lesson_post_id)) {
+                    $lesson_url = get_permalink($note->lesson_post_id);
+                }
+                
+                $return .= '<div style="font-weight: 600; color: #111827; margin-bottom: 4px; font-size: 16px; display: flex; align-items: center; gap: 8px;">';
+                $return .= '<span>' . esc_html($note_title) . '</span>';
+                if ($lesson_url) {
+                    $return .= '<a href="' . esc_url($lesson_url) . '" target="_blank" style="color: #229B90; text-decoration: none; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px;" title="' . __('View Lesson', 'academy-lesson-manager') . '">';
+                    $return .= '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>';
+                    $return .= '<span>' . __('View Lesson', 'academy-lesson-manager') . '</span>';
+                    $return .= '</a>';
+                }
+                $return .= '</div>';
+                $return .= '<div style="font-size: 12px; color: #6b7280; line-height: 1.5;">';
+                $return .= '<div>Created on: ' . esc_html($created_date) . '</div>';
+                $return .= '<div>Last updated: ' . esc_html($note_date) . '</div>';
+                $return .= '</div>';
                 $return .= '</div>';
                 $return .= '<div style="display: flex; gap: 8px; align-items: center;">';
                 $return .= '<button class="alm-btn-print-note" data-note-id="' . $note->id . '" style="background: none; border: 1px solid #d1d5db; color: #374151; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;" title="Print">';
@@ -4983,6 +5606,62 @@ class ALM_Shortcodes_Plugin {
                 
                 $return .= '</div>';
             }
+            $return .= '</div>';
+        }
+        
+        // Old Notes Section (from academy_user_notes)
+        $old_notes = $wpdb->get_results($wpdb->prepare(
+            "SELECT n.*, 
+                    l.lesson_title,
+                    p.post_title
+             FROM academy_user_notes n
+             LEFT JOIN {$wpdb->prefix}alm_lessons l ON n.lesson_id = l.ID
+             LEFT JOIN {$wpdb->posts} p ON n.post_id = p.ID
+             WHERE n.user_id = %d
+               AND n.user_notes IS NOT NULL 
+               AND TRIM(n.user_notes) != ''
+               AND n.deleted_at IS NULL
+             ORDER BY n.datetime DESC",
+            $user_id
+        ));
+        
+        if (!empty($old_notes)) {
+            $return .= '<div id="alm-archived-notes" class="alm-old-notes-section" style="margin-top: 60px; padding-top: 40px; border-top: 2px solid #e5e7eb;">';
+            $return .= '<div class="alm-old-notes-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">';
+            $return .= '<div>';
+            $return .= '<h2 class="alm-old-notes-title" style="margin: 0; font-size: 28px; font-weight: 700; color: #111827; line-height: 1.2;">' . __('Archive Notes', 'academy-lesson-manager') . '</h2>';
+            $return .= '<p style="margin: 8px 0 0 0; color: #6b7280; font-size: 14px;">' . __('These are your notes from the previous system. They are read-only.', 'academy-lesson-manager') . '</p>';
+            $return .= '</div>';
+            $return .= '<button class="alm-btn-export-old-csv" style="background: #6b7280; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;">';
+            $return .= '<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
+            $return .= 'Export Archive CSV</button>';
+            $return .= '</div>';
+            
+            $return .= '<div class="alm-old-notes-list" style="margin-top: 20px;">';
+            foreach ($old_notes as $note) {
+                $note_date = date('M j, Y g:i a', strtotime($note->datetime));
+                $note_preview = wp_strip_all_tags($note->user_notes);
+                $note_preview = mb_strimwidth($note_preview, 0, 150, '...');
+                
+                $return .= '<div class="alm-old-note-item" data-note-id="' . $note->ID . '" data-datetime="' . esc_attr($note->datetime) . '" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 12px; opacity: 0.9;">';
+                
+                // Note header
+                $return .= '<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">';
+                $return .= '<div style="flex: 1;">';
+                $note_title = !empty($note->lesson_title) ? stripslashes($note->lesson_title) : (!empty($note->post_title) ? stripslashes($note->post_title) : __('General Note', 'academy-lesson-manager'));
+                $return .= '<div style="font-weight: 600; color: #111827; margin-bottom: 4px; font-size: 16px;">' . esc_html($note_title) . '</div>';
+                $return .= '<div style="font-size: 12px; color: #6b7280;">' . esc_html($note_date) . '</div>';
+                $return .= '</div>';
+                $return .= '</div>';
+                
+                // Note content preview - store full content in data attribute
+                $return .= '<div class="alm-old-note-content" style="color: #4b5563; line-height: 1.6; margin-top: 10px;" data-full-content="' . esc_attr($note->user_notes) . '">';
+                $return .= '<div style="max-height: 100px; overflow: hidden;">' . wp_kses_post($note->user_notes) . '</div>';
+                $return .= '</div>';
+                
+                $return .= '</div>';
+            }
+            $return .= '</div>';
             $return .= '</div>';
         }
         
@@ -5033,6 +5712,28 @@ class ALM_Shortcodes_Plugin {
         .alm-note-content p:last-child {
             margin-bottom: 0;
         }
+        .alm-old-notes-section {
+            margin-top: 60px;
+            padding-top: 40px;
+            border-top: 2px solid #e5e7eb;
+        }
+        .alm-old-note-item {
+            background: #f9fafb;
+            opacity: 0.9;
+        }
+        .alm-old-note-item:hover {
+            opacity: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .alm-old-note-content {
+            color: #4b5563;
+        }
+        .alm-old-note-content p {
+            margin: 0 0 8px 0;
+        }
+        .alm-old-note-content p:last-child {
+            margin-bottom: 0;
+        }
         </style>';
         
         // Add JavaScript
@@ -5043,6 +5744,77 @@ class ALM_Shortcodes_Plugin {
             var $createBtn = $(".alm-btn-create-note");
             var $cancelBtn = $(".alm-btn-cancel-note");
             var allLessons = [];
+            
+            // Set default sort button (Date Created Newest) as active on page load
+            $(".alm-btn-sort").filter(function() {
+                return $(this).data("sort") === "created-desc";
+            }).css({
+                "background": "#229B90",
+                "color": "white",
+                "border": "none"
+            });
+            
+            // Sort notes functionality
+            $(".alm-btn-sort").on("click", function() {
+                var sortType = $(this).data("sort");
+                var $notesList = $(".alm-notes-list");
+                
+                // Get all note items and detach them (preserves data attributes)
+                var $notes = $notesList.find(".alm-note-item").detach();
+                
+                // Remove active state from all buttons
+                $(".alm-btn-sort").css({
+                    "background": "white",
+                    "color": "#374151",
+                    "border": "1px solid #d1d5db"
+                });
+                
+                // Set active state on clicked button
+                $(this).css({
+                    "background": "#229B90",
+                    "color": "white",
+                    "border": "none"
+                });
+                
+                // Convert to array for sorting
+                var notesArray = $notes.toArray();
+                
+                // Sort notes
+                notesArray.sort(function(a, b) {
+                    var aVal, bVal;
+                    var $a = $(a);
+                    var $b = $(b);
+                    
+                    if (sortType.indexOf("created") !== -1) {
+                        aVal = parseInt($a.data("created-timestamp")) || 0;
+                        bVal = parseInt($b.data("created-timestamp")) || 0;
+                    } else {
+                        aVal = parseInt($a.data("updated-timestamp")) || 0;
+                        bVal = parseInt($b.data("updated-timestamp")) || 0;
+                    }
+                    
+                    if (sortType.indexOf("desc") !== -1) {
+                        return bVal - aVal; // Descending
+                    } else {
+                        return aVal - bVal; // Ascending
+                    }
+                });
+                
+                // Re-append sorted notes
+                $.each(notesArray, function(index, note) {
+                    $notesList.append(note);
+                });
+            });
+            
+            // Jump to archived notes
+            $(".alm-btn-jump-archive").on("click", function() {
+                var $target = $("#alm-archived-notes");
+                if ($target.length) {
+                    $("html, body").animate({
+                        scrollTop: $target.offset().top - 20
+                    }, 500);
+                }
+            });
             
             // Show create form
             $createBtn.on("click", function() {
@@ -5092,14 +5864,16 @@ class ALM_Shortcodes_Plugin {
                 
                 // Create print window content
                 var noteTitle = $noteItem.find("div[style*=\"font-weight: 600\"]").first().text();
-                var noteDate = $noteItem.find("div[style*=\"font-size: 12px\"]").first().text();
+                var dateCreated = $noteItem.data("created-at") || "";
+                var dateUpdated = $noteItem.data("updated-at") || "";
+                var noteDate = "Created on: " + dateCreated + "<br>Last updated: " + dateUpdated;
                 var noteContent = $noteItem.find(".alm-note-content").html();
                 
                 var printWindow = window.open("", "_blank");
                 printWindow.document.write("<!DOCTYPE html><html><head><title>" + noteTitle + "</title>");
                 printWindow.document.write("<style>body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }");
                 printWindow.document.write("h1 { font-size: 24px; margin-bottom: 10px; color: #111827; }");
-                printWindow.document.write(".note-meta { color: #6b7280; font-size: 14px; margin-bottom: 20px; }");
+                printWindow.document.write(".note-meta { color: #6b7280; font-size: 14px; margin-bottom: 20px; line-height: 1.5; }");
                 printWindow.document.write(".note-content { line-height: 1.6; color: #4b5563; }");
                 printWindow.document.write("@media print { body { padding: 20px; } }</style></head><body>");
                 printWindow.document.write("<h1>" + noteTitle + "</h1>");
@@ -5162,6 +5936,67 @@ class ALM_Shortcodes_Plugin {
                 var url = URL.createObjectURL(blob);
                 link.setAttribute("href", url);
                 link.setAttribute("download", "my-notes-" + new Date().toISOString().split("T")[0] + ".csv");
+                link.style.visibility = "hidden";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+            
+            // Export Old Notes CSV
+            $(".alm-btn-export-old-csv").on("click", function() {
+                // Helper function to properly escape CSV fields
+                function escapeCsvField(field) {
+                    if (field === null || field === undefined) {
+                        return "";
+                    }
+                    field = String(field);
+                    // Normalize whitespace - replace all types of whitespace/newlines with single space
+                    field = field.replace(/[\\s\\r\\n\\t]+/g, " ").trim();
+                    // If field contains comma, quote, or starts/ends with space, wrap in quotes
+                    if (field.indexOf(",") !== -1 || field.indexOf("\"") !== -1 || field.indexOf("\\n") !== -1) {
+                        // Escape quotes by doubling them
+                        return "\"" + field.replace(/"/g, "\"\"") + "\"";
+                    }
+                    return field;
+                }
+                
+                // CSV header
+                var csvRows = ["Title,Content,Date"];
+                
+                // Process each old note
+                $(".alm-old-note-item").each(function() {
+                    var $item = $(this);
+                    var title = $item.find("div[style*=\"font-weight: 600\"]").first().text().trim();
+                    var content = $item.find(".alm-old-note-content").text().trim();
+                    var noteDate = $item.data("datetime") || "";
+                    
+                    // Format date if available
+                    if (noteDate) {
+                        var dateObj = new Date(noteDate);
+                        if (!isNaN(dateObj.getTime())) {
+                            noteDate = dateObj.toLocaleString();
+                        }
+                    }
+                    
+                    // Escape each field
+                    var escapedTitle = escapeCsvField(title);
+                    var escapedContent = escapeCsvField(content);
+                    var escapedDate = escapeCsvField(noteDate);
+                    
+                    // Build CSV row
+                    var row = escapedTitle + "," + escapedContent + "," + escapedDate;
+                    csvRows.push(row);
+                });
+                
+                // Join all rows with newline
+                var csv = csvRows.join("\\n");
+                
+                // Create download link
+                var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                var link = document.createElement("a");
+                var url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "archive-notes-" + new Date().toISOString().split("T")[0] + ".csv");
                 link.style.visibility = "hidden";
                 document.body.appendChild(link);
                 link.click();
@@ -5287,12 +6122,24 @@ class ALM_Shortcodes_Plugin {
         global $wpdb;
         $post_id = get_the_ID();
         
+        // Get lesson_id from post_id if available
+        $lesson_id = null;
+        if ($post_id) {
+            $lesson = $wpdb->get_row($wpdb->prepare(
+                "SELECT ID FROM {$wpdb->prefix}alm_lessons WHERE post_id = %d LIMIT 1",
+                $post_id
+            ));
+            if ($lesson) {
+                $lesson_id = $lesson->ID;
+            }
+        }
+        
         $result = $wpdb->insert(
             $wpdb->prefix . 'alm_user_notes',
             array(
                 'user_id' => $user_id,
                 'post_id' => $post_id ? $post_id : 0,
-                'lesson_id' => null,
+                'lesson_id' => $lesson_id,
                 'title' => $title,
                 'notes_content' => $notes_content,
                 'created_at' => current_time('mysql'),
@@ -5413,6 +6260,30 @@ class ALM_Shortcodes_Plugin {
     /**
      * AJAX handler: Get lessons list for dropdown
      */
+    /**
+     * AJAX handler to process shortcodes server-side
+     */
+    public function ajax_process_shortcode() {
+        check_ajax_referer('alm_shortcode_nonce', 'nonce');
+        
+        if (!current_user_can('read')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+            return;
+        }
+        
+        $shortcode = isset($_POST['shortcode']) ? sanitize_text_field($_POST['shortcode']) : '';
+        
+        if (empty($shortcode)) {
+            wp_send_json_error(array('message' => 'No shortcode provided'));
+            return;
+        }
+        
+        // Process the shortcode
+        $output = do_shortcode($shortcode);
+        
+        wp_send_json_success(array('data' => $output));
+    }
+    
     public function ajax_get_lessons_list() {
         $user_id = get_current_user_id();
         if (!$user_id) {
@@ -5751,6 +6622,1189 @@ class ALM_Shortcodes_Plugin {
         }
 
         return $return;
+    }
+    
+    /**
+     * Pricing Table Shortcode
+     * Displays membership pricing table with Essentials, Studio, and Premier options
+     */
+    public function pricing_table_shortcode($atts, $content = NULL) {
+        // Check if pricing function exists
+        if (!function_exists('je_get_all_membership_pricing')) {
+            return '<p style="color: red;">Pricing function not available. Please contact support.</p>';
+        }
+        
+        // Enqueue microtip CSS for tooltips
+        wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
+        
+        // Get pricing data
+        $pricing = je_get_all_membership_pricing();
+        
+        // Essentials
+        $essentials_yearly = $pricing['essentials']['yearly'] ?? array('price' => 175, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/JA_YEAR_ESSENTIALS', 'is_sale' => false, 'is_doorbuster' => false, 'retail_price' => 175);
+        
+        // Studio
+        $studio_monthly = $pricing['studio']['monthly'] ?? array('price' => 39, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/ja_monthly_studio_retail', 'is_sale' => false, 'is_doorbuster' => false, 'retail_price' => 39);
+        $studio_yearly = $pricing['studio']['yearly'] ?? array('price' => 390, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_studio', 'is_sale' => false, 'is_doorbuster' => false, 'retail_price' => 390);
+        
+        // Premier
+        $premier_yearly = $pricing['premier']['yearly'] ?? array('price' => 649, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_premier_retail', 'is_sale' => false, 'is_doorbuster' => false, 'retail_price' => 649);
+        
+        ob_start();
+        ?>
+        <div class="membership-order-form">
+            
+            <!-- Membership Cards Container -->
+            <div class="membership-cards">
+                
+                <!-- Essentials Card -->
+                <div class="membership-card essentials-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Essentials</h3>
+                        <div class="card-badge">Perfect Starter</div>
+                    </div>
+                    
+                    <div class="card-pricing">
+                        <div class="price">
+                            <span class="currency">$</span>
+                            <span class="amount"><?php echo number_format($essentials_yearly['price'], 0); ?></span>
+                            <?php if (($essentials_yearly['is_sale'] || $essentials_yearly['is_doorbuster']) && $essentials_yearly['retail_price'] > $essentials_yearly['price']): ?>
+                            <span class="retail-price">$<?php echo number_format($essentials_yearly['retail_price'], 0); ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="billing-period">per year</div>
+                        <?php if ($essentials_yearly['is_doorbuster']): ?>
+                        <div class="doorbuster-badge">🚪 Doorbuster!</div>
+                        <?php if (!empty($essentials_yearly['doorbuster_end_date'])): ?>
+                        <div class="doorbuster-countdown" data-end-date="<?php echo esc_attr($essentials_yearly['doorbuster_end_date']); ?>">
+                            <div class="countdown-label">Ends in:</div>
+                            <div class="countdown-timer">
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-days">0</span>
+                                    <span class="countdown-label-unit">Days</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-hours">0</span>
+                                    <span class="countdown-label-unit">Hours</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-minutes">0</span>
+                                    <span class="countdown-label-unit">Minutes</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-seconds">0</span>
+                                    <span class="countdown-label-unit">Seconds</span>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        <?php elseif ($essentials_yearly['is_sale']): ?>
+                        <div class="sale-badge">On Sale!</div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="card-description">
+                        <p>Start your jazz piano journey with essential resources and foundational content. Choose your own path by selecting any 1 lesson from our Studio library every month to build the skills that matter most to you.</p>
+                    </div>
+                    
+                    <div class="card-features">
+                        <ul>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Lessons you choose stay in your account for as long as your membership is active, so you can create your own tailor-made piano program" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Choose Any 1 Studio Lesson Per Month</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="A comprehensive 30-day guide to get you started on your jazz piano journey" data-microtip-position="top" data-microtip-size="medium" role="tooltip">30-Day Piano Playbook™</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Strategic learning blueprints to guide your practice and progress" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Academy Blueprints</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Access to recorded coaching session replays to learn from instructor guidance" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Coaching Replays</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Access to essential resources and foundational content to build your skills" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Essential Resources & Content</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Join our monthly community call to ask questions and get personalized lesson or practice suggestions" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Monthly Community Q&A Call</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card-cta">
+                        <a href="<?php echo esc_url($essentials_yearly['order_form']); ?>" class="btn-get-access <?php echo $essentials_yearly['is_doorbuster'] ? 'btn-doorbuster' : ''; ?>" target="_blank">Get Access - Essentials $<?php echo number_format($essentials_yearly['price'], 0); ?>/year</a>
+                    </div>
+                    
+                    <div class="card-guarantee">
+                        <span class="guarantee-icon">🛡️</span>
+                        <span>30-Day Money-Back Guarantee</span>
+                    </div>
+                </div>
+                
+                <!-- Studio Card -->
+                <div class="membership-card studio-card featured">
+                    <div class="card-popular">Most Popular</div>
+                    <div class="card-header">
+                        <h3 class="card-title">Studio</h3>
+                        <div class="card-badge">Skill Development</div>
+                    </div>
+                    
+                    <!-- Pricing Toggle (for Studio only) -->
+                    <div class="card-pricing-toggle">
+                        <div class="pricing-toggle">
+                            <span class="toggle-label">Monthly</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="pricing-toggle-input" />
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="toggle-label">Yearly</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card-pricing">
+                        <div class="price">
+                            <span class="currency">$</span>
+                            <span class="amount monthly-price"><?php echo number_format($studio_monthly['price'], 0); ?></span>
+                            <span class="amount yearly-price" style="display: none;"><?php echo number_format($studio_yearly['price'], 0); ?></span>
+                            <?php if (($studio_monthly['is_sale'] || $studio_monthly['is_doorbuster'] || $studio_yearly['is_sale'] || $studio_yearly['is_doorbuster'])): ?>
+                            <span class="retail-price monthly-retail">$<?php echo number_format($studio_monthly['retail_price'], 0); ?></span>
+                            <span class="retail-price yearly-retail" style="display: none;">$<?php echo number_format($studio_yearly['retail_price'], 0); ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="billing-period">
+                            <span class="monthly-period">per month</span>
+                            <span class="yearly-period" style="display: none;">per year</span>
+                        </div>
+                        <div class="yearly-savings-message" style="display: none;">
+                            <span class="savings-badge">2 Months Free</span>
+                        </div>
+                        <?php if ($studio_yearly['is_doorbuster']): ?>
+                        <div class="doorbuster-badge">🚪 Doorbuster!</div>
+                        <?php if (!empty($studio_yearly['doorbuster_end_date'])): ?>
+                        <div class="doorbuster-countdown" data-end-date="<?php echo esc_attr($studio_yearly['doorbuster_end_date']); ?>">
+                            <div class="countdown-label">Ends in:</div>
+                            <div class="countdown-timer">
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-days">0</span>
+                                    <span class="countdown-label-unit">Days</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-hours">0</span>
+                                    <span class="countdown-label-unit">Hours</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-minutes">0</span>
+                                    <span class="countdown-label-unit">Minutes</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-seconds">0</span>
+                                    <span class="countdown-label-unit">Seconds</span>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        <?php elseif ($studio_monthly['is_sale'] || $studio_yearly['is_sale']): ?>
+                        <div class="sale-badge">On Sale!</div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="card-description">
+                        <p>Develop your skills with deep lesson access, structured learning paths, and the tools you need to make steady progress. Studio gives you the full library of Studio lessons plus practice tracking, learning paths, and the Jazzedge Practice Curriculum™. Designed for independent learners.</p>
+                    </div>
+                    
+                    <div class="card-features">
+                        <ul>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="All Essentials membership benefits included, plus exclusive Studio features" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Everything in Essentials</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Full access to all Studio-level lessons in our library" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Full Access to All Studio Lessons</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Access to recorded coaching session replays to learn from instructor guidance" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Coaching Replays</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Access to our entire library of over 5,840 lesson chapters, with new content added regularly" data-microtip-position="top" data-microtip-size="medium" role="tooltip">5,840+ Lesson Chapters</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Structured learning paths and practice tracking tools to monitor your progress" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Learning Paths & Practice Tracking</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Our comprehensive practice curriculum designed to build your skills systematically" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Jazzedge Practice Curriculum™</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Access to all Studio collections and curated lesson groups" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Access to All Studio Collections</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Join our monthly community call to ask questions and get personalized lesson or practice suggestions" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Monthly Community Q&A Call</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card-cta">
+                        <a href="<?php echo esc_url($studio_monthly['order_form']); ?>" class="btn-get-access monthly-link" target="_blank">Get Access - Studio $<?php echo number_format($studio_monthly['price'], 0); ?>/month</a>
+                        <a href="<?php echo esc_url($studio_yearly['order_form']); ?>" class="btn-get-access yearly-link <?php echo $studio_yearly['is_doorbuster'] ? 'btn-doorbuster' : ''; ?>" style="display: none;" target="_blank">Get Access - Studio $<?php echo number_format($studio_yearly['price'], 0); ?>/year</a>
+                    </div>
+                    
+                    <div class="card-guarantee">
+                        <span class="guarantee-icon">🛡️</span>
+                        <span>30-Day Money-Back Guarantee</span>
+                    </div>
+                </div>
+                
+                <!-- Premier Card -->
+                <div class="membership-card premier-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Premier</h3>
+                        <div class="card-badge">Maximum Support</div>
+                    </div>
+                    
+                    <div class="card-pricing">
+                        <div class="price">
+                            <span class="currency">$</span>
+                            <span class="amount"><?php echo number_format($premier_yearly['price'], 0); ?></span>
+                            <?php if (($premier_yearly['is_sale'] || $premier_yearly['is_doorbuster']) && $premier_yearly['retail_price'] > $premier_yearly['price']): ?>
+                            <span class="retail-price">$<?php echo number_format($premier_yearly['retail_price'], 0); ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="billing-period">per year</div>
+                        <?php if ($premier_yearly['is_doorbuster']): ?>
+                        <div class="doorbuster-badge">🚪 Doorbuster!</div>
+                        <?php if (!empty($premier_yearly['doorbuster_end_date'])): ?>
+                        <div class="doorbuster-countdown" data-end-date="<?php echo esc_attr($premier_yearly['doorbuster_end_date']); ?>">
+                            <div class="countdown-label">Ends in:</div>
+                            <div class="countdown-timer">
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-days">0</span>
+                                    <span class="countdown-label-unit">Days</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-hours">0</span>
+                                    <span class="countdown-label-unit">Hours</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-minutes">0</span>
+                                    <span class="countdown-label-unit">Minutes</span>
+                                </div>
+                                <div class="countdown-separator">:</div>
+                                <div class="countdown-unit">
+                                    <span class="countdown-value countdown-seconds">0</span>
+                                    <span class="countdown-label-unit">Seconds</span>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        <?php elseif ($premier_yearly['is_sale']): ?>
+                        <div class="sale-badge">On Sale!</div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="card-description">
+                        <p>If you want personal guidance, accountability, and direct support as you build real playing skills, Premier is the only tier designed for you. Imagine yourself after several arrangements are under your fingers—confidently improvising what you hear, playing with ease and musicality. Premier gives you personalized guidance from Willie, the creator of Jazzedge Academy, plus exclusive content to accelerate your progress.</p>
+                    </div>
+                    
+                    <div class="card-features">
+                        <ul>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="All Studio membership benefits included, plus exclusive Premier features" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Everything in Studio (All Lessons, Tools & Tracking)</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Weekly interactive coaching sessions with hot seats and Q&A for personalized support and guidance" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Interactive Coaching Every Week (Hot Seats + Q&A)</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Access to our exclusive Premier classes like Super Simple Standards™, Blues Piano, Advanced Jazz Arranging, The Confident Improviser™, and more" data-microtip-position="top" data-microtip-size="medium" role="tooltip">340+ Premier-Only Lessons</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="A curated collection of simplified jazz standards to help you learn faster" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Super Simple Standards™ Collection</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Live classes taught by Jazzedge Academy instructors for interactive learning" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Live Classes with Jazzedge Academy Teachers</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Direct access to Willie Myette, the creator of Jazzedge Academy, for personalized questions and feedback" data-microtip-position="top" data-microtip-size="large" role="tooltip">Direct Access to Willie - Ask Questions & Get Feedback</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Personalized guidance on your practice path tailored to your goals and progress" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Personalized Practice Path Guidance</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="Join our monthly community call to ask questions and get personalized lesson or practice suggestions" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Monthly Community Q&A Call</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card-cta">
+                        <a href="<?php echo esc_url($premier_yearly['order_form']); ?>" class="btn-get-access <?php echo $premier_yearly['is_doorbuster'] ? 'btn-doorbuster' : ''; ?>" target="_blank">Get Access - Premier $<?php echo number_format($premier_yearly['price'], 0); ?>/year</a>
+                    </div>
+                    
+                    <div class="card-guarantee">
+                        <span class="guarantee-icon">🛡️</span>
+                        <span>30-Day Money-Back Guarantee</span>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- Why Premier Section -->
+            <div class="why-premier-section">
+                <h3>Why Premier?</h3>
+                <p>Premier keeps you focused on the end goal: improving your playing. With structured practice paths, regular check-ins, and the guidance you need, you'll see measurable progress and avoid the frustration of getting stuck or losing momentum.</p>
+                <p><strong>It's more than just lessons—it's about making gains every time you sit down to practice.</strong></p>
+                <a href="#" class="btn-learn-more">Learn more about Premier</a>
+            </div>
+            
+        </div>
+        
+        <style>
+        /* Jazzedge Academy Brand Colors & Microtip Customization */
+        :root {
+            --je-sherpa-blue: #004555;
+            --je-jungle-green: #239B90;
+            --je-pomegranate: #F04E23;
+            --je-ocean-green: #459E90;
+            --je-daintree: #002A34;
+            --je-finn: #6B2B60;
+            --microtip-transition-duration: 0.15s;
+            --microtip-transition-delay: 0.1s;
+            --microtip-transition-easing: ease-out;
+            --microtip-font-size: 12px;
+            --microtip-font-weight: 600;
+            --microtip-text-transform: none;
+        }
+        
+        /* Ensure tooltips appear above all other elements */
+        .membership-order-form [role="tooltip"]::before,
+        .membership-order-form [role="tooltip"]::after {
+            z-index: 9999 !important;
+        }
+        
+        /* Microtip size modifiers handle width automatically */
+        
+        /* Style tooltip-enabled feature text */
+        .card-features [role="tooltip"] {
+            cursor: help;
+            border-bottom: 1px dotted var(--je-jungle-green);
+            text-decoration: none;
+        }
+        
+        .card-features [role="tooltip"]:hover {
+            border-bottom-color: var(--je-sherpa-blue);
+        }
+        
+        /* Membership Order Form Styles */
+        .membership-order-form {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        /* Pricing Toggle */
+        .card-pricing-toggle {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0 30px 0;
+        }
+        
+        .pricing-toggle {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #f8f9fa;
+            padding: 10px 20px;
+            border-radius: 50px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .toggle-label {
+            font-weight: 600;
+            color: var(--je-daintree);
+            font-size: 14px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 34px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: var(--je-jungle-green);
+        }
+        
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+        
+        /* Yearly Savings Message */
+        .yearly-savings-message {
+            margin-top: 12px;
+        }
+        
+        .savings-badge {
+            display: inline-block;
+            background: var(--je-jungle-green);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(35,155,144,0.2);
+        }
+        
+        /* Membership Cards Container */
+        .membership-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        
+        /* Individual Card Styles */
+        .membership-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            border: 2px solid transparent;
+        }
+        
+        .membership-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .studio-card.featured {
+            border: 2px solid var(--je-jungle-green);
+            transform: scale(1.05);
+        }
+        
+        .studio-card.featured:hover {
+            transform: scale(1.05) translateY(-5px);
+        }
+        
+        .card-popular {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, var(--je-jungle-green) 0%, var(--je-sherpa-blue) 100%);
+            color: white;
+            padding: 6px 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 12px rgba(35,155,144,0.3);
+        }
+        
+        .card-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .card-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+            color: var(--je-daintree);
+        }
+        
+        .card-badge {
+            display: inline-block;
+            background: #e9ecef;
+            color: var(--je-daintree);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .card-pricing {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #e9ecef;
+            position: relative;
+        }
+        
+        .price {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 4px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .currency {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--je-daintree);
+            margin-top: 8px;
+        }
+        
+        .amount {
+            font-size: 64px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--je-daintree);
+        }
+        
+        .retail-price {
+            font-size: 24px;
+            color: #6c757d;
+            text-decoration: line-through;
+            margin-left: 8px;
+            font-weight: 400;
+        }
+        
+        .billing-period {
+            font-size: 16px;
+            color: #6c757d;
+            font-weight: 500;
+        }
+        
+        .sale-badge {
+            display: inline-block;
+            background: var(--je-pomegranate);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }
+        
+        .doorbuster-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 12px;
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+            }
+            50% {
+                box-shadow: 0 4px 20px rgba(255, 107, 53, 0.6);
+            }
+        }
+        
+        .doorbuster-countdown {
+            margin-top: 12px;
+            padding: 16px 12px;
+            background: linear-gradient(135deg, #fff5f0 0%, #ffe8d6 100%);
+            border-radius: 12px;
+            border: 2px solid #ff6b35;
+        }
+        
+        .countdown-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #ff6b35;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        
+        .countdown-timer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+        
+        .countdown-unit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            padding: 6px 4px;
+        }
+        
+        .countdown-value {
+            font-size: 26px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--je-daintree);
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 3px;
+            display: block;
+        }
+        
+        .countdown-value.countdown-days {
+            color: #ff6b35;
+            font-size: 28px;
+        }
+        
+        .countdown-label-unit {
+            font-size: 9px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1;
+        }
+        
+        .countdown-separator {
+            font-size: 22px;
+            font-weight: 700;
+            color: #ff6b35;
+            padding: 0 2px;
+            line-height: 1;
+            align-self: center;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            height: 100%;
+        }
+        
+        @media (max-width: 768px) {
+            .countdown-value {
+                font-size: 22px;
+            }
+            
+            .countdown-value.countdown-days {
+                font-size: 24px;
+            }
+            
+            .countdown-separator {
+                font-size: 18px;
+            }
+            
+            .countdown-unit {
+                min-width: 42px;
+                padding: 5px 3px;
+            }
+            
+            .countdown-label-unit {
+                font-size: 8px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .countdown-value {
+                font-size: 20px;
+            }
+            
+            .countdown-value.countdown-days {
+                font-size: 22px;
+            }
+            
+            .countdown-separator {
+                font-size: 16px;
+            }
+            
+            .countdown-unit {
+                min-width: 38px;
+                padding: 4px 2px;
+            }
+            
+            .countdown-label-unit {
+                font-size: 7px;
+            }
+        }
+        
+        .card-description {
+            margin-bottom: 30px;
+            min-height: 80px;
+        }
+        
+        .card-description p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #495057;
+            margin: 0;
+        }
+        
+        .card-features {
+            flex: 1;
+            margin-bottom: 30px;
+        }
+        
+        .card-features ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .card-features li {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            font-size: 15px;
+            line-height: 1.5;
+            color: #495057;
+            border-bottom: 1px solid #f1f3f5;
+        }
+        
+        .card-features li:last-child {
+            border-bottom: none;
+        }
+        
+        .check-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: var(--je-jungle-green);
+            color: white;
+            border-radius: 50%;
+            font-size: 14px;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        
+        .card-cta {
+            margin-bottom: 20px;
+        }
+        
+        .btn-get-access {
+            display: block;
+            width: 100%;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, var(--je-jungle-green) 0%, var(--je-sherpa-blue) 100%);
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(35,155,144,0.3);
+            line-height: 1.4;
+        }
+        
+        .btn-get-access:hover {
+            background: linear-gradient(135deg, var(--je-sherpa-blue) 0%, var(--je-daintree) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(35,155,144,0.4);
+            color: white;
+        }
+        
+        .btn-doorbuster {
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%) !important;
+            box-shadow: 0 4px 16px rgba(255, 107, 53, 0.4) !important;
+            animation: buttonPulse 2s infinite;
+        }
+        
+        .btn-doorbuster:hover {
+            background: linear-gradient(135deg, #f7931e 0%, #ff6b35 100%) !important;
+            box-shadow: 0 6px 24px rgba(255, 107, 53, 0.6) !important;
+        }
+        
+        @keyframes buttonPulse {
+            0%, 100% {
+                box-shadow: 0 4px 16px rgba(255, 107, 53, 0.4);
+            }
+            50% {
+                box-shadow: 0 4px 24px rgba(255, 107, 53, 0.6);
+            }
+        }
+        
+        .studio-card .btn-get-access {
+            background: linear-gradient(135deg, var(--je-jungle-green) 0%, var(--je-sherpa-blue) 100%);
+            box-shadow: 0 4px 12px rgba(35,155,144,0.4);
+        }
+        
+        .premier-card .btn-get-access {
+            background: linear-gradient(135deg, var(--je-finn) 0%, var(--je-pomegranate) 100%);
+            box-shadow: 0 4px 12px rgba(107,43,96,0.3);
+        }
+        
+        .premier-card .btn-get-access:hover {
+            background: linear-gradient(135deg, var(--je-pomegranate) 0%, #d93e1a 100%);
+            box-shadow: 0 6px 20px rgba(240,78,35,0.4);
+        }
+        
+        .card-guarantee {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #6c757d;
+            text-align: center;
+        }
+        
+        .guarantee-icon {
+            font-size: 16px;
+        }
+        
+        /* Why Premier Section */
+        .why-premier-section {
+            max-width: 800px;
+            margin: 60px auto 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 16px;
+            text-align: center;
+        }
+        
+        .why-premier-section h3 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--je-daintree);
+            margin: 0 0 20px 0;
+        }
+        
+        .why-premier-section p {
+            font-size: 17px;
+            line-height: 1.7;
+            color: #495057;
+            margin: 0 0 15px 0;
+        }
+        
+        .why-premier-section p strong {
+            color: var(--je-daintree);
+            font-weight: 700;
+        }
+        
+        .btn-learn-more {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 14px 28px;
+            background: var(--je-finn);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-learn-more:hover {
+            background: var(--je-pomegranate);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(240,78,35,0.3);
+            color: white;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .membership-cards {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+            
+            .studio-card.featured {
+                transform: scale(1);
+            }
+            
+            .studio-card.featured:hover {
+                transform: translateY(-5px);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .membership-order-form {
+                padding: 20px 15px;
+            }
+            
+            .membership-card {
+                padding: 30px 20px;
+            }
+            
+            .card-title {
+                font-size: 28px;
+            }
+            
+            .amount {
+                font-size: 52px;
+            }
+            
+            .pricing-toggle {
+                flex-wrap: wrap;
+                justify-content: center;
+                padding: 15px 20px;
+            }
+            
+            .why-premier-section {
+                padding: 30px 20px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .pricing-toggle {
+                flex-wrap: wrap;
+                justify-content: center;
+                padding: 10px 15px;
+            }
+        }
+        </style>
+        
+        <script>
+        (function() {
+            document.addEventListener('DOMContentLoaded', function() {
+                // Handle all pricing tables on the page
+                const pricingForms = document.querySelectorAll('.membership-order-form');
+                
+                pricingForms.forEach(function(form) {
+                    const toggle = form.querySelector('.pricing-toggle-input');
+                    
+                    if (toggle) {
+                        // Scope all selectors to this form instance
+                        const monthlyPrices = form.querySelectorAll('.monthly-price');
+                        const yearlyPrices = form.querySelectorAll('.yearly-price');
+                        const monthlyPeriods = form.querySelectorAll('.monthly-period');
+                        const yearlyPeriods = form.querySelectorAll('.yearly-period');
+                        const monthlyLinks = form.querySelectorAll('.monthly-link');
+                        const yearlyLinks = form.querySelectorAll('.yearly-link');
+                        const monthlyRetail = form.querySelectorAll('.monthly-retail');
+                        const yearlyRetail = form.querySelectorAll('.yearly-retail');
+                        const yearlySavingsMessage = form.querySelector('.yearly-savings-message');
+                        
+                        toggle.addEventListener('change', function() {
+                        if (this.checked) {
+                            // Show yearly pricing
+                            monthlyPrices.forEach(price => price.style.display = 'none');
+                            yearlyPrices.forEach(price => price.style.display = 'inline');
+                            monthlyPeriods.forEach(period => period.style.display = 'none');
+                            yearlyPeriods.forEach(period => period.style.display = 'inline');
+                            monthlyLinks.forEach(link => {
+                                if (!link.classList.contains('always-visible')) {
+                                    link.style.display = 'none';
+                                }
+                            });
+                            yearlyLinks.forEach(link => link.style.display = 'block');
+                            monthlyRetail.forEach(retail => retail.style.display = 'none');
+                            yearlyRetail.forEach(retail => retail.style.display = 'inline');
+                            if (yearlySavingsMessage) {
+                                yearlySavingsMessage.style.display = 'block';
+                            }
+                        } else {
+                            // Show monthly pricing
+                            monthlyPrices.forEach(price => price.style.display = 'inline');
+                            yearlyPrices.forEach(price => price.style.display = 'none');
+                            monthlyPeriods.forEach(period => period.style.display = 'inline');
+                            yearlyPeriods.forEach(period => period.style.display = 'none');
+                            monthlyLinks.forEach(link => link.style.display = 'block');
+                            yearlyLinks.forEach(link => {
+                                if (!link.classList.contains('always-visible')) {
+                                    link.style.display = 'none';
+                                }
+                            });
+                            monthlyRetail.forEach(retail => retail.style.display = 'inline');
+                            yearlyRetail.forEach(retail => retail.style.display = 'none');
+                            if (yearlySavingsMessage) {
+                                yearlySavingsMessage.style.display = 'none';
+                            }
+                        }
+                        });
+                    }
+                });
+                
+                // Doorbuster countdown timers - run for all forms
+                pricingForms.forEach(function(form) {
+                    const countdowns = form.querySelectorAll('.doorbuster-countdown');
+                    countdowns.forEach(function(countdown) {
+                        const endDateStr = countdown.getAttribute('data-end-date');
+                        if (!endDateStr || endDateStr.trim() === '') {
+                            return;
+                        }
+                        
+                        // Parse date - handle YYYY-MM-DD format
+                        // Use end of day in local timezone
+                        const dateParts = endDateStr.split('-');
+                        if (dateParts.length !== 3) {
+                            console.error('Invalid date format:', endDateStr);
+                            return;
+                        }
+                        
+                        const year = parseInt(dateParts[0], 10);
+                        const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed
+                        const day = parseInt(dateParts[2], 10);
+                        
+                        const endDate = new Date(year, month, day, 23, 59, 59, 999);
+                        
+                        // Check if date is valid
+                        if (isNaN(endDate.getTime())) {
+                            console.error('Invalid doorbuster end date:', endDateStr);
+                            return;
+                        }
+                        
+                        const daysEl = countdown.querySelector('.countdown-value.countdown-days');
+                        const hoursEl = countdown.querySelector('.countdown-value.countdown-hours');
+                        const minutesEl = countdown.querySelector('.countdown-value.countdown-minutes');
+                        const secondsEl = countdown.querySelector('.countdown-value.countdown-seconds');
+                        
+                        if (!daysEl || !hoursEl || !minutesEl || !secondsEl) {
+                            console.error('Countdown elements not found');
+                            return;
+                        }
+                        
+                        function updateCountdown() {
+                            const now = new Date();
+                            const diff = endDate - now;
+                            
+                            if (diff <= 0) {
+                                // Countdown expired
+                                countdown.innerHTML = '<div style="text-align: center; color: #dc3545; font-weight: 700; padding: 12px; font-size: 14px;">Offer Expired</div>';
+                                return;
+                            }
+                            
+                            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                            
+                            // Pad with leading zeros for single digits
+                            daysEl.textContent = days;
+                            hoursEl.textContent = String(hours).padStart(2, '0');
+                            minutesEl.textContent = String(minutes).padStart(2, '0');
+                            secondsEl.textContent = String(seconds).padStart(2, '0');
+                        }
+                        
+                        // Update immediately and then every second
+                        updateCountdown();
+                        setInterval(updateCountdown, 1000);
+                    });
+                });
+            });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+    
+    /**
+     * Site Feedback Entries Shortcode
+     * Displays user's site feedback submissions from Fluent Forms
+     */
+    public function site_feedback_entries_shortcode($atts, $content = NULL) {
+        global $wpdb;
+        
+        // Check if user is logged in
+        if (!is_user_logged_in()) {
+            return '<p class="alm-feedback-message">You must be logged in to view your feedback submissions.</p>';
+        }
+        
+        $current_user_id = get_current_user_id();
+        
+        // Query feedback submissions for form_id 46
+        $table_name = $wpdb->prefix . 'fluentform_submissions';
+        $submissions = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, response, created_at, status 
+            FROM {$table_name} 
+            WHERE form_id = %d 
+            AND user_id = %d 
+            AND status != 'trashed'
+            ORDER BY created_at DESC",
+            46,
+            $current_user_id
+        ));
+        
+        if (empty($submissions)) {
+            return '<p class="alm-feedback-message">You have not submitted any feedback yet.</p>';
+        }
+        
+        ob_start();
+        ?>
+        <div class="alm-feedback-entries">
+            <h3>Your Feedback Submissions</h3>
+            <div class="alm-feedback-list">
+                <?php foreach ($submissions as $submission): 
+                    $response = json_decode($submission->response, true);
+                    $description = isset($response['description']) ? esc_html($response['description']) : '';
+                    $date = date('F j, Y g:i A', strtotime($submission->created_at));
+                ?>
+                    <div class="alm-feedback-entry">
+                        <div class="alm-feedback-date"><?php echo $date; ?></div>
+                        <?php if (!empty($description)): ?>
+                            <div class="alm-feedback-text"><?php echo nl2br($description); ?></div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
     }
 }
 

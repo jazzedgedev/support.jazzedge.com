@@ -107,16 +107,66 @@ class Transcription_Whisper_Client {
         set_time_limit(0);
         ini_set('max_execution_time', 0);
         
-        // Prepare file for upload (only need to do this once)
-        $file_data = array(
-            'file' => new CURLFile($file_path, 'video/mp4', basename($file_path))
-        );
+        // Detect MIME type based on file extension
+        $file_ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        $mime_type = 'video/mp4'; // default
+        if ($file_ext === 'mp3') {
+            $mime_type = 'audio/mpeg';
+        } elseif ($file_ext === 'm4a') {
+            $mime_type = 'audio/mp4';
+        } elseif ($file_ext === 'wav') {
+            $mime_type = 'audio/wav';
+        } elseif ($file_ext === 'mp4') {
+            $mime_type = 'video/mp4';
+        }
         
-        $post_data = array(
-            'model' => 'whisper-1',
-            'language' => 'en',
-            'response_format' => 'verbose_json' // Get timestamps for VTT generation
-        );
+        // Verify file is readable before attempting upload
+        if (!is_readable($file_path)) {
+            return array(
+                'success' => false,
+                'message' => 'File is not readable: ' . $file_path
+            );
+        }
+        
+        // Ensure we have an absolute path for CURLFile
+        $absolute_file_path = realpath($file_path);
+        if ($absolute_file_path === false) {
+            return array(
+                'success' => false,
+                'message' => 'Could not resolve absolute path for file: ' . $file_path
+            );
+        }
+        
+        // Verify file is actually readable and has content
+        $file_size = filesize($absolute_file_path);
+        if ($file_size === false || $file_size === 0) {
+            return array(
+                'success' => false,
+                'message' => 'File is empty or unreadable: ' . $absolute_file_path . ' (size: ' . $file_size . ')'
+            );
+        }
+        
+        // Verify it's actually an audio file by checking file signature (magic bytes)
+        $file_handle = fopen($absolute_file_path, 'rb');
+        if ($file_handle) {
+            $header = fread($file_handle, 4);
+            fclose($file_handle);
+            
+            // MP3 files start with ID3 tag (49 44 33) or frame sync (FF FB/FF F3/FF F2)
+            $is_valid_audio = false;
+            if (substr($header, 0, 3) === 'ID3') {
+                $is_valid_audio = true; // ID3 tag (MP3)
+            } elseif (substr($header, 0, 2) === "\xFF\xFB" || substr($header, 0, 2) === "\xFF\xF3" || substr($header, 0, 2) === "\xFF\xF2") {
+                $is_valid_audio = true; // MP3 frame sync
+            } elseif ($file_ext === 'mp3' || $file_ext === 'mp4' || $file_ext === 'm4a' || $file_ext === 'wav') {
+                // If extension matches, assume it's valid (some files might not have standard headers)
+                $is_valid_audio = true;
+            }
+            
+            if (!$is_valid_audio && $file_ext === 'mp3') {
+                error_log('Whisper API: WARNING - MP3 file may be corrupted. Header: ' . bin2hex($header));
+            }
+        }
         
         // Retry logic for transient errors (502, 503, 504, 429)
         $attempt = 0;
@@ -126,6 +176,17 @@ class Transcription_Whisper_Client {
         $response = '';
         $upload_start_time = time();
         
+        // Read file content once (before retry loop)
+        $file_content = file_get_contents($absolute_file_path);
+        if ($file_content === false) {
+            return array(
+                'success' => false,
+                'message' => 'Failed to read file: ' . $absolute_file_path
+            );
+        }
+        
+        $upload_filename = basename($absolute_file_path);
+        
         while ($attempt < $max_retries) {
             $attempt++;
             
@@ -134,49 +195,148 @@ class Transcription_Whisper_Client {
             } elseif ($progress_callback) {
                 call_user_func($progress_callback, 'processing', 'Sending file to OpenAI API...');
             }
+        
+            // Verify file still exists and is readable right before upload
+            if (!file_exists($absolute_file_path) || !is_readable($absolute_file_path)) {
+                $error_msg = 'File does not exist or is not readable: ' . $absolute_file_path;
+                error_log('Whisper API: ' . $error_msg);
+                return array(
+                    'success' => false,
+                    'message' => $error_msg
+                );
+            }
             
-            // Make API request
+            // Manually construct multipart/form-data body for this attempt
+            // This gives us full control over the encoding
+            // Boundary should NOT include -- prefix (that's added when constructing the body)
+            $boundary = 'WebKitFormBoundary' . uniqid();
+            $eol = "\r\n";
+            
+            // Build multipart body manually
+            $body = '';
+            
+            // File field - escape filename for safety
+            $safe_filename = addslashes($upload_filename);
+            $body .= '--' . $boundary . $eol;
+            $body .= 'Content-Disposition: form-data; name="file"; filename="' . $safe_filename . '"' . $eol;
+            $body .= 'Content-Type: ' . $mime_type . $eol;
+            $body .= $eol;
+            $body .= $file_content;
+            $body .= $eol;
+            
+            // Model field
+            $body .= '--' . $boundary . $eol;
+            $body .= 'Content-Disposition: form-data; name="model"' . $eol;
+            $body .= $eol;
+            $body .= 'whisper-1';
+            $body .= $eol;
+            
+            // Language field
+            $body .= '--' . $boundary . $eol;
+            $body .= 'Content-Disposition: form-data; name="language"' . $eol;
+            $body .= $eol;
+            $body .= 'en';
+            $body .= $eol;
+            
+            // Response format field
+            $body .= '--' . $boundary . $eol;
+            $body .= 'Content-Disposition: form-data; name="response_format"' . $eol;
+            $body .= $eol;
+            $body .= 'verbose_json';
+            $body .= $eol;
+            
+            // Closing boundary
+            $body .= '--' . $boundary . '--' . $eol;
+            
+            // Only log on retry attempts
+            if ($attempt > 1) {
+                error_log(sprintf(
+                    'Whisper API: Retry attempt %d/%d - File: %s (%.2f MB)',
+                    $attempt,
+                    $max_retries,
+                    $upload_filename,
+                    filesize($absolute_file_path) / 1024 / 1024
+                ));
+            }
+            
+            // Make API request using manually constructed multipart body
             $ch = curl_init($this->api_url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, array_merge($file_data, $post_data));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-                'Authorization: Bearer ' . $this->api_key
-            ));
-            // Increase timeout for large files
-            // Whisper API can take a while for long videos - allow up to 30 minutes
-            // File upload + processing can be slow for large files
-            curl_setopt($ch, CURLOPT_TIMEOUT, 1800); // 30 minutes
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 60); // 60 seconds to connect
+            
+            // Set the manually constructed multipart body
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+            
+            // Set Content-Type header with boundary
+            $headers = array(
+                'Authorization: Bearer ' . $this->api_key,
+                'Content-Type: multipart/form-data; boundary=' . $boundary
+            );
+            
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            
+            // Force HTTP/1.1
+            curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        
+        // Increase timeout for large files (30 minutes)
+        curl_setopt($ch, CURLOPT_TIMEOUT, 1800);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 60);
+        
+        // Enable verbose output only for errors (not logged unless there's an error)
+        $verbose_log = null;
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            $verbose_log = fopen('php://temp', 'w+');
+            curl_setopt($ch, CURLOPT_VERBOSE, true);
+            curl_setopt($ch, CURLOPT_STDERR, $verbose_log);
+            curl_setopt($ch, CURLOPT_HEADER, true);
+        }
             
             $request_start = time();
             if ($progress_callback) {
                 call_user_func($progress_callback, 'processing', 'Uploading file and waiting for response... (This may take 5-15 minutes)');
             }
-            
-            $response = curl_exec($ch);
-            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curl_error = curl_error($ch);
-            $curl_info = curl_getinfo($ch);
-            $request_duration = time() - $request_start;
-            curl_close($ch);
-            
-            // Log attempt with detailed info
-            error_log(sprintf(
-                'Transcription attempt %d/%d for chapter %d: HTTP %d, Duration: %ds, File: %s (%.2f MB, %.1f min), Total time: %ds',
-                $attempt,
-                $max_retries,
-                $chapter_id,
-                $http_code,
-                $request_duration,
-                basename($file_path),
-                $file_size_mb,
-                $duration_minutes,
-                time() - $upload_start_time
-            ));
-            
-            if ($progress_callback) {
-                call_user_func($progress_callback, 'processing', sprintf('API responded (HTTP %d) after %d seconds. Processing...', $http_code, $request_duration));
+        
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
+        $curl_info = curl_getinfo($ch);
+        $request_duration = time() - $request_start;
+        
+        // If CURLOPT_HEADER was enabled, separate headers from body
+        if (isset($verbose_log) && $response) {
+            $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            if ($header_size > 0) {
+                $response_headers = substr($response, 0, $header_size);
+                $response_body = substr($response, $header_size);
+                $response = $response_body; // Use body only for parsing
+            }
+        }
+        
+        // Only log verbose output on errors
+        if (isset($verbose_log)) {
+            rewind($verbose_log);
+            $verbose_output = stream_get_contents($verbose_log);
+            fclose($verbose_log);
+            // Store verbose output for error logging only
+            if ($http_code !== 200 && !empty($verbose_output)) {
+                $verbose_output_stored = $verbose_output;
+            }
+        }
+        
+        curl_close($ch);
+        
+            // Only log errors or retries
+            if ($http_code !== 200 || $attempt > 1) {
+                error_log(sprintf(
+                    'Whisper API [Chapter %d]: Attempt %d/%d - HTTP %d, File: %s (%.2f MB), Duration: %ds',
+                    $chapter_id,
+                    $attempt,
+                    $max_retries,
+                    $http_code,
+                    basename($file_path),
+                    $file_size_mb,
+                    $request_duration
+                ));
             }
             
             if ($curl_error) {
@@ -211,7 +371,7 @@ class Transcription_Whisper_Client {
                     $attempt,
                     $wait_time
                 );
-                error_log('Transcription: ' . $error_msg);
+                error_log('Whisper API: ' . $error_msg);
                 
                 if ($progress_callback) {
                     call_user_func($progress_callback, 'processing', $error_msg);
@@ -223,6 +383,30 @@ class Transcription_Whisper_Client {
         
         // Check final result
         if ($curl_error) {
+            // Enhanced error logging for cURL errors
+            $error_details = array(
+                'chapter_id' => $chapter_id,
+                'file_path' => basename($file_path),
+                'file_size_mb' => round($file_size_mb, 2),
+                'duration_minutes' => round($duration_minutes, 2),
+                'curl_error' => $curl_error,
+                'attempts' => $attempt,
+                'total_time_seconds' => time() - $upload_start_time
+            );
+            
+            $debug_log = "=== WHISPER API cURL ERROR ===\n";
+            $debug_log .= "Chapter ID: " . $error_details['chapter_id'] . "\n";
+            $debug_log .= "File: " . $error_details['file_path'] . "\n";
+            $debug_log .= "Size: " . $error_details['file_size_mb'] . " MB\n";
+            $debug_log .= "Duration: " . $error_details['duration_minutes'] . " min\n";
+            $debug_log .= "cURL Error: " . $error_details['curl_error'] . "\n";
+            $debug_log .= "Attempts: " . $error_details['attempts'] . "\n";
+            $debug_log .= "Total Time: " . $error_details['total_time_seconds'] . "s\n";
+            $debug_log .= "============================\n";
+            
+            error_log($debug_log);
+            set_transient('ct_whisper_error_' . $chapter_id, $error_details, 3600);
+            
             $error_msg = $last_error . ' (after ' . $attempt . ' attempt(s), total time: ' . (time() - $upload_start_time) . 's)';
             if ($progress_callback) {
                 call_user_func($progress_callback, 'failed', $error_msg);
@@ -230,11 +414,48 @@ class Transcription_Whisper_Client {
             return array(
                 'success' => false,
                 'message' => $error_msg,
-                'attempts' => $attempt
+                'attempts' => $attempt,
+                'debug_info' => $error_details
             );
         }
         
         if ($http_code !== 200) {
+            // Enhanced error logging for debugging
+            $error_data = json_decode($response, true);
+            $error_details = array(
+                'chapter_id' => $chapter_id,
+                'file_path' => basename($file_path),
+                'file_size_mb' => round($file_size_mb, 2),
+                'duration_minutes' => round($duration_minutes, 2),
+                'http_code' => $http_code,
+                'attempts' => $attempt,
+                'total_time_seconds' => time() - $upload_start_time,
+                'error_message' => isset($error_data['error']['message']) ? $error_data['error']['message'] : 'Unknown error',
+                'error_type' => isset($error_data['error']['type']) ? $error_data['error']['type'] : 'Unknown',
+                'error_code' => isset($error_data['error']['code']) ? $error_data['error']['code'] : null,
+                'api_response' => substr($response, 0, 500) // First 500 chars of response
+            );
+            
+            // Create a copyable debug log entry
+            $debug_log = "=== WHISPER API ERROR ===\n";
+            $debug_log .= "Chapter ID: " . $error_details['chapter_id'] . "\n";
+            $debug_log .= "File: " . $error_details['file_path'] . "\n";
+            $debug_log .= "Size: " . $error_details['file_size_mb'] . " MB\n";
+            $debug_log .= "Duration: " . $error_details['duration_minutes'] . " min\n";
+            $debug_log .= "HTTP Code: " . $error_details['http_code'] . "\n";
+            $debug_log .= "Attempts: " . $error_details['attempts'] . "\n";
+            $debug_log .= "Total Time: " . $error_details['total_time_seconds'] . "s\n";
+            $debug_log .= "Error Type: " . $error_details['error_type'] . "\n";
+            $debug_log .= "Error Code: " . ($error_details['error_code'] ?: 'N/A') . "\n";
+            $debug_log .= "Error Message: " . $error_details['error_message'] . "\n";
+            $debug_log .= "API Response: " . $error_details['api_response'] . "\n";
+            $debug_log .= "========================\n";
+            
+            error_log($debug_log);
+            
+            // Store debug info in transient for easy retrieval
+            set_transient('ct_whisper_error_' . $chapter_id, $error_details, 3600); // 1 hour
+            
             $error_msg = $last_error . ' (after ' . $attempt . ' attempt(s), total time: ' . (time() - $upload_start_time) . 's)';
             if ($progress_callback) {
                 call_user_func($progress_callback, 'failed', $error_msg);
@@ -243,7 +464,8 @@ class Transcription_Whisper_Client {
                 'success' => false,
                 'message' => $error_msg,
                 'http_code' => $http_code,
-                'attempts' => $attempt
+                'attempts' => $attempt,
+                'debug_info' => $error_details
             );
         }
         

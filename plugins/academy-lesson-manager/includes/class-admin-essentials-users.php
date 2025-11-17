@@ -49,44 +49,6 @@ class ALM_Admin_Essentials_Users {
         }
         
         
-        // Reset available count - check for button OR hidden field
-        if ((isset($_POST['alm_reset_selections']) || (isset($_POST['user_id']) && isset($_POST['reset_count']))) && isset($_POST['user_id'])) {
-            error_log("ALM Reset form submitted");
-            
-            // Check nonce
-            if (!wp_verify_nonce($_POST['alm_reset_nonce'], 'alm_reset_selections')) {
-                error_log("ALM Reset nonce verification failed");
-                wp_die('Security check failed. Please try again.');
-            }
-            
-            error_log("ALM Reset nonce verified");
-            
-            $user_id = intval($_POST['user_id']);
-            $reset_count = isset($_POST['reset_count']) ? intval($_POST['reset_count']) : 1;
-            
-            error_log("ALM Reset: user_id={$user_id}, reset_count={$reset_count}");
-            
-            $result = $this->reset_user_selections($user_id, $reset_count);
-            
-            error_log("ALM Reset result: " . var_export($result, true));
-            
-            if ($result === false) {
-                wp_redirect(add_query_arg(array(
-                    'page' => 'academy-manager-essentials-users',
-                    'view_user' => $user_id,
-                    'message' => 'error',
-                    'error_msg' => 'Failed to update available count. Please check database.'
-                ), admin_url('admin.php')));
-            } else {
-                wp_redirect(add_query_arg(array(
-                    'page' => 'academy-manager-essentials-users',
-                    'view_user' => $user_id,
-                    'message' => 'selections_reset'
-                ), admin_url('admin.php')));
-            }
-            exit;
-        }
-        
         // Grant selection manually - check for button OR hidden field
         if ((isset($_POST['alm_grant_selection']) || (isset($_POST['user_id']) && isset($_POST['grant_amount']))) && isset($_POST['user_id'])) {
             error_log("ALM Grant form submitted");
@@ -124,41 +86,6 @@ class ALM_Admin_Essentials_Users {
             }
             exit;
         }
-    }
-    
-    /**
-     * Reset user's available selections count
-     * 
-     * @param int $user_id User ID
-     * @param int $count Count to set (default 1)
-     * @return bool Success
-     */
-    private function reset_user_selections($user_id, $count = 1) {
-        $count = max(0, intval($count)); // Ensure non-negative integer
-        
-        // Use direct SQL - simpler and more reliable
-        $sql = $this->wpdb->prepare(
-            "UPDATE {$this->selections_table} SET available_count = %d WHERE user_id = %d",
-            $count,
-            $user_id
-        );
-        
-        $result = $this->wpdb->query($sql);
-        
-        // Log for debugging
-        error_log("ALM Reset Selections SQL: {$sql}");
-        error_log("ALM Reset Selections Result: " . var_export($result, true));
-        error_log("ALM Reset Selections Error: " . ($this->wpdb->last_error ?: 'None'));
-        
-        // Verify it worked
-        $verify = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT available_count FROM {$this->selections_table} WHERE user_id = %d",
-            $user_id
-        ));
-        
-        error_log("ALM Reset Selections Verify: Expected {$count}, Got {$verify}");
-        
-        return ($verify == $count);
     }
     
     /**
@@ -311,12 +238,6 @@ class ALM_Admin_Essentials_Users {
         <div class="wrap">
             <h1><?php echo esc_html__('Essentials Users', 'academy-lesson-manager'); ?></h1>
             
-            <?php if ($message === 'selections_reset'): ?>
-            <div class="notice notice-success is-dismissible">
-                <p><?php echo esc_html__('Available selections count has been reset.', 'academy-lesson-manager'); ?></p>
-            </div>
-            <?php endif; ?>
-            
             <?php if ($message === 'selection_granted'): ?>
             <div class="notice notice-success is-dismissible">
                 <p><?php echo esc_html__('Selection has been granted.', 'academy-lesson-manager'); ?></p>
@@ -458,31 +379,6 @@ class ALM_Admin_Essentials_Users {
                 <?php endif; ?>
                 
                 <h3 style="margin-top: 30px;">Testing Tools</h3>
-                
-                <div style="background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; max-width: 600px; margin-bottom: 20px;">
-                    <h4 style="margin-top: 0;">Set Available Count</h4>
-                    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
-                        <strong>What this does:</strong> Directly sets the number of lessons this Essentials member can select from the Studio library. 
-                        This is useful for testing the selection flow. Normal users get 1 selection every 30 days (max 3 accumulated).
-                    </p>
-                    <form method="post" action="">
-                        <?php wp_nonce_field('alm_reset_selections', 'alm_reset_nonce'); ?>
-                        <input type="hidden" name="user_id" value="<?php echo esc_attr($view_user_id); ?>">
-                        <input type="hidden" name="alm_reset_selections" value="1">
-                        <p style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">
-                                Set available count to:
-                            </label>
-                            <input type="number" name="reset_count" value="<?php echo esc_attr($view_user_data ? $view_user_data->available_count : 0); ?>" min="0" step="1" style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
-                            <span style="color: #666; font-size: 13px; margin-left: 10px;">(0 or higher, no maximum)</span>
-                        </p>
-                        <p>
-                            <button type="submit" class="button button-primary">
-                                Update Available Count
-                            </button>
-                        </p>
-                    </form>
-                </div>
                 
                 <div style="background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; max-width: 600px;">
                     <h4 style="margin-top: 0;">Grant Additional Selections</h4>

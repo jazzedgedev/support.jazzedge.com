@@ -20,6 +20,12 @@
     background: linear-gradient(to bottom, #ffffff 0%, #f0f8f7 100%);
 }
 
+/* Orange border for favorited lessons */
+.alm-lesson-card-course.alm-favorited {
+    border-color: #f04e23 !important;
+    border-width: 2px !important;
+}
+
 .alm-lesson-card-link {
     text-decoration: none;
     color: inherit;
@@ -39,6 +45,8 @@
     flex-direction: column;
     height: 100%;
     flex: 1;
+    position: relative;
+    overflow: hidden;
 }
 
 .alm-lesson-collection-badge {
@@ -58,6 +66,7 @@
     box-sizing: border-box;
 }
 
+
 .alm-lesson-inner-content {
     padding: 32px;
     display: flex;
@@ -68,34 +77,46 @@
 }
 
 .alm-lesson-top-actions {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    z-index: 100;
+    display: flex !important; /* Show top-right buttons (favorite button) */
 }
 
 .alm-video-sample-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    width: 36px;
-    height: 36px;
-    opacity: 0.6;
+    position: relative;
+    background: linear-gradient(135deg, #239B90 0%, #004555 100%) !important;
+    border: 2px solid #239B90 !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    width: auto !important;
+    height: auto !important;
+    opacity: 1 !important;
+    box-shadow: 0 2px 8px rgba(35, 155, 144, 0.2) !important;
 }
 
 .alm-video-sample-btn:hover {
-    opacity: 1;
-    background: rgba(35, 155, 144, 0.1);
-    transform: scale(1.1);
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(35, 155, 144, 0.4) !important;
+    background: linear-gradient(135deg, #004555 0%, #239B90 100%) !important;
+}
+
+.alm-sample-badge {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: white !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    white-space: nowrap !important;
+}
+
+.alm-video-sample-btn svg {
+    width: 18px !important;
+    height: 18px !important;
+    stroke: white !important;
+    flex-shrink: 0 !important;
 }
 
 .alm-favorite-btn {
@@ -134,7 +155,7 @@
     font-weight: 700;
     color: #004555;
     margin: 0 0 16px 0;
-    padding-right: 64px;
+    padding-right: 0;
     line-height: 1.3;
     min-height: 64px;
 }
@@ -230,6 +251,7 @@
     display: none !important;
 }
 
+
 .alm-search-results-list .alm-lesson-inner-content {
     flex-direction: row;
     padding: 16px 20px;
@@ -270,11 +292,125 @@
 }
 
 .alm-search-results-list .alm-lesson-top-actions {
-    position: relative;
-    top: auto;
-    right: auto;
-    order: -1;
-    margin-right: 12px;
-    z-index: 100;
+    display: none; /* Hide top-right buttons in list view too */
 }
+
+/* Hover Overlay Styles */
+.alm-search-card-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 69, 85, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 10;
+    border-radius: 16px;
+}
+
+.alm-lesson-card-course:hover .alm-search-card-overlay {
+    opacity: 1;
+    visibility: visible;
+}
+
+.alm-search-overlay-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    max-width: 200px;
+    padding: 0 20px;
+}
+
+.alm-overlay-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+    border: 2px solid transparent;
+    box-sizing: border-box;
+    letter-spacing: 0.3px;
+}
+
+.alm-overlay-btn-primary {
+    background: #ffffff;
+    color: #004555;
+    border-color: #ffffff;
+}
+
+.alm-overlay-btn-primary:hover {
+    background: #f0f8f7;
+    color: #004555;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+}
+
+.alm-overlay-btn-secondary {
+    background: transparent;
+    color: #ffffff;
+    border-color: #ffffff;
+}
+
+.alm-overlay-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.alm-overlay-btn-favorite {
+    background: transparent;
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.alm-overlay-btn-favorite:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.alm-overlay-btn-favorite.is-favorited {
+    background: rgba(240, 78, 35, 0.15);
+    border-color: #f04e23;
+    color: #ffffff;
+}
+
+.alm-overlay-btn-favorite.is-favorited:hover {
+    background: rgba(240, 78, 35, 0.25);
+    border-color: #f04e23;
+}
+
+.alm-overlay-btn-favorite svg {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+}
+
+.alm-favorite-btn-text {
+    display: inline-block;
+}
+
+/* Hide overlay in list view */
+.alm-search-results-list .alm-search-card-overlay {
+    display: none;
+}
+
 

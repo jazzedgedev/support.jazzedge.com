@@ -38,6 +38,31 @@
     font-weight: 500;
 }
 
+.alm-stat-label[role="tooltip"] {
+    cursor: help;
+    border-bottom: 1px dotted #239B90;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.alm-stat-label[role="tooltip"]:hover {
+    border-bottom-color: #004555;
+}
+
+.alm-stat-tooltip-icon {
+    display: inline-block;
+    vertical-align: middle;
+    color: #239B90;
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.alm-stat-label[role="tooltip"]:hover .alm-stat-tooltip-icon {
+    color: #004555;
+}
+
 .alm-stat-value {
     font-size: 1.5em;
     font-weight: bold;
@@ -68,6 +93,14 @@
     width: 100%;
 }
 
+.alm-library-search-form > div {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
 .alm-library-search-input {
     flex: 1;
     padding: 12px 56px 12px 20px;
@@ -83,6 +116,7 @@
     box-sizing: border-box;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     min-width: 0;
+    width: 100%;
 }
 
 .alm-library-search-input:hover {
@@ -99,6 +133,20 @@
 .alm-library-search-input::placeholder {
     color: #9ca3af;
     font-weight: 400;
+}
+
+.alm-library-search-icon {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+    background-image: url('data:image/svg+xml,%3Csvg fill=\'none\' stroke=\'%236b7280\' stroke-width=\'2\' viewBox=\'0 0 24 24\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z\'/%3E%3C/svg%3E');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
 }
 
 .alm-library-search-button {
@@ -198,18 +246,70 @@
     position: relative;
 }
 
-.alm-lesson-collection {
-    font-size: 11px;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin: 0 0 8px 0;
-    padding: 4px 10px;
-    background: #f3f4f6;
-    border-radius: 6px;
-    display: inline-block;
-    line-height: 1.4;
+.alm-lesson-collection-badge {
+    background: #004555 !important;
+    color: #ffffff !important;
+    padding: 16px 24px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    height: 76px !important;
+    min-height: 76px !important;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.alm-lesson-top-actions {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    z-index: 100;
+}
+
+.alm-video-sample-btn {
+    position: relative;
+    background: linear-gradient(135deg, #239B90 0%, #004555 100%) !important;
+    border: 2px solid #239B90 !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    width: auto !important;
+    height: auto !important;
+    opacity: 1 !important;
+    box-shadow: 0 2px 8px rgba(35, 155, 144, 0.2) !important;
+}
+
+.alm-video-sample-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(35, 155, 144, 0.4) !important;
+    background: linear-gradient(135deg, #004555 0%, #239B90 100%) !important;
+}
+
+.alm-sample-badge {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: white !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    white-space: nowrap !important;
+}
+
+.alm-video-sample-btn svg {
+    width: 18px !important;
+    height: 18px !important;
+    stroke: white !important;
+    flex-shrink: 0 !important;
 }
 
 .alm-lesson-title {
@@ -219,38 +319,6 @@
     color: #004555;
     line-height: 1.3;
     min-height: 64px;
-    padding-right: 60px; /* Make room for video icon button */
-}
-
-.alm-sample-icon-btn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    width: 36px;
-    height: 36px;
-    opacity: 0.6;
-    z-index: 10;
-    color: #239B90;
-}
-
-.alm-sample-icon-btn:hover {
-    opacity: 1;
-    background: rgba(35, 155, 144, 0.1);
-    transform: scale(1.1);
-}
-
-.alm-sample-icon-btn svg {
-    width: 20px;
-    height: 20px;
 }
 
 .alm-lesson-description {
@@ -489,6 +557,101 @@
     flex-shrink: 0;
 }
 
+/* Modern Message Cards */
+.alm-library-message-card {
+    max-width: 600px;
+    margin: 40px auto;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border: 2px solid #e9ecef;
+    padding: 40px;
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    transition: all 0.3s ease;
+}
+
+.alm-library-message-card:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+.alm-library-message-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.alm-library-login-required .alm-library-message-icon {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    color: #f39c12;
+}
+
+.alm-library-access-denied .alm-library-message-icon {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    color: #dc3545;
+}
+
+.alm-library-message-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.alm-library-message-content {
+    flex: 1;
+}
+
+.alm-library-message-title {
+    margin: 0 0 12px 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #004555;
+    line-height: 1.3;
+}
+
+.alm-library-message-text {
+    margin: 0 0 24px 0;
+    font-size: 16px;
+    color: #6c757d;
+    line-height: 1.6;
+}
+
+.alm-library-message-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #239B90 0%, #1a7a6f 100%);
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+    border: none;
+    cursor: pointer;
+}
+
+.alm-library-message-button:hover {
+    background: linear-gradient(135deg, #1a7a6f 0%, #004555 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(35, 155, 144, 0.4);
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.alm-library-message-button:active {
+    transform: translateY(0);
+}
+
+/* Legacy class names for backwards compatibility */
 .alm-library-login-required,
 .alm-library-access-denied {
     text-align: center;
@@ -577,6 +740,33 @@
     .alm-lesson-title {
         font-size: 20px;
         min-height: auto;
+    }
+    
+    /* Responsive message cards */
+    .alm-library-message-card {
+        flex-direction: column;
+        padding: 32px 24px;
+        margin: 24px 16px;
+        gap: 20px;
+    }
+    
+    .alm-library-message-icon {
+        width: 48px;
+        height: 48px;
+    }
+    
+    .alm-library-message-title {
+        font-size: 20px;
+    }
+    
+    .alm-library-message-text {
+        font-size: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .alm-library-message-button {
+        width: 100%;
+        padding: 14px 24px;
     }
 }
 

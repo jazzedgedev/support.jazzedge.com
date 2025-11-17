@@ -1,0 +1,12 @@
+<div id="termsContainer">
+  <h3>Included with Essentials:</h3>
+  <ul>
+    <li><strong>Choose 1 Studio Lesson Per Month:</strong> Pick any lesson from the Studio library. Each lesson you choose stays in your account as long as your membership is active.</li>
+    <li><strong>Build Your Own Lesson Library:</strong> Create a personalized collection of lessons tailored to what you want to learn — all at the lowest cost available.</li>
+    <li><strong>30-Day Piano Playbook™:</strong> Build your jazz piano foundation step-by-step with a proven starter plan.</li>
+    <li><strong>Academy Blueprints:</strong> Follow clear, structured guides to learn chords, rhythms, and improvisation basics.</li>
+    <li><strong>Community Calls:</strong> Join group sessions to ask questions, get tips, and stay inspired with other students.</li>
+    <li><strong>Essential Resources & Content:</strong> Access key lessons, practice materials, and support to kickstart your learning.</li>
+    <li><strong>Perfect for Beginners:</strong> Ideal for players starting their jazz journey or returning after a break.</li>
+  </ul>
+</div>

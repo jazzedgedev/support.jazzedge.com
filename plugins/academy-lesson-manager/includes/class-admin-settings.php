@@ -28,6 +28,7 @@ class ALM_Admin_Settings {
     public function register_settings() {
         register_setting('alm_settings', 'alm_membership_levels');
         register_setting('alm_settings', 'alm_keap_tags');
+        register_setting('alm_settings', 'alm_keap_blocking_tags');
         register_setting('alm_settings', 'alm_bunny_library_id');
         register_setting('alm_settings', 'alm_bunny_api_key');
         register_setting('alm_settings', 'alm_pathways');
@@ -131,12 +132,16 @@ class ALM_Admin_Settings {
         echo '<a href="?page=academy-manager-settings&tab=general" class="nav-tab ' . ($current_tab === 'general' ? 'nav-tab-active' : '') . '">' . __('General', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=ai" class="nav-tab ' . ($current_tab === 'ai' ? 'nav-tab-active' : '') . '">' . __('AI Settings', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=tags" class="nav-tab ' . ($current_tab === 'tags' ? 'nav-tab-active' : '') . '">' . __('Tags', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=memberships" class="nav-tab ' . ($current_tab === 'memberships' ? 'nav-tab-active' : '') . '">' . __('Memberships', 'academy-lesson-manager') . '</a>';
         echo '</nav>';
         
         if ($current_tab === 'ai') {
             $this->render_ai_settings();
         } elseif ($current_tab === 'tags') {
             $this->render_tags_settings();
+        } elseif ($current_tab === 'memberships') {
+            $membership_pricing = new ALM_Admin_Membership_Pricing();
+            $membership_pricing->render_tab();
         } else {
             $this->render_keap_tags_settings();
             $this->render_bunny_api_settings();
@@ -194,6 +199,42 @@ class ALM_Admin_Settings {
         echo '<p class="submit">';
         echo '<input type="hidden" name="save_settings" value="1" />';
         echo '<input type="submit" class="button-primary" value="' . __('Save Keap Tags', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        echo '</form>';
+        echo '</div>';
+        
+        // Render blocking tags settings
+        $this->render_blocking_tags_settings();
+    }
+    
+    /**
+     * Render blocking tags settings
+     */
+    private function render_blocking_tags_settings() {
+        $blocking_tags = get_option('alm_keap_blocking_tags', '');
+        
+        echo '<div class="alm-settings-section" style="margin-top: 30px;">';
+        echo '<h2>' . __('Blocking Tags', 'academy-lesson-manager') . '</h2>';
+        echo '<p class="description">' . __('Enter comma-separated Keap tag IDs that should block access to all content. Users with any of these tags will be denied access regardless of their membership level.', 'academy-lesson-manager') . '</p>';
+        
+        echo '<form method="post" action="">';
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="blocking_tags">' . __('Blocking Tag IDs', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" id="blocking_tags" name="blocking_tags" value="' . esc_attr($blocking_tags) . '" class="regular-text" placeholder="e.g., 7772,8888" />';
+        echo '<p class="description">' . __('Comma-separated tag IDs. Users with any of these tags will be denied access.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '</tbody>';
+        echo '</table>';
+        
+        echo '<p class="submit">';
+        echo '<input type="hidden" name="save_settings" value="1" />';
+        echo '<input type="submit" class="button-primary" value="' . __('Save Blocking Tags', 'academy-lesson-manager') . '" />';
         echo '</p>';
         echo '</form>';
         echo '</div>';
@@ -427,6 +468,11 @@ class ALM_Admin_Settings {
         
         if (isset($_POST['keap_tags'])) {
             update_option('alm_keap_tags', $_POST['keap_tags']);
+        }
+        
+        // Save blocking tags
+        if (isset($_POST['blocking_tags'])) {
+            update_option('alm_keap_blocking_tags', sanitize_text_field($_POST['blocking_tags']));
         }
         
         // Save Bunny.net API settings

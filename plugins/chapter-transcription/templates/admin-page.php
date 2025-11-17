@@ -13,6 +13,7 @@ if (!defined('ABSPATH')) {
     <?php
     // Get lessons for filter dropdown (passed from main file)
     $all_lessons = isset($template_all_lessons) ? $template_all_lessons : array();
+    $queue = isset($queue_stats) ? $queue_stats : array();
     ?>
     
     <div style="background: #fff; padding: 15px; border: 1px solid #ccd0d4; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
@@ -32,6 +33,62 @@ if (!defined('ABSPATH')) {
                 <a href="<?php echo admin_url('admin.php?page=chapter-transcription'); ?>" class="button">Clear Filter</a>
             <?php endif; ?>
         </form>
+    </div>
+    
+    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
+        <div style="flex: 1 1 280px; background: #fff; border: 1px solid #ccd0d4; border-radius: 6px; padding: 15px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+            <h2 style="margin-top: 0; font-size: 16px;">Queue Overview</h2>
+            <ul style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6;">
+                <li><strong>Pending:</strong> <?php echo isset($queue['pending']) ? intval($queue['pending']) : 0; ?></li>
+                <li><strong>Processing:</strong> <?php echo isset($queue['processing']) ? intval($queue['processing']) : 0; ?></li>
+                <li><strong>Completed (24h):</strong> <?php echo isset($queue['completed_24h']) ? intval($queue['completed_24h']) : 0; ?></li>
+                <li><strong>Failed (24h):</strong> <?php echo isset($queue['failed_24h']) ? intval($queue['failed_24h']) : 0; ?></li>
+                <li><strong>Queue Locked:</strong> <?php echo !empty($queue['locked']) ? '<span style="color:#dc3232;font-weight:600;">Yes</span>' : 'No'; ?></li>
+                <li><strong>Next Run:</strong> <?php echo !empty($queue['next_run']) ? date_i18n('M j, g:i:s a', $queue['next_run']) : 'Not scheduled'; ?></li>
+                <li><strong>Last Run:</strong> <?php echo !empty($queue['last_run']) ? date_i18n('M j, g:i:s a', $queue['last_run']) : 'Unknown'; ?></li>
+            </ul>
+        </div>
+        <div style="flex: 1 1 320px; background: #fff; border: 1px solid #ccd0d4; border-radius: 6px; padding: 15px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+            <h2 style="margin-top: 0; font-size: 16px;">Recent Queue Activity</h2>
+            <?php if (!empty($queue['recent_jobs'])): ?>
+                <table class="widefat striped" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Job</th>
+                            <th style="width: 70px;">Chapter</th>
+                            <th style="width: 110px;">Type</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($queue['recent_jobs'] as $job): ?>
+                            <tr>
+                                <td>#<?php echo intval($job->ID); ?></td>
+                                <td><?php echo intval($job->chapter_id); ?></td>
+                                <td><?php echo esc_html(ucwords(str_replace('_', ' ', $job->job_type))); ?></td>
+                                <td>
+                                    <strong><?php echo esc_html(ucfirst($job->status)); ?></strong><br>
+                                    <small>
+                                        <?php if ($job->status === 'pending'): ?>
+                                            Added <?php echo date_i18n('g:i a', strtotime($job->created_at)); ?>
+                                        <?php elseif ($job->status === 'processing'): ?>
+                                            Started <?php echo date_i18n('g:i a', strtotime($job->started_at)); ?>
+                                        <?php else: ?>
+                                            Done <?php echo date_i18n('g:i a', strtotime($job->completed_at)); ?>
+                                        <?php endif; ?>
+                                    </small>
+                                    <?php if (!empty($job->message)): ?>
+                                        <br><small style="color:#666;"><?php echo esc_html($job->message); ?></small>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php else: ?>
+                <p style="margin: 0; color: #555;">No recent jobs found.</p>
+            <?php endif; ?>
+        </div>
     </div>
     
     <?php
@@ -60,17 +117,17 @@ if (!defined('ABSPATH')) {
     if (!empty($active_transcriptions) || !$debug_log_enabled): ?>
         <div style="background: #fff3cd; padding: 15px; border: 1px solid #ffb900; border-radius: 5px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="margin-top: 0;">⚠️ Debug Information</h3>
+                <h3 style="margin-top: 0;">Debug Information</h3>
                 <?php if (!empty($active_transcriptions)): ?>
                     <button type="button" id="ct-clear-all-stuck" class="button" style="background: #dc3232; color: #fff; border-color: #dc3232;">
-                        🗑️ Clear All Stuck Transcriptions
+                        Clear All Stuck Transcriptions
                     </button>
                 <?php endif; ?>
             </div>
             
             <?php if (!$debug_log_enabled): ?>
                 <div style="background: #fff; padding: 10px; margin-bottom: 10px; border-left: 3px solid #dc3232;">
-                    <strong>⚠️ Error Logging is Disabled</strong><br>
+                    <strong>Error Logging is Disabled</strong><br>
                     <p>To enable detailed transcription logs, add this to your <code>wp-config.php</code> file (before "That's all, stop editing!"):</p>
                     <pre style="background: #f0f0f1; padding: 10px; border-radius: 3px; overflow-x: auto;">define('WP_DEBUG', true);
 define('WP_DEBUG_LOG', true);
@@ -90,11 +147,14 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
                     <div style="margin-bottom: 10px; padding: 10px; background: #fff; border-left: 3px solid <?php echo $is_stuck ? '#dc3232' : '#ffb900'; ?>;">
                         <strong>Chapter ID: <?php echo esc_html($chapter_id); ?></strong>
                         <button type="button" class="button button-small ct-view-logs" data-chapter-id="<?php echo esc_attr($chapter_id); ?>" style="margin-left: 10px;">
-                            📋 View Logs
+                            View Logs
+                        </button>
+                        <button type="button" class="button button-small ct-export-debug" data-chapter-id="<?php echo esc_attr($chapter_id); ?>" style="margin-left: 5px;" title="Export copyable debug log">
+                            Export Debug
                         </button>
                         <?php if ($is_stuck): ?>
                             <button type="button" class="button button-small ct-retry-transcription" data-chapter-id="<?php echo esc_attr($chapter_id); ?>" style="margin-left: 10px; background: #dc3232; color: #fff;">
-                                🔄 Retry Now
+                                Retry Now
                             </button>
                         <?php endif; ?>
                         <br>
@@ -102,7 +162,7 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
                         <strong>Message:</strong> <?php echo esc_html($status['message']); ?><br>
                         <strong>Elapsed Time:</strong> <?php echo $minutes; ?>m <?php echo $seconds; ?>s
                         <?php if ($is_stuck): ?>
-                            <span style="color: #dc3232; font-weight: bold;">⚠️ STUCK - Click Retry Now</span>
+                            <span style="color: #dc3232; font-weight: bold;">STUCK - Click Retry Now</span>
                         <?php endif; ?>
                         <br>
                         <?php if (isset($status['time_formatted'])): ?>
@@ -173,10 +233,10 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
             <span style="margin-left: 10px; font-weight: 600;" id="ct-selected-count">0 selected</span>
             <div style="margin-left: auto; display: flex; gap: 10px;">
                 <button type="button" id="ct-bulk-download" class="button button-primary" disabled>
-                    ⬇️ Bulk Download MP4
+                    Bulk Download MP4
                 </button>
                 <button type="button" id="ct-bulk-transcribe" class="button button-primary" disabled>
-                    🎤 Bulk Transcribe
+                    Bulk Transcribe
                 </button>
             </div>
         </div>
@@ -197,23 +257,21 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
         <thead>
             <tr>
                 <th style="width: 40px;"><input type="checkbox" id="ct-select-all-checkbox"></th>
-                <th>ID</th>
-                <th>Chapter Title</th>
-                <th>Lesson Title</th>
-                <th>Lesson ID</th>
-                <th>Video Source</th>
-                <th>Preview</th>
-                <th>Duration</th>
-                <th>Estimated Cost</th>
-                <th>MP4 Status</th>
-                <th>Has Transcript</th>
-                <th>Actions</th>
+                <th style="width: 50px;">ID</th>
+                <th style="min-width: 150px;">Chapter Title</th>
+                <th style="min-width: 200px;">Lesson Title</th>
+                <th style="width: 70px;">Lesson ID</th>
+                <th style="width: 100px;">Video Source</th>
+                <th style="width: 80px;">Preview</th>
+                <th style="width: 140px;">Status</th>
+                <th style="width: 100px;">Has Transcript</th>
+                <th style="min-width: 200px;">Actions</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($chapters)): ?>
                 <tr>
-                    <td colspan="12">No chapters with video sources found.</td>
+                    <td colspan="10">No chapters with video sources found.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($chapters as $chapter): 
@@ -225,17 +283,17 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
                         <td>
                             <input type="checkbox" class="ct-chapter-checkbox" value="<?php echo esc_attr($chapter->ID); ?>">
                         </td>
-                        <td><?php echo esc_html($chapter->ID); ?></td>
-                        <td><?php echo esc_html($chapter->chapter_title); ?></td>
-                        <td><strong><?php echo esc_html($chapter->lesson_title ?: 'N/A'); ?></strong></td>
-                        <td><?php echo esc_html($chapter->lesson_id); ?></td>
-                        <td>
+                        <td style="font-size: 12px;"><?php echo esc_html($chapter->ID); ?></td>
+                        <td style="font-size: 13px;"><?php echo esc_html($chapter->chapter_title); ?></td>
+                        <td style="font-size: 12px;"><strong><?php echo esc_html($chapter->lesson_title ?: 'N/A'); ?></strong></td>
+                        <td style="font-size: 12px;"><?php echo esc_html($chapter->lesson_id); ?></td>
+                        <td style="font-size: 12px;">
                             <?php if ($video_source === 'bunny'): ?>
-                                <span style="color: #2271b1;">🐰 Bunny</span>
+                                <span style="color: #2271b1;">Bunny</span>
                             <?php elseif ($video_source === 'vimeo'): ?>
-                                <span style="color: #1ab7ea;">▶️ Vimeo</span>
+                                <span style="color: #1ab7ea;">Vimeo</span>
                             <?php else: ?>
-                                <span style="color: #dc3232;">❌ None</span>
+                                <span style="color: #dc3232;">None</span>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -248,25 +306,27 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
                             }
                             
                             if ($preview_url): ?>
-                                <a href="<?php echo esc_url($preview_url); ?>" target="_blank" class="button button-small" title="Preview video in new tab">
-                                    👁️ Preview
+                                <a href="<?php echo esc_url($preview_url); ?>" target="_blank" class="button button-small" title="Preview video in new tab" style="font-size: 11px; padding: 2px 8px;">
+                                    Preview
                                 </a>
                             <?php else: ?>
                                 <span style="color: #999;">—</span>
                             <?php endif; ?>
                         </td>
-                        <td><?php echo $chapter->duration > 0 ? gmdate('H:i:s', $chapter->duration) : 'N/A'; ?></td>
-                        <td>$<?php echo number_format($estimated_cost, 4); ?></td>
-                        <td style="color: <?php echo isset($chapter->mp4_exists) && $chapter->mp4_exists ? '#46b450' : '#dc3232'; ?>; font-weight: <?php echo isset($chapter->mp4_exists) && $chapter->mp4_exists ? '600' : 'normal'; ?>;">
-                            <?php echo isset($chapter->mp4_exists) && $chapter->mp4_exists ? '✓ Downloaded' : '✗ Not Downloaded'; ?>
+                        <td style="font-size: 12px; line-height: 1.6;">
+                            <div><strong>Duration:</strong> <?php echo $chapter->duration > 0 ? gmdate('H:i:s', $chapter->duration) : 'N/A'; ?></div>
+                            <div><strong>Cost:</strong> $<?php echo number_format($estimated_cost, 4); ?></div>
+                            <div style="color: <?php echo isset($chapter->mp4_exists) && $chapter->mp4_exists ? '#46b450' : '#dc3232'; ?>; font-weight: <?php echo isset($chapter->mp4_exists) && $chapter->mp4_exists ? '600' : 'normal'; ?>;">
+                                <strong>MP4:</strong> <?php echo isset($chapter->mp4_exists) && $chapter->mp4_exists ? 'Downloaded' : 'Not Downloaded'; ?>
+                            </div>
                         </td>
-                        <td style="color: <?php echo $has_transcript ? '#46b450' : '#dc3232'; ?>; font-weight: <?php echo $has_transcript ? '600' : 'normal'; ?>;">
+                        <td style="color: <?php echo $has_transcript ? '#46b450' : '#dc3232'; ?>; font-weight: <?php echo $has_transcript ? '600' : 'normal'; ?>; font-size: 12px; text-align: center;">
                             <?php echo $has_transcript ? 'Yes' : 'No'; ?>
                         </td>
-                        <td>
+                        <td style="min-width: 200px;">
                             <?php if ($has_transcript): ?>
                                 <div style="background: #fff3cd; border-left: 4px solid #ffb900; padding: 8px; margin-bottom: 8px; font-size: 12px;">
-                                    ⚠️ Transcript exists
+                                    Transcript exists
                                 </div>
                             <?php endif; ?>
                             
@@ -286,24 +346,42 @@ define('WP_DEBUG_DISPLAY', false); // Don't show errors on frontend</pre>
                             $download_url = add_query_arg($download_params, admin_url('admin.php?page=chapter-transcription'));
                             ?>
                             
-                            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                                 <a href="<?php echo esc_url(wp_nonce_url($download_url, 'download_chapter_' . $chapter->ID)); ?>" 
-                                   class="button button-small <?php echo (isset($chapter->mp4_exists) && $chapter->mp4_exists) ? '' : 'button-primary'; ?>">
-                                    <?php echo (isset($chapter->mp4_exists) && $chapter->mp4_exists) ? '🔄 Re-download' : '⬇️ Download MP4'; ?>
+                                   class="button button-small <?php echo (isset($chapter->mp4_exists) && $chapter->mp4_exists) ? '' : 'button-primary'; ?>"
+                                   style="font-size: 11px; padding: 2px 8px; line-height: 1.4;">
+                                    <?php echo (isset($chapter->mp4_exists) && $chapter->mp4_exists) ? 'Re-download' : 'Download'; ?>
                                 </a>
                                 
                                 <?php if (isset($chapter->mp4_exists) && $chapter->mp4_exists): ?>
                                     <button type="button" 
                                             class="button button-primary button-small ct-transcribe-btn" 
-                                            data-chapter-id="<?php echo esc_attr($chapter->ID); ?>">
-                                        <?php echo $has_transcript ? '🔄 Re-transcribe' : '🎤 Transcribe'; ?>
+                                            data-chapter-id="<?php echo esc_attr($chapter->ID); ?>"
+                                            style="font-size: 11px; padding: 2px 8px; line-height: 1.4;">
+                                        <?php echo $has_transcript ? 'Re-transcribe' : 'Transcribe'; ?>
                                     </button>
-                                    <div class="ct-transcription-status" style="margin-top: 5px; font-size: 12px;"></div>
+                                    <div class="ct-transcription-status" style="margin-top: 3px; font-size: 11px;"></div>
                                 <?php else: ?>
-                                    <span class="button button-small" style="opacity: 0.5; cursor: not-allowed;" title="Download MP4 first">
-                                        🎤 Transcribe
+                                    <span class="button button-small" style="opacity: 0.5; cursor: not-allowed; font-size: 11px; padding: 2px 8px;" title="Download MP4 first">
+                                        Transcribe
                                     </span>
                                 <?php endif; ?>
+                                
+                                <button type="button" 
+                                        class="button button-secondary button-small ct-download-transcribe-btn" 
+                                        data-chapter-id="<?php echo esc_attr($chapter->ID); ?>"
+                                        style="font-size: 11px; padding: 2px 8px; line-height: 1.4;">
+                                    Download & Transcribe
+                                </button>
+                                <div class="ct-download-transcribe-status" style="margin-top: 3px; font-size: 11px;"></div>
+                                
+                                <button type="button" 
+                                        class="button button-small ct-export-debug" 
+                                        data-chapter-id="<?php echo esc_attr($chapter->ID); ?>"
+                                        style="font-size: 11px; padding: 2px 8px; line-height: 1.4;"
+                                        title="Export copyable debug log for troubleshooting">
+                                    Debug
+                                </button>
                             </div>
                         </td>
                     </tr>

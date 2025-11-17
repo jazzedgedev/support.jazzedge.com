@@ -457,6 +457,12 @@ class ALM_Admin_Chapters {
             return;
         }
         
+        // Get transcript file name if it exists
+        $transcript_file = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT vtt_file FROM {$this->wpdb->prefix}alm_transcripts WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+            $id
+        ));
+        
         // Show success messages
         if (isset($_GET['message'])) {
             $message = sanitize_text_field($_GET['message']);
@@ -564,6 +570,15 @@ class ALM_Admin_Chapters {
         echo '<th scope="row">' . __('Updated', 'academy-lesson-manager') . '</th>';
         echo '<td>' . ALM_Helpers::format_date($chapter->updated_at) . '</td>';
         echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="transcript_file">' . __('Transcript File Name', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" id="transcript_file" name="transcript_file" value="' . esc_attr($transcript_file ? $transcript_file : '') . '" class="regular-text" />';
+        echo '<p class="description">' . __('VTT transcript file name (stored in wp-content/alm_transcripts/). Leave empty if no transcript exists.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
         echo '</tbody>';
         echo '</table>';
         
@@ -674,6 +689,55 @@ class ALM_Admin_Chapters {
             array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s'),
             array('%d')
         );
+        
+        // Update transcript file name if provided
+        if (isset($_POST['transcript_file'])) {
+            $transcript_file = sanitize_text_field($_POST['transcript_file']);
+            
+            // Check if transcript exists for this chapter
+            $transcript_id = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT ID FROM {$this->wpdb->prefix}alm_transcripts WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+                $chapter_id
+            ));
+            
+            if ($transcript_id) {
+                // Update existing transcript
+                if (!empty($transcript_file)) {
+                    $this->wpdb->update(
+                        $this->wpdb->prefix . 'alm_transcripts',
+                        array('vtt_file' => $transcript_file, 'updated_at' => current_time('mysql')),
+                        array('ID' => $transcript_id),
+                        array('%s', '%s'),
+                        array('%d')
+                    );
+                } else {
+                    // Clear the vtt_file if empty
+                    $this->wpdb->update(
+                        $this->wpdb->prefix . 'alm_transcripts',
+                        array('vtt_file' => '', 'updated_at' => current_time('mysql')),
+                        array('ID' => $transcript_id),
+                        array('%s', '%s'),
+                        array('%d')
+                    );
+                }
+            } elseif (!empty($transcript_file)) {
+                // Create new transcript record with just the file name
+                // Note: This creates a minimal transcript record - content would need to be added separately
+                $this->wpdb->insert(
+                    $this->wpdb->prefix . 'alm_transcripts',
+                    array(
+                        'lesson_id' => $lesson_id,
+                        'chapter_id' => $chapter_id,
+                        'source' => 'whisper',
+                        'vtt_file' => $transcript_file,
+                        'content' => '',
+                        'created_at' => current_time('mysql'),
+                        'updated_at' => current_time('mysql')
+                    ),
+                    array('%d', '%d', '%s', '%s', '%s', '%s', '%s')
+                );
+            }
+        }
         
         if ($result !== false) {
             wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'action' => 'edit', 'id' => $chapter_id, 'message' => 'updated')));

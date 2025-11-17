@@ -1449,6 +1449,11 @@ function ja_return_user_membership_level_num() {
 }
 
 function ja_limit_player() {
+    // Check for blocking tags first - if user has blocking tags, always limit
+    if (je_has_blocking_tags()) {
+        return 'true';
+    }
+    
     $post_id = get_the_ID();
     $limit = 'true';
     if (je_return_active_member() == 'true' || je_check_academy_credit_access() == 'true' || in_array($post_id, [548, 547, 587])) { 
@@ -1462,52 +1467,64 @@ function ja_limit_player() {
 
 function je_has_lesson_access() {
     global $wpdb, $user_id, $user_membership_level, $user_membership_level_num, $lesson_post_id;
+    
+    // Check for blocking tags first - if user has blocking tags, deny access
+    if (je_has_blocking_tags()) {
+        return 'false';
+    }
+    
     if (in_array($lesson_post_id, [587, 548, 547])) { 
         return 'true'; 
     }
-
     if (empty($user_id)) { 
         return 'false'; 
     }
     $lesson_id = get_the_ID();
     $purchased_lesson = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_credit_purchases WHERE user_id = %d AND post_id = %d", $user_id, $lesson_id));
-
+    
+    //esentials membership
+    /*
+    if ($user_membership_level_num >= 1 && in_array($lesson_post_id, [263, 279, 271, 278, 282, 276, 280, 275, 281, 264, 266, 265, 307, 327, 333, 318, 328, 332, 325, 330, 324, 319, 331, 323])) { 
+        return 'true'; 
+    }
+    */
+    
+    // Check Essentials library access for Studio-level lessons
+	if ($user_membership_level_num == 1) {
+		// Get ALM lesson_id from post
+		$alm_lesson_id = null;
+		if (function_exists('get_field')) {
+			$alm_lesson_id = get_field('alm_lesson_id', $lesson_id);
+		}
+		if (empty($alm_lesson_id)) {
+			$alm_lesson_id = get_post_meta($lesson_id, 'alm_lesson_id', true);
+		}
+		
+		if ($alm_lesson_id) {
+			// Get lesson membership level
+			$lesson_level = $wpdb->get_var($wpdb->prepare(
+				"SELECT membership_level FROM {$wpdb->prefix}alm_lessons WHERE ID = %d",
+				intval($alm_lesson_id)
+			));
+			
+			// If lesson is Studio level (2), check if in library
+			if (intval($lesson_level) == 2) {
+				if (class_exists('ALM_Essentials_Library')) {
+					$library = new ALM_Essentials_Library();
+					if ($library->has_lesson_in_library($user_id, intval($alm_lesson_id))) {
+						return 'true';
+					}
+				}
+			}
+		}
+	}
+    //echo "**$user_membership_level";
     if (empty($purchased_lesson)) { 
         $purchased_lesson = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_user_credit_log WHERE user_id = %d AND post_id = %d", $user_id, $lesson_id));
     }
 
     if (!empty($purchased_lesson)) { 
         return 'true'; 
-    }
-
-    // Check Essentials library access for Studio-level lessons
-    if ($user_membership_level_num == 1) {
-        // Get ALM lesson_id from post
-        $alm_lesson_id = null;
-        if (function_exists('get_field')) {
-            $alm_lesson_id = get_field('alm_lesson_id', $lesson_id);
-        }
-        if (empty($alm_lesson_id)) {
-            $alm_lesson_id = get_post_meta($lesson_id, 'alm_lesson_id', true);
-        }
-        
-        if ($alm_lesson_id) {
-            // Get lesson membership level
-            $lesson_level = $wpdb->get_var($wpdb->prepare(
-                "SELECT membership_level FROM {$wpdb->prefix}alm_lessons WHERE ID = %d",
-                intval($alm_lesson_id)
-            ));
-            
-            // If lesson is Studio level (2), check if in library
-            if (intval($lesson_level) == 2) {
-                if (class_exists('ALM_Essentials_Library')) {
-                    $library = new ALM_Essentials_Library();
-                    if ($library->has_lesson_in_library($user_id, intval($alm_lesson_id))) {
-                        return 'true';
-                    }
-                }
-            }
-        }
     }
 
     if (in_array($user_membership_level, ['14daytrial', 'studio', 'lessons']) || $user_membership_level_num >= 2) { 
@@ -1519,6 +1536,12 @@ function je_has_lesson_access() {
 
 function je_has_class_access() {
     global $wpdb, $user_id, $user_membership_level, $user_membership_level_num;
+    
+    // Check for blocking tags first - if user has blocking tags, deny access
+    if (je_has_blocking_tags()) {
+        return 'false';
+    }
+    
     //$class_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
     $class_id = get_the_ID();
     $purchased_lesson = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_credit_purchases WHERE user_id = %d AND post_id = %d", $user_id, $class_id));
@@ -1539,10 +1562,31 @@ function je_has_class_access() {
 }
 
 function ja_return_user_membership_data() {
+	// Check for blocking tags first - if user has blocking tags, return empty/free membership
+	if (je_has_blocking_tags()) {
+		$memb_data = array();
+		$memb_data['membership_name'] = 'Free';
+		$memb_data['membership_product'] = 'Free';
+		$memb_data['membership_numeric'] = 0;
+		$memb_data['membership_level'] = 'free';
+		$memb_data['fname'] = do_shortcode('[memb_contact fields=FirstName]');
+		$memb_data['lname'] = do_shortcode('[memb_contact fields=LastName]');
+		$memb_data['email'] = do_shortcode('[memb_contact fields=Email]');
+		$memb_data['tags'] = '';
+		$memb_data['keap_id'] = do_shortcode('[memb_contact fields=Id]');
+		return $memb_data;
+	}
 
+	$essentials_access = memb_hasAnyTags([10290,10288]);
 	$premier_access = memb_hasAnyTags([9821,9813,10142]);
 	$studio_access = memb_hasAnyTags([9954,10136,9807,9827,9819,9956,10136]);
 	//$studio_access = do_shortcode('[memb_has_any_tag tagid=9954,10136,9807,9827,9819,9956,10136]');
+	if ($essentials_access || $essentials_access === TRUE || $essentials_access ==='Yes' || $essentials_access === 'true') {
+		$memb_data['membership_name'] = 'Essentials';
+		$memb_data['membership_product'] = 'Essentials';
+		$memb_data['membership_numeric'] = 1;
+		$memb_data['membership_level'] = 'essentials';
+	} 
 	if ($studio_access || $studio_access === TRUE || $studio_access ==='Yes' || $studio_access === 'true') {
 		$memb_data['membership_name'] = 'Studio';
 		$memb_data['membership_product'] = 'Studio';
@@ -1729,7 +1773,39 @@ function je_return_membership_level_old($return = 'product') {
 //****************************************************************************************************************
 // ****************************************************************************************************************/
 
+/**
+ * Check if user has any blocking tags that should deny access
+ * @return bool True if user has blocking tags, false otherwise
+ */
+function je_has_blocking_tags() {
+    if (!function_exists('memb_hasAnyTags')) {
+        return false;
+    }
+    
+    $blocking_tags_str = get_option('alm_keap_blocking_tags', '');
+    if (empty($blocking_tags_str)) {
+        return false;
+    }
+    
+    // Parse comma-separated tag IDs
+    $blocking_tags = array_map('trim', explode(',', $blocking_tags_str));
+    $blocking_tags = array_filter($blocking_tags, 'is_numeric');
+    $blocking_tags = array_map('intval', $blocking_tags);
+    
+    if (empty($blocking_tags)) {
+        return false;
+    }
+    
+    // Check if user has any blocking tags
+    return memb_hasAnyTags($blocking_tags) === true;
+}
+
 function je_return_active_member() {
+    // Check for blocking tags first - if user has blocking tags, deny access
+    if (je_has_blocking_tags()) {
+        return 'false';
+    }
+    
     if (je_return_membership_expired() == 'true') { 
         return 'false'; 
     }
@@ -1739,7 +1815,7 @@ function je_return_active_member() {
         'JA_LESSONS_90DAYS', 'ACADEMY_SONG', 'ACADEMY_ACADEMY', 'ACADEMY_ACADEMY_1YR',
         'ACADEMY_ACADEMY_NC', 'JA_MONTHLY_LSN_CLASSES', 'JA_MONTHLY_LSN_COACHING', 'JA_MONTHLY_STUDIO', 'JA_YEAR_STUDIO',
         'JA_MONTHLY_PREMIER', 'JA_MONTHLY_PREMIER_DMP', 'JA_YEAR_LSN_CLASSES', 'JA_YEAR_LSN_COACHING',
-        'JA_YEAR_LSN_ONLY', 'JA_YEAR_CLASSES_ONLY', 'JA_YEAR_PREMIER', 'JA_MONTHLY_STUDIO_DMP'
+        'JA_YEAR_LSN_ONLY', 'JA_YEAR_CLASSES_ONLY', 'JA_YEAR_PREMIER', 'JA_MONTHLY_STUDIO_DMP', 'JA_MONTHLY_ESSENTIALS', 'JA_YEAR_ESSENTIALS'
     ];
     
     $payment_failed = do_shortcode('[memb_has_any_tag tagid=7772]');
@@ -7306,6 +7382,44 @@ function je_month_bounds($ym){
   $e=(clone $s)->modify('last day of this month 23:59:59');
   return [$s,$e];
 }
+
+/*
+function je_get_events_between($from,$to,$tax_filters=[]){
+  // ACF returns Y-m-d H:i:s -> use DATETIME comparison (lexicographic-safe)
+  $start = $from->format('Y-m-d H:i:s');
+  $end   = $to->format('Y-m-d H:i:s');
+
+  $tax_query = [];
+  foreach ($tax_filters as $tax=>$term){
+    if ($term) $tax_query[] = ['taxonomy'=>$tax,'field'=>'slug','terms'=>$term];
+  }
+
+  // Exclude events that have been converted to ALM lessons
+  $meta_query = [[
+    'key'     => 'je_event_start',
+    'value'   => [$start, $end],
+    'compare' => 'BETWEEN',
+    'type'    => 'DATETIME',
+  ], [
+    'key'     => '_converted_to_alm_lesson_id',
+    'compare' => 'NOT EXISTS',
+  ]];
+
+  return get_posts([
+    'post_type'      => 'je_event',
+    'posts_per_page' => -1,
+    'orderby'        => 'meta_value',
+    'order'          => 'ASC',
+    'meta_key'       => 'je_event_start',
+    'meta_type'      => 'DATETIME',
+    'meta_query'     => $meta_query,
+    'tax_query'      => $tax_query ?: [],
+    'no_found_rows'  => true,
+  ]);
+}
+*/
+
+
 function je_get_events_between($from,$to,$tax_filters=[]){
   // ACF returns Y-m-d H:i:s -> use DATETIME comparison (lexicographic-safe)
   $start = $from->format('Y-m-d H:i:s');
@@ -7332,10 +7446,11 @@ function je_get_events_between($from,$to,$tax_filters=[]){
     'tax_query'      => $tax_query ?: [],
     'no_found_rows'  => true,
   ]);
-}
+} 
 
 // [je_events_calendar month="YYYY-MM"]
 // [je_events_calendar month="YYYY-MM"]
+
 add_shortcode('je_events_calendar', function ($atts) {
   if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
   nocache_headers();
@@ -7385,6 +7500,31 @@ add_shortcode('je_events_calendar', function ($atts) {
     if (!$dt) continue;
     $byDay[$dt->format('Y-m-d')][] = $e;
   }
+  
+  // Helper function to get lesson permalink for converted events
+	$get_event_permalink = function($event_id) {
+	  global $wpdb;
+	  
+	  // Check if event is converted to a lesson
+	  $alm_lesson_id = get_post_meta($event_id, '_converted_to_alm_lesson_id', true);
+	  
+	  if (!empty($alm_lesson_id)) {
+		// Get the lesson's WordPress post_id from ALM table
+		$lessons_table = $wpdb->prefix . 'alm_lessons';
+		$lesson_post_id = $wpdb->get_var($wpdb->prepare(
+		  "SELECT post_id FROM {$lessons_table} WHERE ID = %d",
+		  intval($alm_lesson_id)
+		));
+		
+		// If lesson post exists, use its permalink
+		if ($lesson_post_id && get_post($lesson_post_id)) {
+		  return get_permalink($lesson_post_id);
+		}
+	  }
+	  
+	  // Fallback to event permalink
+	  return get_permalink($event_id);
+	};
 
   // urls
   $base    = add_query_arg(['je_cb'=>$je_cb], get_permalink());
@@ -7597,9 +7737,13 @@ add_shortcode('je_events_calendar', function ($atts) {
 
                 $classes = trim($lvl.' '.($et ? 'et-'.$et : '').($isS ? ' is-special' : ''));
                 $hover   = ($lvl==='studio' ? 'Studio' : ($lvl==='premier' ? 'Premier' : 'Free'));
+                
+                // Use helper function to get correct permalink
+			  	$event_url = $get_event_permalink($ev->ID);
 
-                echo '<li class="'.esc_attr($classes).'"><a title="'.esc_attr($hover).'" href="'.esc_url(get_permalink($ev)).'"><span class="t">'.
-                      esc_html($time).'</span> '.esc_html(get_the_title($ev)).'</a></li>';
+				echo '<li class="'.esc_attr($classes).'"><a title="'.esc_attr($hover).'" href="'.esc_url($event_url).'"><span class="t">'.
+					esc_html($time).'</span> '.esc_html(get_the_title($ev)).'</a></li>';
+
               }
               echo '</ul>';
             }
@@ -7611,6 +7755,7 @@ add_shortcode('je_events_calendar', function ($atts) {
   <?php
   return trim(ob_get_clean());
 });
+
 // Turn OFF multiple CPTs everywhere (frontend + admin UI)
 /*
 add_filter( 'register_post_type_args', function( $args, $post_type ) {
@@ -7843,328 +7988,4 @@ add_action('admin_init', function() {
     echo '</pre>';
     die();
 });
-
-/**
- * Membership Pricing Management
- * Admin interface for managing membership pricing, order form links, and sale dates
- */
-class JE_Membership_Pricing_Admin {
-    
-    private $option_group = 'je_membership_pricing';
-    private $option_name = 'je_membership_pricing_settings';
-    
-    public function __construct() {
-        add_action('admin_menu', array($this, 'add_admin_menu'));
-        add_action('admin_init', array($this, 'register_settings'));
-        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
-    }
-    
-    /**
-     * Add admin menu
-     */
-    public function add_admin_menu() {
-        add_menu_page(
-            'Membership Pricing',
-            'Membership Pricing',
-            'manage_options',
-            'je-membership-pricing',
-            array($this, 'admin_page'),
-            'dashicons-money-alt',
-            31
-        );
-    }
-    
-    /**
-     * Register settings
-     */
-    public function register_settings() {
-        register_setting($this->option_group, $this->option_name, array($this, 'sanitize_settings'));
-    }
-    
-    /**
-     * Sanitize settings
-     */
-    public function sanitize_settings($input) {
-        $sanitized = array();
-        
-        // Sanitize each membership tier
-        $tiers = array('essentials', 'studio', 'premier');
-        
-        foreach ($tiers as $tier) {
-            if (isset($input[$tier])) {
-                $sanitized[$tier] = array(
-                    'retail_monthly' => isset($input[$tier]['retail_monthly']) ? floatval($input[$tier]['retail_monthly']) : 0,
-                    'retail_yearly' => isset($input[$tier]['retail_yearly']) ? floatval($input[$tier]['retail_yearly']) : 0,
-                    'order_form_monthly' => isset($input[$tier]['order_form_monthly']) ? esc_url_raw($input[$tier]['order_form_monthly']) : '',
-                    'order_form_yearly' => isset($input[$tier]['order_form_yearly']) ? esc_url_raw($input[$tier]['order_form_yearly']) : '',
-                    'sale_enabled' => isset($input[$tier]['sale_enabled']) ? 1 : 0,
-                    'sale_monthly' => isset($input[$tier]['sale_monthly']) ? floatval($input[$tier]['sale_monthly']) : 0,
-                    'sale_yearly' => isset($input[$tier]['sale_yearly']) ? floatval($input[$tier]['sale_yearly']) : 0,
-                    'sale_start_date' => isset($input[$tier]['sale_start_date']) ? sanitize_text_field($input[$tier]['sale_start_date']) : '',
-                    'sale_end_date' => isset($input[$tier]['sale_end_date']) ? sanitize_text_field($input[$tier]['sale_end_date']) : '',
-                    'sale_order_form_monthly' => isset($input[$tier]['sale_order_form_monthly']) ? esc_url_raw($input[$tier]['sale_order_form_monthly']) : '',
-                    'sale_order_form_yearly' => isset($input[$tier]['sale_order_form_yearly']) ? esc_url_raw($input[$tier]['sale_order_form_yearly']) : '',
-                );
-            }
-        }
-        
-        return $sanitized;
-    }
-    
-    /**
-     * Enqueue admin scripts
-     */
-    public function enqueue_admin_scripts($hook) {
-        if ($hook !== 'toplevel_page_je-membership-pricing') {
-            return;
-        }
-        
-        wp_enqueue_style('jquery-ui-datepicker', 'https://code.jquery.com/ui/1.12.1/themes/ui-lightness/jquery-ui.css');
-        wp_enqueue_script('jquery-ui-datepicker');
-    }
-    
-    /**
-     * Admin page
-     */
-    public function admin_page() {
-        $settings = get_option($this->option_name, array());
-        
-        // Default values
-        $defaults = array(
-            'essentials' => array(
-                'retail_monthly' => 0,
-                'retail_yearly' => 175,
-                'order_form_monthly' => '',
-                'order_form_yearly' => 'https://ft217.infusionsoft.com/app/orderForms/JA_YEAR_ESSENTIALS',
-            ),
-            'studio' => array(
-                'retail_monthly' => 39,
-                'retail_yearly' => 390,
-                'order_form_monthly' => 'https://ft217.infusionsoft.com/app/orderForms/ja_monthly_studio_retail',
-                'order_form_yearly' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_studio',
-            ),
-            'premier' => array(
-                'retail_monthly' => 59,
-                'retail_yearly' => 649,
-                'order_form_monthly' => '',
-                'order_form_yearly' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_premier_retail',
-            ),
-        );
-        
-        $settings = wp_parse_args($settings, $defaults);
-        
-        ?>
-        <div class="wrap">
-            <h1>Membership Pricing Management</h1>
-            
-            <form method="post" action="options.php">
-                <?php settings_fields($this->option_group); ?>
-                
-                <div class="je-pricing-admin">
-                    <?php
-                    $tiers = array(
-                        'essentials' => array('label' => 'Essentials', 'monthly' => false),
-                        'studio' => array('label' => 'Studio', 'monthly' => true),
-                        'premier' => array('label' => 'Premier', 'monthly' => true),
-                    );
-                    
-                    foreach ($tiers as $tier_key => $tier_info):
-                        $tier_data = isset($settings[$tier_key]) ? $settings[$tier_key] : array();
-                        $tier_data = wp_parse_args($tier_data, $defaults[$tier_key]);
-                    ?>
-                    <div class="je-tier-section">
-                        <h2><?php echo esc_html($tier_info['label']); ?></h2>
-                        
-                        <table class="form-table">
-                            <tr>
-                                <th>Retail Pricing</th>
-                                <td>
-                                    <?php if ($tier_info['monthly']): ?>
-                                    <label>
-                                        Monthly: $<input type="number" step="0.01" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][retail_monthly]'); ?>" value="<?php echo esc_attr($tier_data['retail_monthly']); ?>" />
-                                    </label>
-                                    <?php endif; ?>
-                                    <label>
-                                        Yearly: $<input type="number" step="0.01" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][retail_yearly]'); ?>" value="<?php echo esc_attr($tier_data['retail_yearly']); ?>" />
-                                    </label>
-                                </td>
-                            </tr>
-                            
-                            <tr>
-                                <th>Order Form Links</th>
-                                <td>
-                                    <?php if ($tier_info['monthly']): ?>
-                                    <label style="display: block; margin-bottom: 10px;">
-                                        Monthly Link:<br>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][order_form_monthly]'); ?>" value="<?php echo esc_attr($tier_data['order_form_monthly']); ?>" />
-                                    </label>
-                                    <?php endif; ?>
-                                    <label style="display: block;">
-                                        Yearly Link:<br>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['order_form_yearly']); ?>" />
-                                    </label>
-                                </td>
-                            </tr>
-                            
-                            <tr>
-                                <th>Sale Pricing</th>
-                                <td>
-                                    <label>
-                                        <input type="checkbox" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_enabled]'); ?>" value="1" <?php checked($tier_data['sale_enabled'] ?? 0, 1); ?> />
-                                        Enable Sale Pricing
-                                    </label>
-                                </td>
-                            </tr>
-                            
-                            <tr class="sale-pricing-row" style="<?php echo (empty($tier_data['sale_enabled'])) ? 'display: none;' : ''; ?>">
-                                <th>Sale Prices</th>
-                                <td>
-                                    <?php if ($tier_info['monthly']): ?>
-                                    <label>
-                                        Monthly Sale: $<input type="number" step="0.01" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_monthly]'); ?>" value="<?php echo esc_attr($tier_data['sale_monthly'] ?? 0); ?>" />
-                                    </label>
-                                    <?php endif; ?>
-                                    <label>
-                                        Yearly Sale: $<input type="number" step="0.01" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_yearly]'); ?>" value="<?php echo esc_attr($tier_data['sale_yearly'] ?? 0); ?>" />
-                                    </label>
-                                </td>
-                            </tr>
-                            
-                            <tr class="sale-pricing-row" style="<?php echo (empty($tier_data['sale_enabled'])) ? 'display: none;' : ''; ?>">
-                                <th>Sale Dates</th>
-                                <td>
-                                    <label>
-                                        Start Date: <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_start_date]'); ?>" value="<?php echo esc_attr($tier_data['sale_start_date'] ?? ''); ?>" />
-                                    </label>
-                                    <label style="margin-left: 20px;">
-                                        End Date: <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_end_date]'); ?>" value="<?php echo esc_attr($tier_data['sale_end_date'] ?? ''); ?>" />
-                                    </label>
-                                </td>
-                            </tr>
-                            
-                            <tr class="sale-pricing-row" style="<?php echo (empty($tier_data['sale_enabled'])) ? 'display: none;' : ''; ?>">
-                                <th>Sale Order Form Links</th>
-                                <td>
-                                    <?php if ($tier_info['monthly']): ?>
-                                    <label style="display: block; margin-bottom: 10px;">
-                                        Monthly Sale Link:<br>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_order_form_monthly]'); ?>" value="<?php echo esc_attr($tier_data['sale_order_form_monthly'] ?? ''); ?>" />
-                                    </label>
-                                    <?php endif; ?>
-                                    <label style="display: block;">
-                                        Yearly Sale Link:<br>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['sale_order_form_yearly'] ?? ''); ?>" />
-                                    </label>
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                
-                <?php submit_button(); ?>
-            </form>
-        </div>
-        
-        <style>
-        .je-pricing-admin .je-tier-section {
-            background: #fff;
-            border: 1px solid #ccd0d4;
-            padding: 20px;
-            margin: 20px 0;
-            box-shadow: 0 1px 1px rgba(0,0,0,0.04);
-        }
-        .je-pricing-admin .je-tier-section h2 {
-            margin-top: 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #007cba;
-        }
-        .je-pricing-admin label {
-            margin-right: 20px;
-        }
-        </style>
-        
-        <script>
-        jQuery(document).ready(function($) {
-            $('.datepicker').datepicker({
-                dateFormat: 'yy-mm-dd'
-            });
-            
-            $('input[type="checkbox"][name*="[sale_enabled]"]').change(function() {
-                var row = $(this).closest('tr').nextAll('.sale-pricing-row');
-                if ($(this).is(':checked')) {
-                    row.show();
-                } else {
-                    row.hide();
-                }
-            });
-        });
-        </script>
-        <?php
-    }
-}
-
-// Initialize admin
-new JE_Membership_Pricing_Admin();
-
-/**
- * Get active pricing for a membership tier
- * Returns current pricing based on sale dates
- */
-function je_get_membership_pricing($tier, $billing = 'yearly') {
-    $settings = get_option('je_membership_pricing_settings', array());
-    
-    if (!isset($settings[$tier])) {
-        return null;
-    }
-    
-    $tier_data = $settings[$tier];
-    $today = current_time('Y-m-d');
-    
-    // Check if sale is active
-    $sale_active = false;
-    if (!empty($tier_data['sale_enabled'])) {
-        $start_date = isset($tier_data['sale_start_date']) ? $tier_data['sale_start_date'] : '';
-        $end_date = isset($tier_data['sale_end_date']) ? $tier_data['sale_end_date'] : '';
-        
-        if ($start_date && $end_date) {
-            $sale_active = ($today >= $start_date && $today <= $end_date);
-        }
-    }
-    
-    // Return sale pricing if active, otherwise retail
-    if ($sale_active) {
-        $price_key = 'sale_' . $billing;
-        $order_form_key = 'sale_order_form_' . $billing;
-    } else {
-        $price_key = 'retail_' . $billing;
-        $order_form_key = 'order_form_' . $billing;
-    }
-    
-    return array(
-        'price' => isset($tier_data[$price_key]) ? floatval($tier_data[$price_key]) : 0,
-        'order_form' => isset($tier_data[$order_form_key]) ? $tier_data[$order_form_key] : '',
-        'is_sale' => $sale_active,
-        'retail_price' => isset($tier_data['retail_' . $billing]) ? floatval($tier_data['retail_' . $billing]) : 0,
-    );
-}
-
-/**
- * Get all membership pricing for display
- */
-function je_get_all_membership_pricing() {
-    return array(
-        'essentials' => array(
-            'yearly' => je_get_membership_pricing('essentials', 'yearly'),
-        ),
-        'studio' => array(
-            'monthly' => je_get_membership_pricing('studio', 'monthly'),
-            'yearly' => je_get_membership_pricing('studio', 'yearly'),
-        ),
-        'premier' => array(
-            'monthly' => je_get_membership_pricing('premier', 'monthly'),
-            'yearly' => je_get_membership_pricing('premier', 'yearly'),
-        ),
-    );
-}
 ?>

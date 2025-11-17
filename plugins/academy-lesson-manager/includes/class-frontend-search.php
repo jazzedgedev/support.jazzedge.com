@@ -48,6 +48,12 @@ class ALM_Frontend_Search {
     z-index: 9999 !important;
 }
 
+/* Light orange background for favorited lessons */
+.alm-lesson-card-course.alm-favorited {
+    background-color: #fff5e6 !important;
+    border-color: #ffd89b !important;
+}
+
 /* Search Page Container */
 .alm-search-page-container {
     max-width: 1200px;
@@ -116,6 +122,84 @@ CSS;
         
         $inline = <<<JS
 document.addEventListener('DOMContentLoaded', function() {
+  // Favorites cache management (define early for use throughout)
+  var favoritesCache = {
+    key: 'alm_lesson_favorites_cache',
+    timestampKey: 'alm_lesson_favorites_timestamp',
+    maxAge: 5 * 60 * 1000, // 5 minutes
+    
+    get: function() {
+      try {
+        var cached = sessionStorage.getItem(this.key);
+        var timestamp = sessionStorage.getItem(this.timestampKey);
+        if (cached && timestamp) {
+          var age = Date.now() - parseInt(timestamp, 10);
+          if (age < this.maxAge) {
+            return JSON.parse(cached);
+          }
+        }
+      } catch (e) {
+        // Ignore storage errors
+      }
+      return null;
+    },
+    
+    set: function(favorites) {
+      try {
+        sessionStorage.setItem(this.key, JSON.stringify(favorites));
+        sessionStorage.setItem(this.timestampKey, Date.now().toString());
+      } catch (e) {
+        // Ignore storage errors
+      }
+    },
+    
+    clear: function() {
+      try {
+        sessionStorage.removeItem(this.key);
+        sessionStorage.removeItem(this.timestampKey);
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+  };
+  
+  // Fetch favorites EARLY (as soon as page loads, if user is logged in)
+  // This starts the request immediately, before any DOM manipulation
+  var favoritesPromise = null;
+  if ({$is_user_logged_in}) {
+    favoritesPromise = fetch('{$favorites_get_all_url_js}', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': '{$rest_nonce_js}'
+      },
+      credentials: 'same-origin'
+    })
+    .then(function(response){
+      if (response.status === 403) {
+        return [];
+      }
+      if (!response.ok) {
+        return [];
+      }
+      return response.json();
+    })
+    .then(function(result){
+      if (result.success && result.favorites && Array.isArray(result.favorites)) {
+        // Cache the favorites
+        favoritesCache.set(result.favorites);
+        return result.favorites;
+      }
+      return [];
+    })
+    .catch(function(error){
+      if (error.name !== 'TypeError') {
+        console.error('Favorites fetch error:', error);
+      }
+      return [];
+    });
+  }
+  
   // Full page variant
   var root = document.querySelector('#alm-lesson-search');
   if (root) {
@@ -1137,15 +1221,22 @@ document.addEventListener('DOMContentLoaded', function() {
       items.forEach(function(it){
         var card = document.createElement('div');
         card.className = 'alm-lesson-card-course';
+        // Will add 'alm-favorited' class later when favorites are loaded
         
         var cardLink = document.createElement(it.permalink ? 'a' : 'div');
         if (it.permalink) {
           cardLink.href = it.permalink;
           cardLink.className = 'alm-lesson-card-link';
-          // Allow buttons to prevent navigation
+          // Prevent navigation when clicking on overlay (buttons handle their own navigation)
           cardLink.onclick = function(e){
-            // If click is on a button, prevent navigation
-            if (e.target.closest('button.alm-favorite-btn')) {
+            // If click is on a button (not the View Lesson link), prevent card navigation
+            var clickedBtn = e.target.closest('button.alm-overlay-btn');
+            if (clickedBtn) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+            // If click is on the overlay area (but not on a button or link), prevent navigation
+            else if (e.target.closest('.alm-search-card-overlay') && !e.target.closest('a.alm-overlay-btn')) {
               e.preventDefault();
               e.stopPropagation();
             }
@@ -1158,8 +1249,9 @@ document.addEventListener('DOMContentLoaded', function() {
         cardContent.className = 'alm-lesson-card-content';
         
         // Collection name badge at top - Dark Jazzedge blue background with white text (uniform larger size)
+        var collectionBadge = null;
         if (it.collection_title) {
-          var collectionBadge = document.createElement('div');
+          collectionBadge = document.createElement('div');
           collectionBadge.className = 'alm-lesson-collection-badge';
           collectionBadge.textContent = it.collection_title;
           cardContent.appendChild(collectionBadge);
@@ -1169,213 +1261,9 @@ document.addEventListener('DOMContentLoaded', function() {
         var innerContent = document.createElement('div');
         innerContent.className = 'alm-lesson-inner-content';
         
-        // Button container for top-right actions (favorite and video icon)
-        var topRightActions = document.createElement('div');
-        topRightActions.className = 'alm-lesson-top-actions';
-        
-        // Video icon button (if sample URL exists) - positioned before favorite button
-        if (it.sample_video_url) {
-          var videoIconBtn = document.createElement('button');
-          videoIconBtn.type = 'button';
-          videoIconBtn.className = 'alm-video-sample-btn';
-          videoIconBtn.setAttribute('aria-label', 'View Sample Video');
-          videoIconBtn.setAttribute('data-microtip-position', 'top-left');
-          videoIconBtn.setAttribute('role', 'tooltip');
-          
-          // Heroicons play icon (for video preview)
-          var videoIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          videoIcon.setAttribute('width', '20');
-          videoIcon.setAttribute('height', '20');
-          videoIcon.setAttribute('viewBox', '0 0 24 24');
-          videoIcon.setAttribute('fill', 'none');
-          videoIcon.setAttribute('stroke', '#239B90');
-          videoIcon.setAttribute('stroke-width', '2');
-          videoIcon.setAttribute('stroke-linecap', 'round');
-          videoIcon.setAttribute('stroke-linejoin', 'round');
-          
-          // Heroicons play icon path
-          var playPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          playPath.setAttribute('d', 'M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z');
-          
-          videoIcon.appendChild(playPath);
-          videoIconBtn.appendChild(videoIcon);
-          
-          // Prevent card link navigation when clicking video icon
-          videoIconBtn.onclick = function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            openSampleModal(it.sample_video_url, it.title || 'Sample Video');
-          };
-          
-          topRightActions.appendChild(videoIconBtn);
-        }
-        
-        // Favorite star button - positioned next to video icon (only show if user is logged in)
-        if ({$is_user_logged_in}) {
-          var favoriteBtn = document.createElement('button');
-          favoriteBtn.type = 'button';
-          favoriteBtn.className = 'alm-favorite-btn';
-          favoriteBtn.setAttribute('data-title', it.title || '');
-          favoriteBtn.setAttribute('data-url', it.permalink || '');
-          favoriteBtn.setAttribute('data-description', it.description || '');
-          favoriteBtn.setAttribute('aria-label', 'Add to Favorites');
-          favoriteBtn.setAttribute('data-microtip-position', 'top-left');
-          favoriteBtn.setAttribute('role', 'tooltip');
-          
-          // Star icon SVG (outline)
-          var starIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          starIcon.setAttribute('width', '20');
-          starIcon.setAttribute('height', '20');
-          starIcon.setAttribute('viewBox', '0 0 24 24');
-          starIcon.setAttribute('fill', 'none');
-          starIcon.setAttribute('stroke', '#6b7280');
-          starIcon.setAttribute('stroke-width', '2');
-          starIcon.setAttribute('stroke-linecap', 'round');
-          starIcon.setAttribute('stroke-linejoin', 'round');
-          var starPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          starPath.setAttribute('d', 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z');
-          starIcon.appendChild(starPath);
-          favoriteBtn.appendChild(starIcon);
-          
-          // Click handler to toggle favorite
-          favoriteBtn.onclick = function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            var btn = this;
-            var isFavorited = btn.classList.contains('is-favorited');
-            var title = btn.getAttribute('data-title');
-            var url = btn.getAttribute('data-url');
-            var description = btn.getAttribute('data-description');
-            
-            if (!url) {
-              alert('This lesson is not available');
-              return;
-            }
-            
-            // Optimistic UI update - change immediately before AJAX
-            var icon = btn.querySelector('svg path');
-            if (isFavorited) {
-              // Removing favorite - change to unfilled immediately
-              btn.classList.remove('is-favorited');
-              if (icon) {
-                icon.setAttribute('fill', 'none');
-                icon.setAttribute('stroke', '#6b7280');
-              }
-              btn.style.opacity = '0.6';
-              btn.style.background = 'transparent';
-              btn.setAttribute('aria-label', 'Add to Favorites');
-            } else {
-              // Adding favorite - change to filled immediately
-              btn.classList.add('is-favorited');
-              if (icon) {
-                icon.setAttribute('fill', '#f04e23');
-                icon.setAttribute('stroke', '#f04e23');
-              }
-              btn.style.opacity = '1';
-              btn.style.background = 'rgba(240, 78, 35, 0.1)';
-              btn.setAttribute('aria-label', 'Remove from Favorites');
-            }
-            
-            // Disable button during request to prevent double-clicks
-            btn.style.pointerEvents = 'none';
-            
-            var endpoint = isFavorited 
-              ? '{$favorites_remove_url_js}'
-              : '{$favorites_add_url_js}';
-            
-            var data = isFavorited 
-              ? { title: title }
-              : { title: title, url: url, description: description, category: 'lesson' };
-            
-            fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': '{$rest_nonce_js}'
-              },
-              body: JSON.stringify(data),
-              credentials: 'same-origin'
-            })
-            .then(function(response){ return response.json(); })
-            .then(function(result){
-              if (!result.success) {
-                // Revert UI change if request failed
-                if (isFavorited) {
-                  // Was removing, but failed - restore to favorited state
-                  btn.classList.add('is-favorited');
-                  if (icon) {
-                    icon.setAttribute('fill', '#f04e23');
-                    icon.setAttribute('stroke', '#f04e23');
-                  }
-                  btn.style.opacity = '1';
-                  btn.style.background = 'rgba(240, 78, 35, 0.1)';
-                  btn.setAttribute('aria-label', 'Remove from Favorites');
-                } else {
-                  // Was adding, but failed - restore to unfavorited state
-                  btn.classList.remove('is-favorited');
-                  if (icon) {
-                    icon.setAttribute('fill', 'none');
-                    icon.setAttribute('stroke', '#6b7280');
-                  }
-                  btn.style.opacity = '0.6';
-                  btn.style.background = 'transparent';
-                  btn.setAttribute('aria-label', 'Add to Favorites');
-                }
-                alert(result.message || 'Failed to update favorite');
-              }
-            })
-            .catch(function(error){
-              console.error('Favorite error:', error);
-              // Revert UI change on error
-              if (isFavorited) {
-                // Was removing, but error - restore to favorited state
-                btn.classList.add('is-favorited');
-                if (icon) {
-                  icon.setAttribute('fill', '#f04e23');
-                  icon.setAttribute('stroke', '#f04e23');
-                }
-                btn.style.opacity = '1';
-                btn.style.background = 'rgba(240, 78, 35, 0.1)';
-                btn.setAttribute('aria-label', 'Remove from Favorites');
-              } else {
-                // Was adding, but error - restore to unfavorited state
-                btn.classList.remove('is-favorited');
-                if (icon) {
-                  icon.setAttribute('fill', 'none');
-                  icon.setAttribute('stroke', '#6b7280');
-                }
-                btn.style.opacity = '0.6';
-                btn.style.background = 'transparent';
-                btn.setAttribute('aria-label', 'Add to Favorites');
-              }
-              alert('Error updating favorite');
-            })
-            .finally(function(){
-              btn.style.pointerEvents = 'auto';
-            });
-          };
-          
-          // Store button for batch favorite checking
-          if (it.title) {
-            favoriteButtons.push(favoriteBtn);
-            favoriteButtonMap[it.title] = favoriteBtn;
-          }
-          
-          topRightActions.appendChild(favoriteBtn);
-        }
-        
-        // Append the top-right actions container
-        if (topRightActions.children.length > 0) {
-          innerContent.appendChild(topRightActions);
-        }
-        
-        // Title - MUST be appended first
-        // Add padding-right to avoid clash with buttons (calculate based on number of buttons)
-        var buttonCount = (it.sample_video_url ? 1 : 0) + ({$is_user_logged_in} ? 1 : 0);
-        var paddingRight = buttonCount > 0 ? (buttonCount * 44) + 20 : '0'; // 36px button + 8px gap
+        // Title - no padding needed
         var title = document.createElement('h3');
         title.className = 'alm-lesson-title';
-        title.style.paddingRight = paddingRight + 'px';
         title.textContent = it.title || 'Untitled Lesson';
         innerContent.appendChild(title);
         
@@ -1444,6 +1332,267 @@ document.addEventListener('DOMContentLoaded', function() {
         
         cardContent.appendChild(innerContent);
         
+        // Hover overlay with action buttons
+        var hoverOverlay = document.createElement('div');
+        hoverOverlay.className = 'alm-search-card-overlay';
+        
+        var overlayButtons = document.createElement('div');
+        overlayButtons.className = 'alm-search-overlay-buttons';
+        
+        // View Lesson button (always show if permalink exists)
+        if (it.permalink) {
+          var viewLessonBtn = document.createElement('a');
+          viewLessonBtn.href = it.permalink;
+          viewLessonBtn.className = 'alm-overlay-btn alm-overlay-btn-primary';
+          viewLessonBtn.textContent = 'View Lesson';
+          viewLessonBtn.onclick = function(e) {
+            // Stop propagation to prevent card link navigation, but allow this link to navigate normally
+            e.stopPropagation();
+            // Don't prevent default - allow normal anchor navigation
+          };
+          overlayButtons.appendChild(viewLessonBtn);
+        }
+        
+        // View Sample button (only if sample exists)
+        if (it.sample_video_url) {
+          var viewSampleBtn = document.createElement('button');
+          viewSampleBtn.type = 'button';
+          viewSampleBtn.className = 'alm-overlay-btn alm-overlay-btn-secondary';
+          viewSampleBtn.textContent = 'View Sample';
+          viewSampleBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openSampleModal(it.sample_video_url, it.title || 'Sample Video');
+          };
+          overlayButtons.appendChild(viewSampleBtn);
+        }
+        
+        // Favorite button (only show if user is logged in)
+        if ({$is_user_logged_in}) {
+          var favoriteBtn = document.createElement('button');
+          favoriteBtn.type = 'button';
+          favoriteBtn.className = 'alm-overlay-btn alm-overlay-btn-favorite';
+          favoriteBtn.setAttribute('data-title', it.title || '');
+          favoriteBtn.setAttribute('data-url', it.permalink || '');
+          favoriteBtn.setAttribute('data-description', it.description || '');
+          favoriteBtn.setAttribute('aria-label', 'Add to Favorites');
+          
+          // Star icon SVG (outline)
+          var starIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          starIcon.setAttribute('width', '16');
+          starIcon.setAttribute('height', '16');
+          starIcon.setAttribute('viewBox', '0 0 24 24');
+          starIcon.setAttribute('fill', 'none');
+          starIcon.setAttribute('stroke', '#ffffff');
+          starIcon.setAttribute('stroke-width', '2');
+          starIcon.setAttribute('stroke-linecap', 'round');
+          starIcon.setAttribute('stroke-linejoin', 'round');
+          var starPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          starPath.setAttribute('d', 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z');
+          starIcon.appendChild(starPath);
+          
+          var favoriteText = document.createElement('span');
+          favoriteText.className = 'alm-favorite-btn-text';
+          favoriteText.textContent = 'Save Favorite';
+          favoriteBtn.appendChild(starIcon);
+          favoriteBtn.appendChild(favoriteText);
+          
+          // Click handler to toggle favorite
+          favoriteBtn.onclick = function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            var btn = this;
+            var isFavorited = btn.classList.contains('is-favorited');
+            var title = btn.getAttribute('data-title');
+            var url = btn.getAttribute('data-url');
+            var description = btn.getAttribute('data-description');
+            
+            if (!url) {
+              alert('This lesson is not available');
+              return;
+            }
+            
+            // Get parent card for background styling
+            var card = btn.closest('.alm-lesson-card-course');
+            
+            // Optimistic UI update - change immediately before AJAX
+            var icon = btn.querySelector('svg path');
+            if (isFavorited) {
+              // Removing favorite - change to unfilled immediately
+              btn.classList.remove('is-favorited');
+              if (icon) {
+                icon.setAttribute('fill', 'none');
+                icon.setAttribute('stroke', '#ffffff');
+              }
+              btn.setAttribute('aria-label', 'Add to Favorites');
+              var textSpan = btn.querySelector('.alm-favorite-btn-text');
+              if (textSpan) {
+                textSpan.textContent = 'Save Favorite';
+              }
+              // Remove favorited border from card
+              if (card) {
+                card.classList.remove('alm-favorited');
+              }
+            } else {
+              // Adding favorite - change to filled immediately
+              btn.classList.add('is-favorited');
+              if (icon) {
+                icon.setAttribute('fill', '#f04e23');
+                icon.setAttribute('stroke', '#f04e23');
+              }
+              btn.setAttribute('aria-label', 'Remove from Favorites');
+              var textSpan = btn.querySelector('.alm-favorite-btn-text');
+              if (textSpan) {
+                textSpan.textContent = 'Saved';
+              }
+              // Add favorited border to card
+              if (card) {
+                card.classList.add('alm-favorited');
+              }
+            }
+            
+            // Disable button during request to prevent double-clicks
+            btn.style.pointerEvents = 'none';
+            
+            var endpoint = isFavorited 
+              ? '{$favorites_remove_url_js}'
+              : '{$favorites_add_url_js}';
+            
+            var data = isFavorited 
+              ? { title: title }
+              : { title: title, url: url, description: description, category: 'lesson' };
+            
+            fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': '{$rest_nonce_js}'
+              },
+              body: JSON.stringify(data),
+              credentials: 'same-origin'
+            })
+            .then(function(response){ return response.json(); })
+            .then(function(result){
+              if (!result.success) {
+                // Revert UI change if request failed
+                if (isFavorited) {
+                  // Was removing, but failed - restore to favorited state
+                  btn.classList.add('is-favorited');
+                  if (icon) {
+                    icon.setAttribute('fill', '#f04e23');
+                    icon.setAttribute('stroke', '#f04e23');
+                  }
+                  btn.setAttribute('aria-label', 'Remove from Favorites');
+                  var textSpan = btn.querySelector('.alm-favorite-btn-text');
+                  if (textSpan) {
+                    textSpan.textContent = 'Saved';
+                  }
+                  // Restore favorited border to card
+                  if (card) {
+                    card.classList.add('alm-favorited');
+                  }
+                } else {
+                  // Was adding, but failed - restore to unfavorited state
+                  btn.classList.remove('is-favorited');
+                  if (icon) {
+                    icon.setAttribute('fill', 'none');
+                    icon.setAttribute('stroke', '#ffffff');
+                  }
+                  btn.setAttribute('aria-label', 'Add to Favorites');
+                  var textSpan = btn.querySelector('.alm-favorite-btn-text');
+                  if (textSpan) {
+                    textSpan.textContent = 'Save Favorite';
+                  }
+                  // Remove favorited border from card
+                  if (card) {
+                    card.classList.remove('alm-favorited');
+                  }
+                }
+                alert(result.message || 'Failed to update favorite');
+              } else {
+                // Success - update cache by fetching fresh favorites
+                // Clear cache to force refresh on next render
+                favoritesCache.clear();
+                // Fetch fresh favorites in background to update cache
+                fetch('{$favorites_get_all_url_js}', {
+                  method: 'GET',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': '{$rest_nonce_js}'
+                  },
+                  credentials: 'same-origin'
+                })
+                .then(function(response){
+                  if (response.status === 403 || !response.ok) {
+                    return { success: false, favorites: [] };
+                  }
+                  return response.json();
+                })
+                .then(function(result){
+                  if (result.success && result.favorites && Array.isArray(result.favorites)) {
+                    favoritesCache.set(result.favorites);
+                  }
+                })
+                .catch(function(error){
+                  // Silently fail - cache will refresh on next page load
+                });
+              }
+            })
+            .catch(function(error){
+              console.error('Favorite error:', error);
+              // Revert UI change on error
+              if (isFavorited) {
+                // Was removing, but error - restore to favorited state
+                btn.classList.add('is-favorited');
+                if (icon) {
+                  icon.setAttribute('fill', '#f04e23');
+                  icon.setAttribute('stroke', '#f04e23');
+                }
+                btn.setAttribute('aria-label', 'Remove from Favorites');
+                var textSpan = btn.querySelector('.alm-favorite-btn-text');
+                if (textSpan) {
+                  textSpan.textContent = 'Saved';
+                }
+                // Restore favorited border to card
+                if (card) {
+                  card.classList.add('alm-favorited');
+                }
+              } else {
+                // Was adding, but error - restore to unfavorited state
+                btn.classList.remove('is-favorited');
+                if (icon) {
+                  icon.setAttribute('fill', 'none');
+                  icon.setAttribute('stroke', '#ffffff');
+                }
+                btn.setAttribute('aria-label', 'Add to Favorites');
+                var textSpan = btn.querySelector('.alm-favorite-btn-text');
+                if (textSpan) {
+                  textSpan.textContent = 'Save Favorite';
+                }
+                // Remove favorited border from card
+                if (card) {
+                  card.classList.remove('alm-favorited');
+                }
+              }
+              alert('Error updating favorite');
+            })
+            .finally(function(){
+              btn.style.pointerEvents = 'auto';
+            });
+          };
+          
+          // Store button for batch favorite checking
+          if (it.title) {
+            favoriteButtons.push(favoriteBtn);
+            favoriteButtonMap[it.title] = favoriteBtn;
+          }
+          
+          overlayButtons.appendChild(favoriteBtn);
+        }
+        
+        hoverOverlay.appendChild(overlayButtons);
+        cardContent.appendChild(hoverOverlay);
+        
         cardLink.appendChild(cardContent);
         card.appendChild(cardLink);
         
@@ -1500,22 +1649,32 @@ document.addEventListener('DOMContentLoaded', function() {
           footer.style.flexShrink = '0';
           footer.style.marginLeft = 'auto';
           
-          // Adjust top actions position - move to left side
-          topRightActions.style.position = 'relative';
-          topRightActions.style.top = 'auto';
-          topRightActions.style.right = 'auto';
-          topRightActions.style.order = '-1';
-          topRightActions.style.marginRight = '12px';
-          topRightActions.style.zIndex = '100';
+          // Adjust hover overlay for list view
+          if (hoverOverlay) {
+            hoverOverlay.style.position = 'relative';
+            hoverOverlay.style.opacity = '1';
+            hoverOverlay.style.visibility = 'visible';
+            hoverOverlay.style.background = 'transparent';
+            hoverOverlay.style.pointerEvents = 'auto';
+          }
+          
+          // Adjust overlay buttons for list view
+          if (overlayButtons) {
+            overlayButtons.style.flexDirection = 'row';
+            overlayButtons.style.gap = '8px';
+            overlayButtons.style.position = 'relative';
+            overlayButtons.style.opacity = '1';
+            overlayButtons.style.visibility = 'visible';
+          }
           
           // Change tooltip position to right for list view
-          var videoBtn = card.querySelector('.alm-video-sample-btn');
+          var videoBtn = card.querySelector('.alm-overlay-btn-secondary');
           if (videoBtn) {
             videoBtn.setAttribute('data-microtip-position', 'right');
             videoBtn.style.position = 'relative';
             videoBtn.style.zIndex = '101';
           }
-          var favBtn = card.querySelector('.alm-favorite-btn');
+          var favBtn = card.querySelector('.alm-overlay-btn-favorite');
           if (favBtn) {
             favBtn.setAttribute('data-microtip-position', 'right');
             favBtn.style.position = 'relative';
@@ -1526,62 +1685,107 @@ document.addEventListener('DOMContentLoaded', function() {
         container.appendChild(card);
       });
       
-      results.appendChild(container);
-      
-      // Batch check all favorites at once (only if user is logged in and we have buttons)
+      // Apply favorites to buttons (use cache first, then update from API)
       if ({$is_user_logged_in} && favoriteButtons.length > 0) {
-        fetch('{$favorites_get_all_url_js}', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': '{$rest_nonce_js}'
-          },
-          credentials: 'same-origin'
-        })
-        .then(function(response){
-          // Handle 403 gracefully - user not logged in or no permission
-          if (response.status === 403) {
-            return { success: false, favorites: [] };
+        // Function to apply favorites to buttons and indicators
+        function applyFavoritesToButtons(favorites) {
+          if (!favorites || !Array.isArray(favorites)) {
+            return;
           }
-          if (!response.ok) {
-            return { success: false, favorites: [] };
-          }
-          return response.json();
-        })
-        .then(function(result){
-          if (result.success && result.favorites && Array.isArray(result.favorites)) {
-            // Create a Set of favorited titles for fast lookup
-            var favoritedTitles = new Set();
-            result.favorites.forEach(function(fav){
-              if (fav.title) {
-                favoritedTitles.add(fav.title);
+          
+          // Create a Set of favorited titles for fast lookup
+          var favoritedTitles = new Set();
+          favorites.forEach(function(fav){
+            if (fav.title) {
+              favoritedTitles.add(fav.title);
+            }
+          });
+          
+          // Apply favorite state to all buttons at once
+          favoriteButtons.forEach(function(btn){
+            var title = btn.getAttribute('data-title');
+            if (title && favoritedTitles.has(title)) {
+              btn.classList.add('is-favorited');
+              var icon = btn.querySelector('svg path');
+              if (icon) {
+                icon.setAttribute('fill', '#f04e23');
+                icon.setAttribute('stroke', '#f04e23');
               }
-            });
-            
-            // Apply favorite state to all buttons at once
-            favoriteButtons.forEach(function(btn){
-              var title = btn.getAttribute('data-title');
+              btn.setAttribute('aria-label', 'Remove from Favorites');
+              
+              // Update overlay button text
+              var textSpan = btn.querySelector('.alm-favorite-btn-text');
+              if (textSpan) {
+                textSpan.textContent = 'Saved';
+              }
+            }
+          });
+          
+          // Apply favorite border to cards
+          var cards = document.querySelectorAll('.alm-lesson-card-course');
+          cards.forEach(function(card){
+            var cardTitle = card.querySelector('.alm-lesson-title');
+            if (cardTitle) {
+              var title = cardTitle.textContent.trim();
               if (title && favoritedTitles.has(title)) {
-                btn.classList.add('is-favorited');
-                var icon = btn.querySelector('svg path');
-                if (icon) {
-                  icon.setAttribute('fill', '#f04e23');
-                  icon.setAttribute('stroke', '#f04e23');
-                }
-                btn.style.opacity = '1';
-                btn.style.background = 'rgba(240, 78, 35, 0.1)';
-                btn.setAttribute('aria-label', 'Remove from Favorites');
+                card.classList.add('alm-favorited');
+              } else {
+                card.classList.remove('alm-favorited');
               }
-            });
-          }
-        })
-        .catch(function(error){
-          // Silently handle errors - don't log expected 403s
-          if (error.name !== 'TypeError') {
-            console.error('Batch favorite check error:', error);
-          }
-        });
+            }
+          });
+        }
+        
+        // First, try to use cached favorites for instant display
+        var cachedFavorites = favoritesCache.get();
+        if (cachedFavorites) {
+          applyFavoritesToButtons(cachedFavorites);
+        }
+        
+        // Then, update from API promise (if it's still pending or use the result)
+        if (favoritesPromise) {
+          favoritesPromise.then(function(favorites){
+            if (favorites && favorites.length > 0) {
+              applyFavoritesToButtons(favorites);
+            }
+          });
+        } else {
+          // If promise already resolved, fetch fresh data in background
+          fetch('{$favorites_get_all_url_js}', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-WP-Nonce': '{$rest_nonce_js}'
+            },
+            credentials: 'same-origin'
+          })
+          .then(function(response){
+            if (response.status === 403) {
+              return { success: false, favorites: [] };
+            }
+            if (!response.ok) {
+              return { success: false, favorites: [] };
+            }
+            return response.json();
+          })
+          .then(function(result){
+            if (result.success && result.favorites && Array.isArray(result.favorites)) {
+              // Cache the favorites
+              favoritesCache.set(result.favorites);
+              // Update buttons
+              applyFavoritesToButtons(result.favorites);
+            }
+          })
+          .catch(function(error){
+            // Silently handle errors - don't log expected 403s
+            if (error.name !== 'TypeError') {
+              console.error('Batch favorite check error:', error);
+            }
+          });
+        }
       }
+      
+      results.appendChild(container);
     }
 
     // Sample Video Modal Functions
@@ -1750,8 +1954,21 @@ document.addEventListener('DOMContentLoaded', function() {
         </svg>\
         <span style="font-size:16px;font-weight:500;">Searching...</span>\
       </div>';
-      fetch(url.toString()).then(function(r){ return r.json(); }).then(function(data){
-        renderItems(data);
+      fetch(url.toString()).then(function(r){
+        if (!r.ok) {
+          throw new Error('HTTP error! status: ' + r.status);
+        }
+        return r.json();
+      }).then(function(data){
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid response format');
+        }
+        try {
+          renderItems(data);
+        } catch (renderError) {
+          console.error('Error rendering items:', renderError);
+          throw new Error('Error rendering results: ' + renderError.message);
+        }
         
         var totalPages = data.total_pages || 1;
         var currentPageNum = data.page || state.page;
@@ -1811,7 +2028,15 @@ document.addEventListener('DOMContentLoaded', function() {
           nextBtn.style.borderColor = '#239B90';
           nextBtn.style.color = '#ffffff';
         }
-      }).catch(function(err){ console.error('ALM Search fetch error:', err); results.innerHTML = '<p>Error loading results.</p>'; });
+      }).catch(function(err){ 
+        console.error('ALM Search fetch error:', err); 
+        console.error('Error details:', {
+          message: err.message,
+          stack: err.stack,
+          url: url.toString()
+        });
+        results.innerHTML = '<div style="padding: 40px 20px; text-align: center; color: #dc3545;"><p style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">Error loading results.</p><p style="font-size: 14px; color: #6c757d;">Please try again or contact support if the problem persists.</p></div>'; 
+      });
     }
 
     // Update level when changed (don't auto-search, wait for button click)
