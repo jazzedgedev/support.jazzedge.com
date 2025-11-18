@@ -1,0 +1,27 @@
+<div id="essentialsContainer">
+  <div class="essentials-left">
+    <h3>Included with Studio:</h3>
+    <p>Take your piano skills to the next level with unlimited access to all Studio lessons and comprehensive learning resources. Studio membership gives you the tools you need to progress faster and build a strong foundation.</p>
+    <ul>
+      <li><strong>Unlimited Studio Lessons:</strong> Access every lesson in our Studio library - no limits, no restrictions. Learn at your own pace with complete freedom to explore any topic that interests you.</li>
+      <li><strong>Coaching Replays:</strong> Access recordings of all coaching sessions to review and learn from expert guidance and student interactions.</li>
+      <li><strong>30-Day Piano Playbook™:</strong> Build your piano foundation step-by-step with a proven starter plan designed for serious learners.</li>
+      <li><strong>Academy Blueprints:</strong> Follow clear, structured guides to master chords, rhythms, and improvisation techniques.</li>
+      <li><strong>All Studio Resources & Downloads:</strong> Download sheet music, backing tracks, practice materials, and all resources that come with Studio lessons.</li>
+      <li><strong>Monthly Community Q&A Call:</strong> Join group sessions to ask questions, get tips, and stay motivated with other students.</li>
+      <li><strong>Practice Dashboard & Tracking:</strong> Track your progress, set goals, and monitor your improvement with our built-in practice tools.</li>
+    </ul>
+  </div>
+  <div class="essentials-right">
+    <h3>Membership Details</h3>
+    <p><strong>Studio is the only membership that offers monthly or yearly billing.</strong> Your membership will automatically renew each month or year (depending on the option you choose) on the same date as your initial purchase.</p>
+    <p><strong>Important:</strong> Our system is not able to send renewal reminder emails. Please make a note of your renewal date.</p>
+    <p>You can view your renewal date and manage your membership (including canceling) at any time in your <strong>Account Area</strong>.</p>
+    
+    <h3>30-Day Money-Back Guarantee</h3>
+    <p>We offer a <strong>30-day money-back guarantee</strong> on your first payment. If you're not satisfied within the first 30 days, you're eligible for a full refund.</p>
+    <p><strong>Important:</strong> Renewals are non-refundable. Once your membership renews, the payment is final.</p>
+    <p>For complete terms and conditions, please visit our <a href="https://jazzedge.academy/terms/" target="_blank">Terms & Conditions page</a>.</p>
+  </div>
+</div>
+

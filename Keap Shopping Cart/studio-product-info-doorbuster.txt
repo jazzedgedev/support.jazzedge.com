@@ -1,0 +1,42 @@
+<div id="saleBanner">
+  <div class="saleBanner-content">
+    <div class="saleBanner-headline">DOORBUSTER SALE - SAVE $91 ON YOUR FIRST YEAR</div>
+    <div class="saleBanner-pricing">
+      <span class="saleBanner-retail">Retail: $390/yr</span>
+      <span class="saleBanner-arrow">→</span>
+      <span class="saleBanner-sale">Your Price: $299</span>
+      <span class="saleBanner-savings">SAVE $91</span>
+    </div>
+    <div class="saleBanner-subtext"><strong>YEARLY MEMBERSHIP ONLY - SALE APPLIES TO FIRST YEAR ONLY</strong> This is our biggest discount ever! Get complete access to all Studio features for just $299/year - that's $91 off the regular price for your first year only. Monthly membership is not included in this sale. This doorbuster deal is extremely limited and won't be available long. Secure your spot at this incredible price before it's gone forever!</div>
+  </div>
+</div>
+
+<div id="essentialsContainer">
+  <div class="essentials-left">
+    <h3>Included with Studio:</h3>
+    <p>Take your piano skills to the next level with unlimited access to all Studio lessons and comprehensive learning resources. Studio membership gives you the tools you need to progress faster and build a strong foundation.</p>
+    <ul>
+      <li><strong>Unlimited Studio Lessons:</strong> Access every lesson in our Studio library - no limits, no restrictions. Learn at your own pace with complete freedom to explore any topic that interests you.</li>
+      <li><strong>30-Day Piano Playbook™:</strong> Build your piano foundation step-by-step with a proven starter plan designed for serious learners.</li>
+      <li><strong>Academy Blueprints:</strong> Follow clear, structured guides to master chords, rhythms, and improvisation techniques.</li>
+      <li><strong>Coaching Replays:</strong> Access recordings of all coaching sessions to review and learn from expert guidance and student interactions.</li>
+      <li><strong>All Studio Resources & Downloads:</strong> Download sheet music, backing tracks, practice materials, and all resources that come with Studio lessons.</li>
+      <li><strong>Monthly Community Q&A Call:</strong> Join group sessions to ask questions, get tips, and stay motivated with other students.</li>
+      <li><strong>Practice Dashboard & Tracking:</strong> Track your progress, set goals, and monitor your improvement with our built-in practice tools.</li>
+    </ul>
+  </div>
+  <div class="essentials-right">
+    <h3>Yearly Membership Details</h3>
+    <p><strong>This sale applies to yearly membership only.</strong> The discounted price of $299 applies to your first year only. After your first year, your membership will renew at the regular price of $390/year.</p>
+    <p><strong>Monthly membership is NOT included in this sale.</strong> Monthly membership remains at the regular price of $39/month.</p>
+    <p>Your membership will automatically renew each year on the same date as your initial purchase. You can cancel at any time through your account settings.</p>
+    <p><strong>Important:</strong> Our system is not able to send renewal reminder emails. Please make a note of your renewal date.</p>
+    <p>You can view your renewal date and manage your membership (including canceling) at any time in your <strong>Account Area</strong>.</p>
+    
+    <h3>30-Day Money-Back Guarantee</h3>
+    <p>We offer a <strong>30-day money-back guarantee</strong> on your first payment. If you're not satisfied within the first 30 days, you're eligible for a full refund.</p>
+    <p><strong>Important:</strong> Renewals are non-refundable. Once your membership renews, the payment is final.</p>
+    <p>For complete terms and conditions, please visit our <a href="https://jazzedge.academy/terms/" target="_blank">Terms & Conditions page</a>.</p>
+  </div>
+</div>
+

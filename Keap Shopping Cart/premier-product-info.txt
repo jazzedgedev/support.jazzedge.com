@@ -1,0 +1,30 @@
+<div id="essentialsContainer">
+  <div class="essentials-left">
+    <h3>Included with Premier:</h3>
+    <p>Get complete, unrestricted access to everything Jazzedge Academy offers. Premier membership is our all-access tier designed for serious students who want the most comprehensive learning experience available - no limits, no restrictions, just complete access to all content, courses, and coaching.</p>
+    <ul>
+      <li><strong>Complete Content Access:</strong> Access every lesson in our library - all Studio-level lessons plus all Premier-exclusive content. No restrictions, no locked content.</li>
+      <li><strong>4 Monthly Coaching Sessions:</strong> Attend all 4 live coaching sessions per month (double what Studio members get). Get personalized feedback, ask questions, and learn directly from instructors.</li>
+      <li><strong>All Premier Courses Included:</strong> Full access to all Premier courses at no extra cost. These comprehensive, advanced courses dive deeper into concepts than regular lessons.</li>
+      <li><strong>Priority Access to New Content:</strong> Be among the first to access new lessons, courses, and materials as they're released.</li>
+      <li><strong>30-Day Piano Playbook™:</strong> Build your piano foundation step-by-step with a proven starter plan designed for serious learners.</li>
+      <li><strong>Academy Blueprints:</strong> Follow clear, structured guides to master chords, rhythms, and advanced improvisation techniques.</li>
+      <li><strong>All Coaching Replays:</strong> Access recordings of all coaching sessions to review and learn from expert guidance and student interactions.</li>
+      <li><strong>All Resources & Downloads:</strong> Download sheet music, backing tracks, practice materials, course resources, and everything that comes with lessons and courses.</li>
+      <li><strong>Monthly Community Q&A Call:</strong> Join group sessions to ask questions, get tips, and stay motivated with other students.</li>
+      <li><strong>Practice Dashboard & Analytics:</strong> Track your progress, set goals, monitor improvement, and earn badges with our comprehensive practice tracking system.</li>
+    </ul>
+  </div>
+  <div class="essentials-right">
+    <h3>Yearly Membership Details</h3>
+    <p><strong>This is a yearly membership.</strong> You will be billed once per year, and your membership will automatically renew each year on the same date as your initial purchase.</p>
+    <p><strong>Important:</strong> Our system is not able to send renewal reminder emails. Please make a note of your renewal date.</p>
+    <p>You can view your renewal date and manage your membership (including canceling) at any time in your <strong>Account Area</strong>.</p>
+    
+    <h3>30-Day Money-Back Guarantee</h3>
+    <p>We offer a <strong>30-day money-back guarantee</strong> on your first payment. If you're not satisfied within the first 30 days, you're eligible for a full refund.</p>
+    <p><strong>Important:</strong> Renewals are non-refundable. Once your membership renews, the payment is final.</p>
+    <p>For complete terms and conditions, please visit our <a href="https://jazzedge.academy/terms/" target="_blank">Terms & Conditions page</a>.</p>
+  </div>
+</div>
+

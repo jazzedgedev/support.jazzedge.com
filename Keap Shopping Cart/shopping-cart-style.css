@@ -241,6 +241,87 @@ a:hover {
     }
 }
 
+/* Mobile Product Table Improvements */
+@media only screen and (max-width: 768px) {
+    .viewCart, .orderSummary {
+        font-size: 14px;
+        border-radius: 6px;
+    }
+    
+    .viewCart th, .orderSummary th {
+        padding: 10px 8px;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+    
+    .viewCart td, .orderSummary td {
+        padding: 12px 8px;
+        font-size: 14px;
+        vertical-align: top;
+    }
+    
+    /* Make product name and description more readable */
+    .viewCart td:first-child {
+        text-align: left;
+        padding-left: 12px;
+        padding-right: 12px;
+        min-width: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #555;
+    }
+    
+    /* Product name styling */
+    .viewCart td:first-child strong,
+    .viewCart td:first-child b {
+        display: block;
+        font-size: 16px;
+        margin-bottom: 6px;
+        color: #002A34;
+        line-height: 1.3;
+    }
+    
+    /* Price column */
+    .viewCart td:nth-child(2),
+    .viewCart th:nth-child(2) {
+        text-align: center;
+        white-space: nowrap;
+        font-weight: bold;
+        color: #f04e23;
+    }
+    
+    /* Quantity column - make it smaller */
+    .viewCart td:nth-child(3),
+    .viewCart th:nth-child(3) {
+        text-align: center;
+        min-width: 60px;
+        font-size: 13px;
+    }
+    
+    /* Total column */
+    .viewCart td:nth-child(4),
+    .viewCart th:nth-child(4) {
+        text-align: right;
+        font-weight: bold;
+        color: #002A34;
+        white-space: nowrap;
+        padding-right: 12px;
+    }
+    
+    /* Subtotal row */
+    .viewCart .subtotal td {
+        padding: 12px;
+        font-size: 16px;
+        text-align: right;
+    }
+    
+    .viewCart .subtotal td:first-child {
+        text-align: right;
+        padding-right: 12px;
+    }
+}
+
 #termsText {
     background-color: #f4f4f4;
     border: 1px solid #ddd;
@@ -282,4 +363,433 @@ a:hover {
 
 #termsContainer strong {
     color: #f04e23;
+}
+
+/* Sale Banner - Full Width */
+#saleBanner {
+    width: calc(100% + 40px);
+    margin-left: -20px;
+    margin-right: -20px;
+    background: linear-gradient(135deg, #f04e23 0%, #ff6b4a 100%);
+    color: #ffffff;
+    text-align: center;
+    padding: 20px;
+    margin-top: 10px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 8px rgba(240, 78, 35, 0.3);
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+#saleBanner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+.saleBanner-content {
+    position: relative;
+    z-index: 1;
+}
+
+.saleBanner-headline {
+    font-size: 28px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    margin-bottom: 15px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.saleBanner-pricing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 20px 0;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.saleBanner-retail {
+    text-decoration: line-through;
+    opacity: 0.8;
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.saleBanner-arrow {
+    font-size: 24px;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.saleBanner-sale {
+    font-size: 28px;
+    color: #ffffff;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px 20px;
+    border-radius: 6px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.saleBanner-savings {
+    font-size: 24px;
+    background: #002A34;
+    color: #ffffff;
+    padding: 10px 25px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    animation: pulse 2s ease-in-out infinite;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.saleBanner-savings:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    background: #003d4d;
+}
+
+.saleBanner-subtext {
+    font-size: 16px;
+    line-height: 1.6;
+    margin-top: 15px;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+    font-weight: 500;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.03);
+    }
+}
+
+/* Responsive Sale Banner */
+@media only screen and (max-width: 768px) {
+    #saleBanner {
+        width: calc(100% + 40px);
+        margin-left: -20px;
+        margin-right: -20px;
+        padding: 15px;
+        margin-top: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .saleBanner-headline {
+        font-size: 20px;
+        letter-spacing: 2px;
+        margin-bottom: 12px;
+    }
+    
+    .saleBanner-pricing {
+        flex-direction: column;
+        gap: 10px;
+        margin: 15px 0;
+        font-size: 18px;
+    }
+    
+    .saleBanner-retail {
+        font-size: 18px;
+    }
+    
+    .saleBanner-arrow {
+        font-size: 20px;
+        transform: rotate(90deg);
+    }
+    
+    .saleBanner-sale {
+        font-size: 24px;
+        padding: 8px 16px;
+    }
+    
+    .saleBanner-savings {
+        font-size: 20px;
+        padding: 8px 20px;
+        letter-spacing: 1px;
+    }
+    
+    .saleBanner-subtext {
+        font-size: 14px;
+        margin-top: 12px;
+        padding: 0 10px;
+    }
+}
+
+/* Essentials Product Info 2-Column Layout */
+#essentialsContainer {
+    display: flex;
+    gap: 20px;
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 30px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    font-size: 14px;
+    color: #555;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.essentials-left {
+    flex: 0 0 calc(60% - 10px);
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.essentials-right {
+    flex: 0 0 calc(40% - 10px);
+    min-width: 0;
+    background-color: #f9f9f9;
+    border: 2px solid #f04e23;
+    border-radius: 8px;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#essentialsContainer h3 {
+    font-size: 20px;
+    color: #002A34;
+    margin-bottom: 15px;
+}
+
+.essentials-left h3 {
+    text-align: left;
+}
+
+.essentials-left p {
+    margin-bottom: 15px;
+    line-height: 1.6;
+    font-style: italic;
+    color: #666;
+}
+
+.essentials-right h3 {
+    text-align: center;
+    color: #f04e23;
+    margin-top: 0;
+}
+
+.essentials-right h3:not(:first-child) {
+    margin-top: 25px;
+}
+
+#essentialsContainer ul {
+    list-style-type: disc;
+    margin-left: 20px;
+}
+
+#essentialsContainer ul li {
+    margin-bottom: 10px;
+}
+
+#essentialsContainer strong {
+    color: #f04e23;
+}
+
+.essentials-right p {
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+.essentials-right a {
+    color: #005B70;
+    text-decoration: underline;
+}
+
+.essentials-right a:hover {
+    color: #f04e23;
+}
+
+/* Responsive: Stack columns on mobile */
+@media only screen and (max-width: 768px) {
+    #essentialsContainer {
+        flex-direction: column;
+    }
+    
+    .essentials-left,
+    .essentials-right {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+}
+
+/* Subscription Plan Pricing Styling */
+.subscriptionPlan {
+    font-size: 18px !important;
+    font-weight: bold !important;
+    color: #002A34 !important;
+    line-height: 1.6 !important;
+    padding: 12px 15px !important;
+    background: linear-gradient(135deg, #f9f9f9 0%, #ffffff 100%) !important;
+    border: 2px solid #f04e23 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(240, 78, 35, 0.15) !important;
+    display: inline-block !important;
+    margin: 10px 0 !important;
+}
+
+/* Style the "first year" part to stand out */
+.pricing-first-year {
+    color: #f04e23 !important;
+    font-weight: 900 !important;
+    font-size: 1.1em !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    text-shadow: 0 1px 2px rgba(240, 78, 35, 0.2) !important;
+}
+
+/* Style the renewal pricing */
+.pricing-renewal {
+    color: #002A34 !important;
+    font-weight: 700 !important;
+    font-size: 1.05em !important;
+}
+
+/* Mobile responsive for subscription plan */
+@media only screen and (max-width: 768px) {
+    .subscriptionPlan {
+        font-size: 16px !important;
+        padding: 10px 12px !important;
+        display: block !important;
+        text-align: center !important;
+    }
+    
+    .pricing-first-year {
+        font-size: 1.05em !important;
+    }
+    
+    .pricing-renewal {
+        font-size: 1em !important;
+    }
+}
+
+/* Payment Buttons Cleanup */
+#CHECKOUT_LINKS {
+    margin: 30px 0;
+    clear: both;
+    text-align: center;
+}
+
+.checkoutButtonList {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    max-width: 100%;
+}
+
+.checkoutLinks {
+    width: auto;
+    margin: 0 auto;
+    margin-bottom: 0;
+    text-align: center;
+}
+
+.checkoutLinks .continueButton,
+#checkoutWithCreditCardLink.continueButton,
+a.continueButton,
+a#checkoutWithCreditCardLink {
+    width: auto !important;
+    min-width: 250px !important;
+    max-width: 400px !important;
+    display: inline-block !important;
+    text-align: center !important;
+    margin: 0 auto !important;
+    margin-bottom: 0 !important;
+    padding: 12px 40px !important;
+    font-size: 15px !important;
+    border: none !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.checkoutPaypalSmartPaymentButtons {
+    width: auto;
+    max-width: 400px;
+    margin: 0 auto;
+    margin-top: 0;
+    text-align: center;
+}
+
+#payPalButtons {
+    width: 100% !important;
+    min-width: 250px !important;
+    max-width: 400px !important;
+    margin: 0 auto !important;
+}
+
+#payPalButtons > div {
+    width: 100% !important;
+    max-width: 400px !important;
+}
+
+/* Ensure PayPal iframe buttons are properly sized */
+.paypal-buttons {
+    width: 100% !important;
+    min-width: 250px !important;
+    max-width: 400px !important;
+    margin: 0 auto !important;
+}
+
+.paypal-buttons iframe {
+    width: 100% !important;
+    min-width: 250px !important;
+    max-width: 400px !important;
+}
+
+/* Responsive payment buttons */
+@media only screen and (max-width: 768px) {
+    .checkoutButtonList {
+        gap: 12px;
+    }
+    
+    .checkoutLinks .continueButton,
+    #checkoutWithCreditCardLink.continueButton {
+        min-width: 200px;
+        max-width: 100%;
+        padding: 12px 30px;
+        font-size: 14px;
+    }
+    
+    .checkoutPaypalSmartPaymentButtons {
+        max-width: 100%;
+    }
+    
+    #payPalButtons {
+        min-width: 200px !important;
+        max-width: 100% !important;
+    }
+    
+    .paypal-buttons {
+        min-width: 200px !important;
+        max-width: 100% !important;
+    }
 }

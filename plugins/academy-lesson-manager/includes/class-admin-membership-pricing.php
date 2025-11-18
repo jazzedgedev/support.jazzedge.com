@@ -160,12 +160,18 @@ class ALM_Admin_Membership_Pricing {
                                     <?php if ($tier_info['monthly']): ?>
                                     <div class="je-pricing-input-row">
                                         <label>Monthly Link:</label>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][order_form_monthly]'); ?>" value="<?php echo esc_attr($tier_data['order_form_monthly']); ?>" />
+                                        <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][order_form_monthly]'); ?>" value="<?php echo esc_attr($tier_data['order_form_monthly']); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="monthly" />
+                                        <a href="<?php echo esc_url($tier_data['order_form_monthly'] ?: '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['order_form_monthly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['order_form_monthly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['order_form_monthly']) ? 'onclick="return false;"' : ''; ?>>
+                                            <span class="dashicons dashicons-external"></span>
+                                        </a>
                                     </div>
                                     <?php endif; ?>
                                     <div class="je-pricing-input-row">
                                         <label>Yearly Link:</label>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['order_form_yearly']); ?>" />
+                                        <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['order_form_yearly']); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="yearly" />
+                                        <a href="<?php echo esc_url($tier_data['order_form_yearly'] ?: '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['order_form_yearly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['order_form_yearly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['order_form_yearly']) ? 'onclick="return false;"' : ''; ?>>
+                                            <span class="dashicons dashicons-external"></span>
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -197,15 +203,50 @@ class ALM_Admin_Membership_Pricing {
                             
                             <div class="je-pricing-field-group sale-pricing-row" style="<?php echo (empty($tier_data['sale_enabled'])) ? 'display: none;' : ''; ?>">
                                 <label class="je-pricing-label">Sale Dates</label>
+                                <?php
+                                $sale_start = isset($tier_data['sale_start_date']) ? $tier_data['sale_start_date'] : '';
+                                $sale_end = isset($tier_data['sale_end_date']) ? $tier_data['sale_end_date'] : '';
+                                $today = current_time('Y-m-d');
+                                $sale_active = false;
+                                if ($sale_start && $sale_end) {
+                                    $sale_active = ($today >= $sale_start && $today <= $sale_end);
+                                }
+                                ?>
                                 <div class="je-pricing-inputs">
                                     <div class="je-pricing-input-row">
                                         <label>Start Date:</label>
-                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_start_date]'); ?>" value="<?php echo esc_attr($tier_data['sale_start_date'] ?? ''); ?>" />
+                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_start_date]'); ?>" value="<?php echo esc_attr($sale_start); ?>" />
+                                        <?php if ($sale_start): ?>
+                                        <span class="je-date-status <?php echo ($today >= $sale_start) ? 'je-date-active' : 'je-date-upcoming'; ?>" title="<?php echo ($today >= $sale_start) ? 'Sale has started' : 'Sale starts in the future'; ?>">
+                                            <span class="dashicons dashicons-<?php echo ($today >= $sale_start) ? 'yes-alt' : 'clock'; ?>"></span>
+                                        </span>
+                                        <?php endif; ?>
                                     </div>
                                     <div class="je-pricing-input-row">
                                         <label>End Date:</label>
-                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_end_date]'); ?>" value="<?php echo esc_attr($tier_data['sale_end_date'] ?? ''); ?>" />
+                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_end_date]'); ?>" value="<?php echo esc_attr($sale_end); ?>" />
+                                        <?php if ($sale_end): ?>
+                                        <span class="je-date-status <?php echo ($today <= $sale_end) ? ($sale_active ? 'je-date-active' : 'je-date-upcoming') : 'je-date-expired'; ?>" title="<?php echo ($today <= $sale_end) ? ($sale_active ? 'Sale is active' : 'Sale ends in the future') : 'Sale has ended'; ?>">
+                                            <span class="dashicons dashicons-<?php echo ($today <= $sale_end) ? ($sale_active ? 'yes-alt' : 'clock') : 'dismiss'; ?>"></span>
+                                        </span>
+                                        <?php endif; ?>
                                     </div>
+                                    <?php if ($sale_active): ?>
+                                    <div class="je-pricing-status-notice je-pricing-status-active">
+                                        <span class="dashicons dashicons-megaphone"></span>
+                                        <strong>Sale is currently active</strong>
+                                    </div>
+                                    <?php elseif ($sale_start && $sale_end && $today < $sale_start): ?>
+                                    <div class="je-pricing-status-notice je-pricing-status-upcoming">
+                                        <span class="dashicons dashicons-calendar-alt"></span>
+                                        <strong>Sale scheduled to start</strong>
+                                    </div>
+                                    <?php elseif ($sale_start && $sale_end && $today > $sale_end): ?>
+                                    <div class="je-pricing-status-notice je-pricing-status-expired">
+                                        <span class="dashicons dashicons-calendar-alt"></span>
+                                        <strong>Sale has ended</strong>
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             
@@ -215,12 +256,18 @@ class ALM_Admin_Membership_Pricing {
                                     <?php if ($tier_info['monthly']): ?>
                                     <div class="je-pricing-input-row">
                                         <label>Monthly Sale Link:</label>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_order_form_monthly]'); ?>" value="<?php echo esc_attr($tier_data['sale_order_form_monthly'] ?? ''); ?>" />
+                                        <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_order_form_monthly]'); ?>" value="<?php echo esc_attr($tier_data['sale_order_form_monthly'] ?? ''); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="sale_monthly" />
+                                        <a href="<?php echo esc_url(!empty($tier_data['sale_order_form_monthly']) ? $tier_data['sale_order_form_monthly'] : '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['sale_order_form_monthly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['sale_order_form_monthly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['sale_order_form_monthly']) ? 'onclick="return false;"' : ''; ?>>
+                                            <span class="dashicons dashicons-external"></span>
+                                        </a>
                                     </div>
                                     <?php endif; ?>
                                     <div class="je-pricing-input-row">
                                         <label>Yearly Sale Link:</label>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['sale_order_form_yearly'] ?? ''); ?>" />
+                                        <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['sale_order_form_yearly'] ?? ''); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="sale_yearly" />
+                                        <a href="<?php echo esc_url(!empty($tier_data['sale_order_form_yearly']) ? $tier_data['sale_order_form_yearly'] : '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['sale_order_form_yearly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['sale_order_form_yearly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['sale_order_form_yearly']) ? 'onclick="return false;"' : ''; ?>>
+                                            <span class="dashicons dashicons-external"></span>
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -245,15 +292,50 @@ class ALM_Admin_Membership_Pricing {
                             
                             <div class="je-pricing-field-group doorbuster-pricing-row" style="<?php echo (empty($tier_data['doorbuster_enabled'])) ? 'display: none;' : ''; ?>">
                                 <label class="je-pricing-label">Doorbuster Dates</label>
+                                <?php
+                                $doorbuster_start = isset($tier_data['doorbuster_start_date']) ? $tier_data['doorbuster_start_date'] : '';
+                                $doorbuster_end = isset($tier_data['doorbuster_end_date']) ? $tier_data['doorbuster_end_date'] : '';
+                                $today = current_time('Y-m-d');
+                                $doorbuster_active = false;
+                                if ($doorbuster_start && $doorbuster_end) {
+                                    $doorbuster_active = ($today >= $doorbuster_start && $today <= $doorbuster_end);
+                                }
+                                ?>
                                 <div class="je-pricing-inputs">
                                     <div class="je-pricing-input-row">
                                         <label>Start Date:</label>
-                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_start_date]'); ?>" value="<?php echo esc_attr($tier_data['doorbuster_start_date'] ?? ''); ?>" />
+                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_start_date]'); ?>" value="<?php echo esc_attr($doorbuster_start); ?>" />
+                                        <?php if ($doorbuster_start): ?>
+                                        <span class="je-date-status <?php echo ($today >= $doorbuster_start) ? 'je-date-active' : 'je-date-upcoming'; ?>" title="<?php echo ($today >= $doorbuster_start) ? 'Doorbuster has started' : 'Doorbuster starts in the future'; ?>">
+                                            <span class="dashicons dashicons-<?php echo ($today >= $doorbuster_start) ? 'yes-alt' : 'clock'; ?>"></span>
+                                        </span>
+                                        <?php endif; ?>
                                     </div>
                                     <div class="je-pricing-input-row">
                                         <label>End Date:</label>
-                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_end_date]'); ?>" value="<?php echo esc_attr($tier_data['doorbuster_end_date'] ?? ''); ?>" />
+                                        <input type="text" class="datepicker" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_end_date]'); ?>" value="<?php echo esc_attr($doorbuster_end); ?>" />
+                                        <?php if ($doorbuster_end): ?>
+                                        <span class="je-date-status <?php echo ($today <= $doorbuster_end) ? ($doorbuster_active ? 'je-date-active' : 'je-date-upcoming') : 'je-date-expired'; ?>" title="<?php echo ($today <= $doorbuster_end) ? ($doorbuster_active ? 'Doorbuster is active' : 'Doorbuster ends in the future') : 'Doorbuster has ended'; ?>">
+                                            <span class="dashicons dashicons-<?php echo ($today <= $doorbuster_end) ? ($doorbuster_active ? 'yes-alt' : 'clock') : 'dismiss'; ?>"></span>
+                                        </span>
+                                        <?php endif; ?>
                                     </div>
+                                    <?php if ($doorbuster_active): ?>
+                                    <div class="je-pricing-status-notice je-pricing-status-active">
+                                        <span class="dashicons dashicons-megaphone"></span>
+                                        <strong>Doorbuster is currently active</strong>
+                                    </div>
+                                    <?php elseif ($doorbuster_start && $doorbuster_end && $today < $doorbuster_start): ?>
+                                    <div class="je-pricing-status-notice je-pricing-status-upcoming">
+                                        <span class="dashicons dashicons-calendar-alt"></span>
+                                        <strong>Doorbuster scheduled to start</strong>
+                                    </div>
+                                    <?php elseif ($doorbuster_start && $doorbuster_end && $today > $doorbuster_end): ?>
+                                    <div class="je-pricing-status-notice je-pricing-status-expired">
+                                        <span class="dashicons dashicons-calendar-alt"></span>
+                                        <strong>Doorbuster has ended</strong>
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             
@@ -262,7 +344,10 @@ class ALM_Admin_Membership_Pricing {
                                 <div class="je-pricing-inputs">
                                     <div class="je-pricing-input-row">
                                         <label>Yearly Doorbuster Link:</label>
-                                        <input type="url" class="regular-text" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['doorbuster_order_form_yearly'] ?? ''); ?>" />
+                                        <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['doorbuster_order_form_yearly'] ?? ''); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="doorbuster_yearly" />
+                                        <a href="<?php echo esc_url(!empty($tier_data['doorbuster_order_form_yearly']) ? $tier_data['doorbuster_order_form_yearly'] : '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['doorbuster_order_form_yearly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['doorbuster_order_form_yearly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['doorbuster_order_form_yearly']) ? 'onclick="return false;"' : ''; ?>>
+                                            <span class="dashicons dashicons-external"></span>
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -374,7 +459,101 @@ class ALM_Admin_Membership_Pricing {
         }
         
         .je-pricing-input-row input[type="url"].regular-text {
-            width: 100%;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .je-order-form-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            color: #0073aa;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        
+        .je-order-form-link:hover {
+            background-color: #f0f0f1;
+            color: #005177;
+        }
+        
+        .je-order-form-link-empty {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .je-order-form-link-empty:hover {
+            background-color: transparent;
+            color: #0073aa;
+        }
+        
+        .je-order-form-link .dashicons {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+        }
+        
+        .je-date-status {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 8px;
+            font-size: 16px;
+        }
+        
+        .je-date-status .dashicons {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .je-date-status.je-date-active {
+            color: #46b450;
+        }
+        
+        .je-date-status.je-date-upcoming {
+            color: #f0ad4e;
+        }
+        
+        .je-date-status.je-date-expired {
+            color: #dc3232;
+        }
+        
+        .je-pricing-status-notice {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        
+        .je-pricing-status-notice .dashicons {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .je-pricing-status-notice.je-pricing-status-active {
+            background-color: #e7f5e7;
+            color: #2e7d32;
+            border-left: 3px solid #46b450;
+        }
+        
+        .je-pricing-status-notice.je-pricing-status-upcoming {
+            background-color: #fff3cd;
+            color: #856404;
+            border-left: 3px solid #f0ad4e;
+        }
+        
+        .je-pricing-status-notice.je-pricing-status-expired {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-left: 3px solid #dc3232;
         }
         
         @media (max-width: 1400px) {
@@ -415,6 +594,35 @@ class ALM_Admin_Membership_Pricing {
                     rows.slideUp(200);
                 }
             });
+            
+            // Update link icons when URL inputs change
+            $('.je-order-form-url').on('input change', function() {
+                var $input = $(this);
+                var $row = $input.closest('.je-pricing-input-row');
+                var url = $input.val().trim();
+                var $link = $row.find('.je-order-form-link');
+                
+                if (url && url.length > 0) {
+                    // Create link if it doesn't exist
+                    if ($link.length === 0) {
+                        $link = $('<a>', {
+                            href: url,
+                            target: '_blank',
+                            class: 'je-order-form-link',
+                            title: 'Open in new tab',
+                            html: '<span class="dashicons dashicons-external"></span>'
+                        });
+                        $row.append($link);
+                    } else {
+                        // Update existing link
+                        $link.attr('href', url);
+                    }
+                    $link.show();
+                } else {
+                    // Hide link if URL is empty
+                    $link.hide();
+                }
+            });
         });
         </script>
         <?php
@@ -423,7 +631,7 @@ class ALM_Admin_Membership_Pricing {
 
 /**
  * Get active pricing for a membership tier
- * Returns current pricing based on doorbuster, sale, or retail (in priority order)
+ * Returns current pricing based on doorbuster, sale, or retail (lowest price when both are active)
  */
 function je_get_membership_pricing($tier, $billing = 'yearly') {
     $settings = get_option('je_membership_pricing_settings', array());
@@ -435,55 +643,116 @@ function je_get_membership_pricing($tier, $billing = 'yearly') {
     $tier_data = $settings[$tier];
     $today = current_time('Y-m-d');
     
-    // Check if doorbuster is active (highest priority)
+    // Studio monthly is NEVER discounted - always use retail
+    if ($tier === 'studio' && $billing === 'monthly') {
+        return array(
+            'price' => isset($tier_data['retail_monthly']) ? floatval($tier_data['retail_monthly']) : 0,
+            'order_form' => isset($tier_data['order_form_monthly']) ? $tier_data['order_form_monthly'] : '',
+            'is_sale' => false,
+            'is_doorbuster' => false,
+            'pricing_type' => 'retail',
+            'retail_price' => isset($tier_data['retail_monthly']) ? floatval($tier_data['retail_monthly']) : 0,
+        );
+    }
+    
+    // Check if doorbuster is active
     $doorbuster_active = false;
+    $doorbuster_price = 0;
+    $doorbuster_order_form = '';
     if (!empty($tier_data['doorbuster_enabled'])) {
         $start_date = isset($tier_data['doorbuster_start_date']) ? $tier_data['doorbuster_start_date'] : '';
         $end_date = isset($tier_data['doorbuster_end_date']) ? $tier_data['doorbuster_end_date'] : '';
         
         if ($start_date && $end_date) {
             $doorbuster_active = ($today >= $start_date && $today <= $end_date);
+            if ($doorbuster_active) {
+                $doorbuster_price_key = 'doorbuster_' . $billing;
+                $doorbuster_order_form_key = 'doorbuster_order_form_' . $billing;
+                $doorbuster_price = isset($tier_data[$doorbuster_price_key]) ? floatval($tier_data[$doorbuster_price_key]) : 0;
+                $doorbuster_order_form = isset($tier_data[$doorbuster_order_form_key]) ? $tier_data[$doorbuster_order_form_key] : '';
+            }
         }
     }
     
-    // Check if sale is active (second priority)
+    // Check if sale is active
     $sale_active = false;
-    if (!empty($tier_data['sale_enabled']) && !$doorbuster_active) {
+    $sale_price = 0;
+    $sale_order_form = '';
+    if (!empty($tier_data['sale_enabled'])) {
         $start_date = isset($tier_data['sale_start_date']) ? $tier_data['sale_start_date'] : '';
         $end_date = isset($tier_data['sale_end_date']) ? $tier_data['sale_end_date'] : '';
         
         if ($start_date && $end_date) {
             $sale_active = ($today >= $start_date && $today <= $end_date);
+            if ($sale_active) {
+                $sale_price_key = 'sale_' . $billing;
+                $sale_order_form_key = 'sale_order_form_' . $billing;
+                $sale_price = isset($tier_data[$sale_price_key]) ? floatval($tier_data[$sale_price_key]) : 0;
+                $sale_order_form = isset($tier_data[$sale_order_form_key]) ? $tier_data[$sale_order_form_key] : '';
+            }
         }
     }
     
-    // Determine which pricing to use (doorbuster > sale > retail)
-    if ($doorbuster_active) {
-        $price_key = 'doorbuster_' . $billing;
-        $order_form_key = 'doorbuster_order_form_' . $billing;
+    // Get retail price
+    $retail_price = isset($tier_data['retail_' . $billing]) ? floatval($tier_data['retail_' . $billing]) : 0;
+    $retail_order_form = isset($tier_data['order_form_' . $billing]) ? $tier_data['order_form_' . $billing] : '';
+    
+    // Determine which pricing to use - lowest price when both are active
+    $final_price = $retail_price;
+    $final_order_form = $retail_order_form;
+    $pricing_type = 'retail';
+    $is_sale = false;
+    $is_doorbuster = false;
+    $doorbuster_end_date = null;
+    
+    // If both are active, use the lower price
+    if ($doorbuster_active && $sale_active) {
+        if ($doorbuster_price > 0 && ($doorbuster_price < $sale_price || $sale_price == 0)) {
+            $final_price = $doorbuster_price;
+            $final_order_form = !empty($doorbuster_order_form) ? $doorbuster_order_form : $sale_order_form;
+            $pricing_type = 'doorbuster';
+            $is_doorbuster = true;
+            $doorbuster_end_date = isset($tier_data['doorbuster_end_date']) ? $tier_data['doorbuster_end_date'] : null;
+        } elseif ($sale_price > 0) {
+            $final_price = $sale_price;
+            $final_order_form = !empty($sale_order_form) ? $sale_order_form : $doorbuster_order_form;
+            $pricing_type = 'sale';
+            $is_sale = true;
+        }
+    } elseif ($doorbuster_active && $doorbuster_price > 0) {
+        $final_price = $doorbuster_price;
+        $final_order_form = $doorbuster_order_form;
         $pricing_type = 'doorbuster';
-    } elseif ($sale_active) {
-        $price_key = 'sale_' . $billing;
-        $order_form_key = 'sale_order_form_' . $billing;
+        $is_doorbuster = true;
+        $doorbuster_end_date = isset($tier_data['doorbuster_end_date']) ? $tier_data['doorbuster_end_date'] : null;
+    } elseif ($sale_active && $sale_price > 0) {
+        $final_price = $sale_price;
+        $final_order_form = $sale_order_form;
         $pricing_type = 'sale';
-    } else {
-        $price_key = 'retail_' . $billing;
-        $order_form_key = 'order_form_' . $billing;
+        $is_sale = true;
+    }
+    
+    // If final price is 0 or higher than retail, fall back to retail
+    if ($final_price == 0 || $final_price > $retail_price) {
+        $final_price = $retail_price;
+        $final_order_form = $retail_order_form;
         $pricing_type = 'retail';
+        $is_sale = false;
+        $is_doorbuster = false;
     }
     
     $result = array(
-        'price' => isset($tier_data[$price_key]) ? floatval($tier_data[$price_key]) : 0,
-        'order_form' => isset($tier_data[$order_form_key]) ? $tier_data[$order_form_key] : '',
-        'is_sale' => $sale_active,
-        'is_doorbuster' => $doorbuster_active,
+        'price' => $final_price,
+        'order_form' => $final_order_form,
+        'is_sale' => $is_sale,
+        'is_doorbuster' => $is_doorbuster,
         'pricing_type' => $pricing_type,
-        'retail_price' => isset($tier_data['retail_' . $billing]) ? floatval($tier_data['retail_' . $billing]) : 0,
+        'retail_price' => $retail_price,
     );
     
     // Add doorbuster end date for countdown timer
-    if ($doorbuster_active && isset($tier_data['doorbuster_end_date'])) {
-        $result['doorbuster_end_date'] = $tier_data['doorbuster_end_date'];
+    if ($is_doorbuster && $doorbuster_end_date) {
+        $result['doorbuster_end_date'] = $doorbuster_end_date;
     }
     
     return $result;

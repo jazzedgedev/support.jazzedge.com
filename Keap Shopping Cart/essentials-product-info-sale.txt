@@ -1,3 +1,16 @@
+<div id="saleBanner">
+  <div class="saleBanner-content">
+    <div class="saleBanner-headline">LIMITED TIME SALE - SAVE $30 ON YOUR FIRST YEAR</div>
+    <div class="saleBanner-pricing">
+      <span class="saleBanner-retail">Retail: $179</span>
+      <span class="saleBanner-arrow">→</span>
+      <span class="saleBanner-sale">Your Price: $149</span>
+      <span class="saleBanner-savings">SAVE $30</span>
+    </div>
+    <div class="saleBanner-subtext"><strong>SALE APPLIES TO FIRST YEAR ONLY</strong> Get full access to all Essentials features at our lowest price for your first year. After your first year, your membership will renew at the regular price of $179/year. This exclusive offer won't last long - lock in your savings now!</div>
+  </div>
+</div>
+
 <div id="essentialsContainer">
   <div class="essentials-left">
     <h3>Included with Essentials:</h3>
@@ -13,7 +26,7 @@
   </div>
   <div class="essentials-right">
     <h3>Yearly Membership Details</h3>
-    <p><strong>This is a yearly membership.</strong> You will be billed once per year, and your membership will automatically renew each year on the same date as your initial purchase.</p>
+    <p><strong>This is a yearly membership.</strong> The discounted price of $149 applies to your first year only. After your first year, your membership will automatically renew at the regular price of $179/year on the same date as your initial purchase.</p>
     <p><strong>Important:</strong> Our system is not able to send renewal reminder emails. Please make a note of your renewal date.</p>
     <p>You can view your renewal date and manage your membership (including canceling) at any time in your <strong>Account Area</strong>.</p>
     

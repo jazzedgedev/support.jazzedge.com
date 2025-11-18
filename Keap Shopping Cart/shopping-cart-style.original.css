@@ -1,0 +1,368 @@
+/* Updated Combined CSS */
+
+/* Import Lato Font */
+@import url('https://fonts.googleapis.com/css?family=Lato:400,700');
+
+/* Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font: 14px/1.5 Lato, Helvetica, Arial, sans-serif; /* Updated to Lato font */
+    color: #555;
+    background-color: #fff; /* Dark background */
+}
+
+td {
+    font: 14px/1.5 Lato, Helvetica, Arial, sans-serif; /* Updated to Lato font */
+    color: #555;
+}
+
+/* Jazzedge Academy Checkout Header */
+.checkoutHeader {
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.jazzedge {
+    color: #002A34; /* Jazzedge color */
+}
+
+.academy {
+    color: #f04e23; /* Academy color */
+}
+
+.checkoutText {
+    color: #000000; /* Checkout text color */
+}
+
+#IMAGE { display: none; }
+
+#wrapper, #wrapperCheckout {
+    background-color: #fff;
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+#header {
+    width: 100%;
+    max-width: 960px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Full Width for #content */
+#content {
+    width: 100%; /* Set full width */
+    margin-bottom: 20px;
+}
+
+/* Hide rightbar */
+#rightbar {
+    display: none; /* Hides the rightbar */
+}
+
+/* Product Grid */
+.priceBold, .totalPrice {
+    font-weight: bold;
+}
+
+.discountedPrice {
+    text-decoration: line-through;
+}
+
+.soldOut, .outOfStockText {
+    color: #f04e23;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+.qtyField:disabled {
+    background-color: #e8e8e8;
+}
+
+.optionChosen {
+    font-style: italic;
+    color: #999;
+    font-size: 14px;
+}
+
+.updateCart {
+    font-size: 10px;
+}
+
+.paymentIcon { margin: 0px 10px; }
+
+.promoField, .checkout, .checkoutShort, .checkoutShortest, .checkoutBottom, .checkoutTop, .qtyField, .optionsDrop {
+    border: 1px solid #e0e9ea;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #222;
+    padding: 10px;
+    width: 100%; /* Make input fields full width on mobile */
+    max-width: 100%;
+}
+
+/* Tables */
+.viewCart, .shippingTable, .billingTable, .paymentMethodTable, .orderSummary {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+}
+
+.viewCart th, .billingTable th, .shippingTable th, .paymentMethodTable th, .orderSummary th {
+    padding: 15px;
+    background-color: #f04e23; /* Brand Orange for table headers */
+    color: #ffffff;
+    text-transform: uppercase;
+}
+
+.viewCart td, .billingTable td, .shippingTable td, .paymentMethodTable td, .orderSummary td {
+    padding: 15px;
+    border-top: 1px solid #ddd;
+    color: #333;
+    background-color: #ffffff;
+}
+
+.subtotal {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+/* Pay Now Button */
+.payNowButton, .codeButton, .continueButton {
+    display: inline-block;
+    padding: 15px 30px;
+    color: #ffffff;
+    background-color: #28A745; /* Green background for Pay Now button */
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 18px; /* Larger text */
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    width: 100%; /* Full width on mobile */
+    max-width: 100%;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+/* Continue Button Specific Hover */
+.continueButton:hover {
+    background-color: #f04e23; /* Orange background on hover */
+    color: #ffffff; /* White text on hover */
+}
+
+/* Links */
+a {
+    color: #005B70;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #f04e23;
+    text-decoration: underline;
+}
+
+/* Upsells */
+#upsellContainer {
+    margin-bottom: 60px;
+    clear: both;
+}
+
+.upsell {
+    width: calc(33.33% - 10px);
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    background-color: #fcfcfc;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.upsell img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.upsellPrice {
+    color: #f04e23;
+    font-weight: bold;
+}
+
+/* PayPal Section */
+.payPalLightboxIcon {
+    float: right;
+    padding: 20px;
+}
+
+.payPalGo {
+    background-color: #FFA822;
+    border: 1px solid #D5BD98;
+    padding: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+/* Responsive adjustments */
+@media only screen and (max-width: 900px) {
+    #wrapper, #header, #content, .billingTable, .shippingTable, .paymentMethodTable, .orderSummary {
+        width: 100%;
+    }
+
+    .viewCart td, .viewCart th {
+        text-align: center;
+    }
+
+    .checkout, .checkoutDone {
+        width: 100%;
+    }
+
+    .upsell {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+
+    .checkoutLinks {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+#termsText {
+    background-color: #f4f4f4;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 20px 0;
+    text-align: center;
+    font-size: 16px;
+    color: #333;
+    font-weight: bold;
+}
+
+#termsContainer {
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 30px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    font-size: 14px;
+    color: #555;
+}
+
+#termsContainer h3 {
+    font-size: 20px;
+    color: #002A34;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+#termsContainer ul {
+    list-style-type: disc;
+    margin-left: 20px;
+}
+
+#termsContainer ul li {
+    margin-bottom: 10px;
+}
+
+#termsContainer strong {
+    color: #f04e23;
+}
+
+/* Essentials Product Info 2-Column Layout */
+#essentialsContainer {
+    display: flex;
+    gap: 30px;
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 30px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    font-size: 14px;
+    color: #555;
+}
+
+.essentials-left {
+    width: 60%;
+    flex: 0 0 60%;
+}
+
+.essentials-right {
+    width: 40%;
+    flex: 0 0 40%;
+    background-color: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+#essentialsContainer h3 {
+    font-size: 20px;
+    color: #002A34;
+    margin-bottom: 15px;
+}
+
+.essentials-left h3 {
+    text-align: left;
+}
+
+.essentials-right h3 {
+    text-align: center;
+    color: #f04e23;
+}
+
+#essentialsContainer ul {
+    list-style-type: disc;
+    margin-left: 20px;
+}
+
+#essentialsContainer ul li {
+    margin-bottom: 10px;
+}
+
+#essentialsContainer strong {
+    color: #f04e23;
+}
+
+.essentials-right p {
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+.essentials-right a {
+    color: #005B70;
+    text-decoration: underline;
+}
+
+.essentials-right a:hover {
+    color: #f04e23;
+}
+
+/* Responsive: Stack columns on mobile */
+@media only screen and (max-width: 768px) {
+    #essentialsContainer {
+        flex-direction: column;
+    }
+    
+    .essentials-left,
+    .essentials-right {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+}

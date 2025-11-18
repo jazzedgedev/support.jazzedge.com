@@ -247,7 +247,9 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('alm_user_notes_manager', array($this, 'user_notes_manager_shortcode'));
         add_shortcode('alm_membership_list', array($this, 'membership_list_shortcode'));
         add_shortcode('academy_pricing_table', array($this, 'pricing_table_shortcode'));
+        add_shortcode('join_page_faqs', array($this, 'join_page_faqs_shortcode'));
         add_shortcode('site_feedback_entries', array($this, 'site_feedback_entries_shortcode'));
+        add_shortcode('alm_recently_viewed', array($this, 'recently_viewed_shortcode'));
         
         // Add debugging
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -430,6 +432,19 @@ class ALM_Shortcodes_Plugin {
                     <div class="shortcode-example">
                         <code>[site_feedback_entries]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[site_feedback_entries]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Recently Viewed</h3>
+                    <p>Display list of recently viewed lessons with links</p>
+                    <div class="shortcode-example">
+                        <code>[alm_recently_viewed]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_recently_viewed]">Copy</button>
+                    </div>
+                    <div class="shortcode-example" style="margin-top: 8px;">
+                        <code>[alm_recently_viewed limit="10" title="My Recent Lessons"]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[alm_recently_viewed limit="10" title="My Recent Lessons"]'>Copy</button>
                     </div>
                 </div>
                 
@@ -6339,6 +6354,18 @@ class ALM_Shortcodes_Plugin {
             return '<p class="center bold_red">You must be logged in to view your memberships.</p>';
         }
 
+        // Get current user email and username for cancel redirect
+        $current_user = wp_get_current_user();
+        $user_email = $current_user->user_email ?? '';
+        $username = $current_user->user_login ?? '';
+        // Build URL with proper encoding - use & not &amp; for query parameters
+        $cancel_redirect_url = 'https://support.jazzedge.com/?ff_landing=9&form=cancel27&email=' . urlencode($user_email) . '&username=' . urlencode($username);
+        // Validate URL is safe (only allow https)
+        if (!preg_match('/^https:\/\/support\.jazzedge\.com\//', $cancel_redirect_url)) {
+            // Fallback to safe URL if validation fails
+            $cancel_redirect_url = 'https://support.jazzedge.com/?ff_landing=9&form=cancel27&email=' . urlencode($user_email) . '&username=' . urlencode($username);
+        }
+
         $ecd = keap_get_contact_fields($contact_id, array('_AcademyEligibleCancelDate'));
         $eligible_cancel_date = convert_infusionsoft_date($ecd['_AcademyEligibleCancelDate'] ?? '');
 
@@ -6411,22 +6438,27 @@ class ALM_Shortcodes_Plugin {
                 $academy_pids = array(62332, 62334, 62285, 62293, 62323, 62321, 62319, 62317, 62315, 62313, 62291, 62289, 62287, 62283, 62281, 62279, 62259, 62257, 62251, 62249, 62243, 62241, 62239, 62237);
 
                 if ($subscription['Status'] == 'Active' && $subscription['AutoCharge'] == 1 && empty($_GET['step'])) {
-                    // Show cancel button with modal trigger
+                    // Show cancel button that opens retention modal
+                    // Escape only quotes for data attribute, preserve & characters
+                    $safe_data_url = str_replace(array('"', "'"), array('&quot;', '&#039;'), $cancel_redirect_url);
+                    $safe_data_url_js = esc_js($cancel_redirect_url);
                     if (in_array($pid, $academy_pids)) {
-                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel</a></td>";
+                        $return .= '<td><a href="javascript:void(0);" class="alm-cancel-membership-btn" data-cancel-url="' . $safe_data_url . '" onclick="event.preventDefault(); event.stopPropagation(); jQuery(\'#alm-final-cancel-link\').attr(\'href\', \'' . $safe_data_url_js . '\'); jQuery(\'#alm-cancel-membership-modal\').show(); jQuery(\'body\').css(\'overflow\', \'hidden\'); return false;">Cancel</a></td>';
                     } elseif ($pid === 62350 || $pid === 62352) {
                         $return .= "<td>Can cancel after<br />$eligible_cancel_date</td>";
                     } else {
-                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel</a></td>";
+                        $return .= '<td><a href="javascript:void(0);" class="alm-cancel-membership-btn" data-cancel-url="' . $safe_data_url . '" onclick="event.preventDefault(); event.stopPropagation(); jQuery(\'#alm-final-cancel-link\').attr(\'href\', \'' . $safe_data_url_js . '\'); jQuery(\'#alm-cancel-membership-modal\').show(); jQuery(\'body\').css(\'overflow\', \'hidden\'); return false;">Cancel</a></td>';
                     }
                 } elseif ($subscription['Status'] == 'Active' && $payment_gateway === 5 && $subscription['AutoCharge'] == 1 && empty($_GET['step'])) {
                     // PayPal subscriptions
+                    $safe_data_url = str_replace(array('"', "'"), array('&quot;', '&#039;'), $cancel_redirect_url);
+                    $safe_data_url_js = esc_js($cancel_redirect_url);
                     if (in_array($pid, $academy_pids)) {
-                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel Membership</a></td>";
+                        $return .= '<td><a href="javascript:void(0);" class="alm-cancel-membership-btn" data-cancel-url="' . $safe_data_url . '" onclick="event.preventDefault(); event.stopPropagation(); jQuery(\'#alm-final-cancel-link\').attr(\'href\', \'' . $safe_data_url_js . '\'); jQuery(\'#alm-cancel-membership-modal\').show(); jQuery(\'body\').css(\'overflow\', \'hidden\'); return false;">Cancel Membership</a></td>';
                     } elseif ($pid === 62350 || $pid === 62352) {
                         $return .= "<td>Can cancel after<br />$eligible_cancel_date</td>";
                     } else {
-                        $return .= "<td><a href='#' class='alm-cancel-membership-btn' data-subscription-id='$id' data-product-id='$pid' data-product-name='" . esc_attr($product_name) . "'>Cancel</a></td>";
+                        $return .= '<td><a href="javascript:void(0);" class="alm-cancel-membership-btn" data-cancel-url="' . $safe_data_url . '" onclick="event.preventDefault(); event.stopPropagation(); jQuery(\'#alm-final-cancel-link\').attr(\'href\', \'' . $safe_data_url_js . '\'); jQuery(\'#alm-cancel-membership-modal\').show(); jQuery(\'body\').css(\'overflow\', \'hidden\'); return false;">Cancel</a></td>';
                     }
                 } else {
                     $return .= '<td></td>';
@@ -6437,26 +6469,32 @@ class ALM_Shortcodes_Plugin {
 
             $return .= '</tbody></table></div>';
             
-            // Add Cancel Membership Modal
+            // Add Cancel Membership Retention Modal
             $return .= '
             <div id="alm-cancel-membership-modal" class="alm-modal-overlay" style="display: none;">
                 <div class="alm-modal-content">
                     <span class="alm-modal-close">&times;</span>
-                    <h2>Cancel Membership</h2>
+                    <h2>We\'re Sorry to See You Go</h2>
                     <div class="alm-modal-body">
-                        <p>Are you sure you want to cancel your membership?</p>
-                        <p><strong>Membership:</strong> <span id="alm-modal-product-name"></span></p>
-                        
-                        <div class="alm-cancel-disclaimer">
-                            <p><strong>Important Information:</strong></p>
-                            <ul>
-                                <li>There are <strong>no refunds</strong> for membership renewals that have already been processed.</li>
-                                <li>If any payments come in after you submit your cancellation request, they will be refunded if they meet our <a href="https://jazzedge.academy/terms/" target="_blank">terms and conditions</a>.</li>
+                        <div class="alm-retention-message">
+                            <p><strong>Before you cancel, please consider:</strong></p>
+                            <ul class="alm-retention-list">
+                                <li><strong>You\'ll lose your special pricing:</strong> If you cancel and decide to return later, you\'ll need to pay the current membership rates, which may be higher than what you\'re paying now.</li>
+                                <li><strong>Your progress and data may be deleted:</strong> Canceling your membership may result in the loss of your practice progress, lesson history, favorites, notes, and other personalized data.</li>
+                                <li><strong>You\'ll lose access to all content:</strong> Once canceled, you\'ll immediately lose access to thousands of lessons, courses, classes, and resources you\'ve been enjoying.</li>
+                                <li><strong>Your learning momentum will be interrupted:</strong> Consistency is key to musical progress. Taking a break can make it harder to get back into your practice routine.</li>
                             </ul>
+                            <div class="alm-retention-cta">
+                                <p><strong>Is there something we can help with instead?</strong></p>
+                                <p>If you\'re experiencing any issues or have concerns, please reach out to our support team. We\'re here to help make your membership work better for you.</p>
+                            </div>
                         </div>
                         
-                        <div class="alm-cancel-form-container">
-                            ' . do_shortcode('[fluentform id="47"]') . '
+                        <div class="alm-cancel-actions">
+                            <p class="alm-cancel-warning"><strong>If you still wish to proceed with cancellation, please click the link below:</strong></p>
+                            <p class="alm-cancel-link-container">
+                                <a href="#" id="alm-final-cancel-link" class="alm-final-cancel-btn" target="_blank" rel="noopener noreferrer">Yes, I Still Want to Cancel My Membership</a>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -6477,78 +6515,104 @@ class ALM_Shortcodes_Plugin {
             }
             .alm-modal-content {
                 background: #fff;
-                padding: 30px;
+                padding: 40px;
                 border-radius: 8px;
-                max-width: 600px;
+                max-width: 700px;
                 max-height: 90vh;
                 width: 90%;
                 position: relative;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
                 overflow-y: auto;
             }
             .alm-modal-close {
                 position: absolute;
-                top: 10px;
-                right: 15px;
-                font-size: 28px;
+                top: 15px;
+                right: 20px;
+                font-size: 32px;
                 font-weight: bold;
                 cursor: pointer;
                 color: #999;
+                line-height: 1;
             }
             .alm-modal-close:hover {
                 color: #000;
             }
-            .alm-modal-content {
-                background: #fff;
-                padding: 30px;
-                border-radius: 8px;
-                max-width: 800px;
-                max-height: 90vh;
-                width: 90%;
-                position: relative;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-                overflow-y: auto;
-                text-align: left;
-            }
             .alm-modal-content h2 {
-                text-align: left;
                 margin-top: 0;
-                margin-bottom: 20px;
+                margin-bottom: 25px;
+                color: #333;
+                font-size: 28px;
             }
             .alm-modal-body {
-                margin-top: 20px;
-                text-align: left;
+                margin-top: 10px;
             }
-            .alm-modal-body p {
-                text-align: left;
+            .alm-retention-message {
+                margin-bottom: 30px;
             }
-            .alm-cancel-disclaimer {
-                background: #fff4cc;
-                border: 1px solid #ffc107;
-                border-radius: 4px;
-                padding: 15px;
+            .alm-retention-message > p {
+                font-size: 18px;
+                margin-bottom: 20px;
+                color: #333;
+            }
+            .alm-retention-list {
+                list-style: none;
+                padding-left: 0;
                 margin: 20px 0;
             }
-            .alm-cancel-disclaimer p {
-                margin-top: 0;
-                margin-bottom: 10px;
+            .alm-retention-list li {
+                padding: 15px;
+                margin-bottom: 15px;
+                background: #fff4cc;
+                border-left: 4px solid #ffc107;
+                border-radius: 4px;
             }
-            .alm-cancel-disclaimer ul {
-                margin: 10px 0 0 20px;
-                padding: 0;
-            }
-            .alm-cancel-disclaimer li {
+            .alm-retention-list li strong {
+                color: #d32f2f;
+                display: block;
                 margin-bottom: 8px;
             }
-            .alm-cancel-disclaimer a {
-                color: #0073aa;
-                text-decoration: underline;
+            .alm-retention-cta {
+                background: #e3f2fd;
+                border: 1px solid #2196f3;
+                border-radius: 4px;
+                padding: 20px;
+                margin: 25px 0;
             }
-            .alm-cancel-disclaimer a:hover {
-                color: #005177;
+            .alm-retention-cta p {
+                margin: 10px 0;
+                color: #1565c0;
             }
-            .alm-cancel-form-container {
+            .alm-retention-cta p:first-child {
+                font-weight: bold;
+                font-size: 16px;
+            }
+            .alm-cancel-actions {
+                border-top: 2px solid #e0e0e0;
+                padding-top: 25px;
+                margin-top: 25px;
+            }
+            .alm-cancel-warning {
+                color: #d32f2f;
+                font-size: 16px;
+                margin-bottom: 15px;
+            }
+            .alm-cancel-link-container {
+                text-align: center;
                 margin-top: 20px;
+            }
+            .alm-final-cancel-btn {
+                display: inline-block;
+                padding: 12px 30px;
+                background: #dc3232;
+                color: #fff !important;
+                text-decoration: none;
+                border-radius: 4px;
+                font-weight: bold;
+                transition: background 0.3s;
+            }
+            .alm-final-cancel-btn:hover {
+                background: #a00;
+                color: #fff !important;
             }
             .alm-cancel-membership-btn {
                 color: #dc3232;
@@ -6562,41 +6626,50 @@ class ALM_Shortcodes_Plugin {
             
             <script>
             jQuery(document).ready(function($) {
-                $(".alm-cancel-membership-btn").on("click", function(e) {
+                // Open modal when cancel button is clicked - use event delegation
+                $(document).off("click", ".alm-cancel-membership-btn").on("click", ".alm-cancel-membership-btn", function(e) {
                     e.preventDefault();
-                    var productName = $(this).data("product-name");
-                    var subscriptionId = $(this).data("subscription-id");
-                    var productId = $(this).data("product-id");
-                    
-                    $("#alm-modal-product-name").text(productName);
-                    $("#alm-cancel-membership-modal").show();
-                    
-                    // Populate hidden fields in FluentForm if they exist
-                    // Note: You may need to adjust these selectors based on your FluentForm field IDs
-                    $("#alm-cancel-membership-modal input[name*=\"subscription_id\"], #alm-cancel-membership-modal input[name*=\"subscription-id\"]").val(subscriptionId);
-                    $("#alm-cancel-membership-modal input[name*=\"product_id\"], #alm-cancel-membership-modal input[name*=\"product-id\"]").val(productId);
-                    $("#alm-cancel-membership-modal input[name*=\"product_name\"], #alm-cancel-membership-modal input[name*=\"product-name\"]").val(productName);
-                    
-                    // Scroll to top of modal
-                    $(".alm-modal-content").scrollTop(0);
+                    e.stopImmediatePropagation();
+                    var cancelUrl = $(this).data("cancel-url");
+                    if (cancelUrl) {
+                        // Fix any &amp; encoding issues
+                        cancelUrl = cancelUrl.replace(/&amp;/g, "&");
+                        $("#alm-final-cancel-link").attr("href", cancelUrl);
+                        $("#alm-cancel-membership-modal").show();
+                        $("body").css("overflow", "hidden");
+                    }
+                    return false;
                 });
                 
-                $(".alm-modal-close").on("click", function() {
+                // Close modal when X is clicked
+                $(document).off("click", ".alm-modal-close").on("click", ".alm-modal-close", function() {
                     $("#alm-cancel-membership-modal").hide();
+                    $("body").css("overflow", "");
                 });
                 
+                // Close modal when clicking outside
                 $(document).on("click", ".alm-modal-overlay", function(e) {
                     if ($(e.target).hasClass("alm-modal-overlay")) {
                         $("#alm-cancel-membership-modal").hide();
+                        $("body").css("overflow", "");
                     }
                 });
                 
-                // Handle form submission success - close modal after a delay
-                $(document).on("fluentform_submission_success", function(e, response) {
-                    // Close modal after 3 seconds if form submission is successful
-                    setTimeout(function() {
-                        $("#alm-cancel-membership-modal").hide();
-                    }, 3000);
+                // Prevent modal from closing when clicking inside
+                $(document).on("click", ".alm-modal-content", function(e) {
+                    e.stopPropagation();
+                });
+                
+                // Ensure final cancel link opens in new tab with correct URL
+                $(document).off("click", "#alm-final-cancel-link").on("click", "#alm-final-cancel-link", function(e) {
+                    var href = $(this).attr("href");
+                    if (href && href !== "#") {
+                        // Fix any &amp; encoding before opening
+                        href = href.replace(/&amp;/g, "&");
+                        window.open(href, "_blank", "noopener,noreferrer");
+                        e.preventDefault();
+                        return false;
+                    }
                 });
             });
             </script>';
@@ -7803,6 +7876,473 @@ class ALM_Shortcodes_Plugin {
                 <?php endforeach; ?>
             </div>
         </div>
+        <?php
+        return ob_get_clean();
+    }
+    
+    /**
+     * Recently Viewed Shortcode
+     * Displays a list of recently viewed lessons for the current user
+     */
+    public function recently_viewed_shortcode($atts) {
+        // Only show to logged in users
+        if (!is_user_logged_in()) {
+            return '<p>' . __('Please log in to view your recently viewed lessons.', 'academy-lesson-manager') . '</p>';
+        }
+        
+        $atts = shortcode_atts(array(
+            'limit' => 20,
+            'title' => 'Recently Viewed Lessons'
+        ), $atts);
+        
+        $user_id = get_current_user_id();
+        global $wpdb;
+        
+        $table_name = 'academy_recently_viewed';
+        
+        // Check if table exists
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) == $table_name;
+        
+        if (!$table_exists) {
+            return '<p>' . __('Recently viewed table not found.', 'academy-lesson-manager') . '</p>';
+        }
+        
+        // Get user's recently viewed lessons
+        $limit = absint($atts['limit']); // Ensure positive integer
+        $recently_viewed = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name} 
+            WHERE user_id = %d 
+            AND deleted_at IS NULL 
+            AND type = 'lesson'
+            ORDER BY datetime DESC 
+            LIMIT %d",
+            $user_id,
+            $limit
+        ));
+        
+        $return = '<div class="alm-recently-viewed">';
+        $return .= '<div class="alm-recently-viewed-header">';
+        $return .= '<h2>' . esc_html($atts['title']) . '</h2>';
+        $return .= '<span class="alm-recently-viewed-count">' . count($recently_viewed) . ' ' . __('lessons', 'academy-lesson-manager') . '</span>';
+        $return .= '</div>';
+        
+        if (empty($recently_viewed)) {
+            $return .= '<div class="alm-recently-viewed-empty">';
+            $return .= '<svg width="64" height="64" fill="currentColor" viewBox="0 0 20 20" style="opacity: 0.3; margin-bottom: 16px;"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>';
+            $return .= '<p>' . __('You haven\'t viewed any lessons yet.', 'academy-lesson-manager') . '</p>';
+            $return .= '</div>';
+        } else {
+            $return .= '<div class="alm-recently-viewed-list">';
+            
+            foreach ($recently_viewed as $item) {
+                $title = stripslashes($item->title);
+                $viewed_date = !empty($item->datetime) ? date('M j, Y g:i A', strtotime($item->datetime)) : '';
+                $viewed_date_short = !empty($item->datetime) ? date('M j, Y', strtotime($item->datetime)) : '';
+                
+                // Get lesson URL from post_id
+                $lesson_url = '';
+                if (!empty($item->post_id)) {
+                    $lesson_url = get_permalink($item->post_id);
+                }
+                
+                $return .= '<div class="alm-recently-viewed-item">';
+                if ($lesson_url) {
+                    $return .= '<a href="' . esc_url($lesson_url) . '" class="alm-recently-viewed-link">';
+                } else {
+                    $return .= '<div class="alm-recently-viewed-link">';
+                }
+                $return .= '<span class="alm-recently-viewed-title">' . esc_html($title) . '</span>';
+                if ($viewed_date_short) {
+                    $return .= '<span class="alm-recently-viewed-date" title="' . esc_attr($viewed_date) . '">' . esc_html($viewed_date_short) . '</span>';
+                }
+                if ($lesson_url) {
+                    $return .= '</a>';
+                } else {
+                    $return .= '</div>';
+                }
+                $return .= '</div>';
+            }
+            
+            $return .= '</div>';
+        }
+        
+        $return .= '</div>';
+        
+        // Add CSS
+        $return .= '<style>
+            .alm-recently-viewed {
+                max-width: 900px;
+                margin: 20px auto;
+                padding: 0 20px;
+            }
+            .alm-recently-viewed-header {
+                display: flex;
+                align-items: baseline;
+                gap: 12px;
+                margin-bottom: 20px;
+            }
+            .alm-recently-viewed-header h2 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 700;
+                color: #111827;
+            }
+            .alm-recently-viewed-count {
+                font-size: 14px;
+                color: #6b7280;
+                font-weight: 500;
+            }
+            .alm-recently-viewed-empty {
+                text-align: center;
+                padding: 60px 20px;
+                color: #6b7280;
+            }
+            .alm-recently-viewed-empty p {
+                font-size: 15px;
+                margin: 0;
+            }
+            .alm-recently-viewed-list {
+                padding: 0;
+                margin: 0;
+            }
+            .alm-recently-viewed-item {
+                margin-bottom: 12px;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                overflow: hidden;
+                transition: all 0.2s ease;
+            }
+            .alm-recently-viewed-item:hover {
+                border-color: #d1d5db;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            }
+            .alm-recently-viewed-link {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 16px 20px;
+                text-decoration: none;
+                color: #374151;
+                font-size: 16px;
+                font-weight: 500;
+                transition: color 0.2s ease;
+                line-height: 24px;
+                gap: 16px;
+            }
+            .alm-recently-viewed-link:hover {
+                color: #059669;
+            }
+            .alm-recently-viewed-title {
+                flex: 1;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .alm-recently-viewed-date {
+                font-size: 13px;
+                color: #9ca3af;
+                font-weight: normal;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            .alm-recently-viewed-link:hover .alm-recently-viewed-date {
+                color: #6b7280;
+            }
+        </style>';
+        
+        return $return;
+    }
+    
+    /**
+     * Join Page FAQs Shortcode
+     * Displays FAQ accordion for the join/pricing page
+     */
+    public function join_page_faqs_shortcode($atts) {
+        ob_start();
+        ?>
+        <div class="membership-faq-section">
+            <h2 class="faq-heading">Frequently Asked Questions</h2>
+            <div class="faq-accordion">
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>What is the 30-day money-back guarantee?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>We offer a <strong>30-day money-back guarantee</strong> on your first payment. If you're not satisfied with your membership within the first 30 days, you're eligible for a full refund. Simply contact us and we'll process your refund, no questions asked.</p>
+                        <p><strong>Important:</strong> Renewals are non-refundable. Once your membership renews, the payment is final.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Can I upgrade my membership at any time?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Yes! You can upgrade your membership at any time by <a href="https://support.jazzedge.com/support/?site=academy" target="_blank">contacting us</a>. We'll help you upgrade to a higher tier (Essentials to Studio, or Studio to Premier) and adjust your billing accordingly.</p>
+                        <p>When you upgrade, you'll immediately gain access to all the additional features and content available in your new membership level.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>How do I cancel my membership?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>You can cancel your membership at any time directly from your <strong>Account Area</strong>. Simply log in to your account, navigate to your membership settings, and click the cancel option.</p>
+                        <p>Your membership will remain active until the end of your current billing period, and you'll continue to have access to all content until that time. No further charges will be made after cancellation.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Do Studio and Premier members get new lessons?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Yes! Both <strong>Studio</strong> and <strong>Premier</strong> members receive access to all new lessons as they're added to the Academy.</p>
+                        <p>Studio members get access to all new Studio-level lessons, while Premier members get access to all new content including both Studio and Premier-exclusive lessons. New content is added regularly, so you'll always have fresh material to learn from.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>What's the difference between monthly and yearly billing?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p><strong>Studio</strong> is the only membership tier that offers both monthly and yearly billing options. <strong>Essentials</strong> and <strong>Premier</strong> are yearly-only memberships.</p>
+                        <p>With yearly billing, you pay once per year and typically save compared to monthly billing. Your membership will automatically renew each year on the same date as your initial purchase unless you cancel.</p>
+                        <p><strong>Important:</strong> Our system cannot send renewal reminder emails, so please make a note of your renewal date in your Account Area.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>What happens if I cancel my membership?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>When you cancel your membership, you'll continue to have access to all content until the end of your current billing period. After that, your access will end and you'll no longer be charged.</p>
+                        <p>If you decide to rejoin later, you can sign up again at any time. However, any special pricing or promotions you had may not be available when you return.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Can I switch between monthly and yearly billing for Studio?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Yes, Studio members can switch between monthly and yearly billing. To make this change, please <a href="https://support.jazzedge.com/support/?site=academy" target="_blank">contact us</a> and we'll help you switch your billing cycle.</p>
+                        <p>If you're switching from monthly to yearly, you'll be charged for the yearly membership and your billing date will be updated. If switching from yearly to monthly, the change will take effect at your next renewal date.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>What payment methods do you accept?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>We accept all major credit cards (Visa, Mastercard, American Express), debit cards, and PayPal. Payments are processed securely through our payment processor.</p>
+                        <p>All memberships are set to automatically renew unless you cancel. Make sure your payment method is up to date in your Account Area to avoid any interruption in service.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+        /* FAQ Accordion Styles */
+        .membership-faq-section {
+            max-width: 900px;
+            margin: 100px auto 0;
+            padding: 0 20px 60px;
+        }
+        
+        .faq-heading {
+            font-size: 42px;
+            font-weight: 700;
+            color: #002A34;
+            text-align: center;
+            margin: 0 0 50px 0;
+            letter-spacing: -0.5px;
+        }
+        
+        .faq-accordion {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .faq-item {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .faq-item:hover {
+            border-color: #239B90;
+            box-shadow: 0 2px 8px rgba(35, 155, 144, 0.12);
+        }
+        
+        .faq-item.active {
+            border-color: #239B90;
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.2);
+        }
+        
+        .faq-question {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            background: transparent;
+            border: none;
+            text-align: left;
+            cursor: pointer;
+            font-size: 17px;
+            font-weight: 600;
+            color: #002A34;
+            transition: all 0.2s ease;
+            gap: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .faq-question:hover {
+            color: #239B90;
+            background: rgba(35, 155, 144, 0.02);
+        }
+        
+        .faq-question:focus {
+            outline: 2px solid #239B90;
+            outline-offset: -2px;
+        }
+        
+        .faq-question span:first-child {
+            flex: 1;
+            line-height: 1.5;
+        }
+        
+        .faq-icon {
+            font-size: 20px;
+            font-weight: 300;
+            color: #239B90;
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        
+        .faq-item.active .faq-icon {
+            transform: rotate(45deg);
+        }
+        
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s ease, opacity 0.3s ease 0.1s;
+            padding: 0 24px;
+            opacity: 0;
+            display: block;
+        }
+        
+        .faq-item.active .faq-answer {
+            max-height: 1000px;
+            padding: 0 24px 24px;
+            opacity: 1;
+        }
+        
+        .faq-answer p {
+            margin: 0 0 16px 0;
+            font-size: 16px;
+            line-height: 1.7;
+            color: #4b5563;
+        }
+        
+        .faq-answer p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .faq-answer a {
+            color: #239B90;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+        
+        .faq-answer a:hover {
+            color: #004555;
+        }
+        
+        @media (max-width: 768px) {
+            .membership-faq-section {
+                margin-top: 80px;
+                padding: 0 16px 40px;
+            }
+            
+            .faq-heading {
+                font-size: 32px;
+                margin-bottom: 40px;
+            }
+            
+            .faq-question {
+                font-size: 16px;
+                padding: 18px 20px;
+            }
+            
+            .faq-answer {
+                padding: 0 20px;
+            }
+            
+            .faq-item.active .faq-answer {
+                padding: 0 20px 20px;
+            }
+            
+            .faq-answer p {
+                font-size: 15px;
+            }
+        }
+        </style>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Ensure all FAQ items are closed on load
+            $('.faq-item').removeClass('active');
+            $('.faq-question').attr('aria-expanded', 'false');
+            
+            // Handle FAQ accordion clicks
+            $(document).on('click', '.faq-question', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                var $faqItem = $(this).closest('.faq-item');
+                var isActive = $faqItem.hasClass('active');
+                var $allFaqItems = $('.faq-item');
+                
+                // Close all FAQ items first
+                $allFaqItems.removeClass('active');
+                $allFaqItems.find('.faq-question').attr('aria-expanded', 'false');
+                
+                // Toggle current item
+                if (!isActive) {
+                    $faqItem.addClass('active');
+                    $(this).attr('aria-expanded', 'true');
+                }
+            });
+        });
+        </script>
         <?php
         return ob_get_clean();
     }

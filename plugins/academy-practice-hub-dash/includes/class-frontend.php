@@ -1302,6 +1302,49 @@ class JPH_Frontend {
                             ?>
                             
                             <?php
+                            // My Viewing Activity Dropdown
+                            if (is_user_logged_in()) {
+                                global $wpdb;
+                                $user_id = get_current_user_id();
+                                $recently_viewed = $wpdb->get_results($wpdb->prepare(
+                                    "SELECT * FROM academy_recently_viewed 
+                                    WHERE user_id = %d 
+                                    AND deleted_at IS NULL 
+                                    AND type = 'lesson'
+                                    ORDER BY datetime DESC 
+                                    LIMIT 50",
+                                    $user_id
+                                ));
+                                
+                                if (!empty($recently_viewed)) {
+                                    // Alphabetize the items by title
+                                    usort($recently_viewed, function($a, $b) {
+                                        return strcasecmp(stripslashes($a->title), stripslashes($b->title));
+                                    });
+                                    
+                                    echo '<div class="viewing-activity-dropdown-wrapper">';
+                                    echo '<select id="jph-viewing-activity-dropdown" class="standard-dropdown" onchange="if(this.value) window.location.href=this.value;">';
+                                    echo '<option value="">My viewing activity…</option>';
+                                    echo '<option value="' . esc_url(home_url('/my-activity')) . '">📋 View all activity</option>';
+                                    echo '<option value="" disabled>──────────</option>';
+                                    
+                                    foreach ($recently_viewed as $item) {
+                                        $title = stripslashes($item->title);
+                                        $lesson_url = '';
+                                        if (!empty($item->post_id)) {
+                                            $lesson_url = get_permalink($item->post_id);
+                                        }
+                                        
+                                        if ($lesson_url) {
+                                            echo '<option value="' . esc_url($lesson_url) . '" title="' . esc_attr($title) . '">' . esc_html($title) . '</option>';
+                                        }
+                                    }
+                                    
+                                    echo '</select>';
+                                    echo '</div>';
+                                }
+                            }
+                            
                             // Favorites Dropdown
                             if (!empty($lesson_favorites)) {
                                 $favorites_by_category = array();
@@ -1422,9 +1465,7 @@ class JPH_Frontend {
                                     }
                                 }
                             }
-                            ?>
                             
-                            <?php
                             // Collections Dropdown
                             global $wpdb;
                             $collections_table = $wpdb->prefix . 'alm_collections';
@@ -4376,6 +4417,7 @@ class JPH_Frontend {
         /* Wrapper Elements - Consistent Spacing */
         .favorites-dropdown-wrapper,
         .essentials-library-dropdown-wrapper,
+        .viewing-activity-dropdown-wrapper,
         .collections-dropdown-wrapper {
             width: 100%;
             margin: 0 0 var(--spacing-xs) 0;
@@ -4804,6 +4846,7 @@ class JPH_Frontend {
             
             .favorites-dropdown-wrapper,
             .essentials-library-dropdown-wrapper,
+            .viewing-activity-dropdown-wrapper,
             .collections-dropdown-wrapper,
             .search-input-wrapper {
                 margin-top: 14px;

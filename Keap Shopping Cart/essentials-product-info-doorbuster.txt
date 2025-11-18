@@ -1,3 +1,16 @@
+<div id="saleBanner">
+  <div class="saleBanner-content">
+    <div class="saleBanner-headline">DOORBUSTER SALE - SAVE $50 ON YOUR FIRST YEAR</div>
+    <div class="saleBanner-pricing">
+      <span class="saleBanner-retail">Retail: $175</span>
+      <span class="saleBanner-arrow">→</span>
+      <span class="saleBanner-sale">Your Price: $125</span>
+      <span class="saleBanner-savings">SAVE $50</span>
+    </div>
+    <div class="saleBanner-subtext"><strong>SALE APPLIES TO FIRST YEAR ONLY</strong> This is our biggest discount ever! Get complete access to all Essentials features for just $125/year - that's $50 off the regular price for your first year only. After your first year, your membership will renew at the regular price of $175/year. This doorbuster deal is extremely limited and won't be available long. Secure your spot at this incredible price before it's gone forever!</div>
+  </div>
+</div>
+
 <div id="essentialsContainer">
   <div class="essentials-left">
     <h3>Included with Essentials:</h3>
@@ -13,7 +26,7 @@
   </div>
   <div class="essentials-right">
     <h3>Yearly Membership Details</h3>
-    <p><strong>This is a yearly membership.</strong> You will be billed once per year, and your membership will automatically renew each year on the same date as your initial purchase.</p>
+    <p><strong>This is a yearly membership.</strong> The discounted price of $125 applies to your first year only. After your first year, your membership will automatically renew at the regular price of $175/year on the same date as your initial purchase.</p>
     <p><strong>Important:</strong> Our system is not able to send renewal reminder emails. Please make a note of your renewal date.</p>
     <p>You can view your renewal date and manage your membership (including canceling) at any time in your <strong>Account Area</strong>.</p>
     
@@ -23,3 +36,4 @@
     <p>For complete terms and conditions, please visit our <a href="https://jazzedge.academy/terms/" target="_blank">Terms & Conditions page</a>.</p>
   </div>
 </div>
+

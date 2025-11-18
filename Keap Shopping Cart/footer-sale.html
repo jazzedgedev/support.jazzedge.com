@@ -1,0 +1,200 @@
+<div id="termsText"><p>By placing your order, you agree to the terms listed below.</p></div>
+<div id="termsContainer">
+    <h3>Membership Terms and Conditions</h3>
+    <ul>
+        <li><strong>Monthly Memberships:</strong> Your membership will automatically renew each month on the same date as your initial purchase.</li>
+        <li><strong>Yearly Memberships:</strong> Your membership will automatically renew each year on the same date as your initial purchase.</li>
+        <li><strong>30-Day Guarantee:</strong> We offer a 30-day money-back guarantee on all new memberships. If you are not satisfied within the first 30 days, you are eligible for a full refund.</li>
+        <li><strong>Renewals:</strong> There are no refunds for membership renewals. Once your membership renews, the payment is final.</li>
+        <li><strong>Cancellations:</strong> You can easily cancel your membership at any time through your account settings. Once canceled, your membership will not renew, and you will retain access until the end of your current billing period.</li>
+        <li><strong>Note:</strong> We do not send email reminders before your renewal. Please make a note of your renewal date.</li>
+    </ul>
+</div>
+
+<script>
+// Replace "/ year" with "/ first year, then $X/year thereafter" for sale pricing
+(function() {
+    function updateSubscriptionPlanText() {
+        // Check if jQuery is available
+        if (typeof jQuery === 'undefined') {
+            return;
+        }
+        
+        var $ = jQuery;
+        
+        // Map sale prices to their regular renewal prices
+        var priceMap = {
+            '$149.00': '$179',
+            '$149': '$179',
+            '$125.00': '$175',
+            '$125': '$175',
+            '$339.00': '$390',
+            '$339': '$390',
+            '$299.00': '$390',
+            '$299': '$390',
+            '$549.00': '$649',
+            '$549': '$649',
+            '$499.00': '$649',
+            '$499': '$649'
+        };
+        
+        // Find all subscription plan elements
+        $('.subscriptionPlan').each(function() {
+            var $element = $(this);
+            var text = $element.text().trim();
+            
+            // Check if this contains a sale price and "/ year"
+            for (var salePrice in priceMap) {
+                if (text.indexOf(salePrice) !== -1 && (text.indexOf('/ year') !== -1 || text.indexOf('/year') !== -1)) {
+                    var regularPrice = priceMap[salePrice];
+                    // Replace "/ year" or "/year" with styled version
+                    var replacement = ' / <span class="pricing-first-year">first year</span>, then <span class="pricing-renewal">' + regularPrice + ' each year thereafter</span>';
+                    var newHtml = text.replace(/\s*\/\s*year/gi, replacement);
+                    $element.html(newHtml);
+                    break;
+                }
+            }
+        });
+        
+        // Also check for price elements that might be formatted differently
+        // Look for patterns like "$149.00 / year" in various elements
+        $('span, div, td, th').each(function() {
+            var $element = $(this);
+            var text = $element.text().trim();
+            
+            // Skip if this element has children (to avoid double replacement)
+            if ($element.children().length > 0) {
+                return;
+            }
+            
+            // Check for sale price patterns
+            for (var salePrice in priceMap) {
+                var pattern = salePrice + ' / year';
+                var patternNoSpace = salePrice + '/year';
+                if (text === pattern || text.indexOf(pattern) !== -1 || text === patternNoSpace || text.indexOf(patternNoSpace) !== -1) {
+                    var regularPrice = priceMap[salePrice];
+                    var replacement = ' / <span class="pricing-first-year">first year</span>, then <span class="pricing-renewal">' + regularPrice + ' each year thereafter</span>';
+                    var newHtml = text.replace(/\s*\/\s*year/gi, replacement);
+                    if (newHtml !== text) {
+                        $element.html(newHtml);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    
+    // Run when DOM is ready
+    if (typeof jQuery !== 'undefined') {
+        jQuery(document).ready(function() {
+            updateSubscriptionPlanText();
+        });
+    } else {
+        // Wait for jQuery to load
+        var checkJQuery = setInterval(function() {
+            if (typeof jQuery !== 'undefined') {
+                clearInterval(checkJQuery);
+                jQuery(document).ready(function() {
+                    updateSubscriptionPlanText();
+                });
+            }
+        }, 100);
+        
+        // Stop checking after 5 seconds
+        setTimeout(function() {
+            clearInterval(checkJQuery);
+        }, 5000);
+    }
+    
+    // Also run after delays in case elements are added dynamically
+    setTimeout(function() {
+        updateSubscriptionPlanText();
+    }, 1000);
+    
+    setTimeout(function() {
+        updateSubscriptionPlanText();
+    }, 2000);
+})();
+
+// Make savings badge clickable to scroll to payment buttons
+(function() {
+    function setupSavingsBadgeScroll() {
+        // Check if jQuery is available
+        if (typeof jQuery === 'undefined') {
+            return;
+        }
+        
+        var $ = jQuery;
+        
+        // Find the savings badge and make it clickable
+        $('.saleBanner-savings').each(function() {
+            var $badge = $(this);
+            
+            // Add cursor pointer and make it look clickable
+            $badge.css({
+                'cursor': 'pointer',
+                'transition': 'all 0.3s ease'
+            });
+            
+            // Add hover effect
+            $badge.on('mouseenter', function() {
+                $(this).css({
+                    'transform': 'scale(1.05)',
+                    'box-shadow': '0 6px 12px rgba(0, 0, 0, 0.4)'
+                });
+            }).on('mouseleave', function() {
+                $(this).css({
+                    'transform': 'scale(1)',
+                    'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.3)'
+                });
+            });
+            
+            // Add click handler to scroll to payment buttons
+            $badge.on('click', function(e) {
+                e.preventDefault();
+                
+                // Try multiple selectors to find payment buttons
+                var $target = $('#CHECKOUT_LINKS, .checkoutButtonList, .checkoutLinks, .continueButton').first();
+                
+                if ($target.length > 0) {
+                    $('html, body').animate({
+                        scrollTop: $target.offset().top - 100
+                    }, 800, 'swing');
+                } else {
+                    // Fallback: scroll to bottom of page
+                    $('html, body').animate({
+                        scrollTop: $(document).height() - $(window).height()
+                    }, 800, 'swing');
+                }
+            });
+        });
+    }
+    
+    // Run when DOM is ready
+    if (typeof jQuery !== 'undefined') {
+        jQuery(document).ready(function() {
+            setupSavingsBadgeScroll();
+        });
+    } else {
+        // Wait for jQuery to load
+        var checkJQuery = setInterval(function() {
+            if (typeof jQuery !== 'undefined') {
+                clearInterval(checkJQuery);
+                jQuery(document).ready(function() {
+                    setupSavingsBadgeScroll();
+                });
+            }
+        }, 100);
+        
+        setTimeout(function() {
+            clearInterval(checkJQuery);
+        }, 5000);
+    }
+    
+    // Also run after delay in case elements are added dynamically
+    setTimeout(function() {
+        setupSavingsBadgeScroll();
+    }, 1000);
+})();
+</script>
+
