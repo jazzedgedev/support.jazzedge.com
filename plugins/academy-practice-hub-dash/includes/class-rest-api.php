@@ -90,6 +90,19 @@ class JPH_REST_API {
             'callback' => array($this, 'rest_get_user_stats'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
+
+        // User timezone preference
+        register_rest_route('aph/v1', '/user/timezone', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_user_timezone'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+
+        register_rest_route('aph/v1', '/user/timezone', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_update_user_timezone'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
         
         // Practice Sessions endpoints
         register_rest_route('aph/v1', '/practice-sessions', array(
@@ -371,6 +384,12 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        register_rest_route('aph/v1', '/admin/bulk-fix-stats', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_bulk_fix_student_stats'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
         // Event tracking endpoints
         
         register_rest_route('aph/v1', '/debug-user-badges', array(
@@ -470,6 +489,18 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
+        register_rest_route('aph/v1', '/analytics/time-based', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_time_based_analytics'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/analytics/public-stats', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_public_stats'),
+            'permission_callback' => '__return_true' // Public endpoint
+        ));
+        
         // Admin students endpoints
         register_rest_route('aph/v1', '/students', array(
             'methods' => 'GET',
@@ -493,6 +524,24 @@ class JPH_REST_API {
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_student'),
             'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)/fix-streak', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_student_streak'),
+            'permission_callback' => array($this, 'check_fix_streak_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)/fix-level', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_student_level'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)/debug-data', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_student_debug_data'),
+            'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         register_rest_route('aph/v1', '/export-students', array(
@@ -661,6 +710,27 @@ class JPH_REST_API {
     }
     
     /**
+     * Check permission for fixing streak - allows users to fix their own streak or admins to fix any
+     */
+    public function check_fix_streak_permission($request) {
+        // Must be logged in
+        if (!is_user_logged_in()) {
+            return false;
+        }
+        
+        // Admins can fix any user's streak
+        if (current_user_can('manage_options')) {
+            return true;
+        }
+        
+        // Regular users can only fix their own streak
+        $user_id = intval($request->get_param('id'));
+        $current_user_id = get_current_user_id();
+        
+        return $user_id === $current_user_id;
+    }
+    
+    /**
      * REST API admin permission callback
      */
     public function rest_check_admin_permissions() {
@@ -797,15 +867,25 @@ class JPH_REST_API {
         $new_total_minutes = ($current_stats['total_minutes'] ?? 0) + intval($duration);
         $this->database->update_user_stats($user_id, array('total_minutes' => $new_total_minutes));
         
+        // Check for level up
+        $level_up = $gamification->check_level_up($user_id);
+        
         // Update streak
-        $gamification->update_streak($user_id);
+        $streak_update = $gamification->update_streak($user_id);
         
         // Check for badges using our gamification class
         $newly_awarded = $gamification->check_and_award_badges($user_id);
         
+        // Get updated user stats for response
+        $updated_stats = $gamification->get_user_stats($user_id);
+        
         return rest_ensure_response(array(
             'success' => true,
             'session_id' => $session_id,
+            'xp_earned' => $xp_earned,
+            'level_up' => $level_up,
+            'streak_update' => $streak_update,
+            'user_stats' => $updated_stats,
             'message' => 'Practice session logged successfully'
         ));
     }
@@ -1640,7 +1720,7 @@ class JPH_REST_API {
             }
             
             // Validate category
-            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other');
+            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other', 'collection');
             if (!in_array($category, $allowed_categories)) {
                 $category = 'lesson';
             }
@@ -3228,6 +3308,587 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             return new WP_Error('update_student_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Fix student streak by recalculating from practice sessions
+     */
+    public function rest_fix_student_streak($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = intval($request->get_param('id'));
+            $current_user_id = get_current_user_id();
+            
+            // Security check: non-admins can only fix their own streak
+            if (!current_user_can('manage_options') && $user_id !== $current_user_id) {
+                return new WP_Error('permission_denied', 'You can only fix your own streak', array('status' => 403));
+            }
+            
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $user_timezone = APH_Gamification::get_user_timezone($user_id);
+            $user_timezone_string = APH_Gamification::get_user_timezone_string($user_id);
+            
+            // Check if user has a custom timezone set (not just the default WordPress timezone)
+            $wp_timezone_string = wp_timezone()->getName();
+            $has_custom_timezone = get_user_meta($user_id, 'aph_user_timezone', true);
+            $is_using_default = empty($has_custom_timezone) || $user_timezone_string === $wp_timezone_string;
+            
+            // Get all practice sessions for this user
+            $sessions = $wpdb->get_results($wpdb->prepare("
+                SELECT created_at 
+                FROM {$sessions_table} 
+                WHERE user_id = %d 
+                ORDER BY created_at ASC
+            ", $user_id), ARRAY_A);
+            
+            if (empty($sessions)) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'No practice sessions found for this user',
+                    'current_streak' => 0,
+                    'longest_streak' => 0
+                ));
+            }
+            
+            // Get unique practice dates (calendar days) in WordPress timezone
+            $wp_timezone = $user_timezone;
+            $practice_dates = array();
+            
+            foreach ($sessions as $session) {
+                // Convert to WordPress timezone and get date
+                $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+                $date = $session_datetime->format('Y-m-d');
+                if (!in_array($date, $practice_dates)) {
+                    $practice_dates[] = $date;
+                }
+            }
+            
+            if (empty($practice_dates)) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'No valid practice dates found',
+                    'current_streak' => 0,
+                    'longest_streak' => 0
+                ));
+            }
+            
+            // Sort dates ascending
+            sort($practice_dates);
+            
+            // Get current date in WordPress timezone
+            $now_timestamp = current_time('timestamp');
+            $now_datetime = new DateTime('@' . $now_timestamp);
+            $now_datetime->setTimezone($wp_timezone);
+            $today = $now_datetime->format('Y-m-d');
+            
+            // Calculate yesterday
+            $yesterday_timestamp = $now_timestamp - DAY_IN_SECONDS;
+            $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
+            $yesterday_datetime->setTimezone($wp_timezone);
+            $yesterday = $yesterday_datetime->format('Y-m-d');
+            
+            // Calculate current streak (from most recent date backwards, counting consecutive calendar days)
+            $current_streak = 0;
+            $longest_streak = 1;
+            $temp_streak = 1;
+            
+            // Get most recent practice date
+            $most_recent_date = end($practice_dates);
+            
+            // Check if they have an active streak (practiced today or yesterday)
+            if ($most_recent_date === $today || $most_recent_date === $yesterday) {
+                $current_streak = 1;
+                $check_date = $most_recent_date;
+                
+                // Count backwards for consecutive calendar days
+                $date_index = array_search($most_recent_date, $practice_dates);
+                for ($i = $date_index - 1; $i >= 0; $i--) {
+                    // Calculate expected previous date
+                    $check_datetime = new DateTime($check_date, $wp_timezone);
+                    $check_datetime->modify('-1 day');
+                    $expected_date = $check_datetime->format('Y-m-d');
+                    
+                    if ($practice_dates[$i] === $expected_date) {
+                        // Consecutive day found
+                        $current_streak++;
+                        $check_date = $expected_date;
+                    } else {
+                        // Gap found, streak broken
+                        break;
+                    }
+                }
+            }
+            
+            // Calculate longest streak (consecutive calendar days)
+            for ($i = 1; $i < count($practice_dates); $i++) {
+                $prev_date = $practice_dates[$i - 1];
+                $curr_date = $practice_dates[$i];
+                
+                // Check if dates are consecutive
+                $prev_datetime = new DateTime($prev_date, $wp_timezone);
+                $prev_datetime->modify('+1 day');
+                $expected_next_date = $prev_datetime->format('Y-m-d');
+                
+                if ($curr_date === $expected_next_date) {
+                    // Consecutive day
+                    $temp_streak++;
+                } else {
+                    // Gap found, reset streak
+                    $longest_streak = max($longest_streak, $temp_streak);
+                    $temp_streak = 1;
+                }
+            }
+            $longest_streak = max($longest_streak, $temp_streak);
+            
+            // Update the database
+            $result = $wpdb->update(
+                $stats_table,
+                array(
+                    'current_streak' => $current_streak,
+                    'longest_streak' => $longest_streak,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('user_id' => $user_id),
+                array('%d', '%d', '%s'),
+                array('%d')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to update streak', array('status' => 500));
+            }
+            
+            // Also update last_practice_date to most recent practice date
+            $wpdb->update(
+                $stats_table,
+                array('last_practice_date' => $most_recent_date),
+                array('user_id' => $user_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            $response_data = array(
+                'success' => true,
+                'message' => 'Streak recalculated successfully',
+                'current_streak' => $current_streak,
+                'longest_streak' => $longest_streak,
+                'practice_dates_count' => count($practice_dates),
+                'unique_practice_dates' => $practice_dates,
+                'timezone_used' => $user_timezone_string,
+                'timezone_warning' => $is_using_default ? 'Student is using default site timezone (' . $wp_timezone_string . '). For accurate streak calculation, they should set their timezone preference first.' : null
+            );
+            
+            return rest_ensure_response($response_data);
+            
+        } catch (Exception $e) {
+            return new WP_Error('fix_streak_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Fix student level by recalculating from total XP
+     */
+    public function rest_fix_student_level($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = intval($request->get_param('id'));
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            
+            // Get current user stats
+            $stats = $wpdb->get_row($wpdb->prepare(
+                "SELECT total_xp, current_level FROM {$stats_table} WHERE user_id = %d",
+                $user_id
+            ));
+            
+            if (!$stats) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'User stats not found',
+                    'current_level' => 1,
+                    'calculated_level' => 1
+                ));
+            }
+            
+            $total_xp = intval($stats->total_xp);
+            $current_level = intval($stats->current_level);
+            
+            // Calculate correct level from XP using the same formula as check_level_up
+            $gamification = new APH_Gamification();
+            $calculated_level = $gamification->calculate_level_from_xp($total_xp);
+            
+            // Update the database if level needs to change
+            if ($calculated_level != $current_level) {
+                $result = $wpdb->update(
+                    $stats_table,
+                    array(
+                        'current_level' => $calculated_level,
+                        'updated_at' => current_time('mysql')
+                    ),
+                    array('user_id' => $user_id),
+                    array('%d', '%s'),
+                    array('%d')
+                );
+                
+                if ($result === false) {
+                    return new WP_Error('update_failed', 'Failed to update level', array('status' => 500));
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Level recalculated successfully',
+                'total_xp' => $total_xp,
+                'old_level' => $current_level,
+                'new_level' => $calculated_level,
+                'level_changed' => ($calculated_level != $current_level)
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('fix_level_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get comprehensive debug data for a student
+     */
+    public function rest_get_student_debug_data($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = intval($request->get_param('id'));
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $gems_table = $wpdb->prefix . 'jph_gems_transactions';
+            $user_timezone = APH_Gamification::get_user_timezone($user_id);
+            
+            // Get user info
+            $user = get_userdata($user_id);
+            
+            // Get user stats
+            $stats = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$stats_table} WHERE user_id = %d",
+                $user_id
+            ), ARRAY_A);
+            
+            // Get all practice sessions
+            $sessions = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$sessions_table} WHERE user_id = %d ORDER BY created_at DESC LIMIT 100",
+                $user_id
+            ), ARRAY_A);
+            
+            // Get gem transactions (last 50)
+            $gems_transactions = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$gems_table} WHERE user_id = %d ORDER BY created_at DESC LIMIT 50",
+                $user_id
+            ), ARRAY_A);
+            
+            // Calculate expected values
+            $gamification = new APH_Gamification();
+            $calculated_level = $stats ? $gamification->calculate_level_from_xp(intval($stats['total_xp'])) : 1;
+            
+            // Calculate streak from sessions
+            $wp_timezone = $user_timezone;
+            $practice_dates = array();
+            if ($sessions) {
+                foreach ($sessions as $session) {
+                    // created_at is stored in WordPress timezone (via current_time('mysql'))
+                    // So we should parse it as WordPress timezone, not UTC
+                    $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+                    $date = $session_datetime->format('Y-m-d');
+                    if (!in_array($date, $practice_dates)) {
+                        $practice_dates[] = $date;
+                    }
+                }
+                sort($practice_dates);
+            }
+            
+            // Calculate current streak
+            $calculated_streak = 0;
+            $calculated_longest_streak = 1;
+            if (!empty($practice_dates)) {
+                $today_timestamp = current_time('timestamp');
+                $today = current_time('Y-m-d');
+                $yesterday_timestamp = $today_timestamp - DAY_IN_SECONDS;
+                if (function_exists('wp_date')) {
+                    $yesterday = wp_date('Y-m-d', $yesterday_timestamp);
+                } else {
+                    $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
+                    $yesterday_datetime->setTimezone($wp_timezone);
+                    $yesterday = $yesterday_datetime->format('Y-m-d');
+                }
+                
+                $most_recent_date = end($practice_dates);
+                if ($most_recent_date === $today || $most_recent_date === $yesterday) {
+                    $calculated_streak = 1;
+                    $check_date = $most_recent_date;
+                    $date_index = array_search($most_recent_date, $practice_dates);
+                    for ($i = $date_index - 1; $i >= 0; $i--) {
+                        $check_datetime = new DateTime($check_date, $wp_timezone);
+                        $check_datetime->modify('-1 day');
+                        $expected_date = $check_datetime->format('Y-m-d');
+                        if ($practice_dates[$i] === $expected_date) {
+                            $calculated_streak++;
+                            $check_date = $expected_date;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                
+                // Calculate longest streak
+                $temp_streak = 1;
+                for ($i = 1; $i < count($practice_dates); $i++) {
+                    $prev_datetime = new DateTime($practice_dates[$i - 1], $wp_timezone);
+                    $curr_datetime = new DateTime($practice_dates[$i], $wp_timezone);
+                    $diff = $curr_datetime->getTimestamp() - $prev_datetime->getTimestamp();
+                    if ($diff == DAY_IN_SECONDS) {
+                        $temp_streak++;
+                    } else {
+                        $calculated_longest_streak = max($calculated_longest_streak, $temp_streak);
+                        $temp_streak = 1;
+                    }
+                }
+                $calculated_longest_streak = max($calculated_longest_streak, $temp_streak);
+            }
+            
+            // Get WordPress timezone info
+            $wp_timezone_string = wp_timezone_string();
+            $current_time = current_time('Y-m-d H:i:s');
+            $current_date = current_time('Y-m-d');
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'debug_data' => array(
+                    'user_info' => array(
+                        'user_id' => $user_id,
+                        'username' => $user ? $user->user_login : 'N/A',
+                        'email' => $user ? $user->user_email : 'N/A',
+                        'display_name' => $user ? $user->display_name : 'N/A'
+                    ),
+                    'current_stats' => $stats ?: array('error' => 'No stats found'),
+                    'calculated_values' => array(
+                        'calculated_level' => $calculated_level,
+                        'stored_level' => $stats ? intval($stats['current_level']) : 0,
+                        'level_match' => $stats ? ($calculated_level == intval($stats['current_level'])) : false,
+                        'calculated_streak' => $calculated_streak,
+                        'stored_streak' => $stats ? intval($stats['current_streak']) : 0,
+                        'streak_match' => $stats ? ($calculated_streak == intval($stats['current_streak'])) : false,
+                        'calculated_longest_streak' => $calculated_longest_streak,
+                        'stored_longest_streak' => $stats ? intval($stats['longest_streak']) : 0,
+                        'longest_streak_match' => $stats ? ($calculated_longest_streak == intval($stats['longest_streak'])) : false
+                    ),
+                    'practice_sessions' => array(
+                        'total_count' => count($sessions),
+                        'sessions' => $sessions,
+                        'unique_practice_dates' => $practice_dates,
+                        'practice_dates_count' => count($practice_dates)
+                    ),
+                    'gems_transactions' => array(
+                        'total_count' => count($gems_transactions),
+                        'transactions' => $gems_transactions
+                    ),
+                    'system_info' => array(
+                        'user_timezone' => APH_Gamification::get_user_timezone_string($user_id),
+                        'user_has_custom_timezone' => !empty(get_user_meta($user_id, 'aph_user_timezone', true)),
+                        'site_timezone' => $wp_timezone_string,
+                        'current_time' => $current_time,
+                        'current_date' => $current_date,
+                        'server_time' => date('Y-m-d H:i:s'),
+                        'server_timezone' => date_default_timezone_get()
+                    )
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_data_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Bulk fix streaks and levels for all active users
+     */
+    public function rest_bulk_fix_student_stats($request) {
+        try {
+            global $wpdb;
+            
+            $params = $request->get_json_params();
+            $fix_streaks = isset($params['fix_streaks']) ? (bool)$params['fix_streaks'] : true;
+            $fix_levels = isset($params['fix_levels']) ? (bool)$params['fix_levels'] : true;
+            $limit = isset($params['limit']) ? intval($params['limit']) : 100; // Process in batches
+            $offset = isset($params['offset']) ? intval($params['offset']) : 0;
+            
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $gamification = new APH_Gamification();
+            
+            // Get active users (users with practice sessions)
+            $users = $wpdb->get_results($wpdb->prepare("
+                SELECT DISTINCT us.user_id, us.total_xp, us.current_level, us.current_streak, us.longest_streak
+                FROM {$stats_table} us
+                INNER JOIN {$sessions_table} ps ON us.user_id = ps.user_id
+                ORDER BY us.user_id
+                LIMIT %d OFFSET %d
+            ", $limit, $offset), ARRAY_A);
+            
+            $processed = 0;
+            $streaks_fixed = 0;
+            $levels_fixed = 0;
+            $errors = array();
+            
+            foreach ($users as $user_data) {
+                $user_id = intval($user_data['user_id']);
+                
+                try {
+                    $updates = array();
+                    
+                    // Fix level if requested
+                    if ($fix_levels) {
+                        $total_xp = intval($user_data['total_xp']);
+                        $current_level = intval($user_data['current_level']);
+                        $calculated_level = $gamification->calculate_level_from_xp($total_xp);
+                        
+                        if ($calculated_level != $current_level) {
+                            $updates['current_level'] = $calculated_level;
+                            $levels_fixed++;
+                        }
+                    }
+                    
+                    // Fix streak if requested
+                    if ($fix_streaks) {
+                        // Get all practice sessions for this user
+                        $sessions = $wpdb->get_results($wpdb->prepare("
+                            SELECT created_at 
+                            FROM {$sessions_table} 
+                            WHERE user_id = %d 
+                            ORDER BY created_at ASC
+                        ", $user_id), ARRAY_A);
+                        
+                        if (!empty($sessions)) {
+                            $user_timezone = APH_Gamification::get_user_timezone($user_id);
+                            // Get unique practice dates in WordPress timezone
+                            $practice_dates = array();
+                            foreach ($sessions as $session) {
+                                $session_datetime = new DateTime($session['created_at'], $user_timezone);
+                                $date = $session_datetime->format('Y-m-d');
+                                if (!in_array($date, $practice_dates)) {
+                                    $practice_dates[] = $date;
+                                }
+                            }
+                            
+                            if (!empty($practice_dates)) {
+                                sort($practice_dates);
+                                
+                                // Calculate current streak
+                                $current_streak = 0;
+                                $longest_streak = 1;
+                                $temp_streak = 1;
+                                
+                                // Get today and yesterday in user timezone
+                                $today_timestamp = current_time('timestamp');
+                                $today_datetime = new DateTime('@' . $today_timestamp);
+                                $today_datetime->setTimezone($user_timezone);
+                                $today = $today_datetime->format('Y-m-d');
+                                $yesterday_timestamp = $today_timestamp - DAY_IN_SECONDS;
+                                $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
+                                $yesterday_datetime->setTimezone($user_timezone);
+                                $yesterday = $yesterday_datetime->format('Y-m-d');
+                                
+                                $most_recent_date = end($practice_dates);
+                                
+                                // Check if they practiced today or yesterday (active streak)
+                                if ($most_recent_date === $today || $most_recent_date === $yesterday) {
+                                    $current_streak = 1;
+                                    $check_date = $most_recent_date;
+                                    
+                                    // Count backwards for consecutive days
+                                    $date_index = array_search($most_recent_date, $practice_dates);
+                                    for ($i = $date_index - 1; $i >= 0; $i--) {
+                                        $check_datetime = new DateTime($check_date, $user_timezone);
+                                        $check_datetime->modify('-1 day');
+                                        $expected_date = $check_datetime->format('Y-m-d');
+                                        
+                                        if ($practice_dates[$i] === $expected_date) {
+                                            $current_streak++;
+                                            $check_date = $expected_date;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                // Calculate longest streak
+                                for ($i = 1; $i < count($practice_dates); $i++) {
+                                    $prev_datetime = new DateTime($practice_dates[$i - 1], $user_timezone);
+                                    $prev_datetime->modify('+1 day');
+                                    $expected_next_date = $prev_datetime->format('Y-m-d');
+                                    
+                                    if ($practice_dates[$i] === $expected_next_date) {
+                                        $temp_streak++;
+                                    } else {
+                                        $longest_streak = max($longest_streak, $temp_streak);
+                                        $temp_streak = 1;
+                                    }
+                                }
+                                $longest_streak = max($longest_streak, $temp_streak);
+                                
+                                $old_streak = intval($user_data['current_streak']);
+                                $old_longest = intval($user_data['longest_streak']);
+                                
+                                if ($current_streak != $old_streak || $longest_streak != $old_longest) {
+                                    $updates['current_streak'] = $current_streak;
+                                    $updates['longest_streak'] = $longest_streak;
+                                    $streaks_fixed++;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Update database if there are changes
+                    if (!empty($updates)) {
+                        $updates['updated_at'] = current_time('mysql');
+                        
+                        // Build format array based on field types
+                        $format = array();
+                        foreach ($updates as $key => $value) {
+                            if (in_array($key, array('current_streak', 'longest_streak', 'current_level'))) {
+                                $format[] = '%d';  // Integer
+                            } else {
+                                $format[] = '%s';  // String (updated_at)
+                            }
+                        }
+                        
+                        $wpdb->update(
+                            $stats_table,
+                            $updates,
+                            array('user_id' => $user_id),
+                            $format,
+                            array('%d')
+                        );
+                    }
+                    
+                    $processed++;
+                    
+                } catch (Exception $e) {
+                    $errors[] = "User {$user_id}: " . $e->getMessage();
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Bulk fix completed',
+                'processed' => $processed,
+                'streaks_fixed' => $streaks_fixed,
+                'levels_fixed' => $levels_fixed,
+                'has_more' => count($users) >= $limit,
+                'next_offset' => $offset + $limit,
+                'errors' => $errors
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('bulk_fix_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -4955,17 +5616,34 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
             $show_on_leaderboard = $request->get_param('show_on_leaderboard');
             
-            if (!is_bool($show_on_leaderboard) && !in_array($show_on_leaderboard, array(0, 1, '0', '1'))) {
+            // Handle various input formats: boolean, int, string
+            if (is_bool($show_on_leaderboard)) {
+                // Already a boolean, use as-is
+            } elseif (is_numeric($show_on_leaderboard)) {
+                // Convert numeric (0, 1) to boolean
+                $show_on_leaderboard = (bool) intval($show_on_leaderboard);
+            } elseif (is_string($show_on_leaderboard)) {
+                // Handle string values
+                $lower = strtolower(trim($show_on_leaderboard));
+                if (in_array($lower, array('true', '1', 'yes', 'on'))) {
+                    $show_on_leaderboard = true;
+                } elseif (in_array($lower, array('false', '0', 'no', 'off', ''))) {
+                    $show_on_leaderboard = false;
+                } else {
+                    return new WP_Error('invalid_visibility', 'show_on_leaderboard must be true or false', array('status' => 400));
+                }
+            } else {
                 return new WP_Error('invalid_visibility', 'show_on_leaderboard must be true or false', array('status' => 400));
             }
-            
-            $show_on_leaderboard = (bool) $show_on_leaderboard;
             
             $result = $this->database->update_user_leaderboard_visibility($user_id, $show_on_leaderboard);
             
             if (!$result) {
                 return new WP_Error('update_failed', 'Failed to update leaderboard visibility', array('status' => 500));
             }
+            
+            // Invalidate cache since leaderboard has changed
+            $this->cache->invalidate_user_cache($user_id);
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -5032,6 +5710,66 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
         } catch (Exception $e) {
             return new WP_Error('user_stats_error', 'Error retrieving user stats: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+
+    /**
+     * Get the current user's timezone preference
+     */
+    public function rest_get_user_timezone($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $stored_timezone = get_user_meta($user_id, 'aph_user_timezone', true);
+            $timezone = APH_Gamification::get_user_timezone_string($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'timezone' => $timezone,
+                'source' => $stored_timezone ? 'user' : 'default'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('user_timezone_error', 'Error retrieving timezone: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+
+    /**
+     * Update the current user's timezone preference
+     */
+    public function rest_update_user_timezone($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $timezone = sanitize_text_field($request->get_param('timezone'));
+            if (empty($timezone)) {
+                return new WP_Error('invalid_timezone', 'Timezone is required', array('status' => 400));
+            }
+            
+            $valid_timezones = timezone_identifiers_list();
+            if (!in_array($timezone, $valid_timezones, true)) {
+                return new WP_Error('invalid_timezone', 'Invalid timezone identifier', array('status' => 400));
+            }
+            
+            update_user_meta($user_id, 'aph_user_timezone', $timezone);
+            update_user_meta($user_id, 'aph_timezone_updated_at', current_time('mysql'));
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Timezone updated successfully',
+                'timezone' => $timezone
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('user_timezone_update_error', 'Error updating timezone: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -5343,6 +6081,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
             // Get timezone information
             $wp_timezone = wp_timezone();
+            $user_timezone = APH_Gamification::get_user_timezone($user_id);
             $current_timezone = date_default_timezone_get();
             $wp_timezone_string = get_option('timezone_string');
             $gmt_offset = get_option('gmt_offset');
@@ -5364,7 +6103,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
             $session_analysis = array();
             foreach ($recent_sessions as $session) {
-                $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+                $session_datetime = new DateTime($session['created_at'], $user_timezone);
                 $session_hour = (int)$session_datetime->format('H');
                 
                 $session_analysis[] = array(
@@ -5382,6 +6121,8 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                     'wp_timezone_string' => $wp_timezone_string,
                     'wp_timezone_name' => $wp_timezone->getName(),
                     'wp_timezone_offset' => $wp_timezone->getOffset(new DateTime()),
+                    'user_timezone_name' => $user_timezone->getName(),
+                    'user_timezone_offset' => $user_timezone->getOffset(new DateTime('now', $user_timezone)),
                     'current_timezone' => $current_timezone,
                     'gmt_offset' => $gmt_offset
                 ),
@@ -5791,7 +6532,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             }
             
             // Validate category
-            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other');
+            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other', 'collection');
             if (!in_array($category, $allowed_categories)) {
                 $category = 'other';
             }
@@ -7024,6 +7765,174 @@ Return only the cleaned feedback text, no explanations or additional commentary.
             
         } catch (Exception $e) {
             wp_send_json_error('Error exporting at-risk students: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Get time-based analytics data
+     */
+    public function rest_get_time_based_analytics($request) {
+        try {
+            global $wpdb;
+            
+            $period = $request->get_param('period') ?: '30days'; // today, week, month, 30days, 90days, all, custom
+            $start_date = $request->get_param('start_date');
+            $end_date = $request->get_param('end_date');
+            
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            
+            // Calculate date range based on period
+            $date_condition = '';
+            switch ($period) {
+                case 'today':
+                    $date_condition = "DATE(ps.created_at) = CURDATE()";
+                    break;
+                case 'week':
+                    $date_condition = "ps.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+                    break;
+                case 'month':
+                    $date_condition = "ps.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+                    break;
+                case '30days':
+                    $date_condition = "ps.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+                    break;
+                case '90days':
+                    $date_condition = "ps.created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)";
+                    break;
+                case 'custom':
+                    if ($start_date && $end_date) {
+                        $date_condition = $wpdb->prepare(
+                            "DATE(ps.created_at) BETWEEN %s AND %s",
+                            $start_date,
+                            $end_date
+                        );
+                    } else {
+                        $date_condition = "ps.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+                    }
+                    break;
+                case 'all':
+                default:
+                    $date_condition = "1=1";
+                    break;
+            }
+            
+            // Daily practice data for line chart
+            // Note: $date_condition is safe as it comes from a switch statement with predefined values
+            $daily_data = $wpdb->get_results("
+                SELECT 
+                    DATE(ps.created_at) as date,
+                    COUNT(*) as sessions,
+                    SUM(ps.duration_minutes) as minutes,
+                    COUNT(DISTINCT ps.user_id) as active_users
+                FROM {$sessions_table} ps
+                WHERE {$date_condition}
+                GROUP BY DATE(ps.created_at)
+                ORDER BY date ASC
+            ", ARRAY_A);
+            
+            // Total stats for the period
+            $total_stats = $wpdb->get_row("
+                SELECT 
+                    COUNT(*) as total_sessions,
+                    SUM(ps.duration_minutes) as total_minutes,
+                    COUNT(DISTINCT ps.user_id) as active_students,
+                    AVG(ps.duration_minutes) as avg_session_duration
+                FROM {$sessions_table} ps
+                WHERE {$date_condition}
+            ", ARRAY_A);
+            
+            // Level distribution
+            $level_distribution = $wpdb->get_results("
+                SELECT 
+                    us.current_level as level,
+                    COUNT(*) as count
+                FROM {$stats_table} us
+                WHERE us.current_level > 0
+                GROUP BY us.current_level
+                ORDER BY us.current_level ASC
+            ", ARRAY_A);
+            
+            // Streak statistics
+            $streak_stats = $wpdb->get_row("
+                SELECT 
+                    AVG(us.current_streak) as avg_streak,
+                    MAX(us.current_streak) as max_streak,
+                    COUNT(CASE WHEN us.current_streak >= 7 THEN 1 END) as students_7plus_streak,
+                    COUNT(CASE WHEN us.current_streak >= 30 THEN 1 END) as students_30plus_streak
+                FROM {$stats_table} us
+                WHERE us.current_streak > 0
+            ", ARRAY_A);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'period' => $period,
+                    'daily_data' => $daily_data,
+                    'total_stats' => $total_stats,
+                    'level_distribution' => $level_distribution,
+                    'streak_stats' => $streak_stats
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('analytics_error', 'Error retrieving analytics: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get public stats for sharing
+     */
+    public function rest_get_public_stats($request) {
+        try {
+            global $wpdb;
+            
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            
+            // Get stats for last 7 days and 30 days
+            $stats_7days = $wpdb->get_row("
+                SELECT 
+                    COUNT(*) as sessions,
+                    SUM(duration_minutes) as minutes,
+                    COUNT(DISTINCT user_id) as active_students
+                FROM {$sessions_table}
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ", ARRAY_A);
+            
+            $stats_30days = $wpdb->get_row("
+                SELECT 
+                    COUNT(*) as sessions,
+                    SUM(duration_minutes) as minutes,
+                    COUNT(DISTINCT user_id) as active_students
+                FROM {$sessions_table}
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ", ARRAY_A);
+            
+            // Total students
+            $total_students = $wpdb->get_var("
+                SELECT COUNT(*) FROM {$stats_table} WHERE total_xp > 0
+            ");
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'data' => array(
+                    'total_students' => (int) $total_students,
+                    'last_7_days' => array(
+                        'sessions' => (int) ($stats_7days['sessions'] ?? 0),
+                        'hours' => round(($stats_7days['minutes'] ?? 0) / 60, 1),
+                        'active_students' => (int) ($stats_7days['active_students'] ?? 0)
+                    ),
+                    'last_30_days' => array(
+                        'sessions' => (int) ($stats_30days['sessions'] ?? 0),
+                        'hours' => round(($stats_30days['minutes'] ?? 0) / 60, 1),
+                        'active_students' => (int) ($stats_30days['active_students'] ?? 0)
+                    )
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('public_stats_error', 'Error retrieving public stats: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

@@ -168,12 +168,52 @@
         // Convert video URL to embed format if needed
         var embedUrl = convertToEmbedUrl(videoUrl);
         
+        // Check if this is an m3u8 file (HLS playlist)
+        var isM3U8 = videoUrl.toLowerCase().indexOf('.m3u8') !== -1 || embedUrl.toLowerCase().indexOf('.m3u8') !== -1;
+        
         // Update modal content
         $('#alm-sample-modal-title').text(title);
         var modalBody = $('#alm-sample-modal-body');
-        modalBody.html('<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;">' +
-            '<iframe src="' + escapeHtml(embedUrl) + '" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>' +
-            '</div>');
+        
+        if (isM3U8) {
+            // Use HTML5 video element for m3u8 files (HLS)
+            var videoHtml = '<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;">' +
+                '<video id="alm-sample-video-' + Date.now() + '" controls style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" preload="metadata">' +
+                '<source src="' + escapeHtml(videoUrl) + '" type="application/x-mpegURL">' +
+                '<p>Your browser does not support the video tag.</p>' +
+                '</video>' +
+                '</div>';
+            modalBody.html(videoHtml);
+            
+            // Initialize HLS.js for browsers that don't support HLS natively
+            var video = modalBody.find('video')[0];
+            if (video) {
+                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                    // Use HLS.js for browsers that don't support HLS natively (Firefox, Chrome)
+                    var hls = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: false
+                    });
+                    hls.loadSource(videoUrl);
+                    hls.attachMedia(video);
+                    // Store HLS instance on video element for cleanup
+                    video.hls = hls;
+                    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                        video.play().catch(function(error) {
+                            console.log('Autoplay prevented:', error);
+                        });
+                    });
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Native HLS support (Safari)
+                    video.src = videoUrl;
+                }
+            }
+        } else {
+            // Use iframe for Vimeo, YouTube, and other embeddable URLs
+            modalBody.html('<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;">' +
+                '<iframe src="' + escapeHtml(embedUrl) + '" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>' +
+                '</div>');
+        }
         
         // Show modal
         modal.fadeIn(200);
@@ -186,9 +226,19 @@
     function closeSampleModal() {
         var modal = $('#alm-sample-modal');
         if (modal.length) {
+            // Stop any HLS playback
+            var video = modal.find('video')[0];
+            if (video) {
+                if (video.hls && typeof video.hls.destroy === 'function') {
+                    video.hls.destroy();
+                }
+                video.pause();
+                video.src = '';
+            }
+            
             modal.fadeOut(200, function() {
                 $('body').css('overflow', '');
-                // Clear iframe to stop video playback
+                // Clear iframe/video to stop playback
                 $('#alm-sample-modal-body').html('');
             });
         }

@@ -465,33 +465,68 @@ class ALM_Essentials_Library {
      * @param string $search Optional search term
      * @param int $limit Optional limit
      * @param int $offset Optional offset
+     * @param string $lesson_level Optional lesson level filter
+     * @param string $tag Optional tag filter
+     * @param string $lesson_style Optional lesson style filter
      * @return array Array of lesson objects
      */
-    public function get_selectable_lessons($search = '', $limit = 100, $offset = 0) {
+    public function get_selectable_lessons($search = '', $limit = 100, $offset = 0, $lesson_level = '', $tag = '', $lesson_style = '') {
         $collections_table = $this->wpdb->prefix . 'alm_collections';
-        $where = "WHERE l.membership_level = 2";
+        $where = array("l.membership_level = 2");
+        $params = array();
         
         if (!empty($search)) {
             $search_term = '%' . $this->wpdb->esc_like($search) . '%';
-            $where .= $this->wpdb->prepare(
-                " AND (l.lesson_title LIKE %s OR l.lesson_description LIKE %s)",
-                $search_term, $search_term
-            );
+            $where[] = "(l.lesson_title LIKE %s OR l.lesson_description LIKE %s)";
+            $params[] = $search_term;
+            $params[] = $search_term;
         }
+        
+        // Filter by lesson level
+        if (!empty($lesson_level) && in_array($lesson_level, array('beginner', 'intermediate', 'advanced', 'pro'), true)) {
+            $where[] = "l.lesson_level = %s";
+            $params[] = $lesson_level;
+        }
+        
+        // Filter by tag - match exact tag (handles tags at start, middle, or end of comma-separated list)
+        if (!empty($tag)) {
+            $tag_trimmed = trim($tag);
+            $where[] = "(l.lesson_tags = %s OR l.lesson_tags LIKE %s OR l.lesson_tags LIKE %s OR l.lesson_tags LIKE %s)";
+            $params[] = $tag_trimmed;
+            $params[] = $tag_trimmed . ',%';
+            $params[] = '%, ' . $tag_trimmed . ',%';
+            $params[] = '%, ' . $tag_trimmed;
+        }
+        
+        // Filter by lesson style - match exact style (handles styles at start, middle, or end of comma-separated list)
+        if (!empty($lesson_style)) {
+            $style_trimmed = trim($lesson_style);
+            $where[] = "(l.lesson_style = %s OR l.lesson_style LIKE %s OR l.lesson_style LIKE %s OR l.lesson_style LIKE %s)";
+            $params[] = $style_trimmed;
+            $params[] = $style_trimmed . ',%';
+            $params[] = '%, ' . $style_trimmed . ',%';
+            $params[] = '%, ' . $style_trimmed;
+        }
+        
+        $where_sql = "WHERE " . implode(" AND ", $where);
         
         $limit_clause = '';
         if ($limit > 0) {
-            $limit_clause = $this->wpdb->prepare(" LIMIT %d OFFSET %d", $limit, $offset);
+            $limit_clause = " LIMIT " . intval($limit) . " OFFSET " . intval($offset);
         }
         
-        $lessons = $this->wpdb->get_results(
-            "SELECT l.*, c.collection_title 
+        $query = "SELECT l.*, c.collection_title 
              FROM {$this->lessons_table} l
              LEFT JOIN {$collections_table} c ON c.ID = l.collection_id
-             {$where} 
+             {$where_sql} 
              ORDER BY l.lesson_title ASC 
-             {$limit_clause}"
-        );
+             {$limit_clause}";
+        
+        if (!empty($params)) {
+            $lessons = $this->wpdb->get_results($this->wpdb->prepare($query, $params));
+        } else {
+            $lessons = $this->wpdb->get_results($query);
+        }
         
         return $lessons ? $lessons : array();
     }
@@ -500,20 +535,57 @@ class ALM_Essentials_Library {
      * Get count of selectable lessons
      * 
      * @param string $search Optional search term
+     * @param string $lesson_level Optional lesson level filter
+     * @param string $tag Optional tag filter
+     * @param string $lesson_style Optional lesson style filter
      * @return int Count
      */
-    public function get_selectable_lessons_count($search = '') {
-        $where = "WHERE membership_level = 2";
+    public function get_selectable_lessons_count($search = '', $lesson_level = '', $tag = '', $lesson_style = '') {
+        $where = array("membership_level = 2");
+        $params = array();
         
         if (!empty($search)) {
             $search_term = '%' . $this->wpdb->esc_like($search) . '%';
-            $where .= $this->wpdb->prepare(
-                " AND (lesson_title LIKE %s OR lesson_description LIKE %s)",
-                $search_term, $search_term
-            );
+            $where[] = "(lesson_title LIKE %s OR lesson_description LIKE %s)";
+            $params[] = $search_term;
+            $params[] = $search_term;
         }
         
-        $count = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->lessons_table} {$where}");
+        // Filter by lesson level
+        if (!empty($lesson_level) && in_array($lesson_level, array('beginner', 'intermediate', 'advanced', 'pro'), true)) {
+            $where[] = "lesson_level = %s";
+            $params[] = $lesson_level;
+        }
+        
+        // Filter by tag - match exact tag (handles tags at start, middle, or end of comma-separated list)
+        if (!empty($tag)) {
+            $tag_trimmed = trim($tag);
+            $where[] = "(lesson_tags = %s OR lesson_tags LIKE %s OR lesson_tags LIKE %s OR lesson_tags LIKE %s)";
+            $params[] = $tag_trimmed;
+            $params[] = $tag_trimmed . ',%';
+            $params[] = '%, ' . $tag_trimmed . ',%';
+            $params[] = '%, ' . $tag_trimmed;
+        }
+        
+        // Filter by lesson style - match exact style (handles styles at start, middle, or end of comma-separated list)
+        if (!empty($lesson_style)) {
+            $style_trimmed = trim($lesson_style);
+            $where[] = "(lesson_style = %s OR lesson_style LIKE %s OR lesson_style LIKE %s OR lesson_style LIKE %s)";
+            $params[] = $style_trimmed;
+            $params[] = $style_trimmed . ',%';
+            $params[] = '%, ' . $style_trimmed . ',%';
+            $params[] = '%, ' . $style_trimmed;
+        }
+        
+        $where_sql = "WHERE " . implode(" AND ", $where);
+        
+        $query = "SELECT COUNT(*) FROM {$this->lessons_table} {$where_sql}";
+        
+        if (!empty($params)) {
+            $count = $this->wpdb->get_var($this->wpdb->prepare($query, $params));
+        } else {
+            $count = $this->wpdb->get_var($query);
+        }
         
         return intval($count);
     }

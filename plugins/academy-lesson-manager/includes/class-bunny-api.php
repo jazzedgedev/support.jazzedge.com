@@ -68,11 +68,11 @@ class ALM_Bunny_API {
      * Fetch video metadata from Bunny.net API
      * 
      * @param string $video_id The video ID
-     * @return array|false Video metadata or false on error
+     * @return array|false Video metadata or false on error. On error, check error_log for details.
      */
     public function get_video_metadata($video_id) {
         if (empty($this->library_id) || empty($this->api_key)) {
-            error_log("ALM Bunny API: Library ID or API key not set");
+            error_log("ALM Bunny API: Library ID or API key not set. Library ID: " . (empty($this->library_id) ? 'empty' : 'set') . ", API Key: " . (empty($this->api_key) ? 'empty' : 'set'));
             return false;
         }
         
@@ -89,23 +89,38 @@ class ALM_Bunny_API {
         $response = wp_remote_get($url, $args);
         
         if (is_wp_error($response)) {
-            error_log("ALM Bunny API: Error fetching metadata - " . $response->get_error_message());
+            $error_msg = "ALM Bunny API: Error fetching metadata for video ID {$video_id} - " . $response->get_error_message();
+            error_log($error_msg);
+            error_log("ALM Bunny API: Request URL: {$url}");
             return false;
         }
         
         $status_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        
         if ($status_code !== 200) {
-            error_log("ALM Bunny API: Metadata request returned status {$status_code}");
-            $body = wp_remote_retrieve_body($response);
+            $error_msg = "ALM Bunny API: Metadata request returned status {$status_code} for video ID {$video_id}";
+            error_log($error_msg);
+            error_log("ALM Bunny API: Request URL: {$url}");
             error_log("ALM Bunny API: Response body: " . substr($body, 0, 500));
+            
+            // Provide more specific error messages
+            if ($status_code === 401) {
+                error_log("ALM Bunny API: Authentication failed - check API key");
+            } elseif ($status_code === 404) {
+                error_log("ALM Bunny API: Video not found - check video ID: {$video_id}");
+            } elseif ($status_code === 403) {
+                error_log("ALM Bunny API: Access forbidden - check API key permissions");
+            }
+            
             return false;
         }
         
-        $body = wp_remote_retrieve_body($response);
         $data = json_decode($body, true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("ALM Bunny API: JSON decode error - " . json_last_error_msg());
+            error_log("ALM Bunny API: JSON decode error for video ID {$video_id} - " . json_last_error_msg());
+            error_log("ALM Bunny API: Response body: " . substr($body, 0, 500));
             return false;
         }
         

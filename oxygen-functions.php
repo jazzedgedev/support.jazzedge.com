@@ -159,7 +159,7 @@ function start_session() {
     $timezone = $wpdb->get_var($wpdb->prepare("SELECT timezone FROM academy_user_prefs WHERE user_id = %d", $user_id));
     $_SESSION['user-timezone'] = $timezone;
 }
-add_action('init', 'start_session', 1);
+// add_action('init', 'start_session', 1);
 
 // End session on logout and login
 function end_session() {
@@ -6898,8 +6898,12 @@ function je_dt_local($v){ if(!$v) return null; if(is_numeric($v)){$d=new DateTim
 function je_dt_utc(DateTime $d){ $u=clone $d; return $u->setTimezone(new DateTimeZone('UTC')); }
 function je_gcal_range($s,$e){ $a=je_dt_utc($s)->format('Ymd\THis\Z'); if(!$e){ $e=(clone $s)->modify('+1 hour'); } $b=je_dt_utc($e)->format('Ymd\THis\Z'); return "$a/$b"; }
 
-// [je_event_details id=""]
-add_shortcode('je_event_details', function($atts){
+// [event_details id=""] (formerly [je_event_details])
+// COMMENTED OUT - Moved to academy-lesson-manager-shortcodes plugin
+// Uncomment the line below to re-enable this shortcode
+// add_shortcode('event_details', function($atts){
+if (false) { // Disabled - shortcode moved to academy-lesson-manager-shortcodes plugin
+add_shortcode('event_details', function($atts){
   $id = absint($atts['id'] ?? get_the_ID());
   $s  = je_dt_local(get_post_meta($id,'je_event_start',true)); if(!$s) return '';
   $e  = je_dt_local(get_post_meta($id,'je_event_end',true));
@@ -7053,6 +7057,7 @@ add_shortcode('je_event_details', function($atts){
   <?php
   return trim(ob_get_clean());
 });
+} // End of disabled shortcode
 
 /* ICS download via admin-ajax.php */
 add_action('wp_ajax_je_ics','je_ics_download');

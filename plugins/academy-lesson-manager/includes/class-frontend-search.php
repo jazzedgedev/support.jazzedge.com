@@ -13,6 +13,9 @@ class ALM_Frontend_Search {
         // Enqueue microtip CSS for tooltips
         wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
         
+        // Enqueue HLS.js for browsers that don't support HLS natively (Firefox, Chrome)
+        wp_enqueue_script('hls.js', 'https://cdn.jsdelivr.net/npm/hls.js@latest', array(), null, true);
+        
         // Enqueue frontend search CSS
         wp_enqueue_style(
             'alm-frontend-search-css',
@@ -77,32 +80,157 @@ class ALM_Frontend_Search {
 }
 
 /* Responsive Design */
-@media (max-width: 1024px) {
+/* Tablet: 2 columns (769px - 1024px) */
+@media (max-width: 1024px) and (min-width: 769px) {
     .alm-search-page-container {
         padding: 30px 20px 0 20px;
     }
     
     .alm-search-results-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, 1fr) !important;
         padding: 0 0 40px 0;
+    }
+    
+    /* Filters: 2 columns on tablet */
+    .alm-search-page-container form > div:nth-child(2) > div:last-child > div {
+        grid-template-columns: repeat(2, 1fr) !important;
     }
 }
 
+/* Mobile: 1 column (≤768px) */
 @media (max-width: 768px) {
     .alm-search-page-container {
         padding: 16px 16px 0 16px;
     }
     
-    .alm-search-results-grid {
-        grid-template-columns: 1fr;
-        gap: 20px;
-        padding: 0 0 40px 0;
-        margin-top: 24px;
+    /* Override inline styles for results grid - MUST use !important */
+    .alm-search-results-grid,
+    div.alm-search-results-grid,
+    #alm-lesson-search .alm-search-results-grid,
+    .alm-search-page-container .alm-search-results-grid {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+        padding: 0 0 40px 0 !important;
+        margin-top: 24px !important;
+    }
+    
+    /* Force override any inline style attribute */
+    div[class*="alm-search-results-grid"][style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
     }
     
     .alm-search-page-container input[type="search"] {
         padding: 16px 48px 16px 18px;
         font-size: 15px;
+    }
+    
+    /* Stack search row on mobile */
+    .alm-search-page-container form > div:first-child {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+    
+    /* Hide search label on mobile or make it smaller */
+    .alm-search-page-container form > div:first-child > label {
+        margin-bottom: 4px;
+    }
+    
+    /* Make search input full width on mobile */
+    .alm-search-page-container form > div:first-child > div {
+        width: 100% !important;
+        flex: none !important;
+    }
+    
+    /* Stack filter buttons on mobile */
+    .alm-search-page-container form > div:first-child > button {
+        width: 100% !important;
+        margin: 0 !important;
+    }
+    
+    /* Stack filters container - 1 column on mobile - MUST override inline styles */
+    .alm-search-page-container form > div:nth-child(2) > div:last-child > div,
+    .alm-search-page-container form > div:nth-child(2) div[style*="grid-template-columns"],
+    .alm-search-page-container form > div:nth-child(2) > div:last-child > div[style*="grid"] {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    
+    /* Force override any inline style for filters grid */
+    .alm-search-page-container form div[style*="repeat(4, 1fr)"],
+    .alm-search-page-container form div[style*="repeat(3, 1fr)"] {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* Adjust filters wrapper padding on mobile */
+    .alm-search-page-container form > div:nth-child(2) > div:last-child {
+        padding: 12px !important;
+    }
+    
+    /* Make filter dropdowns smaller on mobile */
+    .alm-search-page-container form select {
+        font-size: 14px !important;
+        padding: 8px 12px !important;
+        padding-right: 36px !important;
+    }
+    
+    /* Adjust results summary on mobile */
+    .alm-search-page-container > div:last-child > div:first-child,
+    .alm-search-page-container > div:last-child > div[style*="display: flex"][style*="justify-content: space-between"] {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+        font-size: 14px !important;
+        padding: 12px 16px !important;
+    }
+    
+    /* Stack results header right container on mobile */
+    .alm-search-page-container > div:last-child > div:first-child > div:last-child,
+    .alm-search-page-container > div:last-child > div:first-child > div[style*="display: flex"][style*="align-items: center"] {
+        width: 100% !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+    
+    /* Stack per page container on mobile - put it on new line */
+    .alm-search-page-container > div:last-child > div:first-child > div:last-child > div:last-child,
+    .alm-search-page-container .alm-per-page-select {
+        width: 100% !important;
+        margin-top: 8px !important;
+    }
+    
+    /* Make per page container and dropdown full width on mobile */
+    .alm-search-page-container > div:last-child > div:first-child > div:last-child > div:last-child {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+    
+    .alm-search-page-container .alm-per-page-select,
+    .alm-search-page-container > div:last-child > div:first-child > div:last-child > div:last-child select {
+        width: 100% !important;
+        min-width: auto !important;
+    }
+    
+    /* Stack pagination buttons on mobile */
+    .alm-search-pager {
+        flex-direction: column !important;
+        padding: 16px !important;
+    }
+    
+    .alm-search-pager-btn {
+        width: 100% !important;
+        min-width: auto !important;
+    }
+    
+    /* Adjust view toggle buttons on mobile */
+    .alm-search-page-container button[data-view] {
+        padding: 8px 12px !important;
+        font-size: 14px !important;
     }
 }
 </style>
@@ -117,6 +245,8 @@ CSS;
         $favorites_check_url_js = esc_js(rest_url('aph/v1/lesson-favorites/check'));
         $favorites_get_all_url_js = esc_js(rest_url('aph/v1/lesson-favorites'));
         $tags_url_js = esc_js(rest_url('alm/v1/tags'));
+        $teachers_url_js = esc_js(rest_url('alm/v1/teachers'));
+        $keys_url_js = esc_js(rest_url('alm/v1/keys'));
         $is_user_logged_in = is_user_logged_in() ? 'true' : 'false';
         // Note: Level preference URLs removed - we no longer persist level selection
         
@@ -227,10 +357,14 @@ document.addEventListener('DOMContentLoaded', function() {
     var initialTag = urlParams.get('tag') || '';
     var initialStyle = urlParams.get('lesson_style') || '';
     var initialMembershipLevel = urlParams.get('membership_level') || '';
+    var initialTeacher = urlParams.get('teacher') || '';
+    var initialKey = urlParams.get('key') || '';
+    var initialHasSample = urlParams.get('has_sample') || '';
+    var initialSongLesson = urlParams.get('song_lesson') || '';
     
     // Get view preference from localStorage or default to 'grid'
     var initialView = localStorage.getItem('alm_search_view') || 'grid';
-    var state = { q: initialQ, page: initialPage, per_page: initialPerPage, lesson_level: initialLevel, tag: initialTag, lesson_style: initialStyle, membership_level: initialMembershipLevel, view: initialView };
+    var state = { q: initialQ, page: initialPage, per_page: initialPerPage, lesson_level: initialLevel, tag: initialTag, lesson_style: initialStyle, membership_level: initialMembershipLevel, teacher: initialTeacher, key: initialKey, has_sample: initialHasSample, song_lesson: initialSongLesson, view: initialView };
     
     // Create styled search container
     var searchContainer = document.createElement('div');
@@ -251,6 +385,10 @@ document.addEventListener('DOMContentLoaded', function() {
       state.tag = tagSelect ? tagSelect.value.trim() : '';
       state.lesson_style = styleSelect ? styleSelect.value.trim() : '';
       state.membership_level = membershipSelect ? membershipSelect.value.trim() : '';
+      state.teacher = teacherSelect ? teacherSelect.value.trim() : '';
+      state.key = keySelect ? keySelect.value.trim() : '';
+      state.has_sample = hasSampleSelect ? hasSampleSelect.value.trim() : '';
+      state.song_lesson = songLessonSelect ? songLessonSelect.value.trim() : '';
       state.page = 1;
       fetchData();
       return false;
@@ -337,8 +475,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Level dropdown - horizontally aligned with search input (no label, text inside dropdown)
     var levelSelect = document.createElement('select');
     levelSelect.id = 'alm-lesson-level-filter';
-    levelSelect.style.flex = '1';
-    levelSelect.style.minWidth = '0';
+    levelSelect.style.width = '100%';
     levelSelect.style.padding = '10px 16px';
     levelSelect.style.paddingRight = '40px';
     levelSelect.style.border = '2px solid #e5e7eb';
@@ -375,7 +512,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     var levelOptions = [
-      {value: '', text: 'Filter by skill level'},
+      {value: '', text: 'Skill level'},
       {value: 'beginner', text: 'Beginner'},
       {value: 'intermediate', text: 'Intermediate'},
       {value: 'advanced', text: 'Advanced'},
@@ -399,36 +536,68 @@ document.addEventListener('DOMContentLoaded', function() {
     levelSelect.value = '';
     state.lesson_level = '';
     
-    // Second row: Filters with label
+    // Second row: Filters with pill label floating above
     var filtersRow = document.createElement('div');
-    filtersRow.style.display = 'flex';
-    filtersRow.style.alignItems = 'center';
-    filtersRow.style.gap = '16px';
+    filtersRow.style.position = 'relative';
     filtersRow.style.width = '100%';
     filtersRow.style.marginBottom = '20px';
     
-    // Add "Filters:" label before the dropdowns
-    var filtersLabel = document.createElement('label');
-    filtersLabel.textContent = 'Filters:';
-    filtersLabel.style.fontSize = '16px';
+    // Add "Filters" pill label floating above the div
+    var filtersLabel = document.createElement('div');
+    filtersLabel.textContent = 'Filters';
+    filtersLabel.style.position = 'absolute';
+    filtersLabel.style.top = '-12px';
+    filtersLabel.style.left = '0';
+    filtersLabel.style.fontSize = '11px';
     filtersLabel.style.fontWeight = '600';
-    filtersLabel.style.color = '#374151';
-    filtersLabel.style.flexShrink = '0';
-    filtersLabel.style.marginRight = '4px';
+    filtersLabel.style.color = '#ffffff';
+    filtersLabel.style.background = '#239B90';
+    filtersLabel.style.padding = '4px 12px';
+    filtersLabel.style.borderRadius = '12px';
+    filtersLabel.style.whiteSpace = 'nowrap';
+    filtersLabel.style.lineHeight = '1.5';
+    filtersLabel.style.zIndex = '10';
     
-    // Filter dropdowns container - flex to fill remaining width
+    // Filter dropdowns container - wrapped in a light background div (full width)
+    var filtersWrapper = document.createElement('div');
+    filtersWrapper.style.background = '#f8f9fa';
+    filtersWrapper.style.border = '1px solid #e9ecef';
+    filtersWrapper.style.borderRadius = '8px';
+    filtersWrapper.style.padding = '16px';
+    filtersWrapper.style.width = '100%';
+    filtersWrapper.style.boxSizing = 'border-box';
+    
     var filtersContainer = document.createElement('div');
-    filtersContainer.style.display = 'flex';
-    filtersContainer.style.alignItems = 'center';
+    filtersContainer.style.display = 'grid';
+    // Set responsive columns based on window width
+    var width = window.innerWidth || document.documentElement.clientWidth;
+    if (width <= 768) {
+      filtersContainer.style.gridTemplateColumns = '1fr';
+    } else if (width <= 1024) {
+      filtersContainer.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    } else {
+      filtersContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    }
     filtersContainer.style.gap = '16px';
-    filtersContainer.style.flex = '1';
-    filtersContainer.style.minWidth = '0';
+    filtersContainer.style.alignItems = 'center';
     
-    // Tag dropdown (flex to fill space)
+    // Update on window resize
+    var updateFiltersGrid = function() {
+      var w = window.innerWidth || document.documentElement.clientWidth;
+      if (w <= 768) {
+        filtersContainer.style.gridTemplateColumns = '1fr';
+      } else if (w <= 1024) {
+        filtersContainer.style.gridTemplateColumns = 'repeat(2, 1fr)';
+      } else {
+        filtersContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
+      }
+    };
+    window.addEventListener('resize', updateFiltersGrid);
+    
+    // Tag dropdown
     var tagSelect = document.createElement('select');
     tagSelect.id = 'alm-lesson-tag-filter';
-    tagSelect.style.flex = '1';
-    tagSelect.style.minWidth = '0';
+    tagSelect.style.width = '100%';
     tagSelect.style.padding = '10px 16px';
     tagSelect.style.paddingRight = '40px';
     tagSelect.style.border = '2px solid #e5e7eb';
@@ -464,10 +633,10 @@ document.addEventListener('DOMContentLoaded', function() {
       this.style.boxShadow = 'none';
     };
     
-    // Add default "Filter by tag" option
+    // Add default "Tag" option
     var tagDefaultOption = document.createElement('option');
     tagDefaultOption.value = '';
-    tagDefaultOption.textContent = 'Filter by tag';
+    tagDefaultOption.textContent = 'Tag';
     tagDefaultOption.selected = true;
     tagSelect.appendChild(tagDefaultOption);
     
@@ -499,8 +668,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Style dropdown
     var styleSelect = document.createElement('select');
     styleSelect.id = 'alm-lesson-style-filter';
-    styleSelect.style.flex = '1';
-    styleSelect.style.minWidth = '0';
+    styleSelect.style.width = '100%';
     styleSelect.style.padding = '10px 16px';
     styleSelect.style.paddingRight = '40px';
     styleSelect.style.border = '2px solid #e5e7eb';
@@ -538,7 +706,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Hard-coded styles list
     var styleOptions = [
-      {value: '', text: 'Filter by style'},
+      {value: '', text: 'Style'},
       {value: 'Any', text: 'Any'},
       {value: 'Jazz', text: 'Jazz'},
       {value: 'Cocktail', text: 'Cocktail'},
@@ -580,8 +748,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Membership Level dropdown
     var membershipSelect = document.createElement('select');
     membershipSelect.id = 'alm-lesson-membership-filter';
-    membershipSelect.style.flex = '1';
-    membershipSelect.style.minWidth = '0';
+    membershipSelect.style.width = '100%';
     membershipSelect.style.padding = '10px 16px';
     membershipSelect.style.paddingRight = '40px';
     membershipSelect.style.border = '2px solid #e5e7eb';
@@ -619,7 +786,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Hard-coded membership levels
     var membershipOptions = [
-      {value: '', text: 'Filter by membership'},
+      {value: '', text: 'Membership'},
       {value: '0', text: 'Free'},
       {value: '1', text: 'Essentials'},
       {value: '2', text: 'Studio'},
@@ -708,6 +875,10 @@ document.addEventListener('DOMContentLoaded', function() {
       tagSelect.value = '';
       styleSelect.value = '';
       membershipSelect.value = '';
+      teacherSelect.value = '';
+      keySelect.value = '';
+      hasSampleSelect.value = '';
+      songLessonSelect.value = '';
       
       // Reset state
       state.q = '';
@@ -715,6 +886,10 @@ document.addEventListener('DOMContentLoaded', function() {
       state.tag = '';
       state.lesson_style = '';
       state.membership_level = '';
+      state.teacher = '';
+      state.key = '';
+      state.has_sample = '';
+      state.song_lesson = '';
       state.page = 1;
       state.per_page = 24;
       
@@ -725,13 +900,18 @@ document.addEventListener('DOMContentLoaded', function() {
       url.searchParams.delete('tag');
       url.searchParams.delete('lesson_style');
       url.searchParams.delete('membership_level');
+      url.searchParams.delete('teacher');
+      url.searchParams.delete('key');
+      url.searchParams.delete('has_sample');
+      url.searchParams.delete('song_lesson');
       url.searchParams.delete('page');
       url.searchParams.delete('per_page');
       window.history.pushState({}, '', url.toString());
       
       // Clear results
       results.innerHTML = '';
-      pager.innerHTML = '';
+      // Don't clear pager.innerHTML - just hide it, fetchData will show it if needed
+      pager.style.display = 'none';
       
       // Trigger a search to show all lessons (empty search)
       fetchData();
@@ -743,13 +923,282 @@ document.addEventListener('DOMContentLoaded', function() {
     searchRow.appendChild(searchButton);
     searchRow.appendChild(clearButton);
     
+    // Teacher dropdown
+    var teacherSelect = document.createElement('select');
+    teacherSelect.id = 'alm-lesson-teacher-filter';
+    teacherSelect.style.width = '100%';
+    teacherSelect.style.padding = '10px 16px';
+    teacherSelect.style.paddingRight = '40px';
+    teacherSelect.style.border = '2px solid #e5e7eb';
+    teacherSelect.style.borderRadius = '8px';
+    teacherSelect.style.background = '#ffffff';
+    teacherSelect.style.color = '#1f2937';
+    teacherSelect.style.fontSize = '15px';
+    teacherSelect.style.fontWeight = '500';
+    teacherSelect.style.cursor = 'pointer';
+    teacherSelect.style.outline = 'none';
+    teacherSelect.style.transition = 'all 0.2s ease';
+    teacherSelect.style.appearance = 'none';
+    teacherSelect.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")';
+    teacherSelect.style.backgroundRepeat = 'no-repeat';
+    teacherSelect.style.backgroundPosition = 'right 12px center';
+    teacherSelect.style.backgroundSize = '16px';
+    teacherSelect.style.boxSizing = 'border-box';
+    
+    teacherSelect.onmouseenter = function(){
+      this.style.borderColor = '#3b82f6';
+    };
+    teacherSelect.onmouseleave = function(){
+      if (document.activeElement !== this) {
+        this.style.borderColor = '#e5e7eb';
+      }
+    };
+    teacherSelect.onfocus = function(){
+      this.style.borderColor = '#3b82f6';
+      this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+    };
+    teacherSelect.onblur = function(){
+      this.style.borderColor = '#e5e7eb';
+      this.style.boxShadow = 'none';
+    };
+    
+    // Add default "Teacher" option
+    var teacherDefaultOption = document.createElement('option');
+    teacherDefaultOption.value = '';
+    teacherDefaultOption.textContent = 'Teacher';
+    teacherDefaultOption.selected = true;
+    teacherSelect.appendChild(teacherDefaultOption);
+    
+    // Load teachers from API
+    var teachersUrl = '{$teachers_url_js}';
+    fetch(teachersUrl).then(function(r){ return r.json(); }).then(function(teachers){
+      if (teachers && Array.isArray(teachers)) {
+        teachers.forEach(function(teacher){
+          var option = document.createElement('option');
+          option.value = teacher.name;
+          option.textContent = teacher.name;
+          if (teacher.name === initialTeacher) {
+            option.selected = true;
+            teacherDefaultOption.selected = false;
+          }
+          teacherSelect.appendChild(option);
+        });
+      }
+    }).catch(function(err){
+      console.error('ALM Search: Failed to load teachers', err);
+    });
+    
+    // Update teacher when changed
+    teacherSelect.addEventListener('change', function(){
+      state.teacher = teacherSelect.value.trim();
+      state.page = 1;
+    });
+    
+    // Key dropdown
+    var keySelect = document.createElement('select');
+    keySelect.id = 'alm-lesson-key-filter';
+    keySelect.style.width = '100%';
+    keySelect.style.padding = '10px 16px';
+    keySelect.style.paddingRight = '40px';
+    keySelect.style.border = '2px solid #e5e7eb';
+    keySelect.style.borderRadius = '8px';
+    keySelect.style.background = '#ffffff';
+    keySelect.style.color = '#1f2937';
+    keySelect.style.fontSize = '15px';
+    keySelect.style.fontWeight = '500';
+    keySelect.style.cursor = 'pointer';
+    keySelect.style.outline = 'none';
+    keySelect.style.transition = 'all 0.2s ease';
+    keySelect.style.appearance = 'none';
+    keySelect.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")';
+    keySelect.style.backgroundRepeat = 'no-repeat';
+    keySelect.style.backgroundPosition = 'right 12px center';
+    keySelect.style.backgroundSize = '16px';
+    keySelect.style.boxSizing = 'border-box';
+    
+    keySelect.onmouseenter = function(){
+      this.style.borderColor = '#3b82f6';
+    };
+    keySelect.onmouseleave = function(){
+      if (document.activeElement !== this) {
+        this.style.borderColor = '#e5e7eb';
+      }
+    };
+    keySelect.onfocus = function(){
+      this.style.borderColor = '#3b82f6';
+      this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+    };
+    keySelect.onblur = function(){
+      this.style.borderColor = '#e5e7eb';
+      this.style.boxShadow = 'none';
+    };
+    
+    // Add default "Key" option
+    var keyDefaultOption = document.createElement('option');
+    keyDefaultOption.value = '';
+    keyDefaultOption.textContent = 'Key';
+    keyDefaultOption.selected = true;
+    keySelect.appendChild(keyDefaultOption);
+    
+    // Load keys from API
+    var keysUrl = '{$keys_url_js}';
+    fetch(keysUrl).then(function(r){ return r.json(); }).then(function(keys){
+      if (keys && Array.isArray(keys)) {
+        keys.forEach(function(key){
+          var option = document.createElement('option');
+          option.value = key.name;
+          option.textContent = key.name;
+          if (key.name === initialKey) {
+            option.selected = true;
+            keyDefaultOption.selected = false;
+          }
+          keySelect.appendChild(option);
+        });
+      }
+    }).catch(function(err){
+      console.error('ALM Search: Failed to load keys', err);
+    });
+    
+    // Update key when changed
+    keySelect.addEventListener('change', function(){
+      state.key = keySelect.value.trim();
+      state.page = 1;
+    });
+    
+    // Sample Video dropdown
+    var hasSampleSelect = document.createElement('select');
+    hasSampleSelect.id = 'alm-lesson-has-sample-filter';
+    hasSampleSelect.style.width = '100%';
+    hasSampleSelect.style.padding = '10px 16px';
+    hasSampleSelect.style.paddingRight = '40px';
+    hasSampleSelect.style.border = '2px solid #e5e7eb';
+    hasSampleSelect.style.borderRadius = '8px';
+    hasSampleSelect.style.background = '#ffffff';
+    hasSampleSelect.style.color = '#1f2937';
+    hasSampleSelect.style.fontSize = '15px';
+    hasSampleSelect.style.fontWeight = '500';
+    hasSampleSelect.style.cursor = 'pointer';
+    hasSampleSelect.style.outline = 'none';
+    hasSampleSelect.style.transition = 'all 0.2s ease';
+    hasSampleSelect.style.appearance = 'none';
+    hasSampleSelect.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")';
+    hasSampleSelect.style.backgroundRepeat = 'no-repeat';
+    hasSampleSelect.style.backgroundPosition = 'right 12px center';
+    hasSampleSelect.style.backgroundSize = '16px';
+    hasSampleSelect.style.boxSizing = 'border-box';
+    
+    hasSampleSelect.onmouseenter = function(){
+      this.style.borderColor = '#3b82f6';
+    };
+    hasSampleSelect.onmouseleave = function(){
+      if (document.activeElement !== this) {
+        this.style.borderColor = '#e5e7eb';
+      }
+    };
+    hasSampleSelect.onfocus = function(){
+      this.style.borderColor = '#3b82f6';
+      this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+    };
+    hasSampleSelect.onblur = function(){
+      this.style.borderColor = '#e5e7eb';
+      this.style.boxShadow = 'none';
+    };
+    
+    var hasSampleOptions = [
+      {value: '', text: 'Sample video'},
+      {value: 'y', text: 'Yes'},
+      {value: 'n', text: 'No'}
+    ];
+    
+    hasSampleOptions.forEach(function(opt){
+      var option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.text;
+      if (opt.value === initialHasSample) {
+        option.selected = true;
+      }
+      hasSampleSelect.appendChild(option);
+    });
+    
+    // Update has_sample when changed
+    hasSampleSelect.addEventListener('change', function(){
+      state.has_sample = hasSampleSelect.value.trim();
+      state.page = 1;
+    });
+    
+    // Song Lesson dropdown
+    var songLessonSelect = document.createElement('select');
+    songLessonSelect.id = 'alm-lesson-song-lesson-filter';
+    songLessonSelect.style.width = '100%';
+    songLessonSelect.style.padding = '10px 16px';
+    songLessonSelect.style.paddingRight = '40px';
+    songLessonSelect.style.border = '2px solid #e5e7eb';
+    songLessonSelect.style.borderRadius = '8px';
+    songLessonSelect.style.background = '#ffffff';
+    songLessonSelect.style.color = '#1f2937';
+    songLessonSelect.style.fontSize = '15px';
+    songLessonSelect.style.fontWeight = '500';
+    songLessonSelect.style.cursor = 'pointer';
+    songLessonSelect.style.outline = 'none';
+    songLessonSelect.style.transition = 'all 0.2s ease';
+    songLessonSelect.style.appearance = 'none';
+    songLessonSelect.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")';
+    songLessonSelect.style.backgroundRepeat = 'no-repeat';
+    songLessonSelect.style.backgroundPosition = 'right 12px center';
+    songLessonSelect.style.backgroundSize = '16px';
+    songLessonSelect.style.boxSizing = 'border-box';
+    
+    songLessonSelect.onmouseenter = function(){
+      this.style.borderColor = '#3b82f6';
+    };
+    songLessonSelect.onmouseleave = function(){
+      if (document.activeElement !== this) {
+        this.style.borderColor = '#e5e7eb';
+      }
+    };
+    songLessonSelect.onfocus = function(){
+      this.style.borderColor = '#3b82f6';
+      this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+    };
+    songLessonSelect.onblur = function(){
+      this.style.borderColor = '#e5e7eb';
+      this.style.boxShadow = 'none';
+    };
+    
+    var songLessonOptions = [
+      {value: '', text: 'Song lesson'},
+      {value: 'y', text: 'Yes'},
+      {value: 'n', text: 'No'}
+    ];
+    
+    songLessonOptions.forEach(function(opt){
+      var option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.text;
+      if (opt.value === initialSongLesson) {
+        option.selected = true;
+      }
+      songLessonSelect.appendChild(option);
+    });
+    
+    // Update song_lesson when changed
+    songLessonSelect.addEventListener('change', function(){
+      state.song_lesson = songLessonSelect.value.trim();
+      state.page = 1;
+    });
+    
     // Add elements to filters row (second row)
     filtersRow.appendChild(filtersLabel);
+    filtersWrapper.appendChild(filtersContainer);
     filtersContainer.appendChild(levelSelect);
     filtersContainer.appendChild(tagSelect);
     filtersContainer.appendChild(styleSelect);
     filtersContainer.appendChild(membershipSelect);
-    filtersRow.appendChild(filtersContainer);
+    filtersContainer.appendChild(teacherSelect);
+    filtersContainer.appendChild(keySelect);
+    filtersContainer.appendChild(hasSampleSelect);
+    filtersContainer.appendChild(songLessonSelect);
+    filtersRow.appendChild(filtersWrapper);
     
     form.appendChild(searchRow);
     form.appendChild(filtersRow);
@@ -783,6 +1232,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var pager = document.createElement('div');
     pager.className = 'alm-search-pager';
+    pager.id = 'alm-search-pager';
     pager.style.marginTop = '40px';
     pager.style.padding = '20px 40px';
     pager.style.display = 'flex';
@@ -790,6 +1240,7 @@ document.addEventListener('DOMContentLoaded', function() {
     pager.style.justifyContent = 'center';
     pager.style.alignItems = 'center';
     pager.style.gap = '12px';
+    pager.style.visibility = 'visible';
     
     var prevBtn = document.createElement('button');
     prevBtn.textContent = '← Prev';
@@ -872,13 +1323,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Store reference to button container for updating page numbers
     window.almUpdatePagination = function(totalPages, currentPageNum) {
-      // Clear existing page numbers (keep prev/next buttons)
-      var existingPageNumbers = buttonContainer.querySelectorAll('.alm-page-number');
-      existingPageNumbers.forEach(function(btn) {
-        btn.remove();
+      // Clear existing page numbers container (keep prev/next buttons)
+      // Find and remove any elements between prevBtn and nextBtn
+      var children = Array.from(buttonContainer.children);
+      children.forEach(function(child) {
+        // Remove anything that's not prevBtn or nextBtn
+        if (child !== prevBtn && child !== nextBtn) {
+          child.remove();
+        }
       });
       
-      // Add page number buttons
+      // Add page number buttons only if there's more than 1 page
       if (totalPages > 1) {
         var maxVisible = 7; // Show up to 7 page numbers
         var startPage = 1;
@@ -1031,9 +1486,38 @@ document.addEventListener('DOMContentLoaded', function() {
       resultsHeader.style.fontSize = '15px';
       resultsHeader.style.fontWeight = '600';
       resultsHeader.style.display = 'flex';
-      resultsHeader.style.justifyContent = 'space-between';
-      resultsHeader.style.alignItems = 'center';
+      // Set responsive layout for mobile
+      var headerWidth = window.innerWidth || document.documentElement.clientWidth;
+      if (headerWidth <= 768) {
+        resultsHeader.style.flexDirection = 'column';
+        resultsHeader.style.alignItems = 'flex-start';
+        resultsHeader.style.padding = '12px 16px';
+      } else {
+        resultsHeader.style.justifyContent = 'space-between';
+        resultsHeader.style.alignItems = 'center';
+      }
       resultsHeader.style.gap = '16px';
+      
+      // Update header on resize
+      var updateResultsHeader = function() {
+        var w = window.innerWidth || document.documentElement.clientWidth;
+        if (w <= 768) {
+          resultsHeader.style.flexDirection = 'column';
+          resultsHeader.style.alignItems = 'flex-start';
+          resultsHeader.style.justifyContent = 'flex-start';
+          resultsHeader.style.padding = '12px 16px';
+        } else {
+          resultsHeader.style.flexDirection = 'row';
+          resultsHeader.style.justifyContent = 'space-between';
+          resultsHeader.style.alignItems = 'center';
+          resultsHeader.style.padding = '16px 20px';
+        }
+      };
+      var resizeTimeout5;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout5);
+        resizeTimeout5 = setTimeout(updateResultsHeader, 100);
+      });
       
       // Left side: count and showing info
       var leftContent = document.createElement('div');
@@ -1051,8 +1535,32 @@ document.addEventListener('DOMContentLoaded', function() {
       if (total > 0) {
         var rightContainer = document.createElement('div');
         rightContainer.style.display = 'flex';
-        rightContainer.style.alignItems = 'center';
+        // Set responsive layout for mobile
+        var width = window.innerWidth || document.documentElement.clientWidth;
+        if (width <= 768) {
+          rightContainer.style.flexDirection = 'column';
+          rightContainer.style.alignItems = 'flex-start';
+        } else {
+          rightContainer.style.alignItems = 'center';
+        }
         rightContainer.style.gap = '16px';
+        
+        // Update on resize
+        var updateRightContainer = function() {
+          var w = window.innerWidth || document.documentElement.clientWidth;
+          if (w <= 768) {
+            rightContainer.style.flexDirection = 'column';
+            rightContainer.style.alignItems = 'flex-start';
+          } else {
+            rightContainer.style.flexDirection = 'row';
+            rightContainer.style.alignItems = 'center';
+          }
+        };
+        var resizeTimeout2;
+        window.addEventListener('resize', function() {
+          clearTimeout(resizeTimeout2);
+          resizeTimeout2 = setTimeout(updateRightContainer, 100);
+        });
         
         // View toggle buttons (List/Grid)
         var viewToggleContainer = document.createElement('div');
@@ -1125,8 +1633,35 @@ document.addEventListener('DOMContentLoaded', function() {
         // Per page dropdown
         var perPageContainer = document.createElement('div');
         perPageContainer.style.display = 'flex';
-        perPageContainer.style.alignItems = 'center';
+        // Set responsive layout for mobile
+        var width2 = window.innerWidth || document.documentElement.clientWidth;
+        if (width2 <= 768) {
+          perPageContainer.style.flexDirection = 'column';
+          perPageContainer.style.alignItems = 'flex-start';
+          perPageContainer.style.width = '100%';
+        } else {
+          perPageContainer.style.alignItems = 'center';
+        }
         perPageContainer.style.gap = '8px';
+        
+        // Update per page container on resize
+        var updatePerPageContainer = function() {
+          var w = window.innerWidth || document.documentElement.clientWidth;
+          if (w <= 768) {
+            perPageContainer.style.flexDirection = 'column';
+            perPageContainer.style.alignItems = 'flex-start';
+            perPageContainer.style.width = '100%';
+          } else {
+            perPageContainer.style.flexDirection = 'row';
+            perPageContainer.style.alignItems = 'center';
+            perPageContainer.style.width = 'auto';
+          }
+        };
+        var resizeTimeout3;
+        window.addEventListener('resize', function() {
+          clearTimeout(resizeTimeout3);
+          resizeTimeout3 = setTimeout(updatePerPageContainer, 100);
+        });
         
         var perPageLabel = document.createElement('span');
         perPageLabel.textContent = 'Per page:';
@@ -1151,7 +1686,31 @@ document.addEventListener('DOMContentLoaded', function() {
         perPageSelect.style.backgroundRepeat = 'no-repeat';
         perPageSelect.style.backgroundPosition = 'right 8px center';
         perPageSelect.style.backgroundSize = '16px';
-        perPageSelect.style.minWidth = '70px';
+        // Set responsive width for mobile
+        var width3 = window.innerWidth || document.documentElement.clientWidth;
+        if (width3 <= 768) {
+          perPageSelect.style.width = '100%';
+          perPageSelect.style.minWidth = 'auto';
+        } else {
+          perPageSelect.style.minWidth = '70px';
+        }
+        
+        // Update per page select on resize
+        var updatePerPageSelect = function() {
+          var w = window.innerWidth || document.documentElement.clientWidth;
+          if (w <= 768) {
+            perPageSelect.style.width = '100%';
+            perPageSelect.style.minWidth = 'auto';
+          } else {
+            perPageSelect.style.width = 'auto';
+            perPageSelect.style.minWidth = '70px';
+          }
+        };
+        var resizeTimeout4;
+        window.addEventListener('resize', function() {
+          clearTimeout(resizeTimeout4);
+          resizeTimeout4 = setTimeout(updatePerPageSelect, 100);
+        });
         
         // Per page options: 12, 24, 48, 72
         var perPageOptions = [12, 24, 48, 72];
@@ -1205,13 +1764,45 @@ document.addEventListener('DOMContentLoaded', function() {
         container.style.marginTop = '0';
         container.style.padding = '0 0 60px 0';
       } else {
-        // Grid view - 3 columns
+        // Grid view - responsive columns based on window width
         container.className = 'alm-search-results-grid';
         container.style.display = 'grid';
-        container.style.gridTemplateColumns = 'repeat(3, 1fr)';
-        container.style.gap = '30px';
+        var width = window.innerWidth || document.documentElement.clientWidth;
+        if (width <= 768) {
+          container.style.gridTemplateColumns = '1fr';
+          container.style.gap = '20px';
+        } else if (width <= 1024) {
+          container.style.gridTemplateColumns = 'repeat(2, 1fr)';
+          container.style.gap = '30px';
+        } else {
+          container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+          container.style.gap = '30px';
+        }
         container.style.marginTop = '0';
         container.style.padding = '0 0 60px 0';
+        
+        // Add resize listener to update grid columns on window resize
+        var updateGridColumns = function() {
+          if (container.className === 'alm-search-results-grid') {
+            var w = window.innerWidth || document.documentElement.clientWidth;
+            if (w <= 768) {
+              container.style.gridTemplateColumns = '1fr';
+              container.style.gap = '20px';
+            } else if (w <= 1024) {
+              container.style.gridTemplateColumns = 'repeat(2, 1fr)';
+              container.style.gap = '30px';
+            } else {
+              container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+              container.style.gap = '30px';
+            }
+          }
+        };
+        // Update on resize (debounced)
+        var resizeTimeout;
+        window.addEventListener('resize', function() {
+          clearTimeout(resizeTimeout);
+          resizeTimeout = setTimeout(updateGridColumns, 100);
+        });
       }
       
       // Store favorite buttons for batch processing
@@ -1845,12 +2436,52 @@ document.addEventListener('DOMContentLoaded', function() {
       // Convert video URL to embed format if needed
       var embedUrl = convertToEmbedUrl(videoUrl);
       
+      // Check if this is an m3u8 file (HLS playlist)
+      var isM3U8 = videoUrl.toLowerCase().indexOf('.m3u8') !== -1 || embedUrl.toLowerCase().indexOf('.m3u8') !== -1;
+      
       // Update modal content
       document.getElementById('alm-sample-modal-title').textContent = title;
       var modalBody = document.getElementById('alm-sample-modal-body');
-      modalBody.innerHTML = '<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;">' +
-        '<iframe src="' + escapeHtml(embedUrl) + '" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>' +
-        '</div>';
+      
+      if (isM3U8) {
+        // Use HTML5 video element for m3u8 files (HLS)
+        var videoId = 'alm-sample-video-' + Date.now();
+        modalBody.innerHTML = '<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;">' +
+          '<video id="' + videoId + '" controls style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" preload="metadata">' +
+          '<source src="' + escapeHtml(videoUrl) + '" type="application/x-mpegURL">' +
+          '<p>Your browser does not support the video tag.</p>' +
+          '</video>' +
+          '</div>';
+        
+        // Initialize HLS.js for browsers that don't support HLS natively
+        var video = document.getElementById(videoId);
+        if (video) {
+          if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+            // Use HLS.js for browsers that don't support HLS natively (Firefox, Chrome)
+            var hls = new Hls({
+              enableWorker: true,
+              lowLatencyMode: false
+            });
+            hls.loadSource(videoUrl);
+            hls.attachMedia(video);
+            // Store HLS instance on video element for cleanup
+            video.hls = hls;
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+              video.play().catch(function(error) {
+                console.log('Autoplay prevented:', error);
+              });
+            });
+          } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS support (Safari)
+            video.src = videoUrl;
+          }
+        }
+      } else {
+        // Use iframe for Vimeo, YouTube, and other embeddable URLs
+        modalBody.innerHTML = '<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;">' +
+          '<iframe src="' + escapeHtml(embedUrl) + '" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>' +
+          '</div>';
+      }
       
       // Show modal
       modal.style.display = 'block';
@@ -1860,9 +2491,19 @@ document.addEventListener('DOMContentLoaded', function() {
     function closeSampleModal() {
       var modal = document.getElementById('alm-sample-modal');
       if (modal) {
+        // Stop any HLS playback
+        var video = modal.querySelector('video');
+        if (video) {
+          if (video.hls && typeof video.hls.destroy === 'function') {
+            video.hls.destroy();
+          }
+          video.pause();
+          video.src = '';
+        }
+        
         modal.style.display = 'none';
         document.body.style.overflow = '';
-        // Clear iframe to stop video playback
+        // Clear iframe/video to stop playback
         var modalBody = document.getElementById('alm-sample-modal-body');
         if (modalBody) {
           modalBody.innerHTML = '';
@@ -1918,6 +2559,22 @@ document.addEventListener('DOMContentLoaded', function() {
       if (membershipSelect) {
         state.membership_level = membershipSelect.value.trim();
       }
+      // Update teacher from dropdown value
+      if (teacherSelect) {
+        state.teacher = teacherSelect.value.trim();
+      }
+      // Update key from dropdown value
+      if (keySelect) {
+        state.key = keySelect.value.trim();
+      }
+      // Update has_sample from dropdown value
+      if (hasSampleSelect) {
+        state.has_sample = hasSampleSelect.value.trim();
+      }
+      // Update song_lesson from dropdown value
+      if (songLessonSelect) {
+        state.song_lesson = songLessonSelect.value.trim();
+      }
       
       var url = new URL(endpoint, window.location.origin);
       Object.keys(state).forEach(function(k){
@@ -1938,6 +2595,22 @@ document.addEventListener('DOMContentLoaded', function() {
           // Include membership_level only if it's not empty
           if (k === 'membership_level' && (!state[k] || state[k] === '')) {
             // Don't include empty membership_level in URL
+            return;
+          }
+          // Include teacher only if it's not empty
+          if (k === 'teacher' && (!state[k] || state[k] === '')) {
+            return;
+          }
+          // Include key only if it's not empty
+          if (k === 'key' && (!state[k] || state[k] === '')) {
+            return;
+          }
+          // Include has_sample only if it's not empty
+          if (k === 'has_sample' && (!state[k] || state[k] === '')) {
+            return;
+          }
+          // Include song_lesson only if it's not empty
+          if (k === 'song_lesson' && (!state[k] || state[k] === '')) {
             return;
           }
           url.searchParams.set(k, state[k]);
@@ -1978,55 +2651,97 @@ document.addEventListener('DOMContentLoaded', function() {
         var start = (currentPageNum - 1) * perPage + 1;
         var end = Math.min(currentPageNum * perPage, total);
         
+        // Ensure pagination elements exist before using them
+        if (!prevBtn || !nextBtn || !buttonContainer || !pager) {
+          console.error('ALM Search: Pagination elements missing, cannot update pagination');
+          return;
+        }
+        
         prevBtn.disabled = currentPageNum <= 1;
         nextBtn.disabled = currentPageNum >= totalPages || !data.items || data.items.length === 0;
         
-        // Update page number buttons
-        if (window.almUpdatePagination) {
-          window.almUpdatePagination(totalPages, currentPageNum);
-        }
-        
-        // Update pagination count display below buttons (centered)
-        var pagerCount = pager.querySelector('.alm-pager-count');
-        if (!pagerCount) {
-          pagerCount = document.createElement('div');
-          pagerCount.className = 'alm-pager-count';
-          pagerCount.style.width = '100%';
-          pagerCount.style.textAlign = 'center';
-          pagerCount.style.marginTop = '16px';
-          pagerCount.style.padding = '12px 0';
-          pagerCount.style.color = '#6c757d';
-          pagerCount.style.fontSize = '14px';
-          pagerCount.style.fontWeight = '500';
-          pager.appendChild(pagerCount);
-        }
-        if (total > 0) {
+        // Show pagination only when there are results
+        if (total > 0 && data.items && data.items.length > 0) {
+          // Ensure pager is visible and properly structured
+          pager.style.display = 'flex';
+          pager.style.visibility = 'visible';
+          
+          // Ensure buttonContainer exists and is in the pager
+          if (!pager.contains(buttonContainer)) {
+            pager.insertBefore(buttonContainer, pager.firstChild);
+          }
+          
+          // Only show pagination controls (prev/next/page numbers) if there's more than 1 page
+          if (totalPages > 1) {
+            buttonContainer.style.display = 'flex';
+            buttonContainer.style.visibility = 'visible';
+            
+            // Ensure buttons are in buttonContainer
+            if (!buttonContainer.contains(prevBtn)) {
+              buttonContainer.insertBefore(prevBtn, buttonContainer.firstChild);
+            }
+            if (!buttonContainer.contains(nextBtn)) {
+              buttonContainer.appendChild(nextBtn);
+            }
+            
+            // Update page number buttons
+            if (window.almUpdatePagination) {
+              window.almUpdatePagination(totalPages, currentPageNum);
+            }
+          } else {
+            // Hide pagination controls when only 1 page, but still show count
+            buttonContainer.style.display = 'none';
+            
+            // Clear any existing page numbers
+            if (window.almUpdatePagination) {
+              window.almUpdatePagination(1, 1);
+            }
+          }
+          
+          // Always show pagination count display below buttons (centered)
+          var pagerCount = pager.querySelector('.alm-pager-count');
+          if (!pagerCount) {
+            pagerCount = document.createElement('div');
+            pagerCount.className = 'alm-pager-count';
+            pagerCount.style.width = '100%';
+            pagerCount.style.textAlign = 'center';
+            pagerCount.style.marginTop = '16px';
+            pagerCount.style.padding = '12px 0';
+            pagerCount.style.color = '#6c757d';
+            pagerCount.style.fontSize = '14px';
+            pagerCount.style.fontWeight = '500';
+            pager.appendChild(pagerCount);
+          }
+          pagerCount.style.display = 'block';
           pagerCount.innerHTML = '<span style="color: #239B90; font-weight: 700;">' + total + '</span> <span style="color: #6c757d; font-weight: 500;">lessons found</span> <span style="color: #adb5bd; margin: 0 4px;">•</span> <span style="color: #6c757d; font-weight: 500;">Showing ' + start + '–' + end + '</span>';
         } else {
-          pagerCount.innerHTML = '<span style="color: #6c757d;">No lessons found</span>';
+          // Hide pagination when no results
+          pager.style.display = 'none';
         }
         
-        // Update button styles based on disabled state
-        if (prevBtn.disabled) {
-          prevBtn.style.opacity = '0.5';
-          prevBtn.style.cursor = 'not-allowed';
-        } else {
-          prevBtn.style.opacity = '1';
-          prevBtn.style.cursor = 'pointer';
-        }
-        
-        if (nextBtn.disabled) {
-          nextBtn.style.opacity = '0.5';
-          nextBtn.style.cursor = 'not-allowed';
-          nextBtn.style.background = '#e9ecef';
-          nextBtn.style.borderColor = '#e9ecef';
-          nextBtn.style.color = '#6c757d';
-        } else {
-          nextBtn.style.opacity = '1';
-          nextBtn.style.cursor = 'pointer';
-          nextBtn.style.background = '#239B90';
-          nextBtn.style.borderColor = '#239B90';
-          nextBtn.style.color = '#ffffff';
+        // Update button styles based on disabled state (only if buttons exist)
+        if (prevBtn && nextBtn) {
+          if (prevBtn.disabled) {
+            prevBtn.style.opacity = '0.5';
+            prevBtn.style.cursor = 'not-allowed';
+          } else {
+            prevBtn.style.opacity = '1';
+            prevBtn.style.cursor = 'pointer';
+          }
+          
+          if (nextBtn.disabled) {
+            nextBtn.style.opacity = '0.5';
+            nextBtn.style.cursor = 'not-allowed';
+            nextBtn.style.background = '#e9ecef';
+            nextBtn.style.borderColor = '#e9ecef';
+            nextBtn.style.color = '#6c757d';
+          } else {
+            nextBtn.style.opacity = '1';
+            nextBtn.style.cursor = 'pointer';
+            nextBtn.style.background = '#239B90';
+            nextBtn.style.borderColor = '#239B90';
+            nextBtn.style.color = '#ffffff';
+          }
         }
       }).catch(function(err){ 
         console.error('ALM Search fetch error:', err); 
@@ -2058,6 +2773,10 @@ document.addEventListener('DOMContentLoaded', function() {
         state.tag = tagSelect ? tagSelect.value.trim() : '';
         state.lesson_style = styleSelect ? styleSelect.value.trim() : '';
         state.membership_level = membershipSelect ? membershipSelect.value.trim() : '';
+        state.teacher = teacherSelect ? teacherSelect.value.trim() : '';
+        state.key = keySelect ? keySelect.value.trim() : '';
+        state.has_sample = hasSampleSelect ? hasSampleSelect.value.trim() : '';
+        state.song_lesson = songLessonSelect ? songLessonSelect.value.trim() : '';
         state.page = 1;
         fetchData();
       }
@@ -2103,6 +2822,42 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (membershipSelect) {
       membershipSelect.value = '';
       state.membership_level = '';
+    }
+    
+    // Set teacher dropdown from URL parameter
+    if (teacherSelect && initialTeacher) {
+      teacherSelect.value = initialTeacher;
+      state.teacher = initialTeacher;
+    } else if (teacherSelect) {
+      teacherSelect.value = '';
+      state.teacher = '';
+    }
+    
+    // Set key dropdown from URL parameter
+    if (keySelect && initialKey) {
+      keySelect.value = initialKey;
+      state.key = initialKey;
+    } else if (keySelect) {
+      keySelect.value = '';
+      state.key = '';
+    }
+    
+    // Set has_sample dropdown from URL parameter
+    if (hasSampleSelect && initialHasSample) {
+      hasSampleSelect.value = initialHasSample;
+      state.has_sample = initialHasSample;
+    } else if (hasSampleSelect) {
+      hasSampleSelect.value = '';
+      state.has_sample = '';
+    }
+    
+    // Set song_lesson dropdown from URL parameter
+    if (songLessonSelect && initialSongLesson) {
+      songLessonSelect.value = initialSongLesson;
+      state.song_lesson = initialSongLesson;
+    } else if (songLessonSelect) {
+      songLessonSelect.value = '';
+      state.song_lesson = '';
     }
     
     // Trigger initial search (with URL parameters if present, otherwise empty search)

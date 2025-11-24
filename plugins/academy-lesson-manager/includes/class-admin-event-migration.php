@@ -545,12 +545,15 @@ class ALM_Admin_Event_Migration {
         // Get formatted lesson title with date
         $lesson_title = $this->get_formatted_lesson_title($event_id, $event->post_title);
         
+        // Get event date (from ACF field, not post_date)
+        $event_date = $this->get_event_date($event_id);
+        
         // Create lesson
         $lesson_data = array(
             'collection_id' => $collection_id,
             'lesson_title' => $lesson_title,
             'lesson_description' => ALM_Helpers::clean_html_content($event->post_content),
-            'post_date' => date('Y-m-d', strtotime($event->post_date)),
+            'post_date' => $event_date,
             'duration' => 0, // Will be calculated from chapter
             'song_lesson' => 'n',
             'slug' => sanitize_title($lesson_title),
@@ -616,8 +619,8 @@ class ALM_Admin_Event_Migration {
         // Mark event as converted
         update_post_meta($event_id, '_converted_to_alm_lesson_id', $lesson_id);
         
-        // Reorder lessons in collection by title
-        $this->reorder_collection_lessons_by_title($collection_id);
+        // Insert new lesson in correct position based on date, preserving existing order
+        $this->insert_lesson_in_order($collection_id, $lesson_id);
         
         wp_redirect(add_query_arg(array('message' => 'converted', 'lesson_id' => $lesson_id), admin_url('admin.php?page=academy-manager-event-migration')));
         exit;
@@ -943,12 +946,15 @@ class ALM_Admin_Event_Migration {
             // Get formatted lesson title with date
             $lesson_title = $this->get_formatted_lesson_title($event_id, $event->post_title);
             
+            // Get event date (from ACF field, not post_date)
+            $event_date = $this->get_event_date($event_id);
+            
             // Create lesson
             $lesson_data = array(
                 'collection_id' => $collection_id,
                 'lesson_title' => $lesson_title,
                 'lesson_description' => ALM_Helpers::clean_html_content($event->post_content),
-                'post_date' => date('Y-m-d', strtotime($event->post_date)),
+                'post_date' => $event_date,
                 'duration' => 0, // Will be calculated from chapter
                 'song_lesson' => 'n',
                 'slug' => sanitize_title($lesson_title),
@@ -1027,7 +1033,69 @@ class ALM_Admin_Event_Migration {
     }
     
     /**
-     * Reorder lessons in a collection by title (alphabetically)
+     * Insert a new lesson in the correct position based on date, preserving existing order
+     * 
+     * @param int $collection_id Collection ID
+     * @param int $new_lesson_id ID of newly added lesson to insert in correct position
+     */
+    private function insert_lesson_in_order($collection_id, $new_lesson_id) {
+        // Ensure menu_order column exists
+        $database = new ALM_Database();
+        $database->check_and_add_menu_order_column();
+        
+        // Get the new lesson's post_date
+        $new_lesson = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT ID, post_date, menu_order FROM {$this->lessons_table} WHERE ID = %d",
+            $new_lesson_id
+        ));
+        
+        if (!$new_lesson) {
+            return;
+        }
+        
+        // Get all existing lessons in the collection, ordered by current menu_order
+        // This preserves the existing order
+        $existing_lessons = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT ID, post_date, menu_order FROM {$this->lessons_table} WHERE collection_id = %d AND ID != %d ORDER BY menu_order ASC",
+            $collection_id,
+            $new_lesson_id
+        ));
+        
+        // Find the insertion point: first lesson with post_date >= new lesson's post_date
+        $insert_position = count($existing_lessons); // Default to end
+        foreach ($existing_lessons as $index => $lesson) {
+            if ($lesson->post_date >= $new_lesson->post_date) {
+                $insert_position = $index;
+                break;
+            }
+        }
+        
+        // Shift menu_order for lessons at or after insertion point
+        foreach ($existing_lessons as $index => $lesson) {
+            if ($index >= $insert_position) {
+                $this->wpdb->update(
+                    $this->lessons_table,
+                    array('menu_order' => $index + 1), // Shift by 1
+                    array('ID' => $lesson->ID),
+                    array('%d'),
+                    array('%d')
+                );
+            }
+        }
+        
+        // Set the new lesson's menu_order
+        $this->wpdb->update(
+            $this->lessons_table,
+            array('menu_order' => $insert_position),
+            array('ID' => $new_lesson_id),
+            array('%d'),
+            array('%d')
+        );
+    }
+    
+    /**
+     * Reorder lessons in a collection by date (preserving existing order for same dates)
+     * Used for bulk conversion only
      * 
      * @param int $collection_id Collection ID
      */
@@ -1036,9 +1104,10 @@ class ALM_Admin_Event_Migration {
         $database = new ALM_Database();
         $database->check_and_add_menu_order_column();
         
-        // Get all lessons in the collection, sorted by post_date then title
+        // Get all lessons in the collection with their current menu_order, sorted by post_date
+        // Use menu_order as secondary sort to preserve existing order for lessons with same date
         $lessons = $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT ID, lesson_title, post_date FROM {$this->lessons_table} WHERE collection_id = %d ORDER BY post_date ASC, lesson_title ASC",
+            "SELECT ID, lesson_title, post_date, menu_order FROM {$this->lessons_table} WHERE collection_id = %d ORDER BY post_date ASC, menu_order ASC",
             $collection_id
         ));
         
@@ -1054,6 +1123,40 @@ class ALM_Admin_Event_Migration {
             );
             $menu_order++;
         }
+    }
+    
+    /**
+     * Get event date from ACF field
+     * 
+     * @param int $event_id Event post ID
+     * @return string Event date in Y-m-d format, or post_date if event date not available
+     */
+    private function get_event_date($event_id) {
+        // Get event start date from ACF field
+        $event_start = get_field('je_event_start', $event_id);
+        
+        if (!empty($event_start)) {
+            // Handle both timestamp and date string formats
+            if (is_numeric($event_start)) {
+                $date_ts = (int)$event_start;
+            } else {
+                $date_ts = strtotime((string)$event_start);
+            }
+            
+            if ($date_ts) {
+                // Return date in Y-m-d format for database
+                return date('Y-m-d', $date_ts);
+            }
+        }
+        
+        // Fallback to post_date if event date not available
+        $event = get_post($event_id);
+        if ($event && $event->post_date) {
+            return date('Y-m-d', strtotime($event->post_date));
+        }
+        
+        // Final fallback to current date
+        return date('Y-m-d');
     }
     
     /**

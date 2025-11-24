@@ -133,7 +133,21 @@ class ALM_Admin_Settings {
         echo '<a href="?page=academy-manager-settings&tab=ai" class="nav-tab ' . ($current_tab === 'ai' ? 'nav-tab-active' : '') . '">' . __('AI Settings', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=tags" class="nav-tab ' . ($current_tab === 'tags' ? 'nav-tab-active' : '') . '">' . __('Tags', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=memberships" class="nav-tab ' . ($current_tab === 'memberships' ? 'nav-tab-active' : '') . '">' . __('Memberships', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=faqs" class="nav-tab ' . ($current_tab === 'faqs' ? 'nav-tab-active' : '') . '">' . __('FAQs', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=promotions" class="nav-tab ' . ($current_tab === 'promotions' ? 'nav-tab-active' : '') . '">' . __('Promotions', 'academy-lesson-manager') . '</a>';
         echo '</nav>';
+        
+        // Handle promotional banner actions
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['promo_banner_action'])) {
+            $this->handle_promo_banner_action();
+            return;
+        }
+        
+        // Handle quick toggle actions (GET request)
+        if (isset($_GET['toggle_banner']) && isset($_GET['banner_id'])) {
+            $this->handle_promo_banner_toggle();
+            return;
+        }
         
         if ($current_tab === 'ai') {
             $this->render_ai_settings();
@@ -142,6 +156,11 @@ class ALM_Admin_Settings {
         } elseif ($current_tab === 'memberships') {
             $membership_pricing = new ALM_Admin_Membership_Pricing();
             $membership_pricing->render_tab();
+        } elseif ($current_tab === 'faqs') {
+            $faqs_admin = new ALM_Admin_FAQs();
+            $faqs_admin->render_tab();
+        } elseif ($current_tab === 'promotions') {
+            $this->render_promotions_tab();
         } else {
             $this->render_keap_tags_settings();
             $this->render_bunny_api_settings();
@@ -1160,6 +1179,448 @@ class ALM_Admin_Settings {
         }
         
         wp_redirect(add_query_arg('message', 'tag_deleted', admin_url('admin.php?page=academy-manager-settings&tab=tags')));
+        exit;
+    }
+
+    /**
+     * Render promotions tab
+     */
+    private function render_promotions_tab() {
+        $banners_table = $this->database->get_table_name('promotional_banners');
+        $banners = $this->wpdb->get_results("SELECT * FROM {$banners_table} ORDER BY created_at DESC", ARRAY_A);
+        
+        $editing_id = isset($_GET['edit_banner']) ? intval($_GET['edit_banner']) : 0;
+        $editing_banner = $editing_id ? $this->wpdb->get_row($this->wpdb->prepare("SELECT * FROM {$banners_table} WHERE ID = %d", $editing_id), ARRAY_A) : null;
+        
+        // Show success messages
+        if (isset($_GET['message'])) {
+            $message = sanitize_text_field($_GET['message']);
+            switch ($message) {
+                case 'banner_created':
+                    echo '<div class="notice notice-success"><p>' . __('Banner created successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'banner_updated':
+                    echo '<div class="notice notice-success"><p>' . __('Banner updated successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'banner_deleted':
+                    echo '<div class="notice notice-success"><p>' . __('Banner deleted successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'banner_error':
+                    echo '<div class="notice notice-error"><p>' . __('An error occurred while saving the banner.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'banner_display_required':
+                    echo '<div class="notice notice-error"><p>' . __('Please select at least one display location (Dashboard or Join Page).', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'banner_activated':
+                    echo '<div class="notice notice-success"><p>' . __('Banner activated successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'banner_deactivated':
+                    echo '<div class="notice notice-success"><p>' . __('Banner deactivated successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+            }
+        }
+        
+        echo '<div class="alm-promotions-section">';
+        echo '<h2>' . __('Promotional Banners', 'academy-lesson-manager') . '</h2>';
+        echo '<p class="description">' . __('Create promotional banners that can appear on the Practice Hub dashboard and/or the Join page (pricing table). Banners can be text-based with a headline and button, or image-based using the media library.', 'academy-lesson-manager') . '</p>';
+        echo '<p class="description"><strong>' . __('Image Dimensions:', 'academy-lesson-manager') . '</strong> ' . __('Recommended size: 1200x300px (4:1 ratio) for best display on all devices.', 'academy-lesson-manager') . '</p>';
+        
+        // Banner form
+        echo '<div class="postbox" style="margin-top: 20px; padding: 20px;">';
+        echo '<h3 style="margin-top: 0;">' . ($editing_banner ? __('Edit Banner', 'academy-lesson-manager') : __('Add New Banner', 'academy-lesson-manager')) . '</h3>';
+        
+        echo '<form method="post" action="">';
+        wp_nonce_field('alm_promo_banner_action', 'alm_promo_banner_nonce');
+        echo '<input type="hidden" name="promo_banner_action" value="save" />';
+        echo '<input type="hidden" name="banner_id" value="' . esc_attr($editing_banner['ID'] ?? 0) . '" />';
+        
+        echo '<table class="form-table"><tbody>';
+        
+        // Banner Type
+        $banner_type = $editing_banner['banner_type'] ?? 'text';
+        echo '<tr>';
+        echo '<th scope="row"><label for="banner_type">' . __('Banner Type', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="banner_type" name="banner_type" onchange="toggleBannerFields()">';
+        echo '<option value="text" ' . selected('text', $banner_type, false) . '>' . __('Text Banner', 'academy-lesson-manager') . '</option>';
+        echo '<option value="image" ' . selected('image', $banner_type, false) . '>' . __('Image Banner', 'academy-lesson-manager') . '</option>';
+        echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Text Banner Fields
+        echo '<tr class="banner-field-text">';
+        echo '<th scope="row"><label for="banner_headline">' . __('Headline', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="text" id="banner_headline" name="banner_headline" value="' . esc_attr($editing_banner['headline'] ?? '') . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr class="banner-field-text">';
+        echo '<th scope="row"><label for="banner_text">' . __('Text Content', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><textarea id="banner_text" name="banner_text" rows="3" class="large-text">' . esc_textarea($editing_banner['text_content'] ?? '') . '</textarea></td>';
+        echo '</tr>';
+        
+        echo '<tr class="banner-field-text">';
+        echo '<th scope="row"><label for="banner_button_text">' . __('Button Text', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="text" id="banner_button_text" name="banner_button_text" value="' . esc_attr($editing_banner['button_text'] ?? '') . '" class="regular-text" placeholder="' . esc_attr__('Shop Now', 'academy-lesson-manager') . '" /></td>';
+        echo '</tr>';
+        
+        echo '<tr class="banner-field-text">';
+        echo '<th scope="row"><label for="banner_button_url">' . __('Button URL', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="url" id="banner_button_url" name="banner_button_url" value="' . esc_attr($editing_banner['button_url'] ?? '') . '" class="regular-text" placeholder="/black-friday" /></td>';
+        echo '</tr>';
+        
+        // Image Banner Fields
+        $image_id = $editing_banner['image_id'] ?? 0;
+        $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'full') : '';
+        echo '<tr class="banner-field-image" style="display: ' . ($banner_type === 'image' ? 'table-row' : 'none') . ';">';
+        echo '<th scope="row"><label for="banner_image_id">' . __('Banner Image', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="hidden" id="banner_image_id" name="banner_image_id" value="' . esc_attr($image_id) . '" />';
+        echo '<div id="banner_image_preview" style="margin-bottom: 10px;">';
+        if ($image_url) {
+            echo '<img src="' . esc_url($image_url) . '" style="max-width: 400px; height: auto; border: 1px solid #ddd; border-radius: 4px;" />';
+        }
+        echo '</div>';
+        echo '<button type="button" class="button" id="banner_image_upload">' . __('Select Image', 'academy-lesson-manager') . '</button> ';
+        echo '<button type="button" class="button" id="banner_image_remove" style="' . ($image_id ? '' : 'display: none;') . '">' . __('Remove Image', 'academy-lesson-manager') . '</button>';
+        echo '<p class="description">' . __('Recommended: 1200x300px (4:1 ratio)', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Button URL for image banners
+        echo '<tr class="banner-field-image" style="display: ' . ($banner_type === 'image' ? 'table-row' : 'none') . ';">';
+        echo '<th scope="row"><label for="banner_image_button_url">' . __('Click URL', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="url" id="banner_image_button_url" name="banner_image_button_url" value="' . esc_attr($editing_banner['button_url'] ?? '') . '" class="regular-text" placeholder="/black-friday" /></td>';
+        echo '</tr>';
+        
+        // Date Range
+        $start_date = $editing_banner['start_date'] ?? '';
+        $end_date = $editing_banner['end_date'] ?? '';
+        if ($start_date) {
+            $start_date = date('Y-m-d\TH:i', strtotime($start_date));
+        }
+        if ($end_date) {
+            $end_date = date('Y-m-d\TH:i', strtotime($end_date));
+        }
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="banner_start_date">' . __('Start Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="datetime-local" id="banner_start_date" name="banner_start_date" value="' . esc_attr($start_date) . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="banner_end_date">' . __('End Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="datetime-local" id="banner_end_date" name="banner_end_date" value="' . esc_attr($end_date) . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        // Active Status
+        $is_active = isset($editing_banner['is_active']) ? intval($editing_banner['is_active']) : 1;
+        echo '<tr>';
+        echo '<th scope="row">' . __('Status', 'academy-lesson-manager') . '</th>';
+        echo '<td><label><input type="checkbox" name="banner_is_active" value="1" ' . checked(1, $is_active, false) . ' /> ' . __('Active', 'academy-lesson-manager') . '</label></td>';
+        echo '</tr>';
+        
+        // Display Locations
+        $show_on_dashboard = isset($editing_banner['show_on_dashboard']) ? intval($editing_banner['show_on_dashboard']) : 0;
+        $show_on_join_page = isset($editing_banner['show_on_join_page']) ? intval($editing_banner['show_on_join_page']) : 0;
+        echo '<tr>';
+        echo '<th scope="row">' . __('Display Location', 'academy-lesson-manager') . '</th>';
+        echo '<td>';
+        echo '<label style="display: block; margin-bottom: 10px;"><input type="checkbox" name="banner_show_on_dashboard" value="1" class="banner-display-location" ' . checked(1, $show_on_dashboard, false) . ' /> ' . __('Show on Dashboard', 'academy-lesson-manager') . '</label>';
+        echo '<label style="display: block;"><input type="checkbox" name="banner_show_on_join_page" value="1" class="banner-display-location" ' . checked(1, $show_on_join_page, false) . ' /> ' . __('Show on Join Page', 'academy-lesson-manager') . '</label>';
+        echo '<p class="description">' . __('Select at least one location where this promotion should be displayed.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '</tbody></table>';
+        
+        echo '<p class="submit">';
+        echo '<button type="submit" class="button button-primary">' . ($editing_banner ? __('Update Banner', 'academy-lesson-manager') : __('Create Banner', 'academy-lesson-manager')) . '</button> ';
+        if ($editing_banner) {
+            echo '<a href="' . esc_url(remove_query_arg('edit_banner')) . '" class="button">' . __('Cancel', 'academy-lesson-manager') . '</a>';
+        }
+        echo '</p>';
+        echo '</form>';
+        echo '</div>';
+        
+        // Existing banners list
+        if (!empty($banners)) {
+            echo '<div class="postbox" style="margin-top: 20px; padding: 20px;">';
+            echo '<h3 style="margin-top: 0;">' . __('Existing Banners', 'academy-lesson-manager') . '</h3>';
+            echo '<table class="widefat striped">';
+            echo '<thead><tr>';
+            echo '<th>' . __('Type', 'academy-lesson-manager') . '</th>';
+            echo '<th>' . __('Content', 'academy-lesson-manager') . '</th>';
+            echo '<th>' . __('Display Location', 'academy-lesson-manager') . '</th>';
+            echo '<th>' . __('Date Range', 'academy-lesson-manager') . '</th>';
+            echo '<th>' . __('Status', 'academy-lesson-manager') . '</th>';
+            echo '<th>' . __('Actions', 'academy-lesson-manager') . '</th>';
+            echo '</tr></thead><tbody>';
+            
+            foreach ($banners as $banner) {
+                $type_label = $banner['banner_type'] === 'image' ? __('Image', 'academy-lesson-manager') : __('Text', 'academy-lesson-manager');
+                $content_preview = '';
+                if ($banner['banner_type'] === 'image') {
+                    $img_url = $banner['image_id'] ? wp_get_attachment_image_url($banner['image_id'], 'thumbnail') : '';
+                    $content_preview = $img_url ? '<img src="' . esc_url($img_url) . '" style="max-width: 100px; height: auto;" />' : __('No image', 'academy-lesson-manager');
+                } else {
+                    $content_preview = esc_html(mb_substr($banner['headline'] ?? '', 0, 50)) . (mb_strlen($banner['headline'] ?? '') > 50 ? '...' : '');
+                }
+                
+                $start_display = $banner['start_date'] ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($banner['start_date'])) : __('No start date', 'academy-lesson-manager');
+                $end_display = $banner['end_date'] ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($banner['end_date'])) : __('No end date', 'academy-lesson-manager');
+                $status_label = intval($banner['is_active']) ? __('Active', 'academy-lesson-manager') : __('Inactive', 'academy-lesson-manager');
+                
+                // Display locations
+                $locations = array();
+                if (isset($banner['show_on_dashboard']) && intval($banner['show_on_dashboard'])) {
+                    $locations[] = __('Dashboard', 'academy-lesson-manager');
+                }
+                if (isset($banner['show_on_join_page']) && intval($banner['show_on_join_page'])) {
+                    $locations[] = __('Join Page', 'academy-lesson-manager');
+                }
+                $locations_display = !empty($locations) ? implode(', ', $locations) : __('None', 'academy-lesson-manager');
+                
+                $is_active = intval($banner['is_active']);
+                $toggle_text = $is_active ? __('Deactivate', 'academy-lesson-manager') : __('Activate', 'academy-lesson-manager');
+                $toggle_url = wp_nonce_url(
+                    add_query_arg(array(
+                        'toggle_banner' => 1,
+                        'banner_id' => intval($banner['ID'])
+                    )),
+                    'toggle_banner_' . intval($banner['ID']),
+                    '_wpnonce'
+                );
+                
+                echo '<tr>';
+                echo '<td>' . esc_html($type_label) . '</td>';
+                echo '<td>' . $content_preview . '</td>';
+                echo '<td>' . esc_html($locations_display) . '</td>';
+                echo '<td>' . esc_html($start_display) . ' - ' . esc_html($end_display) . '</td>';
+                echo '<td>' . esc_html($status_label) . '</td>';
+                echo '<td>';
+                echo '<a href="' . esc_url($toggle_url) . '" class="button button-small" style="margin-right: 5px;">' . esc_html($toggle_text) . '</a>';
+                echo '<a href="' . esc_url(add_query_arg('edit_banner', intval($banner['ID']))) . '" class="button button-small" style="margin-right: 5px;">' . __('Edit', 'academy-lesson-manager') . '</a> ';
+                
+                echo '<form method="post" action="" style="display:inline-block;" onsubmit="return confirm(\'' . esc_js(__('Delete this banner?', 'academy-lesson-manager')) . '\');">';
+                wp_nonce_field('alm_promo_banner_action', 'alm_promo_banner_nonce');
+                echo '<input type="hidden" name="promo_banner_action" value="delete" />';
+                echo '<input type="hidden" name="banner_id" value="' . esc_attr($banner['ID']) . '" />';
+                echo '<button type="submit" class="button button-small button-link-delete">' . __('Delete', 'academy-lesson-manager') . '</button>';
+                echo '</form>';
+                echo '</td>';
+                echo '</tr>';
+            }
+            
+            echo '</tbody></table>';
+            echo '</div>';
+        }
+        
+        echo '</div>';
+        
+        // JavaScript for banner type toggle and media uploader
+        ?>
+        <script>
+        function toggleBannerFields() {
+            var type = document.getElementById('banner_type').value;
+            var textFields = document.querySelectorAll('.banner-field-text');
+            var imageFields = document.querySelectorAll('.banner-field-image');
+            
+            if (type === 'text') {
+                textFields.forEach(function(field) { field.style.display = 'table-row'; });
+                imageFields.forEach(function(field) { field.style.display = 'none'; });
+            } else {
+                textFields.forEach(function(field) { field.style.display = 'none'; });
+                imageFields.forEach(function(field) { field.style.display = 'table-row'; });
+            }
+        }
+        
+        jQuery(document).ready(function($) {
+            var mediaUploader;
+            
+            $('#banner_image_upload').on('click', function(e) {
+                e.preventDefault();
+                
+                if (mediaUploader) {
+                    mediaUploader.open();
+                    return;
+                }
+                
+                mediaUploader = wp.media({
+                    title: '<?php echo esc_js(__('Choose Banner Image', 'academy-lesson-manager')); ?>',
+                    button: {
+                        text: '<?php echo esc_js(__('Use this image', 'academy-lesson-manager')); ?>'
+                    },
+                    multiple: false
+                });
+                
+                mediaUploader.on('select', function() {
+                    var attachment = mediaUploader.state().get('selection').first().toJSON();
+                    $('#banner_image_id').val(attachment.id);
+                    $('#banner_image_preview').html('<img src="' + attachment.url + '" style="max-width: 400px; height: auto; border: 1px solid #ddd; border-radius: 4px;" />');
+                    $('#banner_image_remove').show();
+                });
+                
+                mediaUploader.open();
+            });
+            
+            $('#banner_image_remove').on('click', function(e) {
+                e.preventDefault();
+                $('#banner_image_id').val('');
+                $('#banner_image_preview').html('');
+                $(this).hide();
+            });
+            
+            // Validate display location checkboxes before form submission
+            $('form').on('submit', function(e) {
+                var dashboardChecked = $('input[name="banner_show_on_dashboard"]').is(':checked');
+                var joinPageChecked = $('input[name="banner_show_on_join_page"]').is(':checked');
+                
+                if (!dashboardChecked && !joinPageChecked) {
+                    e.preventDefault();
+                    alert('<?php echo esc_js(__('Please select at least one display location (Dashboard or Join Page).', 'academy-lesson-manager')); ?>');
+                    return false;
+                }
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * Handle promotional banner actions
+     */
+    private function handle_promo_banner_action() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+
+        if (!isset($_POST['alm_promo_banner_nonce']) || !wp_verify_nonce($_POST['alm_promo_banner_nonce'], 'alm_promo_banner_action')) {
+            wp_die(__('Security check failed.', 'academy-lesson-manager'));
+        }
+
+        $action = isset($_POST['promo_banner_action']) ? sanitize_text_field($_POST['promo_banner_action']) : '';
+        $banners_table = $this->database->get_table_name('promotional_banners');
+        $message = 'banner_error';
+
+        switch ($action) {
+            case 'save':
+                $banner_id = isset($_POST['banner_id']) ? intval($_POST['banner_id']) : 0;
+                $banner_type = isset($_POST['banner_type']) ? sanitize_text_field($_POST['banner_type']) : 'text';
+                
+                // Validate that at least one display location is selected
+                $show_on_dashboard = isset($_POST['banner_show_on_dashboard']) ? 1 : 0;
+                $show_on_join_page = isset($_POST['banner_show_on_join_page']) ? 1 : 0;
+                
+                if (!$show_on_dashboard && !$show_on_join_page) {
+                    wp_redirect(add_query_arg(array(
+                        'page' => 'academy-manager-settings',
+                        'tab' => 'promotions',
+                        'message' => 'banner_display_required',
+                        'edit_banner' => $banner_id
+                    ), admin_url('admin.php')));
+                    exit;
+                }
+                
+                $data = array(
+                    'banner_type' => $banner_type,
+                    'headline' => $banner_type === 'text' ? sanitize_text_field($_POST['banner_headline'] ?? '') : '',
+                    'text_content' => $banner_type === 'text' ? sanitize_textarea_field($_POST['banner_text'] ?? '') : '',
+                    'button_text' => $banner_type === 'text' ? sanitize_text_field($_POST['banner_button_text'] ?? '') : '',
+                    'button_url' => esc_url_raw($banner_type === 'text' ? ($_POST['banner_button_url'] ?? '') : ($_POST['banner_image_button_url'] ?? '')),
+                    'image_id' => $banner_type === 'image' ? intval($_POST['banner_image_id'] ?? 0) : 0,
+                    'start_date' => !empty($_POST['banner_start_date']) ? sanitize_text_field($_POST['banner_start_date']) : null,
+                    'end_date' => !empty($_POST['banner_end_date']) ? sanitize_text_field($_POST['banner_end_date']) : null,
+                    'is_active' => isset($_POST['banner_is_active']) ? 1 : 0,
+                    'show_on_dashboard' => $show_on_dashboard,
+                    'show_on_join_page' => $show_on_join_page,
+                );
+                
+                if ($banner_id) {
+                    $result = $this->wpdb->update(
+                        $banners_table,
+                        $data,
+                        array('ID' => $banner_id),
+                        array('%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%d', '%d'),
+                        array('%d')
+                    );
+                    if ($result !== false) {
+                        $message = 'banner_updated';
+                    }
+                } else {
+                    $result = $this->wpdb->insert($banners_table, $data, array('%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%d', '%d'));
+                    if ($result !== false) {
+                        $message = 'banner_created';
+                    }
+                }
+                break;
+
+            case 'delete':
+                $banner_id = isset($_POST['banner_id']) ? intval($_POST['banner_id']) : 0;
+                if ($banner_id) {
+                    $result = $this->wpdb->delete($banners_table, array('ID' => $banner_id), array('%d'));
+                    if ($result !== false) {
+                        $message = 'banner_deleted';
+                    }
+                }
+                break;
+        }
+
+        wp_redirect(add_query_arg(array(
+            'page' => 'academy-manager-settings',
+            'tab' => 'promotions',
+            'message' => $message,
+        ), admin_url('admin.php')));
+        exit;
+    }
+    
+    /**
+     * Handle quick toggle of banner active status
+     */
+    private function handle_promo_banner_toggle() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+
+        // Verify nonce
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'toggle_banner_' . intval($_GET['banner_id']))) {
+            wp_die(__('Security check failed.', 'academy-lesson-manager'));
+        }
+
+        $banner_id = isset($_GET['banner_id']) ? intval($_GET['banner_id']) : 0;
+        $banners_table = $this->database->get_table_name('promotional_banners');
+        
+        if ($banner_id) {
+            // Get current status
+            $banner = $this->wpdb->get_row($this->wpdb->prepare("SELECT is_active FROM {$banners_table} WHERE ID = %d", $banner_id), ARRAY_A);
+            
+            if ($banner) {
+                $new_status = intval($banner['is_active']) ? 0 : 1;
+                $result = $this->wpdb->update(
+                    $banners_table,
+                    array('is_active' => $new_status),
+                    array('ID' => $banner_id),
+                    array('%d'),
+                    array('%d')
+                );
+                
+                if ($result !== false) {
+                    $message = $new_status ? 'banner_activated' : 'banner_deactivated';
+                } else {
+                    $message = 'banner_error';
+                }
+            } else {
+                $message = 'banner_error';
+            }
+        } else {
+            $message = 'banner_error';
+        }
+
+        wp_redirect(add_query_arg(array(
+            'page' => 'academy-manager-settings',
+            'tab' => 'promotions',
+            'message' => $message,
+        ), admin_url('admin.php')));
         exit;
     }
     

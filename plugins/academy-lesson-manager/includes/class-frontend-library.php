@@ -76,6 +76,9 @@ class ALM_Frontend_Library {
         wp_enqueue_style('alm-essentials-library', ALM_PLUGIN_URL . 'assets/css/essentials-library.css', array(), ALM_VERSION);
         wp_enqueue_script('alm-essentials-library', ALM_PLUGIN_URL . 'assets/js/essentials-library.js', array('jquery'), ALM_VERSION, true);
         
+        // Enqueue HLS.js for browsers that don't support HLS natively (Firefox, Chrome)
+        wp_enqueue_script('hls.js', 'https://cdn.jsdelivr.net/npm/hls.js@latest', array(), null, true);
+        
         // Enqueue microtip CSS for tooltips
         wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
         
@@ -105,6 +108,11 @@ class ALM_Frontend_Library {
         // Get search term - use wp_unslash to remove any slashes WordPress might add
         $search = isset($_GET['search']) ? sanitize_text_field(wp_unslash($_GET['search'])) : '';
         
+        // Get filter parameters
+        $lesson_level = isset($_GET['lesson_level']) ? sanitize_text_field($_GET['lesson_level']) : '';
+        $tag = isset($_GET['tag']) ? sanitize_text_field($_GET['tag']) : '';
+        $lesson_style = isset($_GET['lesson_style']) ? sanitize_text_field($_GET['lesson_style']) : '';
+        
         // Get paged from query var (for pretty permalinks) or GET parameter
         $paged = get_query_var('paged');
         if (empty($paged)) {
@@ -116,9 +124,9 @@ class ALM_Frontend_Library {
         $per_page = 21;
         $offset = ($paged - 1) * $per_page;
         
-        // Get selectable lessons
-        $selectable_lessons = $this->library->get_selectable_lessons($search, $per_page, $offset);
-        $total_lessons = $this->library->get_selectable_lessons_count($search);
+        // Get selectable lessons with filters
+        $selectable_lessons = $this->library->get_selectable_lessons($search, $per_page, $offset, $lesson_level, $tag, $lesson_style);
+        $total_lessons = $this->library->get_selectable_lessons_count($search, $lesson_level, $tag, $lesson_style);
         $total_pages = ceil($total_lessons / $per_page);
         
         // Get library lesson IDs for filtering
@@ -163,14 +171,68 @@ class ALM_Frontend_Library {
                 <p class="alm-library-description">Choose <?php echo $available > 1 ? 'one of your ' . $available . ' available selections' : 'your available selection'; ?> from the Studio library below.</p>
                 
                 <form method="get" class="alm-library-search-form">
+                    <div class="alm-library-search-row">
                     <div>
                         <input type="search" name="search" value="<?php echo esc_attr($search); ?>" placeholder="Search lessons..." class="alm-library-search-input">
                         <div class="alm-library-search-icon"></div>
                     </div>
                     <button type="submit" class="alm-library-search-button">Search</button>
-                    <?php if ($search): ?>
+                        <?php if ($search || $lesson_level || $tag || $lesson_style): ?>
                     <a href="?" class="alm-library-clear-search">Clear</a>
                     <?php endif; ?>
+                    </div>
+                    <div class="alm-library-filters-row">
+                        <label for="alm-library-level-filter">Filters:</label>
+                        <select id="alm-library-level-filter" name="lesson_level" class="alm-library-filter-select">
+                            <option value="">Filter by skill level</option>
+                            <option value="beginner" <?php selected($lesson_level, 'beginner'); ?>>Beginner</option>
+                            <option value="intermediate" <?php selected($lesson_level, 'intermediate'); ?>>Intermediate</option>
+                            <option value="advanced" <?php selected($lesson_level, 'advanced'); ?>>Advanced</option>
+                            <option value="pro" <?php selected($lesson_level, 'pro'); ?>>Pro</option>
+                        </select>
+                        <select id="alm-library-tag-filter" name="tag" class="alm-library-filter-select">
+                            <option value="">Filter by tag</option>
+                            <?php
+                            // Load tags from REST API
+                            $tags_url = rest_url('alm/v1/tags');
+                            $tags_response = wp_remote_get($tags_url);
+                            if (!is_wp_error($tags_response) && wp_remote_retrieve_response_code($tags_response) === 200) {
+                                $tags = json_decode(wp_remote_retrieve_body($tags_response), true);
+                                if (is_array($tags)) {
+                                    foreach ($tags as $tag_item) {
+                                        $tag_name = isset($tag_item['name']) ? $tag_item['name'] : '';
+                                        if (!empty($tag_name)) {
+                                            echo '<option value="' . esc_attr($tag_name) . '" ' . selected($tag, $tag_name, false) . '>' . esc_html($tag_name) . '</option>';
+                                        }
+                                    }
+                                }
+                            }
+                            ?>
+                        </select>
+                        <select id="alm-library-style-filter" name="lesson_style" class="alm-library-filter-select">
+                            <option value="">Filter by style</option>
+                            <option value="Any" <?php selected($lesson_style, 'Any'); ?>>Any</option>
+                            <option value="Jazz" <?php selected($lesson_style, 'Jazz'); ?>>Jazz</option>
+                            <option value="Cocktail" <?php selected($lesson_style, 'Cocktail'); ?>>Cocktail</option>
+                            <option value="Blues" <?php selected($lesson_style, 'Blues'); ?>>Blues</option>
+                            <option value="Rock" <?php selected($lesson_style, 'Rock'); ?>>Rock</option>
+                            <option value="Funk" <?php selected($lesson_style, 'Funk'); ?>>Funk</option>
+                            <option value="Latin" <?php selected($lesson_style, 'Latin'); ?>>Latin</option>
+                            <option value="Classical" <?php selected($lesson_style, 'Classical'); ?>>Classical</option>
+                            <option value="Smooth Jazz" <?php selected($lesson_style, 'Smooth Jazz'); ?>>Smooth Jazz</option>
+                            <option value="Holiday" <?php selected($lesson_style, 'Holiday'); ?>>Holiday</option>
+                            <option value="Ballad" <?php selected($lesson_style, 'Ballad'); ?>>Ballad</option>
+                            <option value="Pop" <?php selected($lesson_style, 'Pop'); ?>>Pop</option>
+                            <option value="New Age" <?php selected($lesson_style, 'New Age'); ?>>New Age</option>
+                            <option value="Gospel" <?php selected($lesson_style, 'Gospel'); ?>>Gospel</option>
+                            <option value="New Orleans" <?php selected($lesson_style, 'New Orleans'); ?>>New Orleans</option>
+                            <option value="Country" <?php selected($lesson_style, 'Country'); ?>>Country</option>
+                            <option value="Modal" <?php selected($lesson_style, 'Modal'); ?>>Modal</option>
+                            <option value="Stride" <?php selected($lesson_style, 'Stride'); ?>>Stride</option>
+                            <option value="Organ" <?php selected($lesson_style, 'Organ'); ?>>Organ</option>
+                            <option value="Boogie" <?php selected($lesson_style, 'Boogie'); ?>>Boogie</option>
+                        </select>
+                    </div>
                 </form>
                 
                 <?php if (!empty($selectable_lessons)): ?>
@@ -193,59 +255,7 @@ class ALM_Frontend_Library {
                             <?php endif; ?>
                             
                             <div class="alm-lesson-inner-content">
-                                <?php 
-                                // Top-right actions container (video icon button - show for all lessons with sample videos)
-                                // Check for sample_video_url or sample_chapter_id
-                                $has_sample_video_url = !empty($lesson->sample_video_url) && $lesson->sample_video_url !== '0';
-                                $has_sample_chapter = !empty($lesson->sample_chapter_id) && intval($lesson->sample_chapter_id) > 0;
-                                $has_video = $has_sample_video_url || $has_sample_chapter;
-                                
-                                // Get the actual sample video URL to use
-                                $sample_video_url_to_use = '';
-                                if ($has_sample_video_url) {
-                                    $sample_video_url_to_use = $lesson->sample_video_url;
-                                } elseif ($has_sample_chapter) {
-                                    // If using sample_chapter_id, we need to get the chapter video URL
-                                    // For now, we'll need to fetch it or use a placeholder
-                                    // The modal will handle the chapter-based sample
-                                    global $wpdb;
-                                    $chapters_table = $wpdb->prefix . 'alm_chapters';
-                                    $chapter = $wpdb->get_row($wpdb->prepare(
-                                        "SELECT bunny_url, vimeo_id, youtube_id FROM {$chapters_table} WHERE ID = %d",
-                                        intval($lesson->sample_chapter_id)
-                                    ));
-                                    if ($chapter) {
-                                        if (!empty($chapter->bunny_url)) {
-                                            $sample_video_url_to_use = $chapter->bunny_url;
-                                        } elseif (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
-                                            $sample_video_url_to_use = 'https://vimeo.com/' . intval($chapter->vimeo_id);
-                                        } elseif (!empty($chapter->youtube_id)) {
-                                            $sample_video_url_to_use = 'https://www.youtube.com/watch?v=' . esc_attr($chapter->youtube_id);
-                                        }
-                                    }
-                                }
-                                
-                                $button_count = $has_video ? 1 : 0;
-                                ?>
-                                
-                                <?php if ($has_video && !empty($sample_video_url_to_use)): ?>
-                                <div class="alm-lesson-top-actions">
-                                    <button type="button" class="alm-video-sample-btn alm-view-sample" data-video-url="<?php echo esc_attr($sample_video_url_to_use); ?>" data-lesson-title="<?php echo esc_attr(stripslashes($lesson->lesson_title)); ?>" aria-label="Watch Free Sample Video" title="Watch Free Sample Video">
-                                        <span class="alm-sample-badge">FREE SAMPLE</span>
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                                        </svg>
-                                    </button>
-                                </div>
-                                <?php endif; ?>
-                                
-                                <?php 
-                                // Calculate padding-right for title based on button count
-                                // Video sample button is now wider with "FREE SAMPLE" text (~120px)
-                                $title_padding = $button_count > 0 ? ($button_count * 130) + 20 : 0;
-                                ?>
-                                
-                                <h3 class="alm-lesson-title" style="<?php echo $title_padding > 0 ? 'padding-right: ' . $title_padding . 'px;' : ''; ?>"><?php echo esc_html(stripslashes($lesson->lesson_title)); ?></h3>
+                                <h3 class="alm-lesson-title"><?php echo esc_html(stripslashes($lesson->lesson_title)); ?></h3>
                                 
                                 <?php if (!empty($lesson->lesson_description)): ?>
                                 <div class="alm-lesson-description">
@@ -308,10 +318,19 @@ class ALM_Frontend_Library {
                     // Check if using pretty permalinks (has /page/ in URL structure)
                     $using_pretty_permalinks = (strpos($current_page_url, '?') === false);
                     
-                    // Build query args for pagination (search should always be query param)
+                    // Build query args for pagination (search and filters should always be query params)
                     $query_args = array();
                     if ($search) {
                         $query_args['search'] = $search;
+                    }
+                    if ($lesson_level) {
+                        $query_args['lesson_level'] = $lesson_level;
+                    }
+                    if ($tag) {
+                        $query_args['tag'] = $tag;
+                    }
+                    if ($lesson_style) {
+                        $query_args['lesson_style'] = $lesson_style;
                     }
                     
                     if ($using_pretty_permalinks) {

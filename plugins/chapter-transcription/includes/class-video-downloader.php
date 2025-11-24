@@ -497,34 +497,106 @@ class Transcription_Video_Downloader {
         // Create MP3 path (same directory, .mp3 extension)
         $mp3_path = preg_replace('/\.mp4$/i', '.mp3', $mp4_path);
         
-        // If MP3 already exists and is recent, use it
+        // If MP3 already exists and is recent, check if it's under 25MB
         if (file_exists($mp3_path)) {
             $mp4_mtime = filemtime($mp4_path);
             $mp3_mtime = filemtime($mp3_path);
-            // If MP3 is newer or same age as MP4, use it
-            if ($mp3_mtime >= $mp4_mtime) {
+            $mp3_size_mb = filesize($mp3_path) / 1024 / 1024;
+            
+            // If MP3 is newer or same age as MP4 AND under 25MB, use it
+            if ($mp3_mtime >= $mp4_mtime && $mp3_size_mb <= 25) {
                 return $mp3_path;
+            }
+            
+            // If MP3 exists but is too large, delete it and recompress
+            if ($mp3_size_mb > 25) {
+                error_log(sprintf('Transcription: Existing MP3 is %.2f MB (over 25MB limit), will recompress...', $mp3_size_mb));
+                @unlink($mp3_path);
             }
         }
         
         // Convert MP4 to MP3 using ffmpeg
-        // -i: input file
-        // -vn: disable video (audio only)
-        // -acodec libmp3lame: use MP3 codec
-        // -ab 128k: audio bitrate (128k is good quality, small size)
-        // -ar 44100: sample rate (standard)
-        // -y: overwrite if exists
-        $ffmpeg_cmd = $this->ffmpeg_path . " -i " . escapeshellarg($mp4_path) . 
-                      " -vn -acodec libmp3lame -ab 128k -ar 44100 -y " . 
-                      escapeshellarg($mp3_path) . " 2>&1";
+        // Start with good quality settings, then compress more if needed
+        // Using VBR (Variable Bitrate) mode for better compression
+        $max_size_mb = 25; // Whisper API limit
+        $compression_levels = array(
+            array('quality' => '4', 'samplerate' => '44100', 'channels' => '2', 'name' => 'VBR q4 stereo', 'bitrate' => '~128k'),
+            array('quality' => '6', 'samplerate' => '44100', 'channels' => '2', 'name' => 'VBR q6 stereo', 'bitrate' => '~96k'),
+            array('quality' => '7', 'samplerate' => '22050', 'channels' => '1', 'name' => 'VBR q7 mono', 'bitrate' => '~64k'),
+            array('quality' => '8', 'samplerate' => '16000', 'channels' => '1', 'name' => 'VBR q8 mono', 'bitrate' => '~48k'),
+            array('quality' => '9', 'samplerate' => '16000', 'channels' => '1', 'name' => 'VBR q9 mono', 'bitrate' => '~32k'),
+            // Last resort: fixed bitrate at very low rate
+            array('bitrate' => '24k', 'samplerate' => '16000', 'channels' => '1', 'name' => '24k mono fixed', 'quality' => null)
+        );
         
-        $output = shell_exec($ffmpeg_cmd);
-        
-        if (file_exists($mp3_path)) {
-            return $mp3_path;
+        $last_output = '';
+        $last_size_mb = 0;
+        foreach ($compression_levels as $level) {
+            // Build ffmpeg command with current compression level
+            // -i: input file
+            // -vn: disable video (audio only)
+            // -acodec libmp3lame: use MP3 codec
+            // -q:a: VBR quality (0-9, 9 = smallest file, best compression)
+            // -b:a: fixed bitrate (only used for last resort level)
+            // -ar: sample rate
+            // -ac: audio channels (1 = mono, 2 = stereo)
+            // -y: overwrite if exists
+            
+            if (isset($level['quality'])) {
+                // Use VBR mode for better compression
+                $ffmpeg_cmd = $this->ffmpeg_path . " -i " . escapeshellarg($mp4_path) . 
+                              " -vn -acodec libmp3lame -q:a " . $level['quality'] . 
+                              " -ar " . $level['samplerate'] . 
+                              " -ac " . $level['channels'] . 
+                              " -y " . escapeshellarg($mp3_path) . " 2>&1";
+            } else {
+                // Use fixed bitrate as last resort
+                $ffmpeg_cmd = $this->ffmpeg_path . " -i " . escapeshellarg($mp4_path) . 
+                              " -vn -acodec libmp3lame -b:a " . $level['bitrate'] . 
+                              " -ar " . $level['samplerate'] . 
+                              " -ac " . $level['channels'] . 
+                              " -y " . escapeshellarg($mp3_path) . " 2>&1";
+            }
+            
+            error_log(sprintf('Transcription: Attempting MP3 conversion with %s...', $level['name']));
+            $output = shell_exec($ffmpeg_cmd);
+            $last_output = $output;
+            
+            if (!file_exists($mp3_path)) {
+                error_log('Transcription: Audio conversion failed at ' . $level['name'] . '. Output: ' . substr($output, 0, 500));
+                continue;
+            }
+            
+            // Check file size
+            $file_size_mb = filesize($mp3_path) / 1024 / 1024;
+            $last_size_mb = $file_size_mb;
+            
+            error_log(sprintf('Transcription: MP3 converted at %s: %.2f MB', $level['name'], $file_size_mb));
+            
+            if ($file_size_mb <= $max_size_mb) {
+                // Success! File is under 25MB
+                if ($level['name'] !== '128k stereo') {
+                    error_log(sprintf('Transcription: MP3 compressed to %s to meet 25MB limit. Final size: %.2f MB', 
+                        $level['name'], $file_size_mb));
+                }
+                return $mp3_path;
+            }
+            
+            // File is still too large, try next compression level
+            error_log(sprintf('Transcription: MP3 at %s is %.2f MB (over 25MB limit), trying higher compression...', 
+                $level['name'], $file_size_mb));
         }
         
-        error_log('Transcription: Audio conversion failed. Output: ' . substr($output, 0, 500));
+        // If we get here, even the most aggressive compression didn't work
+        if (file_exists($mp3_path)) {
+            $final_size_mb = filesize($mp3_path) / 1024 / 1024;
+            error_log(sprintf('Transcription: ERROR - MP3 file is still %.2f MB after maximum compression (24k mono). File may be too long for Whisper API.', $final_size_mb));
+            // Don't return it - it will fail validation anyway
+            // Return false so the caller knows compression failed
+            return false;
+        }
+        
+        error_log('Transcription: Audio conversion failed at all compression levels. Output: ' . substr($last_output, 0, 500));
         return false;
     }
 }

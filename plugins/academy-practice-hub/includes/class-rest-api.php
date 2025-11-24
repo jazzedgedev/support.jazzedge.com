@@ -1292,7 +1292,7 @@ class JPH_REST_API {
             }
             
             // Validate category
-            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other');
+            $allowed_categories = array('lesson', 'technique', 'theory', 'ear-training', 'repertoire', 'improvisation', 'other', 'collection');
             if (!in_array($category, $allowed_categories)) {
                 $category = 'lesson';
             }

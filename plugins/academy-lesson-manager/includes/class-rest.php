@@ -39,6 +39,9 @@ class ALM_Rest_API {
                 'collection_id' => array('type' => 'integer', 'required' => false),
                 'has_resources' => array('type' => 'string', 'required' => false, 'enum' => array('', 'has', 'none'), 'default' => ''),
                 'song_lesson' => array('type' => 'string', 'required' => false, 'enum' => array('', 'y', 'n'), 'default' => ''),
+                'teacher' => array('type' => 'string', 'required' => false),
+                'key' => array('type' => 'string', 'required' => false),
+                'has_sample' => array('type' => 'string', 'required' => false, 'enum' => array('', 'y', 'n'), 'default' => ''),
                 'min_duration' => array('type' => 'integer', 'required' => false),
                 'max_duration' => array('type' => 'integer', 'required' => false),
                 'date_from' => array('type' => 'string', 'required' => false),
@@ -90,6 +93,18 @@ class ALM_Rest_API {
             'permission_callback' => '__return_true',
         ));
         
+        register_rest_route('alm/v1', '/teachers', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => array($this, 'handle_get_teachers'),
+            'permission_callback' => '__return_true',
+        ));
+        
+        register_rest_route('alm/v1', '/keys', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => array($this, 'handle_get_keys'),
+            'permission_callback' => '__return_true',
+        ));
+        
         // Essentials Library endpoints
         register_rest_route('alm/v1', '/library/select', array(
             'methods' => WP_REST_Server::CREATABLE,
@@ -111,6 +126,15 @@ class ALM_Rest_API {
             'callback' => array($this, 'handle_library_lessons'),
             'permission_callback' => array($this, 'check_user_permission'),
         ));
+        
+        register_rest_route('alm/v1', '/notifications/expand', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array($this, 'handle_expand_notification'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'text' => array('type' => 'string', 'required' => true),
+            ),
+        ));
     }
     
     /**
@@ -127,6 +151,128 @@ class ALM_Rest_API {
     public function check_user_permission() {
         // Allow logged-in users
         return is_user_logged_in();
+    }
+    
+    /**
+     * Check if user has admin permission
+     */
+    public function check_admin_permission() {
+        // Allow only users with manage_options capability
+        return current_user_can('manage_options');
+    }
+    
+    /**
+     * Handle notification text expansion with AI
+     */
+    public function handle_expand_notification(WP_REST_Request $request) {
+        $text = sanitize_textarea_field($request->get_param('text'));
+        
+        if (empty($text)) {
+            return new WP_Error('empty_text', 'No text provided to expand', array('status' => 400));
+        }
+        
+        // Get system message from saved option, or use default
+        $default_prompt = "You are an AI assistant helping to expand and improve notification messages for a music education platform (Jazzedge Academy). 
+
+Your task is to take a brief notification message and expand it into a more detailed, engaging, and informative message while maintaining the original intent and tone.
+
+Guidelines:
+- Keep the friendly, encouraging tone appropriate for students
+- Expand on key points naturally
+- Make it more engaging and informative
+- Maintain professional but warm communication style
+- Don't add information that wasn't implied in the original
+- Keep it concise but comprehensive
+- Use clear, accessible language
+
+Return only the expanded text, no explanations or additional commentary.";
+        
+        $system_message = get_option('alm_notification_ai_prompt', $default_prompt);
+        
+        // Ensure we have a valid prompt
+        if (empty(trim($system_message))) {
+            $system_message = $default_prompt;
+        }
+
+        // Call Katahdin AI Hub
+        $expanded_text = $this->call_katahdin_ai($text, $system_message, 'gpt-4', 1000, 0.7);
+        
+        if (is_wp_error($expanded_text)) {
+            return new WP_Error('ai_error', $expanded_text->get_error_message(), array('status' => 500));
+        }
+        
+        return new WP_REST_Response(array(
+            'expanded_text' => $expanded_text,
+            'original_text' => $text
+        ), 200);
+    }
+    
+    /**
+     * Call Katahdin AI Hub for notification expansion
+     */
+    private function call_katahdin_ai($prompt, $system_message, $model = 'gpt-4', $max_tokens = 1000, $temperature = 0.7) {
+        // Check if Katahdin AI Hub is available
+        if (!class_exists('Katahdin_AI_Hub_REST_API')) {
+            return new WP_Error('ai_hub_unavailable', 'Katahdin AI Hub is not available', array('status' => 503));
+        }
+        
+        // Ensure plugin is registered with Katahdin AI Hub
+        if (class_exists('Katahdin_AI_Hub') && function_exists('katahdin_ai_hub')) {
+            $hub = katahdin_ai_hub();
+            if ($hub && method_exists($hub, 'register_plugin')) {
+                $quota_limit = get_option('alm_ai_quota_limit', 10000);
+                $hub->register_plugin('academy-lesson-manager', array(
+                    'name' => 'Academy Lesson Manager',
+                    'version' => '1.0',
+                    'features' => array('chat', 'completions'),
+                    'quota_limit' => $quota_limit
+                ));
+            }
+        }
+        
+        // Prepare the request
+        $request_data = array(
+            'messages' => array(
+                array(
+                    'role' => 'system',
+                    'content' => $system_message
+                ),
+                array(
+                    'role' => 'user',
+                    'content' => $prompt
+                )
+            ),
+            'model' => $model,
+            'max_tokens' => $max_tokens,
+            'temperature' => $temperature,
+            'plugin_id' => 'academy-lesson-manager'
+        );
+        
+        // Make the request to Katahdin AI Hub using internal WordPress REST API
+        $rest_server = rest_get_server();
+        $request = new WP_REST_Request('POST', '/katahdin-ai-hub/v1/chat/completions');
+        $request->set_header('Content-Type', 'application/json');
+        $request->set_header('X-Plugin-ID', 'academy-lesson-manager');
+        $request->set_body(json_encode($request_data));
+        
+        // Add the request data as parameters
+        foreach ($request_data as $key => $value) {
+            $request->set_param($key, $value);
+        }
+        
+        $response = $rest_server->dispatch($request);
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $response_data = $response->get_data();
+        
+        if (isset($response_data['choices'][0]['message']['content'])) {
+            return trim($response_data['choices'][0]['message']['content']);
+        }
+        
+        return new WP_Error('ai_response_error', 'Unexpected response format from AI service', array('status' => 500));
     }
     
     /**
@@ -342,6 +488,126 @@ class ALM_Rest_API {
     }
     
     /**
+     * Get all teachers for frontend dropdown
+     */
+    public function handle_get_teachers(WP_REST_Request $request) {
+        $teachers_table = $this->database->get_table_name('teachers');
+        $lessons_table = $this->database->get_table_name('lessons');
+        
+        $teachers = array();
+        
+        // Get teachers from database table
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$teachers_table}'") === $teachers_table;
+        if ($table_exists) {
+            $teachers_from_db = $this->wpdb->get_results(
+                "SELECT DISTINCT teacher_name FROM {$teachers_table} ORDER BY teacher_name ASC"
+            );
+            foreach ($teachers_from_db as $teacher) {
+                $teachers[] = $teacher->teacher_name;
+            }
+        }
+        
+        // Also get teachers from postmeta (ACF fields) for backward compatibility
+        if (function_exists('get_field')) {
+            $lessons_with_posts = $this->wpdb->get_results(
+                "SELECT DISTINCT post_id FROM {$lessons_table} WHERE post_id > 0"
+            );
+            
+            foreach ($lessons_with_posts as $lesson) {
+                $teacher = get_field('lesson_teacher', $lesson->post_id);
+                if (!empty($teacher)) {
+                    $teacher = sanitize_text_field($teacher);
+                    if (!in_array($teacher, $teachers)) {
+                        $teachers[] = $teacher;
+                    }
+                }
+            }
+        }
+        
+        // Also get from postmeta directly (more efficient)
+        $teachers_from_meta = $this->wpdb->get_results(
+            "SELECT DISTINCT meta_value as teacher_name 
+             FROM {$this->wpdb->postmeta} 
+             WHERE meta_key = 'lesson_teacher' 
+             AND meta_value IS NOT NULL 
+             AND meta_value != ''
+             ORDER BY meta_value ASC"
+        );
+        
+        foreach ($teachers_from_meta as $teacher) {
+            $teacher_name = sanitize_text_field($teacher->teacher_name);
+            if (!in_array($teacher_name, $teachers)) {
+                $teachers[] = $teacher_name;
+            }
+        }
+        
+        sort($teachers);
+        
+        $teachers_array = array();
+        foreach ($teachers as $teacher) {
+            $teachers_array[] = array(
+                'name' => $teacher
+            );
+        }
+        
+        return rest_ensure_response($teachers_array);
+    }
+    
+    /**
+     * Get all keys for frontend dropdown
+     */
+    public function handle_get_keys(WP_REST_Request $request) {
+        $lessons_table = $this->database->get_table_name('lessons');
+        
+        $keys = array();
+        
+        // Get keys from postmeta (ACF fields)
+        if (function_exists('get_field')) {
+            $lessons_with_posts = $this->wpdb->get_results(
+                "SELECT DISTINCT post_id FROM {$lessons_table} WHERE post_id > 0"
+            );
+            
+            foreach ($lessons_with_posts as $lesson) {
+                $key = get_field('lesson_key', $lesson->post_id);
+                if (!empty($key)) {
+                    $key = sanitize_text_field($key);
+                    if (!in_array($key, $keys)) {
+                        $keys[] = $key;
+                    }
+                }
+            }
+        }
+        
+        // Also get from postmeta directly (more efficient)
+        $keys_from_meta = $this->wpdb->get_results(
+            "SELECT DISTINCT meta_value as key_name 
+             FROM {$this->wpdb->postmeta} 
+             WHERE meta_key = 'lesson_key' 
+             AND meta_value IS NOT NULL 
+             AND meta_value != ''
+             ORDER BY meta_value ASC"
+        );
+        
+        foreach ($keys_from_meta as $key) {
+            $key_name = sanitize_text_field($key->key_name);
+            if (!in_array($key_name, $keys)) {
+                $keys[] = $key_name;
+            }
+        }
+        
+        sort($keys);
+        
+        $keys_array = array();
+        foreach ($keys as $key) {
+            $keys_array[] = array(
+                'name' => $key
+            );
+        }
+        
+        return rest_ensure_response($keys_array);
+    }
+    
+    /**
      * Check if user is Essentials member
      * 
      * @param int $user_id User ID
@@ -506,12 +772,17 @@ class ALM_Rest_API {
         $lesson_level = isset($ai_filters['lesson_level']) ? (string) $ai_filters['lesson_level'] : (string) $request->get_param('lesson_level');
         $tag = trim((string) $request->get_param('tag'));
         $lesson_style = trim((string) $request->get_param('lesson_style'));
+        $teacher = trim((string) $request->get_param('teacher'));
+        $key = trim((string) $request->get_param('key'));
+        $has_sample = isset($ai_filters['has_sample']) ? (string) $ai_filters['has_sample'] : (string) $request->get_param('has_sample');
         $order_by = (string) $request->get_param('order_by');
 
         $where = array('1=1');
         $params = array();
         $select_relevance = '';
         $order_clause = '';
+        $join_teacher = '';
+        $join_key = '';
 
         // For now, skip FULLTEXT and always use LIKE for search queries (more reliable)
         // FULLTEXT requires indexes and may not work in all environments
@@ -640,6 +911,41 @@ class ALM_Rest_API {
             $params[] = '%, ' . $style_trimmed . ',%';
             $params[] = '%, ' . $style_trimmed;
         }
+        
+        // Filter by teacher - join with postmeta
+        if (!empty($teacher)) {
+            if ($teacher === '__no_teacher__') {
+                // Filter for lessons with no teacher
+                $join_teacher = "LEFT JOIN {$this->wpdb->postmeta} pm_teacher ON l.post_id = pm_teacher.post_id AND pm_teacher.meta_key = 'lesson_teacher'";
+                $where[] = "(l.post_id = 0 OR pm_teacher.meta_value IS NULL OR pm_teacher.meta_value = '')";
+            } else {
+                // Filter for specific teacher
+                $join_teacher = "INNER JOIN {$this->wpdb->postmeta} pm_teacher ON l.post_id = pm_teacher.post_id AND l.post_id > 0 AND pm_teacher.meta_key = 'lesson_teacher'";
+                $where[] = "pm_teacher.meta_value = %s";
+                $params[] = $teacher;
+            }
+        }
+        
+        // Filter by key - join with postmeta
+        if (!empty($key)) {
+            if ($key === '__no_key__') {
+                // Filter for lessons with no key
+                $join_key = "LEFT JOIN {$this->wpdb->postmeta} pm_key ON l.post_id = pm_key.post_id AND pm_key.meta_key = 'lesson_key'";
+                $where[] = "(l.post_id = 0 OR pm_key.meta_value IS NULL OR pm_key.meta_value = '')";
+            } else {
+                // Filter for specific key
+                $join_key = "INNER JOIN {$this->wpdb->postmeta} pm_key ON l.post_id = pm_key.post_id AND l.post_id > 0 AND pm_key.meta_key = 'lesson_key'";
+                $where[] = "pm_key.meta_value = %s";
+                $params[] = $key;
+            }
+        }
+        
+        // Filter by has sample video
+        if ($has_sample === 'y') {
+            $where[] = "(l.sample_video_url IS NOT NULL AND l.sample_video_url != '')";
+        } elseif ($has_sample === 'n') {
+            $where[] = "(l.sample_video_url IS NULL OR l.sample_video_url = '')";
+        }
 
         // Set order clause if not already set by keyword search above
         if (empty($order_clause)) {
@@ -653,16 +959,20 @@ class ALM_Rest_API {
 
         $where_sql = 'WHERE ' . implode(' AND ', $where);
 
-        // Count - always include JOIN for collection_title searches
+        // Count - always include JOIN for collection_title searches, plus teacher/key joins if needed
         $collections_table = $this->database->get_table_name('collections');
-        $count_from = "FROM {$lessons_table} l LEFT JOIN {$collections_table} c ON c.ID = l.collection_id";
+        $count_from = "FROM {$lessons_table} l LEFT JOIN {$collections_table} c ON c.ID = l.collection_id {$join_teacher} {$join_key}";
         $count_sql = $this->wpdb->prepare("SELECT COUNT(*) {$count_from} {$where_sql}", $params);
         $total = intval($this->wpdb->get_var($count_sql));
 
         // Query with collection title join (always include JOIN since we need collection_title)
-        $sql = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, l.duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources, l.sample_video_url, c.collection_title{$select_relevance}
+        // Calculate duration from chapters instead of using stored value
+        $chapters_table = $this->database->get_table_name('chapters');
+        $sql = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, COALESCE((SELECT SUM(duration) FROM {$chapters_table} WHERE lesson_id = l.ID), 0) AS duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources, l.sample_video_url, c.collection_title{$select_relevance}
                 FROM {$lessons_table} l
                 LEFT JOIN {$collections_table} c ON c.ID = l.collection_id
+                {$join_teacher}
+                {$join_key}
                 {$where_sql}
                 {$order_clause}
                 LIMIT %d OFFSET %d";
@@ -741,6 +1051,27 @@ class ALM_Rest_API {
                 $f_params_full[] = '%, ' . $style_trimmed . ',%';
                 $f_params_full[] = '%, ' . $style_trimmed;
             }
+            if (!empty($teacher)) {
+                if ($teacher === '__no_teacher__') {
+                    $f_where[] = "(l.post_id = 0 OR NOT EXISTS (SELECT 1 FROM {$this->wpdb->postmeta} WHERE post_id = l.post_id AND meta_key = 'lesson_teacher' AND meta_value IS NOT NULL AND meta_value != ''))";
+                } else {
+                    $f_where[] = "EXISTS (SELECT 1 FROM {$this->wpdb->postmeta} WHERE post_id = l.post_id AND meta_key = 'lesson_teacher' AND meta_value = %s)";
+                    $f_params_full[] = $teacher;
+                }
+            }
+            if (!empty($key)) {
+                if ($key === '__no_key__') {
+                    $f_where[] = "(l.post_id = 0 OR NOT EXISTS (SELECT 1 FROM {$this->wpdb->postmeta} WHERE post_id = l.post_id AND meta_key = 'lesson_key' AND meta_value IS NOT NULL AND meta_value != ''))";
+                } else {
+                    $f_where[] = "EXISTS (SELECT 1 FROM {$this->wpdb->postmeta} WHERE post_id = l.post_id AND meta_key = 'lesson_key' AND meta_value = %s)";
+                    $f_params_full[] = $key;
+                }
+            }
+            if ($has_sample === 'y') {
+                $f_where[] = "(l.sample_video_url IS NOT NULL AND l.sample_video_url != '')";
+            } elseif ($has_sample === 'n') {
+                $f_where[] = "(l.sample_video_url IS NULL OR l.sample_video_url = '')";
+            }
 
             $like_sql = '(' . implode(' OR ', $like_parts) . ')';
             $f_where[] = $like_sql;
@@ -757,10 +1088,12 @@ class ALM_Rest_API {
             // 3. Then, $f_params again for the WHERE LIKE conditions
             // 4. Finally, $per_page and $offset
             
-            $sql2 = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, l.duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources, l.sample_video_url,
+            // Calculate duration from chapters instead of using stored value
+            $chapters_table = $this->database->get_table_name('chapters');
+            $sql2 = "SELECT l.ID, l.post_id, l.collection_id, l.lesson_title, l.lesson_description, l.post_date, COALESCE((SELECT SUM(duration) FROM {$chapters_table} WHERE lesson_id = l.ID), 0) AS duration, l.song_lesson, l.membership_level, l.lesson_level, l.lesson_tags, l.lesson_style, l.slug, l.vtt, l.resources, l.sample_video_url,
                             c.collection_title, (" . $score_sql . ") AS score
                      FROM {$lessons_table} l
-                     LEFT JOIN " . $this->database->get_table_name('chapters') . " c2 ON c2.lesson_id = l.ID
+                     LEFT JOIN {$chapters_table} c2 ON c2.lesson_id = l.ID
                      LEFT JOIN " . $this->database->get_table_name('transcripts') . " t ON t.lesson_id = l.ID
                      LEFT JOIN {$collections_table} c ON c.ID = l.collection_id
                      {$where_sql2}
@@ -791,9 +1124,14 @@ class ALM_Rest_API {
             // We need to count the results from the fuzzy query to get accurate pagination
             if (!empty($rows) && is_array($rows)) {
                 // Count total matching rows for the fuzzy query (without LIMIT)
-                // WHERE clause uses $f_params_full then $f_params (no score_sql in COUNT)
-                $count_sql2 = "SELECT COUNT(DISTINCT l.ID) {$count_from} {$where_sql2}";
-                $count_params2 = array_merge($f_params_full, $f_params);
+                // Must match the same JOINs as the main query to get accurate count
+                $transcripts_table = $this->database->get_table_name('transcripts');
+                $count_from2 = "FROM {$lessons_table} l
+                     LEFT JOIN {$chapters_table} c2 ON c2.lesson_id = l.ID
+                     LEFT JOIN {$transcripts_table} t ON t.lesson_id = l.ID
+                     LEFT JOIN {$collections_table} c ON c.ID = l.collection_id";
+                $count_sql2 = "SELECT COUNT(DISTINCT l.ID) {$count_from2} {$where_sql2}";
+                $count_params2 = array_merge($f_params_full, $where_like_params);
                 $total = intval($this->wpdb->get_var($this->wpdb->prepare($count_sql2, $count_params2)));
             } else {
                 // If still no results, keep total at 0

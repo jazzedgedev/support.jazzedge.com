@@ -247,8 +247,9 @@ class JPH_Database {
         
         $table_name = $wpdb->prefix . 'jph_lesson_favorites';
         
+        // Return all favorites (lessons and collections) - filtering by category happens in the frontend
         $favorites = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table_name} WHERE user_id = %d AND category = 'lesson' ORDER BY created_at DESC",
+            "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY created_at DESC",
             $user_id
         ), ARRAY_A);
         
@@ -851,14 +852,14 @@ class JPH_Database {
             $sort_order = 'DESC';
         }
         
-        // Get user's stats
+        // Get user's stats - only if they're on the leaderboard
         $user_stats = $wpdb->get_row($wpdb->prepare(
-            "SELECT {$sort_by} FROM {$stats_table} WHERE user_id = %d",
+            "SELECT {$sort_by} FROM {$stats_table} WHERE user_id = %d AND show_on_leaderboard = 1 AND total_xp > 0",
             $user_id
         ), ARRAY_A);
         
         if (!$user_stats) {
-            return null;
+            return null; // User is not on leaderboard
         }
         
         $user_value = $user_stats[$sort_by];
@@ -977,8 +978,10 @@ class JPH_Database {
         global $wpdb;
         
         $stats_table = $wpdb->prefix . 'jph_user_stats';
+        $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
         
-        $stats = $wpdb->get_row(
+        // Get base stats
+        $base_stats = $wpdb->get_row(
             "SELECT 
                 COUNT(*) as total_users,
                 COUNT(CASE WHEN show_on_leaderboard = 1 AND total_xp > 0 THEN 1 END) as leaderboard_users,
@@ -992,7 +995,36 @@ class JPH_Database {
             ARRAY_A
         );
         
-        return $stats ?: array();
+        // Get 7-day practice stats
+        $stats_7days = $wpdb->get_row(
+            "SELECT 
+                COALESCE(SUM(duration_minutes), 0) as practice_minutes_7days,
+                COUNT(DISTINCT user_id) as active_users_7days,
+                COUNT(*) as total_sessions_7days
+             FROM {$sessions_table}
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
+            ARRAY_A
+        );
+        
+        // Get 30-day practice stats
+        $stats_30days = $wpdb->get_row(
+            "SELECT 
+                COALESCE(SUM(duration_minutes), 0) as practice_minutes_30days,
+                COUNT(DISTINCT user_id) as active_users_30days,
+                COUNT(*) as total_sessions_30days
+             FROM {$sessions_table}
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)",
+            ARRAY_A
+        );
+        
+        // Merge all stats
+        $stats = array_merge(
+            $base_stats ?: array(),
+            $stats_7days ?: array(),
+            $stats_30days ?: array()
+        );
+        
+        return $stats;
     }
     
     /**

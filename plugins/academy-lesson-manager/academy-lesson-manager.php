@@ -108,6 +108,10 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-essentials-users.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-lesson-samples.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-membership-pricing.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-faqs.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-notifications.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-notifications.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-teachers.php';
     }
     
     /**
@@ -179,6 +183,8 @@ class Academy_Lesson_Manager {
         new ALM_Admin_Event_Migration();
         new ALM_Admin_Essentials_Users();
         new ALM_Admin_Membership_Pricing();
+        new ALM_Admin_Notifications();
+        new ALM_Admin_Teachers();
     }
     
     /**
@@ -259,6 +265,15 @@ class Academy_Lesson_Manager {
             'academy-manager-lesson-samples',
             array($this, 'admin_page_lesson_samples')
         );
+        
+        add_submenu_page(
+            'academy-manager',
+            __('Teachers', 'academy-lesson-manager'),
+            __('Teachers', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-teachers',
+            array($this, 'admin_page_teachers')
+        );
     }
     
     /**
@@ -302,6 +317,11 @@ class Academy_Lesson_Manager {
     public function admin_page_lesson_samples() {
         $admin_lesson_samples = new ALM_Admin_Lesson_Samples();
         $admin_lesson_samples->render_page();
+    }
+    
+    public function admin_page_teachers() {
+        $admin_teachers = new ALM_Admin_Teachers();
+        $admin_teachers->render_page();
     }
     
     /**
@@ -580,22 +600,76 @@ class Academy_Lesson_Manager {
                                 } else {
                                     message += "Total lesson duration: 0";
                                 }
+                                
+                                // Show warnings if there were errors but some chapters were updated
+                                if (response.data.errors_count > 0) {
+                                    message += " (" + response.data.errors_count + " chapters had errors)";
+                                }
+                                
                                 $("<div class=\"notice notice-success is-dismissible\"><p>" + message + "</p></div>")
                                     .insertAfter($button.closest("h3"))
                                     .delay(5000)
                                     .fadeOut();
+                                
+                                // Show detailed errors if any
+                                if (response.data.errors && response.data.errors.length > 0) {
+                                    var errorMessage = "Some chapters failed to update:\n\n" + response.data.errors.slice(0, 5).join("\n");
+                                    if (response.data.errors.length > 5) {
+                                        errorMessage += "\n... and " + (response.data.errors.length - 5) + " more errors";
+                                    }
+                                    console.warn("Bunny API Duration Calculation Errors:", response.data.errors);
+                                    console.warn("Debug Info:", response.data.debug_info);
+                                }
                                 
                                 // Reload page after a short delay
                                 setTimeout(function() {
                                     location.reload();
                                 }, 1500);
                             } else {
-                                alert("Error: " + response.data);
+                                var errorMsg = "Error calculating durations.";
+                                if (response.data && response.data.message) {
+                                    errorMsg = response.data.message;
+                                } else if (typeof response.data === "string") {
+                                    errorMsg = response.data;
+                                }
+                                
+                                if (response.data && response.data.errors && response.data.errors.length > 0) {
+                                    errorMsg += "\n\nErrors:\n" + response.data.errors.slice(0, 3).join("\n");
+                                    console.error("Bunny API Errors:", response.data.errors);
+                                    console.error("Debug Info:", response.data.debug_info);
+                                }
+                                
+                                alert(errorMsg);
                             }
                         },
                         error: function(xhr, status, error) {
                             console.error("AJAX Error:", xhr, status, error);
-                            alert("Error calculating durations. Please check your Bunny.net API configuration.");
+                            var errorMsg = "Error calculating durations. Please check your Bunny.net API configuration.";
+                            
+                            // Try to get more details from the response
+                            if (xhr.responseJSON && xhr.responseJSON.data) {
+                                if (typeof xhr.responseJSON.data === "string") {
+                                    errorMsg = xhr.responseJSON.data;
+                                } else if (xhr.responseJSON.data.message) {
+                                    errorMsg = xhr.responseJSON.data.message;
+                                }
+                                
+                                if (xhr.responseJSON.data.errors) {
+                                    errorMsg += "\n\nErrors:\n" + xhr.responseJSON.data.errors.slice(0, 3).join("\n");
+                                    console.error("Bunny API Errors:", xhr.responseJSON.data.errors);
+                                }
+                            } else if (xhr.responseText) {
+                                try {
+                                    var response = JSON.parse(xhr.responseText);
+                                    if (response.data && typeof response.data === "string") {
+                                        errorMsg = response.data;
+                                    }
+                                } catch(e) {
+                                    // Not JSON, use default message
+                                }
+                            }
+                            
+                            alert(errorMsg);
                         },
                         complete: function() {
                             $button.prop("disabled", false).text("Calculate All Bunny Durations");
@@ -1590,11 +1664,39 @@ class Academy_Lesson_Manager {
         
         $updated_count = 0;
         $total_duration = 0;
+        $errors = array();
+        $debug_info = array();
         
         foreach ($chapters as $chapter) {
-            $duration = $bunny_api->get_video_duration($chapter->bunny_url);
+            // Extract video ID for debugging
+            $video_id = $bunny_api->extract_video_id_from_url($chapter->bunny_url);
             
-            if ($duration !== false && $duration > 0) {
+            if (!$video_id) {
+                $errors[] = "Chapter ID {$chapter->ID}: Could not extract video ID from URL: {$chapter->bunny_url}";
+                $debug_info[] = "Chapter {$chapter->ID}: Failed to extract video ID from URL";
+                continue;
+            }
+            
+            $debug_info[] = "Chapter {$chapter->ID}: Extracted video ID: {$video_id}";
+            
+            // Get video metadata to check for errors
+            $metadata = $bunny_api->get_video_metadata($video_id);
+            
+            if ($metadata === false) {
+                $errors[] = "Chapter ID {$chapter->ID}: Failed to fetch metadata for video ID: {$video_id}";
+                $debug_info[] = "Chapter {$chapter->ID}: API request failed for video ID {$video_id}";
+                continue;
+            }
+            
+            if (!isset($metadata['length'])) {
+                $errors[] = "Chapter ID {$chapter->ID}: Video metadata missing 'length' field. Video ID: {$video_id}";
+                $debug_info[] = "Chapter {$chapter->ID}: Metadata missing length field";
+                continue;
+            }
+            
+            $duration = intval($metadata['length']);
+            
+            if ($duration > 0) {
                 // Update the chapter duration
                 $wpdb->update(
                     $chapters_table,
@@ -1606,6 +1708,10 @@ class Academy_Lesson_Manager {
                 
                 $updated_count++;
                 $total_duration += $duration;
+                $debug_info[] = "Chapter {$chapter->ID}: Updated duration to {$duration} seconds";
+            } else {
+                $errors[] = "Chapter ID {$chapter->ID}: Duration is 0 or invalid. Video ID: {$video_id}";
+                $debug_info[] = "Chapter {$chapter->ID}: Duration is 0";
             }
         }
         
@@ -1620,12 +1726,29 @@ class Academy_Lesson_Manager {
             );
         }
         
-        wp_send_json_success(array(
+        $response_data = array(
             'updated' => $updated_count,
             'total_duration' => $total_duration,
             'chapters_count' => count($chapters),
-            'debug_info' => implode("\n", $debug_info)
-        ));
+            'errors_count' => count($errors)
+        );
+        
+        // Include errors and debug info if there were any issues
+        if (!empty($errors)) {
+            $response_data['errors'] = $errors;
+            $response_data['debug_info'] = $debug_info;
+        }
+        
+        // If no chapters were updated and there were errors, send as error
+        if ($updated_count === 0 && !empty($errors)) {
+            wp_send_json_error(array(
+                'message' => 'Failed to calculate durations. ' . implode(' ', array_slice($errors, 0, 3)),
+                'errors' => $errors,
+                'debug_info' => $debug_info
+            ));
+        }
+        
+        wp_send_json_success($response_data);
     }
     
     /**

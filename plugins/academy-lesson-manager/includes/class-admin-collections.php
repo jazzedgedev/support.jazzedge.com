@@ -14,6 +14,7 @@ if (!defined('ABSPATH')) {
 
 class ALM_Admin_Collections {
     
+
     /**
      * WordPress database instance
      */
@@ -28,7 +29,7 @@ class ALM_Admin_Collections {
      * Table name
      */
     private $table_name;
-    
+
     /**
      * Constructor
      */
@@ -89,7 +90,7 @@ class ALM_Admin_Collections {
         
         echo '</div>';
     }
-    
+
     /**
      * Render navigation buttons
      */
@@ -136,7 +137,7 @@ class ALM_Admin_Collections {
                     break;
             }
         }
-        
+
         // Handle search and filters
         $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
         $filter_level = isset($_GET['filter_level']) ? intval($_GET['filter_level']) : '';

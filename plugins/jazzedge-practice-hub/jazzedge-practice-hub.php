@@ -11958,6 +11958,8 @@ class JazzEdge_Practice_Hub {
      * Check and reset broken streaks for users who haven't practiced recently
      */
     private function check_and_reset_broken_streaks($user_id, $user_stats) {
+        global $wpdb;
+        
         $last_practice_date = $user_stats['last_practice_date'] ?? null;
         $current_streak = $user_stats['current_streak'] ?? 0;
         
@@ -11965,21 +11967,49 @@ class JazzEdge_Practice_Hub {
             return false; // No streak to reset
         }
         
-        $today = current_time('Y-m-d');
-        $yesterday = date('Y-m-d', strtotime('-1 day'));
+        // Get the most recent practice session timestamp for accurate time calculation
+        $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+        $last_session = $wpdb->get_row($wpdb->prepare(
+            "SELECT created_at FROM {$sessions_table} WHERE user_id = %d ORDER BY created_at DESC LIMIT 1",
+            $user_id
+        ));
         
-        // If last practice was more than 1 day ago, check for shield first
-        if ($last_practice_date < $yesterday) {
+        if (!$last_session) {
+            return false; // No practice sessions
+        }
+        
+        // Use user's timezone consistently
+        $user_timezone = APH_Gamification::get_user_timezone($user_id);
+        $now_timestamp = current_time('timestamp');
+        $now_datetime = new DateTime('@' . $now_timestamp);
+        $now_datetime->setTimezone($user_timezone);
+        $today = $now_datetime->format('Y-m-d');
+        
+        // Convert last practice timestamp to user timezone
+        $last_practice_datetime = new DateTime($last_session->created_at, $user_timezone);
+        $last_practice_timestamp = $last_practice_datetime->getTimestamp();
+        $last_practice_date_str = $last_practice_datetime->format('Y-m-d');
+        
+        // Calculate hours since last practice (using 36 hour threshold)
+        $hours_since_practice = ($now_timestamp - $last_practice_timestamp) / 3600;
+        
+        // Only reset streak if more than 36 hours have passed since last practice
+        // AND they haven't practiced today
+        if ($hours_since_practice > 36 && $last_practice_date_str !== $today) {
             $current_shields = $user_stats['streak_shield_count'] ?? 0;
             
             if ($current_shields > 0) {
                 // Use shield to maintain streak
                 $this->use_streak_shield($user_id);
-                error_log("JPH Cron: Used Streak Shield for user $user_id (last practice: $last_practice_date)");
+                error_log(sprintf(
+                    'JPH Cron: Used Streak Shield for user %d (last practice: %s, hours since: %.1f)',
+                    $user_id,
+                    $last_practice_date_str,
+                    $hours_since_practice
+                ));
                 return true;
             } else {
                 // No shield available, reset streak
-                global $wpdb;
                 $table_name = $wpdb->prefix . 'jph_user_stats';
                 
                 $wpdb->update(
@@ -11990,7 +12020,12 @@ class JazzEdge_Practice_Hub {
                     array('%d')
                 );
                 
-                error_log("JPH Cron: Reset broken streak for user $user_id (last practice: $last_practice_date)");
+                error_log(sprintf(
+                    'JPH Cron: Reset broken streak for user %d (last practice: %s, hours since: %.1f)',
+                    $user_id,
+                    $last_practice_date_str,
+                    $hours_since_practice
+                ));
                 return true;
             }
         }
@@ -12126,8 +12161,23 @@ class JazzEdge_Practice_Hub {
         
         // Calculate current streak
         $current_streak = 0;
-        $today = date('Y-m-d');
-        $yesterday = date('Y-m-d', strtotime('-1 day'));
+        
+        // Use WordPress timezone consistently for both today and yesterday
+        $today_timestamp = current_time('timestamp');
+        $today = current_time('Y-m-d');
+        
+        // Calculate yesterday using WordPress timezone
+        $yesterday_timestamp = $today_timestamp - DAY_IN_SECONDS;
+        if (function_exists('wp_date')) {
+            // WordPress 5.3+ - use wp_date which respects WordPress timezone
+            $yesterday = wp_date('Y-m-d', $yesterday_timestamp);
+        } else {
+            // Fallback for older WordPress versions
+            $wp_timezone = wp_timezone();
+            $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
+            $yesterday_datetime->setTimezone($wp_timezone);
+            $yesterday = $yesterday_datetime->format('Y-m-d');
+        }
         
         // Check if they practiced today or yesterday
         if (in_array($today, $practice_dates)) {

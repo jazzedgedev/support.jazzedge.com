@@ -88,16 +88,66 @@ class APH_Gamification {
         // Level formula: Level = floor(sqrt(XP / 100)) + 1
         return floor(sqrt($xp / 100)) + 1;
     }
+
+    /**
+     * Get the timezone string for a user, falling back to site timezone
+     *
+     * @param int $user_id
+     * @return string
+     */
+    public static function get_user_timezone_string($user_id = 0) {
+        if (!$user_id) {
+            $user_id = get_current_user_id();
+        }
+
+        $timezone = '';
+        if ($user_id) {
+            $timezone = get_user_meta($user_id, 'aph_user_timezone', true);
+        }
+
+        if (!empty($timezone)) {
+            try {
+                new DateTimeZone($timezone);
+                return $timezone;
+            } catch (Exception $e) {
+                // Invalid timezone stored, fall back to site timezone
+            }
+        }
+
+        $wp_timezone = wp_timezone();
+        return $wp_timezone instanceof DateTimeZone ? $wp_timezone->getName() : 'UTC';
+    }
+
+    /**
+     * Get a DateTimeZone instance for a user
+     *
+     * @param int $user_id
+     * @return DateTimeZone
+     */
+    public static function get_user_timezone($user_id = 0) {
+        $timezone_string = self::get_user_timezone_string($user_id);
+        return new DateTimeZone($timezone_string);
+    }
     
     /**
      * Update streak
+     * Uses timestamp-based calculations to handle timezones correctly
+     * Allows up to 36 hours between practice sessions before breaking streak
      */
     public function update_streak($user_id) {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'jph_user_stats';
-        $today = current_time('Y-m-d');
+        $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
         
+        // Get current time in user's timezone
+        $user_timezone = self::get_user_timezone($user_id);
+        $now_timestamp = current_time('timestamp');
+        $now_datetime = new DateTime('@' . $now_timestamp);
+        $now_datetime->setTimezone($user_timezone);
+        $today = $now_datetime->format('Y-m-d');
+        
+        // Get user stats
         $stats = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE user_id = %d",
             $user_id
@@ -107,39 +157,128 @@ class APH_Gamification {
             return false;
         }
         
-        $last_practice_date = $stats->last_practice_date;
         $current_streak = $stats->current_streak;
         $longest_streak = $stats->longest_streak;
         $current_shields = $stats->streak_shield_count ?? 0;
+        $last_practice_date = $stats->last_practice_date;
         
-        // Check if they practiced today
-        if ($last_practice_date === $today) {
-            // Already practiced today, no streak change
+        // Get the most recent practice session timestamp for accurate time calculation
+        $last_session = $wpdb->get_row($wpdb->prepare(
+            "SELECT created_at FROM {$sessions_table} WHERE user_id = %d ORDER BY created_at DESC LIMIT 1",
+            $user_id
+        ));
+        
+        if (!$last_session) {
+            // No practice sessions, can't update streak
+            return false;
+        }
+        
+        // Convert last practice timestamp to user timezone
+        // created_at is stored in WordPress timezone (via current_time('mysql')), but we convert to the user's timezone
+        $last_practice_datetime = new DateTime($last_session->created_at, $user_timezone);
+        $last_practice_timestamp = $last_practice_datetime->getTimestamp();
+        
+        // Calculate hours since last practice
+        $hours_since_practice = ($now_timestamp - $last_practice_timestamp) / 3600;
+        
+        // Get the date of last practice in WordPress timezone
+        $last_practice_date_str = $last_practice_datetime->format('Y-m-d');
+        
+        // Calculate yesterday's date in user timezone
+        $yesterday_timestamp = $now_timestamp - DAY_IN_SECONDS;
+        $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
+        $yesterday_datetime->setTimezone($user_timezone);
+        $yesterday = $yesterday_datetime->format('Y-m-d');
+        
+        // Check if they actually practiced today (based on most recent session)
+        $practiced_today = ($last_practice_date_str === $today);
+        $practiced_yesterday = false;
+        
+        // Check if they practiced yesterday by looking at all sessions from yesterday
+        // Get all sessions and check dates in PHP to ensure timezone consistency
+        $all_sessions = $wpdb->get_results($wpdb->prepare(
+            "SELECT created_at FROM {$sessions_table} 
+             WHERE user_id = %d 
+             ORDER BY created_at DESC",
+            $user_id
+        ));
+        $practiced_yesterday = false;
+        foreach ($all_sessions as $session) {
+            $session_datetime = new DateTime($session->created_at, $user_timezone);
+            $session_date = $session_datetime->format('Y-m-d');
+            if ($session_date === $yesterday) {
+                $practiced_yesterday = true;
+                break;
+            }
+        }
+        
+        // Check if streak was already updated for today
+        // We use last_practice_date from database to track which day the streak was last credited for
+        if ($last_practice_date === $today && $practiced_today) {
+            // Already got credit for practicing today, no streak change needed
             return array('streak_updated' => false, 'current_streak' => $current_streak);
         }
         
-        // Check if yesterday was their last practice
-        $yesterday = date('Y-m-d', strtotime('-1 day'));
-        if ($last_practice_date === $yesterday) {
-            // Continue streak normally
+        $shield_used = false;
+        $streak_continued = false;
+        
+        // Determine if streak should continue or break
+        // We increment streak based on calendar days (yesterday -> today = +1)
+        // But use 36-hour window to prevent breaking if they're slightly late
+        
+        if ($practiced_yesterday && $practiced_today && $last_practice_date !== $today) {
+            // Practiced both yesterday and today, and haven't gotten credit for today yet - continue streak
             $new_streak = $current_streak + 1;
-            $shield_used = false;
-        } else if ($last_practice_date < $yesterday) {
-            // Streak broken (more than 1 day gap) - check if we can use a shield
-            if ($current_shields > 0) {
-                // Use shield to maintain streak
+            $streak_continued = true;
+        } elseif ($last_practice_date === $yesterday && $practiced_today) {
+            // Practiced yesterday (according to database), and practicing today - continue streak
+            $new_streak = $current_streak + 1;
+            $streak_continued = true;
+        } elseif ($last_practice_date === null) {
+            // First time practicing - start streak at 1
+            $new_streak = 1;
+            $streak_continued = true;
+        } elseif ($last_practice_date < $yesterday) {
+            // Last practice was more than 1 day ago
+            // Check if within 36 hours to continue streak, otherwise break it
+            if ($hours_since_practice <= 36) {
+                // Within 36 hour window - continue streak (they were slightly late)
                 $new_streak = $current_streak + 1;
-                $current_shields = $current_shields - 1;
-                $shield_used = true;
+                $streak_continued = true;
             } else {
-                // No shield available, reset streak
-                $new_streak = 1;
-                $shield_used = false;
+                // More than 36 hours - streak broken
+                if ($current_shields > 0) {
+                    // Use shield to maintain streak
+                    $new_streak = $current_streak + 1;
+                    $old_shield_count = $current_shields;
+                    $current_shields = $current_shields - 1;
+                    $shield_used = true;
+                    
+                    error_log(sprintf(
+                        'JPH Shield Used: User %d - Streak broken (last practice: %s, hours since: %.1f). Shield count: %d -> %d. Streak: %d -> %d',
+                        $user_id,
+                        $last_practice_date_str,
+                        $hours_since_practice,
+                        $old_shield_count,
+                        $current_shields,
+                        $current_streak,
+                        $new_streak
+                    ));
+                } else {
+                    // No shield available, streak is broken - reset to 0
+                    $new_streak = 0;
+                    
+                    error_log(sprintf(
+                        'JPH Streak Broken: User %d - No shield available. Last practice: %s, hours since: %.1f. Streak reset to 0',
+                        $user_id,
+                        $last_practice_date_str,
+                        $hours_since_practice
+                    ));
+                }
             }
         } else {
-            // Last practice was today or in the future (shouldn't happen)
+            // Edge case - last_practice_date is in the future (shouldn't happen)
             $new_streak = $current_streak;
-            $shield_used = false;
         }
         
         // Update longest streak if needed
@@ -163,9 +302,10 @@ class APH_Gamification {
             'streak_updated' => true,
             'current_streak' => $new_streak,
             'longest_streak' => $new_longest_streak,
-            'streak_continued' => ($last_practice_date === $yesterday),
+            'streak_continued' => $streak_continued,
             'shield_used' => $shield_used,
-            'shields_remaining' => $current_shields
+            'shields_remaining' => $current_shields,
+            'hours_since_practice' => round($hours_since_practice, 1)
         );
     }
     
@@ -185,6 +325,7 @@ class APH_Gamification {
         
         // Get user's practice sessions (ALL sessions for badge checking, not limited)
         $sessions = $this->database->get_practice_sessions($user_id, 1000, 0);
+        $user_timezone = self::get_user_timezone($user_id);
         
         // Get all available badges
         $all_badges = $this->database->get_badges(true);
@@ -271,12 +412,12 @@ class APH_Gamification {
                     
                 case 'comeback':
                     // Check if user returned after 7+ day break and completed 3 sessions in a week
-                    $should_award = $this->check_comeback_badge($user_id, $sessions);
+                    $should_award = $this->check_comeback_badge($user_id, $sessions, $user_timezone);
                     break;
                     
                 case 'time_of_day':
                     // Check practice time patterns (early bird or night owl)
-                    $should_award = $this->check_time_of_day_badge($user_id, $sessions, $criteria_value);
+                    $should_award = $this->check_time_of_day_badge($user_id, $sessions, $criteria_value, $user_timezone);
                     break;
             }
             
@@ -451,7 +592,7 @@ class APH_Gamification {
      * Check comeback badge criteria
      * User must have returned after 7+ day break and completed 3 sessions in a week
      */
-    private function check_comeback_badge($user_id, $sessions) {
+    private function check_comeback_badge($user_id, $sessions, $timezone = null) {
         if (count($sessions) < 3) {
             $this->logger->debug('Comeback badge check - insufficient sessions', array(
                 'user_id' => $user_id,
@@ -461,8 +602,9 @@ class APH_Gamification {
             return false;
         }
         
-        // Get WordPress timezone for proper time calculation
-        $wp_timezone = wp_timezone();
+        if (!($timezone instanceof DateTimeZone)) {
+            $timezone = self::get_user_timezone($user_id);
+        }
         
         // Sort sessions by date (newest first)
         usort($sessions, function($a, $b) {
@@ -475,9 +617,9 @@ class APH_Gamification {
         $debug_gaps = array();
         
         for ($i = 0; $i < count($recent_sessions) - 1; $i++) {
-            $current_date = strtotime($recent_sessions[$i]['created_at']);
-            $next_date = strtotime($recent_sessions[$i + 1]['created_at']);
-            $days_diff = ($current_date - $next_date) / (24 * 60 * 60);
+            $current_datetime = new DateTime($recent_sessions[$i]['created_at'], $timezone);
+            $next_datetime = new DateTime($recent_sessions[$i + 1]['created_at'], $timezone);
+            $days_diff = ($current_datetime->getTimestamp() - $next_datetime->getTimestamp()) / DAY_IN_SECONDS;
             
             $debug_gaps[] = array(
                 'current_session' => $recent_sessions[$i]['created_at'],
@@ -489,13 +631,13 @@ class APH_Gamification {
             if ($days_diff >= 7) {
                 // Found a 7+ day gap, check if user completed 3 sessions in the week after the gap
                 $sessions_after_gap = array_slice($recent_sessions, 0, $i + 1);
-                $week_after_gap = strtotime($recent_sessions[$i]['created_at']) + (7 * 24 * 60 * 60);
+                $week_after_gap = $current_datetime->getTimestamp() + (7 * DAY_IN_SECONDS);
                 
                 $sessions_in_week = 0;
                 $week_sessions_debug = array();
                 
                 foreach ($sessions_after_gap as $session) {
-                    $session_time = strtotime($session['created_at']);
+                    $session_time = (new DateTime($session['created_at'], $timezone))->getTimestamp();
                     $is_in_week = $session_time <= $week_after_gap;
                     
                     $week_sessions_debug[] = array(
@@ -518,7 +660,7 @@ class APH_Gamification {
                     'sessions_in_week' => $sessions_in_week,
                     'required_sessions' => 3,
                     'badge_earned' => $result,
-                    'wp_timezone' => $wp_timezone->getName(),
+                    'user_timezone' => $timezone->getName(),
                     'week_sessions' => $week_sessions_debug
                 ));
                 
@@ -539,17 +681,17 @@ class APH_Gamification {
      * Check time of day badge criteria
      * criteria_value: 1 = early bird (5 AM - 8 AM), 2 = night owl (10 PM - 6 AM)
      */
-    private function check_time_of_day_badge($user_id, $sessions, $criteria_value) {
+    private function check_time_of_day_badge($user_id, $sessions, $criteria_value, $timezone = null) {
         $target_sessions = 0;
         $debug_sessions = array();
         
-        // Get WordPress timezone for proper time calculation
-        $wp_timezone = wp_timezone();
-        $current_timezone = date_default_timezone_get();
+        if (!($timezone instanceof DateTimeZone)) {
+            $timezone = self::get_user_timezone($user_id);
+        }
         
         foreach ($sessions as $session) {
             // Parse the session time using WordPress timezone
-            $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+            $session_datetime = new DateTime($session['created_at'], $timezone);
             $hour = (int)$session_datetime->format('H');
             
             $session_debug = array(
@@ -584,8 +726,7 @@ class APH_Gamification {
             'criteria_name' => $criteria_value == 1 ? 'Early Bird' : 'Night Owl',
             'target_sessions' => $target_sessions,
             'required_sessions' => 10,
-            'wp_timezone' => $wp_timezone->getName(),
-            'current_timezone' => $current_timezone,
+            'user_timezone' => $timezone->getName(),
             'session_samples' => array_slice($debug_sessions, 0, 5)
         ));
         

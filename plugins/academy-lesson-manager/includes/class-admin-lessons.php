@@ -208,19 +208,46 @@ class ALM_Admin_Lessons {
                 case 'invalid_style':
                     echo '<div class="notice notice-error"><p>' . __('The selected style is not valid.', 'academy-lesson-manager') . '</p></div>';
                     break;
+                case 'bulk_teacher_updated':
+                    echo '<div class="notice notice-success"><p>' . __('Teacher updated successfully for selected lessons.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'bulk_teacher_error':
+                    echo '<div class="notice notice-error"><p>' . __('An error occurred while updating teachers. Make sure lessons have WordPress posts associated.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'bulk_sample_url_updated':
+                    echo '<div class="notice notice-success"><p>' . __('Sample video URL updated successfully for selected lessons.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'bulk_sample_url_cleared':
+                    echo '<div class="notice notice-success"><p>' . __('Sample video URL cleared successfully for selected lessons.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'bulk_sample_url_error':
+                    echo '<div class="notice notice-error"><p>' . __('An error occurred while updating sample video URLs.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'bulk_lessons_archived':
+                    echo '<div class="notice notice-success"><p>' . __('Selected lessons archived successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'bulk_lessons_unarchived':
+                    echo '<div class="notice notice-success"><p>' . __('Selected lessons unarchived successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
             }
         }
         
-        // Handle search and filters
-        $search = isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '';
-        $membership_filter = isset($_GET['membership_level']) ? intval($_GET['membership_level']) : 0;
-        $collection_filter = isset($_GET['collection_filter']) ? sanitize_text_field($_GET['collection_filter']) : '';
-        $resources_filter = isset($_GET['resources_filter']) ? sanitize_text_field($_GET['resources_filter']) : '';
-        $sample_filter = isset($_GET['sample_filter']) ? sanitize_text_field($_GET['sample_filter']) : '';
-        $pathway_filter = isset($_GET['pathway_filter']) ? sanitize_key($_GET['pathway_filter']) : '';
-        $skill_level_filter = isset($_GET['skill_level_filter']) ? sanitize_key($_GET['skill_level_filter']) : '';
-        $tag_filter = isset($_GET['tag']) ? sanitize_text_field($_GET['tag']) : '';
-        $style_filter = isset($_GET['style_filter']) ? sanitize_text_field($_GET['style_filter']) : '';
+        // Handle search and filters - check for preserved values from bulk actions first
+        $search = isset($_POST['preserve_search']) ? sanitize_text_field($_POST['preserve_search']) : (isset($_GET['search']) ? sanitize_text_field($_GET['search']) : '');
+        // For membership filter, check if value is actually set (not empty string) before converting to int
+        $membership_filter_raw = isset($_POST['preserve_membership']) ? $_POST['preserve_membership'] : (isset($_GET['membership_level']) ? $_GET['membership_level'] : '');
+        $membership_filter = ($membership_filter_raw !== '' && $membership_filter_raw !== null) ? intval($membership_filter_raw) : '';
+        $collection_filter = isset($_POST['preserve_collection']) ? sanitize_text_field($_POST['preserve_collection']) : (isset($_GET['collection_filter']) ? sanitize_text_field($_GET['collection_filter']) : '');
+        $resources_filter = isset($_POST['preserve_resources']) ? sanitize_text_field($_POST['preserve_resources']) : (isset($_GET['resources_filter']) ? sanitize_text_field($_GET['resources_filter']) : '');
+        $sample_filter = isset($_POST['preserve_sample']) ? sanitize_text_field($_POST['preserve_sample']) : (isset($_GET['sample_filter']) ? sanitize_text_field($_GET['sample_filter']) : '');
+        $pathway_filter = isset($_POST['preserve_pathway']) ? sanitize_key($_POST['preserve_pathway']) : (isset($_GET['pathway_filter']) ? sanitize_key($_GET['pathway_filter']) : '');
+        $skill_level_filter = isset($_POST['preserve_skill_level']) ? sanitize_key($_POST['preserve_skill_level']) : (isset($_GET['skill_level_filter']) ? sanitize_key($_GET['skill_level_filter']) : '');
+        $tag_filter = isset($_POST['preserve_tag']) ? sanitize_text_field($_POST['preserve_tag']) : (isset($_GET['tag']) ? sanitize_text_field($_GET['tag']) : '');
+        $style_filter = isset($_POST['preserve_style']) ? sanitize_text_field($_POST['preserve_style']) : (isset($_GET['style_filter']) ? sanitize_text_field($_GET['style_filter']) : '');
+        $teacher_filter = isset($_POST['preserve_teacher']) ? sanitize_text_field($_POST['preserve_teacher']) : (isset($_GET['teacher_filter']) ? sanitize_text_field($_GET['teacher_filter']) : '');
+        $key_filter = isset($_POST['preserve_key']) ? sanitize_text_field($_POST['preserve_key']) : (isset($_GET['key_filter']) ? sanitize_text_field($_GET['key_filter']) : '');
+        $hide_unassigned = isset($_POST['preserve_hide_unassigned']) ? (bool)$_POST['preserve_hide_unassigned'] : (isset($_GET['hide_unassigned']) ? (bool)$_GET['hide_unassigned'] : false);
+        $show_archived = isset($_POST['preserve_show_archived']) ? (bool)$_POST['preserve_show_archived'] : (isset($_GET['show_archived']) ? (bool)$_GET['show_archived'] : false);
         $order_by = isset($_GET['order_by']) ? sanitize_text_field($_GET['order_by']) : 'ID';
         $order = isset($_GET['order']) ? sanitize_text_field($_GET['order']) : 'DESC';
         
@@ -236,8 +263,8 @@ class ALM_Admin_Lessons {
             $where_conditions[] = $this->wpdb->prepare("(lesson_title LIKE %s OR lesson_description LIKE %s)", 
                 '%' . $search . '%', '%' . $search . '%');
         }
-        if ($membership_filter > 0) {
-            $where_conditions[] = $this->wpdb->prepare("membership_level = %d", $membership_filter);
+        if ($membership_filter !== '' && $membership_filter !== null) {
+            $where_conditions[] = $this->wpdb->prepare("membership_level = %d", intval($membership_filter));
         }
         // Filter for unassigned lessons
         if ($collection_filter === 'unassigned') {
@@ -245,6 +272,16 @@ class ALM_Admin_Lessons {
         } elseif (!empty($collection_filter) && is_numeric($collection_filter)) {
             // Filter by specific collection
             $where_conditions[] = $this->wpdb->prepare("collection_id = %d", intval($collection_filter));
+        }
+        
+        // Hide unassigned lessons if toggle is enabled (but not when filtering specifically for unassigned)
+        if ($hide_unassigned && $collection_filter !== 'unassigned') {
+            $where_conditions[] = "(collection_id IS NOT NULL AND collection_id != 0)";
+        }
+        
+        // Hide archived lessons by default (unless show_archived toggle is enabled)
+        if (!$show_archived) {
+            $where_conditions[] = "(l.status = 'published' OR l.status IS NULL OR l.status = '')";
         }
         // Filter for lessons with/without resources
         if ($resources_filter === 'has_resources') {
@@ -299,6 +336,36 @@ class ALM_Admin_Lessons {
             $where_conditions[] = $this->wpdb->prepare("lp.pathway = %s", $pathway_filter);
         }
         
+        // Filter by teacher - need to join with postmeta table
+        $join_teacher = '';
+        if (!empty($teacher_filter) && function_exists('get_field')) {
+            if ($teacher_filter === '__no_teacher__') {
+                // Filter for lessons with no teacher
+                // Use LEFT JOIN to find lessons without teacher meta or with empty teacher meta
+                $join_teacher = "LEFT JOIN {$this->wpdb->postmeta} pm_teacher ON l.post_id = pm_teacher.post_id AND pm_teacher.meta_key = 'lesson_teacher'";
+                $where_conditions[] = "(l.post_id = 0 OR pm_teacher.meta_value IS NULL OR pm_teacher.meta_value = '')";
+            } else {
+                // Filter for specific teacher
+                // Only join if there are lessons with post_id > 0
+                $join_teacher = "INNER JOIN {$this->wpdb->postmeta} pm_teacher ON l.post_id = pm_teacher.post_id AND l.post_id > 0 AND pm_teacher.meta_key = 'lesson_teacher'";
+                $where_conditions[] = $this->wpdb->prepare("pm_teacher.meta_value = %s", $teacher_filter);
+            }
+        }
+        
+        // Filter by key (key signature) - need to join with postmeta table
+        $join_key = '';
+        if (!empty($key_filter) && function_exists('get_field')) {
+            if ($key_filter === '__no_key__') {
+                // Filter for lessons with no key
+                $join_key = "LEFT JOIN {$this->wpdb->postmeta} pm_key ON l.post_id = pm_key.post_id AND pm_key.meta_key = 'lesson_key'";
+                $where_conditions[] = "(l.post_id = 0 OR pm_key.meta_value IS NULL OR pm_key.meta_value = '')";
+            } else {
+                // Filter for specific key
+                $join_key = "INNER JOIN {$this->wpdb->postmeta} pm_key ON l.post_id = pm_key.post_id AND l.post_id > 0 AND pm_key.meta_key = 'lesson_key'";
+                $where_conditions[] = $this->wpdb->prepare("pm_key.meta_value = %s", $key_filter);
+            }
+        }
+        
         $where = '';
         if (!empty($where_conditions)) {
             $where = 'WHERE ' . implode(' AND ', $where_conditions);
@@ -316,53 +383,114 @@ class ALM_Admin_Lessons {
         }
         
         // Get total count for pagination
-        $count_sql = "SELECT COUNT(DISTINCT l.ID) FROM {$this->table_name} l {$join_pathway} {$where}";
+        $count_sql = "SELECT COUNT(DISTINCT l.ID) FROM {$this->table_name} l {$join_pathway} {$join_teacher} {$join_key} {$where}";
         $total_items = intval($this->wpdb->get_var($count_sql));
         $total_pages = ceil($total_items / $per_page);
         
         // Use table alias 'l' for lessons table with pagination
-        $sql = "SELECT DISTINCT l.* FROM {$this->table_name} l {$join_pathway} {$where} ORDER BY l.{$order_by} {$order} LIMIT %d OFFSET %d";
+        $sql = "SELECT DISTINCT l.* FROM {$this->table_name} l {$join_pathway} {$join_teacher} {$join_key} {$where} ORDER BY l.{$order_by} {$order} LIMIT %d OFFSET %d";
         $lessons = $this->wpdb->get_results($this->wpdb->prepare($sql, $per_page, $offset));
         
         // Render statistics
         $this->render_statistics();
         
         // Render search form (outside bulk actions form)
-        $this->render_search_form($search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $tag_filter, $style_filter);
+        $this->render_search_form($search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $tag_filter, $style_filter, $teacher_filter, $key_filter);
         
         // Open bulk actions form
         echo '<form method="post" action="" id="bulk-actions-form">';
         wp_nonce_field('bulk-lessons');
+        
+        // Preserve all filter values in hidden fields so they persist after bulk actions
+        if (!empty($search)) {
+            echo '<input type="hidden" name="preserve_search" value="' . esc_attr($search) . '" />';
+        }
+        if ($membership_filter !== '' && $membership_filter !== null) {
+            echo '<input type="hidden" name="preserve_membership" value="' . esc_attr($membership_filter) . '" />';
+        }
+        if (!empty($collection_filter)) {
+            echo '<input type="hidden" name="preserve_collection" value="' . esc_attr($collection_filter) . '" />';
+        }
+        if (!empty($resources_filter)) {
+            echo '<input type="hidden" name="preserve_resources" value="' . esc_attr($resources_filter) . '" />';
+        }
+        if (!empty($sample_filter)) {
+            echo '<input type="hidden" name="preserve_sample" value="' . esc_attr($sample_filter) . '" />';
+        }
+        if (!empty($pathway_filter)) {
+            echo '<input type="hidden" name="preserve_pathway" value="' . esc_attr($pathway_filter) . '" />';
+        }
+        if (!empty($skill_level_filter)) {
+            echo '<input type="hidden" name="preserve_skill_level" value="' . esc_attr($skill_level_filter) . '" />';
+        }
+        if (!empty($tag_filter)) {
+            echo '<input type="hidden" name="preserve_tag" value="' . esc_attr($tag_filter) . '" />';
+        }
+        if (!empty($style_filter)) {
+            echo '<input type="hidden" name="preserve_style" value="' . esc_attr($style_filter) . '" />';
+        }
+        if (!empty($teacher_filter)) {
+            echo '<input type="hidden" name="preserve_teacher" value="' . esc_attr($teacher_filter) . '" />';
+        }
+        if (!empty($key_filter)) {
+            echo '<input type="hidden" name="preserve_key" value="' . esc_attr($key_filter) . '" />';
+        }
+        if ($hide_unassigned) {
+            echo '<input type="hidden" name="preserve_hide_unassigned" value="1" />';
+        }
+        if ($show_archived) {
+            echo '<input type="hidden" name="preserve_show_archived" value="1" />';
+        }
         echo '<div class="alm-bulk-actions" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">';
         echo '<h3>' . __('Bulk Actions', 'academy-lesson-manager') . '</h3>';
         
-        echo '<p>';
-        echo '<label for="bulk_membership_level">' . __('Set membership level to:', 'academy-lesson-manager') . '</label> ';
-        echo '<select id="bulk_membership_level" name="bulk_membership_level">';
-        echo '<option value="">' . __('Select level...', 'academy-lesson-manager') . '</option>';
+        echo '<div style="margin-bottom: 0; padding-bottom: 15px;">';
+        echo '<label for="bulk_membership_level" style="font-weight: 600; margin-right: 8px;">' . __('Set Membership Level:', 'academy-lesson-manager') . '</label>';
         $membership_levels = ALM_Admin_Settings::get_membership_levels();
+        echo '<select id="bulk_membership_level" name="bulk_membership_level" style="margin-right: 8px;">';
+        echo '<option value="">' . __('Select level...', 'academy-lesson-manager') . '</option>';
         foreach ($membership_levels as $key => $level) {
             echo '<option value="' . esc_attr($level['numeric']) . '">' . esc_html($level['name']) . ' (' . $level['numeric'] . ') - ' . esc_html($level['description']) . '</option>';
         }
         echo '</select>';
-        echo '<input type="submit" class="button" value="' . __('Update Membership', 'academy-lesson-manager') . '" onclick="return confirm(\'' . __('Are you sure you want to update the membership levels for the selected lessons?', 'academy-lesson-manager') . '\')" />';
-        echo '</p>';
+        echo '<input type="submit" class="button" value="' . __('Update Membership', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'update_membership\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<p class="description" style="margin-top: 8px;">' . __('Select lessons from the list below, then choose a membership level and click "Update Membership".', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
         echo '<input type="hidden" id="bulk_action" name="bulk_action" value="update_membership" />';
         
-        echo '<p style="margin-top: 10px;">';
-        echo '<label for="bulk_collection_id">' . __('Assign to collection:', 'academy-lesson-manager') . '</label> ';
-        echo '<select id="bulk_collection_id" name="bulk_collection_id" style="margin-left: 10px;">';
-        echo '<option value="0">' . __('Select collection...', 'academy-lesson-manager') . '</option>';
+        // Bulk skill level update
+        echo '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">';
+        echo '<label for="bulk_action_skill_level" style="font-weight: 600; margin-right: 8px;">' . __('Set Skill Level:', 'academy-lesson-manager') . '</label>';
+        echo '<select name="bulk_action_skill_level" id="bulk-action-skill-level-selector" style="margin-right: 8px;">';
+        echo '<option value="-1">' . __('Select level...', 'academy-lesson-manager') . '</option>';
+        $level_options = array(
+            'beginner' => __('Beginner', 'academy-lesson-manager'),
+            'intermediate' => __('Intermediate', 'academy-lesson-manager'),
+            'advanced' => __('Advanced', 'academy-lesson-manager'),
+            'pro' => __('Pro', 'academy-lesson-manager'),
+            'clear' => __('Clear Skill Level', 'academy-lesson-manager')
+        );
+        foreach ($level_options as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '<input type="submit" class="button" id="doaction-skill-level" name="doaction-skill-level" value="' . __('Update Skill Level', 'academy-lesson-manager') . '" onclick="var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<p class="description" style="margin-top: 8px;">' . __('Select lessons from the list below, then choose a skill level and click "Update Skill Level".', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        echo '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">';
+        echo '<label for="bulk_collection_id" style="font-weight: 600; margin-right: 8px;">' . __('Assign to Collection:', 'academy-lesson-manager') . '</label>';
         $collections_table = $this->database->get_table_name('collections');
         $collections = $this->wpdb->get_results("SELECT ID, collection_title FROM $collections_table ORDER BY collection_title ASC");
+        echo '<select id="bulk_collection_id" name="bulk_collection_id" style="margin-right: 8px;">';
+        echo '<option value="0">' . __('Select collection...', 'academy-lesson-manager') . '</option>';
         foreach ($collections as $collection) {
             echo '<option value="' . esc_attr($collection->ID) . '">' . esc_html(stripslashes($collection->collection_title)) . '</option>';
         }
         echo '</select>';
-        echo '<input type="submit" class="button" name="submit_collection" value="' . __('Assign to Collection', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'assign_collection\'; return confirm(\'' . __('Are you sure you want to assign the selected lessons to this collection?', 'academy-lesson-manager') . '\');" />';
-        echo '</p>';
-        
-        echo '<p class="description">' . __('Select lessons from the list below, then choose a membership level and click "Update Selected Lessons".', 'academy-lesson-manager') . '</p>';
+        echo '<input type="submit" class="button" name="submit_collection" value="' . __('Assign to Collection', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'assign_collection\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<p class="description" style="margin-top: 8px;">' . __('Select lessons from the list below, then choose a collection and click "Assign to Collection".', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
         
         // Bulk tag addition
         echo '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">';
@@ -375,8 +503,8 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($tag->tag_name) . '">' . esc_html($tag->tag_name) . '</option>';
         }
         echo '</select>';
-        echo '<input type="submit" class="button" name="submit_bulk_tag" value="' . __('Add Tag to Selected', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'add_tag\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { alert(\'' . __('Please select at least one lesson.', 'academy-lesson-manager') . '\'); return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container); return confirm(\'' . __('Are you sure you want to add this tag to the selected lessons? Existing tags will be preserved.', 'academy-lesson-manager') . '\');" />';
-        echo '<p class="description" style="margin-top: 8px;">' . __('This will add the selected tag to all selected lessons without removing existing tags.', 'academy-lesson-manager') . '</p>';
+        echo '<input type="submit" class="button" name="submit_bulk_tag" value="' . __('Add Tag to Selected', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'add_tag\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<p class="description" style="margin-top: 8px;">' . __('This will add the selected tag to all selected lessons without removing existing tags. ', 'academy-lesson-manager') . '<a href="?page=academy-manager-settings&tab=tags" target="_blank">' . __('Manage Tags', 'academy-lesson-manager') . '</a></p>';
         echo '</div>';
         
         // Bulk style addition
@@ -389,11 +517,42 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($style) . '">' . esc_html($style) . '</option>';
         }
         echo '</select>';
-        echo '<input type="submit" class="button" name="submit_bulk_style" value="' . __('Add Style to Selected', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'add_style\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { alert(\'' . __('Please select at least one lesson.', 'academy-lesson-manager') . '\'); return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container); return confirm(\'' . __('Are you sure you want to add this style to the selected lessons? Existing styles will be preserved.', 'academy-lesson-manager') . '\');" />';
-        echo '<p class="description" style="margin-top: 8px;">' . __('This will add the selected style to all selected lessons without removing existing styles.', 'academy-lesson-manager') . '</p>';
+        echo '<input type="submit" class="button" name="submit_bulk_style" value="' . __('Add Style to Selected', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'add_style\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<p class="description" style="margin-top: 8px;">' . __('This will add the selected style to all selected lessons without removing existing styles. ', 'academy-lesson-manager') . '<a href="?page=academy-manager-settings" target="_blank">' . __('Settings', 'academy-lesson-manager') . '</a></p>';
+        echo '</div>';
+        
+        // Bulk teacher update
+        echo '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">';
+        echo '<label for="bulk_teacher" style="font-weight: 600; margin-right: 8px;">' . __('Set Teacher for Selected Lessons:', 'academy-lesson-manager') . '</label>';
+        
+        // Get teachers from database
+        $teachers_table = $this->database->get_table_name('teachers');
+        $teachers_from_db = $this->wpdb->get_results(
+            "SELECT teacher_name FROM {$teachers_table} ORDER BY teacher_name ASC"
+        );
+        
+        echo '<select id="bulk_teacher" name="bulk_teacher" style="margin-right: 8px;">';
+        echo '<option value="">' . __('Select teacher...', 'academy-lesson-manager') . '</option>';
+        echo '<option value="__clear__">' . __('— Clear Teacher —', 'academy-lesson-manager') . '</option>';
+        foreach ($teachers_from_db as $teacher) {
+            echo '<option value="' . esc_attr($teacher->teacher_name) . '">' . esc_html($teacher->teacher_name) . '</option>';
+        }
+        echo '</select>';
+        echo '<input type="submit" class="button" name="submit_bulk_teacher" value="' . __('Update Teacher', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'update_teacher\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<p class="description" style="margin-top: 8px;">' . __('This will set the teacher for all selected lessons. Select "— Clear Teacher —" to remove the teacher. ', 'academy-lesson-manager') . '<a href="?page=academy-manager-teachers" target="_blank">' . __('Manage Teachers', 'academy-lesson-manager') . '</a></p>';
+        echo '</div>';
+        
+        // Bulk sample URL update
+        echo '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">';
+        echo '<label for="bulk_sample_url" style="font-weight: 600; margin-right: 8px;">' . __('Set Sample Video URL (Bunny):', 'academy-lesson-manager') . '</label>';
+        echo '<input type="url" id="bulk_sample_url" name="bulk_sample_url" value="" class="regular-text" placeholder="https://..." style="margin-right: 8px; max-width: 400px;" />';
+        echo '<input type="submit" class="button" name="submit_bulk_sample_url" value="' . __('Update Sample URL', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'update_sample_url\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<p class="description" style="margin-top: 8px;">' . __('Enter a Bunny.net URL to set as the sample video for all selected lessons. Leave empty to clear the sample URL.', 'academy-lesson-manager') . '</p>';
         echo '</div>';
         
         echo '<p style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">';
+        echo '<button type="submit" class="button button-large" name="bulk_archive" onclick="document.getElementById(\'bulk_action\').value=\'archive_lessons\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);">' . __('Archive Selected Lessons', 'academy-lesson-manager') . '</button>';
+        echo '<button type="submit" class="button button-large" name="bulk_unarchive" onclick="document.getElementById(\'bulk_action\').value=\'unarchive_lessons\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);">' . __('Unarchive Selected Lessons', 'academy-lesson-manager') . '</button>';
         echo '<button type="submit" class="button button-large" name="bulk_delete" style="color: #a00; border-color: #dc3232;" onclick="document.getElementById(\'bulk_action\').value=\'delete\'; return confirm(\'' . __('Are you sure you want to DELETE the selected lessons? This action cannot be undone and will also delete associated WordPress posts.', 'academy-lesson-manager') . '\');">' . __('Delete Selected Lessons', 'academy-lesson-manager') . '</button>';
         echo ' <a href="?page=academy-manager-lessons&action=sync_all" class="button button-large" onclick="return confirm(\'' . __('This will sync all lessons to WordPress posts. Continue?', 'academy-lesson-manager') . '\')">' . __('Sync All Lessons', 'academy-lesson-manager') . '</a>';
         echo '</p>';
@@ -412,34 +571,14 @@ class ALM_Admin_Lessons {
         // Open NEW form for table and skill level dropdown (they need to be together)
         echo '<form method="post" action="" id="bulk-actions-form-table">';
         
-        // WordPress-style bulk actions dropdown for skill level (above table, INSIDE the table form)
-        echo '<div class="tablenav top" style="margin-bottom: 10px;">';
-        echo '<div class="alignleft actions bulkactions">';
-        echo '<select name="bulk_action_skill_level" id="bulk-action-skill-level-selector-top" style="margin-right: 5px;">';
-        echo '<option value="-1">' . __('Set Skill Level...', 'academy-lesson-manager') . '</option>';
-        $level_options = array(
-            'beginner' => __('Beginner', 'academy-lesson-manager'),
-            'intermediate' => __('Intermediate', 'academy-lesson-manager'),
-            'advanced' => __('Advanced', 'academy-lesson-manager'),
-            'pro' => __('Pro', 'academy-lesson-manager'),
-            'clear' => __('Clear Skill Level', 'academy-lesson-manager')
-        );
-        foreach ($level_options as $value => $label) {
-            echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
-        }
-        echo '</select>';
-        echo '<input type="submit" class="button action" id="doaction-skill-level" name="doaction-skill-level" value="' . __('Apply', 'academy-lesson-manager') . '" />';
-        echo '</div>';
-        echo '</div>';
-        
-        // Render lessons table (inside the same form as the skill level dropdown)
+        // Render lessons table
         $this->render_lessons_table($lessons, $order_by, $order);
         
         // Close the table form
         echo '</form>';
         
         // Render pagination controls (below table, outside form to avoid nested forms)
-        $this->render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $order_by, $order);
+        $this->render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $tag_filter, $style_filter, $teacher_filter, $key_filter, $order_by, $order);
         
         // JavaScript for quick pathway addition
         $pathways_json = json_encode(ALM_Admin_Settings::get_pathways());
@@ -554,54 +693,91 @@ class ALM_Admin_Lessons {
     /**
      * Render search form
      */
-    private function render_search_form($search, $membership_filter = 0, $collection_filter = '', $resources_filter = '', $sample_filter = '', $pathway_filter = '', $skill_level_filter = '', $tag_filter = '', $style_filter = '') {
-        echo '<div class="alm-search-filters" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-bottom: 20px;">';
+    private function render_search_form($search, $membership_filter = 0, $collection_filter = '', $resources_filter = '', $sample_filter = '', $pathway_filter = '', $skill_level_filter = '', $tag_filter = '', $style_filter = '', $teacher_filter = '', $key_filter = '') {
+        echo '<div class="alm-search-filters" style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 16px; margin-bottom: 20px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">';
         echo '<style>
+        .alm-search-filters {
+            font-size: 13px;
+        }
         .alm-search-filters .alm-filter-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 12px;
             align-items: center;
-            gap: 16px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
+            margin-bottom: 10px;
         }
         .alm-search-filters .alm-filter-row:last-child {
             margin-bottom: 0;
         }
+        .alm-search-filters .alm-filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .alm-search-filters .alm-filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
         .alm-search-filters label {
-            font-weight: 600;
-            color: #374151;
-            font-size: 14px;
-            min-width: 120px;
-            flex-shrink: 0;
+            font-weight: 500;
+            color: #1d2327;
+            font-size: 12px;
+            margin: 0;
         }
         .alm-search-filters select,
         .alm-search-filters input[type="search"] {
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-            min-width: 200px;
+            padding: 6px 10px;
+            border: 1px solid #8c8f94;
+            border-radius: 3px;
+            font-size: 13px;
             background: #fff;
+            width: 100%;
+            box-sizing: border-box;
         }
         .alm-search-filters select:focus,
         .alm-search-filters input[type="search"]:focus {
             outline: none;
-            border-color: #239B90;
-            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+            border-color: #2271b1;
+            box-shadow: 0 0 0 1px #2271b1;
         }
         .alm-search-filters .button {
-            padding: 8px 16px;
+            padding: 6px 12px;
             height: auto;
-            border-radius: 6px;
-            font-weight: 500;
+            border-radius: 3px;
+            font-size: 13px;
+            font-weight: 400;
         }
         .alm-search-filters .button-clear {
-            color: #dc3232;
-            border-color: #dc3232;
+            color: #b32d2e;
+            border-color: #b32d2e;
+            background: #fff;
         }
         .alm-search-filters .button-clear:hover {
-            background: #dc3232;
+            background: #b32d2e;
             color: #fff;
+        }
+        .alm-search-filters .active-filter-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            background: #2271b1;
+            color: #fff;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .alm-search-filters .active-filter-badge a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 16px;
+            line-height: 1;
+            opacity: 0.8;
+        }
+        .alm-search-filters .active-filter-badge a:hover {
+            opacity: 1;
         }
         </style>';
         
@@ -618,28 +794,32 @@ class ALM_Admin_Lessons {
         
         // Search box row
         echo '<div class="alm-filter-row">';
-        echo '<label for="lesson-search-input">' . __('Search:', 'academy-lesson-manager') . '</label>';
-        echo '<input type="search" id="lesson-search-input" name="search" value="' . esc_attr($search) . '" placeholder="' . __('Search lessons...', 'academy-lesson-manager') . '" style="flex: 1; max-width: 400px;" />';
-        echo '<input type="submit" class="button button-primary" value="' . __('Search', 'academy-lesson-manager') . '" />';
+        echo '<label for="lesson-search-input" style="grid-column: 1;">' . __('Search:', 'academy-lesson-manager') . '</label>';
+        echo '<input type="search" id="lesson-search-input" name="search" value="' . esc_attr($search) . '" placeholder="' . __('Search lessons...', 'academy-lesson-manager') . '" style="grid-column: 2;" />';
+        echo '<input type="submit" class="button button-primary" value="' . __('Search', 'academy-lesson-manager') . '" style="grid-column: 3;" />';
         echo '</div>';
         
-        // Filters row
-        echo '<div class="alm-filter-row">';
+        // Filters grid
+        echo '<div class="alm-filters-grid">';
         
         // Membership level filter
-        echo '<label for="membership-filter">' . __('Membership:', 'academy-lesson-manager') . '</label>';
+        echo '<div class="alm-filter-group">';
+        echo '<label for="membership-filter">' . __('Membership', 'academy-lesson-manager') . '</label>';
         echo '<select id="membership-filter" name="membership_level" onchange="this.form.submit()">';
-        echo '<option value="">' . __('All Levels', 'academy-lesson-manager') . '</option>';
+        $selected_all = ($membership_filter === '' || $membership_filter === null) ? 'selected' : '';
+        echo '<option value="" ' . $selected_all . '>' . __('All Levels', 'academy-lesson-manager') . '</option>';
         $membership_levels = ALM_Admin_Settings::get_membership_levels();
         foreach ($membership_levels as $key => $level) {
-            $selected = ($membership_filter == $level['numeric']) ? 'selected' : '';
+            $selected = ($membership_filter !== '' && $membership_filter !== null && intval($membership_filter) == $level['numeric']) ? 'selected' : '';
             $lesson_count = $this->get_lesson_count_by_membership($level['numeric']);
             echo '<option value="' . esc_attr($level['numeric']) . '" ' . $selected . '>' . esc_html($level['name']) . ' (' . $lesson_count . ')</option>';
         }
         echo '</select>';
+        echo '</div>';
         
         // Collection filter
-        echo '<label for="collection-filter" style="margin-left: 8px;">' . __('Collection:', 'academy-lesson-manager') . '</label>';
+        echo '<div class="alm-filter-group">';
+        echo '<label for="collection-filter">' . __('Collection', 'academy-lesson-manager') . '</label>';
         echo '<select id="collection-filter" name="collection_filter" onchange="this.form.submit()">';
         echo '<option value="">' . __('All', 'academy-lesson-manager') . '</option>';
         $unassigned_count = $this->get_unassigned_lesson_count();
@@ -654,9 +834,11 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($collection_id) . '" ' . $selected . '>' . esc_html(stripslashes($collection->collection_title)) . ' (' . $lesson_count . ')</option>';
         }
         echo '</select>';
+        echo '</div>';
         
         // Pathway filter
-        echo '<label for="pathway-filter" style="margin-left: 8px;">' . __('Pathway:', 'academy-lesson-manager') . '</label>';
+        echo '<div class="alm-filter-group">';
+        echo '<label for="pathway-filter">' . __('Pathway', 'academy-lesson-manager') . '</label>';
         echo '<select id="pathway-filter" name="pathway_filter" onchange="this.form.submit()">';
         echo '<option value="">' . __('All Pathways', 'academy-lesson-manager') . '</option>';
         $pathways = ALM_Admin_Settings::get_pathways();
@@ -666,9 +848,11 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($pathway_key) . '" ' . $selected . '>' . esc_html($pathway_name) . ' (' . $lesson_count . ')</option>';
         }
         echo '</select>';
+        echo '</div>';
         
         // Skill Level filter
-        echo '<label for="skill-level-filter" style="margin-left: 8px;">' . __('Skill Level:', 'academy-lesson-manager') . '</label>';
+        echo '<div class="alm-filter-group">';
+        echo '<label for="skill-level-filter">' . __('Skill Level', 'academy-lesson-manager') . '</label>';
         echo '<select id="skill-level-filter" name="skill_level_filter" onchange="this.form.submit()">';
         echo '<option value="">' . __('All Levels', 'academy-lesson-manager') . '</option>';
         $skill_levels = array(
@@ -683,29 +867,35 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($level_key) . '" ' . $selected . '>' . esc_html($level_name) . ' (' . $lesson_count . ')</option>';
         }
         echo '</select>';
+        echo '</div>';
         
         // Resources filter
-        echo '<label for="resources-filter" style="margin-left: 8px;">' . __('Resources:', 'academy-lesson-manager') . '</label>';
+        echo '<div class="alm-filter-group">';
+        echo '<label for="resources-filter">' . __('Resources', 'academy-lesson-manager') . '</label>';
         echo '<select id="resources-filter" name="resources_filter" onchange="this.form.submit()">';
         echo '<option value="">' . __('All', 'academy-lesson-manager') . '</option>';
         $has_resources_count = $this->get_lesson_count_with_resources();
         $no_resources_count = $this->get_lesson_count_without_resources();
-        echo '<option value="has_resources" ' . selected($resources_filter, 'has_resources', false) . '>' . sprintf(__('Has Resources (%d)', 'academy-lesson-manager'), $has_resources_count) . '</option>';
-        echo '<option value="no_resources" ' . selected($resources_filter, 'no_resources', false) . '>' . sprintf(__('No Resources (%d)', 'academy-lesson-manager'), $no_resources_count) . '</option>';
+        echo '<option value="has_resources" ' . selected($resources_filter, 'has_resources', false) . '>' . sprintf(__('Has (%d)', 'academy-lesson-manager'), $has_resources_count) . '</option>';
+        echo '<option value="no_resources" ' . selected($resources_filter, 'no_resources', false) . '>' . sprintf(__('None (%d)', 'academy-lesson-manager'), $no_resources_count) . '</option>';
         echo '</select>';
+        echo '</div>';
         
         // Sample filter
-        echo '<label for="sample-filter" style="margin-left: 8px;">' . __('Sample:', 'academy-lesson-manager') . '</label>';
+        echo '<div class="alm-filter-group">';
+        echo '<label for="sample-filter">' . __('Sample', 'academy-lesson-manager') . '</label>';
         echo '<select id="sample-filter" name="sample_filter" onchange="this.form.submit()">';
         echo '<option value="">' . __('All', 'academy-lesson-manager') . '</option>';
         $has_sample_count = $this->get_lesson_count_with_samples();
         $no_sample_count = $this->get_lesson_count_without_samples();
-        echo '<option value="has_sample" ' . selected($sample_filter, 'has_sample', false) . '>' . sprintf(__('Has Sample (%d)', 'academy-lesson-manager'), $has_sample_count) . '</option>';
-        echo '<option value="no_sample" ' . selected($sample_filter, 'no_sample', false) . '>' . sprintf(__('No Sample (%d)', 'academy-lesson-manager'), $no_sample_count) . '</option>';
+        echo '<option value="has_sample" ' . selected($sample_filter, 'has_sample', false) . '>' . sprintf(__('Has (%d)', 'academy-lesson-manager'), $has_sample_count) . '</option>';
+        echo '<option value="no_sample" ' . selected($sample_filter, 'no_sample', false) . '>' . sprintf(__('None (%d)', 'academy-lesson-manager'), $no_sample_count) . '</option>';
         echo '</select>';
+        echo '</div>';
         
         // Style filter
-        echo '<label for="style-filter" style="margin-left: 8px;">' . __('Style:', 'academy-lesson-manager') . '</label>';
+        echo '<div class="alm-filter-group">';
+        echo '<label for="style-filter">' . __('Style', 'academy-lesson-manager') . '</label>';
         echo '<select id="style-filter" name="style_filter" onchange="this.form.submit()">';
         echo '<option value="">' . __('All Styles', 'academy-lesson-manager') . '</option>';
         $styles = array('Any', 'Jazz', 'Cocktail', 'Blues', 'Rock', 'Funk', 'Latin', 'Classical', 'Smooth Jazz', 'Holiday', 'Ballad', 'Pop', 'New Age', 'Gospel', 'New Orleans', 'Country', 'Modal', 'Stride', 'Organ', 'Boogie');
@@ -715,35 +905,214 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($style) . '" ' . $selected . '>' . esc_html($style) . ' (' . $lesson_count . ')</option>';
         }
         echo '</select>';
+        echo '</div>';
+        
+        // Teacher filter
+        echo '<div class="alm-filter-group">';
+        echo '<label for="teacher-filter">' . __('Teacher', 'academy-lesson-manager') . '</label>';
+        echo '<select id="teacher-filter" name="teacher_filter" onchange="this.form.submit()">';
+        echo '<option value="">' . __('All Teachers', 'academy-lesson-manager') . '</option>';
+        
+        // Add "No Teacher" option
+        $no_teacher_selected = ($teacher_filter === '__no_teacher__') ? 'selected' : '';
+        $no_teacher_count = $this->get_lesson_count_without_teacher();
+        echo '<option value="__no_teacher__" ' . $no_teacher_selected . '>' . __('No Teacher', 'academy-lesson-manager') . ' (' . $no_teacher_count . ')</option>';
+        
+        // Get teachers from ACF field choices first (source of truth)
+        $acf_teacher_choices = $this->get_acf_teacher_choices();
+        
+        // Also get teachers from database
+        $teachers_table = $this->database->get_table_name('teachers');
+        $teachers_from_db = array();
+        
+        // Check if table exists
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$teachers_table}'") === $teachers_table;
+        if ($table_exists) {
+            $teachers_from_db = $this->wpdb->get_results(
+                "SELECT teacher_name FROM {$teachers_table} ORDER BY teacher_name ASC"
+            );
+        }
+        
+        // Combine: ACF choices are primary, add any from database that aren't in ACF
+        $all_teachers = array();
+        
+        // Start with ACF choices (these are the defined teachers)
+        foreach ($acf_teacher_choices as $teacher) {
+            if (!in_array($teacher, $all_teachers)) {
+                $all_teachers[] = $teacher;
+            }
+        }
+        
+        // Add any from database that aren't in ACF
+        foreach ($teachers_from_db as $teacher) {
+            if (!in_array($teacher->teacher_name, $all_teachers)) {
+                $all_teachers[] = $teacher->teacher_name;
+            }
+        }
+        
+        // Also check for teachers actually used in lessons (for backward compatibility)
+        if (function_exists('get_field')) {
+            $lessons = $this->wpdb->get_results(
+                "SELECT DISTINCT post_id FROM {$this->table_name} WHERE post_id > 0"
+            );
+            
+            foreach ($lessons as $lesson) {
+                $teacher = get_field('lesson_teacher', $lesson->post_id);
+                if (!empty($teacher)) {
+                    $teacher = sanitize_text_field($teacher);
+                    if (!in_array($teacher, $all_teachers)) {
+                        $all_teachers[] = $teacher;
+                    }
+                }
+            }
+        }
+        
+        // Sort teachers
+        sort($all_teachers);
+        
+        // Display teachers if we have any
+        if (!empty($all_teachers)) {
+            echo '<option disabled>──────────</option>';
+            foreach ($all_teachers as $teacher) {
+                $selected = ($teacher_filter == $teacher) ? 'selected' : '';
+                $lesson_count = $this->get_lesson_count_by_teacher($teacher);
+                echo '<option value="' . esc_attr($teacher) . '" ' . $selected . '>' . esc_html($teacher) . ' (' . $lesson_count . ')</option>';
+            }
+        }
+        
+        echo '</select>';
+            echo '</div>';
+        
+        // Key filter
+        echo '<div class="alm-filter-group">';
+        echo '<label for="key-filter">' . __('Key', 'academy-lesson-manager') . '</label>';
+        echo '<select id="key-filter" name="key_filter" onchange="this.form.submit()">';
+        echo '<option value="">' . __('All Keys', 'academy-lesson-manager') . '</option>';
+        
+        // Add "No Key" option
+        $no_key_selected = ($key_filter === '__no_key__') ? 'selected' : '';
+        $no_key_count = $this->get_lesson_count_without_key();
+        echo '<option value="__no_key__" ' . $no_key_selected . '>' . __('No Key', 'academy-lesson-manager') . ' (' . $no_key_count . ')</option>';
+        
+        // Get keys from ACF field choices
+        $key_choices = $this->get_acf_key_choices();
+        
+        // Also get keys from existing lessons (in case some are set but not in ACF choices)
+        $existing_keys = $this->wpdb->get_col(
+            "SELECT DISTINCT pm.meta_value 
+             FROM {$this->wpdb->postmeta} pm
+             INNER JOIN {$this->table_name} l ON pm.post_id = l.post_id
+             WHERE pm.meta_key = 'lesson_key' 
+             AND pm.meta_value IS NOT NULL 
+             AND pm.meta_value != ''
+             ORDER BY pm.meta_value ASC"
+        );
+        
+        // Combine and deduplicate
+        $all_keys = array_unique(array_merge($key_choices, $existing_keys));
+        
+        // Sort keys
+        sort($all_keys);
+        
+        // Display keys if we have any
+        if (!empty($all_keys)) {
+            echo '<option disabled>──────────</option>';
+            foreach ($all_keys as $key) {
+                $selected = ($key_filter == $key) ? 'selected' : '';
+                $lesson_count = $this->get_lesson_count_by_key($key);
+                echo '<option value="' . esc_attr($key) . '" ' . $selected . '>' . esc_html($key) . ' (' . $lesson_count . ')</option>';
+            }
+        }
+        
+        echo '</select>';
+            echo '</div>';
         
         echo '</div>';
         
-        // Show active tag filter
+        // Hide unassigned and show archived toggles
+        echo '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #dcdcde; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">';
+        echo '<label for="hide-unassigned-toggle" style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; margin: 0;">';
+        echo '<input type="checkbox" id="hide-unassigned-toggle" name="hide_unassigned" value="1" ' . checked($hide_unassigned, true, false) . ' onchange="this.form.submit();" />';
+        echo '<span>' . __('Hide unassigned lessons', 'academy-lesson-manager') . '</span>';
+        echo '</label>';
+        echo '<label for="show-archived-toggle" style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; margin: 0;">';
+        echo '<input type="checkbox" id="show-archived-toggle" name="show_archived" value="1" ' . checked($show_archived, true, false) . ' onchange="this.form.submit();" />';
+        echo '<span>' . __('Show archived lessons', 'academy-lesson-manager') . '</span>';
+        echo '</label>';
+        echo '</div>';
+        
+        // Active filters row - compact display
+        $active_filters = array();
+        if (!empty($search)) {
+            $active_filters[] = array('label' => __('Search', 'academy-lesson-manager'), 'value' => $search, 'remove_url' => $this->build_filter_url(array('search' => '')));
+        }
+        if ($membership_filter !== '' && $membership_filter !== null) {
+            $membership_levels = ALM_Admin_Settings::get_membership_levels();
+            $level_name = '';
+            foreach ($membership_levels as $level) {
+                if ($level['numeric'] == intval($membership_filter)) {
+                    $level_name = $level['name'];
+                    break;
+                }
+            }
+            if ($level_name) {
+                $active_filters[] = array('label' => __('Membership', 'academy-lesson-manager'), 'value' => $level_name, 'remove_url' => $this->build_filter_url(array('membership_level' => '')));
+            }
+        }
+        if (!empty($collection_filter)) {
+            if ($collection_filter === 'unassigned') {
+                $active_filters[] = array('label' => __('Collection', 'academy-lesson-manager'), 'value' => __('Not Assigned', 'academy-lesson-manager'), 'remove_url' => $this->build_filter_url(array('collection_filter' => '')));
+            } else {
+                $collections_table = $this->database->get_table_name('collections');
+                $collection_name = $this->wpdb->get_var($this->wpdb->prepare("SELECT collection_title FROM {$collections_table} WHERE ID = %d", $collection_filter));
+                if ($collection_name) {
+                    $active_filters[] = array('label' => __('Collection', 'academy-lesson-manager'), 'value' => stripslashes($collection_name), 'remove_url' => $this->build_filter_url(array('collection_filter' => '')));
+                }
+            }
+        }
         if (!empty($tag_filter)) {
-            echo '<div class="alm-filter-row">';
-            echo '<label>' . __('Active Tag Filter:', 'academy-lesson-manager') . '</label>';
-            echo '<span style="padding: 6px 12px; background: #239B90; color: #fff; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">';
-            echo esc_html($tag_filter);
-            echo '<a href="?page=academy-manager-lessons' . (!empty($search) ? '&search=' . urlencode($search) : '') . '" style="color: #fff; text-decoration: none; font-size: 18px; line-height: 1;" title="' . __('Remove tag filter', 'academy-lesson-manager') . '">&times;</a>';
-            echo '</span>';
-            echo '</div>';
+            $active_filters[] = array('label' => __('Tag', 'academy-lesson-manager'), 'value' => $tag_filter, 'remove_url' => $this->build_filter_url(array('tag' => '')));
         }
-        
-        // Show active style filter
         if (!empty($style_filter)) {
-            echo '<div class="alm-filter-row">';
-            echo '<label>' . __('Active Style Filter:', 'academy-lesson-manager') . '</label>';
-            echo '<span style="padding: 6px 12px; background: #239B90; color: #fff; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">';
-            echo esc_html($style_filter);
-            echo '<a href="?page=academy-manager-lessons' . (!empty($search) ? '&search=' . urlencode($search) : '') . '" style="color: #fff; text-decoration: none; font-size: 18px; line-height: 1;" title="' . __('Remove style filter', 'academy-lesson-manager') . '">&times;</a>';
-            echo '</span>';
-            echo '</div>';
+            $active_filters[] = array('label' => __('Style', 'academy-lesson-manager'), 'value' => $style_filter, 'remove_url' => $this->build_filter_url(array('style_filter' => '')));
+        }
+        if (!empty($teacher_filter)) {
+            $teacher_display = ($teacher_filter === '__no_teacher__') ? __('No Teacher', 'academy-lesson-manager') : $teacher_filter;
+            $active_filters[] = array('label' => __('Teacher', 'academy-lesson-manager'), 'value' => $teacher_display, 'remove_url' => $this->build_filter_url(array('teacher_filter' => '')));
+        }
+        if (!empty($key_filter)) {
+            $key_display = ($key_filter === '__no_key__') ? __('No Key', 'academy-lesson-manager') : $key_filter;
+            $active_filters[] = array('label' => __('Key', 'academy-lesson-manager'), 'value' => $key_display, 'remove_url' => $this->build_filter_url(array('key_filter' => '')));
+        }
+        if (!empty($pathway_filter)) {
+            $pathways = ALM_Admin_Settings::get_pathways();
+            $pathway_name = isset($pathways[$pathway_filter]) ? $pathways[$pathway_filter] : $pathway_filter;
+            $active_filters[] = array('label' => __('Pathway', 'academy-lesson-manager'), 'value' => $pathway_name, 'remove_url' => $this->build_filter_url(array('pathway_filter' => '')));
+        }
+        if (!empty($skill_level_filter)) {
+            $skill_levels = array('beginner' => __('Beginner', 'academy-lesson-manager'), 'intermediate' => __('Intermediate', 'academy-lesson-manager'), 'advanced' => __('Advanced', 'academy-lesson-manager'), 'pro' => __('Pro', 'academy-lesson-manager'));
+            $level_name = isset($skill_levels[$skill_level_filter]) ? $skill_levels[$skill_level_filter] : $skill_level_filter;
+            $active_filters[] = array('label' => __('Skill Level', 'academy-lesson-manager'), 'value' => $level_name, 'remove_url' => $this->build_filter_url(array('skill_level_filter' => '')));
+        }
+        if (!empty($resources_filter)) {
+            $resources_display = ($resources_filter === 'has_resources') ? __('Has Resources', 'academy-lesson-manager') : __('No Resources', 'academy-lesson-manager');
+            $active_filters[] = array('label' => __('Resources', 'academy-lesson-manager'), 'value' => $resources_display, 'remove_url' => $this->build_filter_url(array('resources_filter' => '')));
+        }
+        if (!empty($sample_filter)) {
+            $sample_display = ($sample_filter === 'has_sample') ? __('Has Sample', 'academy-lesson-manager') : __('No Sample', 'academy-lesson-manager');
+            $active_filters[] = array('label' => __('Sample', 'academy-lesson-manager'), 'value' => $sample_display, 'remove_url' => $this->build_filter_url(array('sample_filter' => '')));
         }
         
-        // Clear filters button
-        if ($membership_filter > 0 || !empty($collection_filter) || !empty($resources_filter) || !empty($sample_filter) || !empty($pathway_filter) || !empty($skill_level_filter) || !empty($tag_filter) || !empty($style_filter)) {
-            echo '<div class="alm-filter-row">';
-            echo '<a href="?page=academy-manager-lessons' . (!empty($search) ? '&search=' . urlencode($search) : '') . '" class="button button-clear">' . __('Clear All Filters', 'academy-lesson-manager') . '</a>';
+        if (!empty($active_filters)) {
+            echo '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #dcdcde; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">';
+            echo '<span style="font-weight: 500; color: #1d2327; font-size: 12px; margin-right: 4px;">' . __('Active:', 'academy-lesson-manager') . '</span>';
+            foreach ($active_filters as $filter) {
+                echo '<span class="active-filter-badge">';
+                echo '<span>' . esc_html($filter['label']) . ': ' . esc_html($filter['value']) . '</span>';
+                echo '<a href="' . esc_url($filter['remove_url']) . '" title="' . __('Remove filter', 'academy-lesson-manager') . '">&times;</a>';
+                echo '</span>';
+            }
+            echo '<a href="?page=academy-manager-lessons" class="button button-clear" style="margin-left: auto;">' . __('Clear All', 'academy-lesson-manager') . '</a>';
             echo '</div>';
         }
         
@@ -763,10 +1132,12 @@ class ALM_Admin_Lessons {
         echo '<th scope="col" class="manage-column column-post-id column-post-id">' . __('Post ID', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-date column-date">' . $this->get_sortable_header('Date', 'post_date', $order_by, $order) . '</th>';
         echo '<th scope="col" class="manage-column column-title column-title">' . $this->get_sortable_header('Lesson Title', 'lesson_title', $order_by, $order) . '</th>';
+        echo '<th scope="col" class="manage-column column-teacher column-teacher">' . __('Teacher', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-course column-course">' . __('Collection', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-duration column-duration">' . __('Duration', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-membership column-membership">' . __('Memb. Level', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-skill-level column-skill-level">' . __('Skill Level', 'academy-lesson-manager') . '</th>';
+        echo '<th scope="col" class="manage-column column-key column-key">' . __('Key', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-pathways column-pathways" style="width: 200px;">' . __('Pathways', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-tags column-tags" style="width: 200px;">' . __('Tags', 'academy-lesson-manager') . '</th>';
         echo '<th scope="col" class="manage-column column-lesson-style column-lesson-style" style="width: 150px;">' . __('Lesson Style', 'academy-lesson-manager') . '</th>';
@@ -777,7 +1148,7 @@ class ALM_Admin_Lessons {
         echo '<tbody>';
         
         if (empty($lessons)) {
-            echo '<tr><td colspan="13" class="no-items">' . __('No lessons found.', 'academy-lesson-manager') . '</td></tr>';
+            echo '<tr><td colspan="14" class="no-items">' . __('No lessons found.', 'academy-lesson-manager') . '</td></tr>';
         } else {
             foreach ($lessons as $lesson) {
                 $this->render_lesson_row($lesson);
@@ -806,6 +1177,18 @@ class ALM_Admin_Lessons {
         echo '<td class="column-post-id">' . ($lesson->post_id ? $lesson->post_id : '—') . '</td>';
         echo '<td class="column-date">' . ALM_Helpers::format_date($lesson->post_date) . '</td>';
         echo '<td class="column-title"><strong>' . esc_html(stripslashes($lesson->lesson_title)) . '</strong>' . ($is_unassigned ? ' <span style="color: #d63638; font-size: 11px;">(' . __('Not Assigned', 'academy-lesson-manager') . ')</span>' : '') . '</td>';
+        
+        // Teacher column
+        echo '<td class="column-teacher">';
+        $teacher = $this->get_lesson_teacher($lesson);
+        if (!empty($teacher)) {
+            $filter_url = admin_url('admin.php?page=academy-manager-lessons&teacher_filter=' . urlencode($teacher));
+            echo '<a href="' . esc_url($filter_url) . '" style="color: #2271b1; text-decoration: none;">' . esc_html($teacher) . '</a>';
+        } else {
+            echo '<span style="color: #999; font-size: 12px;">—</span>';
+        }
+        echo '</td>';
+        
         echo '<td class="column-course">';
         if ($is_unassigned) {
             echo '<span style="color: #d63638; font-style: italic;">— ' . __('Not Assigned', 'academy-lesson-manager') . ' —</span>';
@@ -834,6 +1217,21 @@ class ALM_Admin_Lessons {
             );
             $color = isset($level_colors[$lesson->lesson_level]) ? $level_colors[$lesson->lesson_level] : '#666';
             echo '<span style="background: ' . esc_attr($color) . '; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block;">' . esc_html($level_name) . '</span>';
+        } else {
+            echo '<span style="color: #999; font-size: 12px;">—</span>';
+        }
+        echo '</td>';
+        
+        // Key column
+        echo '<td class="column-key">';
+        if ($lesson->post_id > 0 && function_exists('get_field')) {
+            $lesson_key = get_field('lesson_key', $lesson->post_id);
+            if (!empty($lesson_key)) {
+                $filter_url = $this->build_filter_url(array('key_filter' => $lesson_key));
+                echo '<a href="' . esc_url($filter_url) . '" style="color: #2271b1; text-decoration: none;">' . esc_html($lesson_key) . '</a>';
+            } else {
+                echo '<span style="color: #999; font-size: 12px;">—</span>';
+            }
         } else {
             echo '<span style="color: #999; font-size: 12px;">—</span>';
         }
@@ -927,22 +1325,22 @@ class ALM_Admin_Lessons {
             echo '<span style="color: #dc3232;">✗ ' . __('No', 'academy-lesson-manager') . '</span>';
         }
         echo '</td>';
-        echo '<td class="column-actions">';
-        echo '<div style="display: flex; gap: 5px; flex-wrap: nowrap;">';
-        echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '" class="button button-small" title="' . __('Edit Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-edit"></span></a>';
+        echo '<td class="column-actions" style="min-width: 200px; max-width: 300px;">';
+        echo '<div style="display: flex; gap: 5px; flex-wrap: wrap;">';
+        echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '" class="button button-small" target="_blank" title="' . __('Edit Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-edit"></span></a>';
         
         // Add Duplicate button
-        echo '<a href="?page=academy-manager-lessons&action=duplicate&id=' . $lesson->ID . '" class="button button-small" onclick="return confirm(\'' . __('Duplicate this lesson? This will copy all lesson data including chapters.', 'academy-lesson-manager') . '\')" title="' . __('Duplicate Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-page"></span></a>';
+        echo '<a href="?page=academy-manager-lessons&action=duplicate&id=' . $lesson->ID . '" class="button button-small" target="_blank" title="' . __('Duplicate Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-page"></span></a>';
         
         // Add View Post button if post exists
         if ($lesson->post_id && get_post($lesson->post_id)) {
             echo '<a href="' . get_edit_post_link($lesson->post_id) . '" class="button button-small" target="_blank" title="' . __('View WordPress Post', 'academy-lesson-manager') . '"><span class="dashicons dashicons-external"></span></a>';
         } else {
             // Add Fix button if no post exists
-            echo '<a href="?page=academy-manager-lessons&action=fix&id=' . $lesson->ID . '" class="button button-small" onclick="return confirm(\'' . __('Create WordPress post for this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Create WordPress Post', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-tools"></span></a>';
+            echo '<a href="?page=academy-manager-lessons&action=fix&id=' . $lesson->ID . '" class="button button-small" target="_blank" onclick="return confirm(\'' . __('Create WordPress post for this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Create WordPress Post', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-tools"></span></a>';
         }
         
-        echo '<a href="?page=academy-manager-lessons&action=delete&id=' . $lesson->ID . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span></a>';
+        echo '<a href="?page=academy-manager-lessons&action=delete&id=' . $lesson->ID . '" class="button button-small" target="_blank" onclick="return confirm(\'' . __('Are you sure you want to delete this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span></a>';
         
         // Add View Lesson Permalink button if post exists
         if ($lesson->post_id && get_post($lesson->post_id)) {
@@ -1122,6 +1520,70 @@ class ALM_Admin_Lessons {
             echo ' <a href="?page=academy-manager&action=edit&id=' . $lesson->collection_id . '" class="button button-small" style="margin-left: 10px;" title="' . __('Edit Collection', 'academy-lesson-manager') . '"><span class="dashicons dashicons-external"></span> ' . __('Edit Collection', 'academy-lesson-manager') . '</a>';
         }
         
+        echo '</td>';
+        echo '</tr>';
+        
+        // Teacher field
+        echo '<tr>';
+        echo '<th scope="row"><label for="lesson_teacher">' . __('Teacher', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        $current_teacher = '';
+        if (!empty($lesson->post_id) && function_exists('get_field')) {
+            $current_teacher = get_field('lesson_teacher', $lesson->post_id);
+        }
+        
+        // Get teachers from database
+        $teachers_table = $this->database->get_table_name('teachers');
+        $teachers_from_db = $this->wpdb->get_results(
+            "SELECT teacher_name FROM {$teachers_table} ORDER BY teacher_name ASC"
+        );
+        
+        echo '<select id="lesson_teacher" name="lesson_teacher" class="regular-text">';
+        echo '<option value="">' . __('— Select Teacher —', 'academy-lesson-manager') . '</option>';
+        
+        // Add current teacher if not in database list
+        $current_in_list = false;
+        foreach ($teachers_from_db as $teacher) {
+            if ($teacher->teacher_name === $current_teacher) {
+                $current_in_list = true;
+            }
+        }
+        
+        if (!empty($current_teacher) && !$current_in_list) {
+            echo '<option value="' . esc_attr($current_teacher) . '" selected>' . esc_html($current_teacher) . '</option>';
+        }
+        
+        // Add teachers from database
+        foreach ($teachers_from_db as $teacher) {
+            $selected = ($current_teacher == $teacher->teacher_name) ? 'selected' : '';
+            echo '<option value="' . esc_attr($teacher->teacher_name) . '" ' . $selected . '>' . esc_html($teacher->teacher_name) . '</option>';
+        }
+        echo '</select>';
+        echo '<p class="description">' . __('Teacher name stored in ACF field "lesson_teacher". Manage teachers in the Teachers menu.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Key (Key Signature) field
+        echo '<tr>';
+        echo '<th scope="row"><label for="lesson_key">' . __('Key', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        $current_key = '';
+        if (!empty($lesson->post_id) && function_exists('get_field')) {
+            $current_key = get_field('lesson_key', $lesson->post_id);
+        }
+        
+        // Get key choices from ACF field
+        $key_choices = $this->get_acf_key_choices();
+        
+        echo '<select id="lesson_key" name="lesson_key" class="regular-text">';
+        echo '<option value="">' . __('— Select Key —', 'academy-lesson-manager') . '</option>';
+        
+        foreach ($key_choices as $key_choice) {
+            $selected = ($current_key == $key_choice) ? 'selected' : '';
+            echo '<option value="' . esc_attr($key_choice) . '" ' . $selected . '>' . esc_html($key_choice) . '</option>';
+        }
+        echo '</select>';
+        echo '<p class="description">' . __('Key signature stored in ACF field "lesson_key".', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
         
@@ -1328,7 +1790,7 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($tag_name) . '" ' . $selected . '>' . esc_html($tag_name) . '</option>';
         }
         echo '</select>';
-        echo '<p class="description">' . __('Hold Ctrl (Cmd on Mac) to select multiple tags. Tags are normalized from the tags database.', 'academy-lesson-manager') . '</p>';
+        echo '<p class="description">' . __('Hold Ctrl (Cmd on Mac) to select multiple tags. Tags are normalized from the tags database. ', 'academy-lesson-manager') . '<a href="?page=academy-manager-settings&tab=tags" target="_blank">' . __('Manage Tags', 'academy-lesson-manager') . '</a></p>';
         echo '</td>';
         echo '</tr>';
         
@@ -1353,7 +1815,7 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($style) . '" ' . $selected . '>' . esc_html($style) . '</option>';
         }
         echo '</select>';
-        echo '<p class="description">' . __('Hold Ctrl (Cmd on Mac) to select multiple styles.', 'academy-lesson-manager') . '</p>';
+        echo '<p class="description">' . __('Hold Ctrl (Cmd on Mac) to select multiple styles. ', 'academy-lesson-manager') . '<a href="?page=academy-manager-settings" target="_blank">' . __('Settings', 'academy-lesson-manager') . '</a></p>';
         echo '</td>';
         echo '</tr>';
         
@@ -1660,6 +2122,7 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($style) . '">' . esc_html($style) . '</option>';
         }
         echo '</select>';
+        echo ' <a href="?page=academy-manager-settings" class="button button-small" target="_blank" style="margin-left: 8px;">' . __('Settings', 'academy-lesson-manager') . '</a>';
         echo '<p class="description">' . __('Hold Ctrl (Cmd on Mac) to select multiple styles.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
@@ -1823,6 +2286,16 @@ class ALM_Admin_Lessons {
             $sync = new ALM_Post_Sync();
             $post_id = $sync->sync_lesson_to_post($lesson_id);
             
+            // Save teacher to ACF field
+            if ($post_id && function_exists('update_field')) {
+                $teacher = isset($_POST['lesson_teacher']) ? sanitize_text_field($_POST['lesson_teacher']) : '';
+                update_field('lesson_teacher', $teacher, $post_id);
+                
+                // Save key to ACF field
+                $lesson_key = isset($_POST['lesson_key']) ? sanitize_text_field($_POST['lesson_key']) : '';
+                update_field('lesson_key', $lesson_key, $post_id);
+            }
+            
             // Check if we came from a collection page
             $collection_id_param = isset($_GET['collection_id']) ? intval($_GET['collection_id']) : 0;
             if ($collection_id_param) {
@@ -1926,7 +2399,17 @@ class ALM_Admin_Lessons {
             
             // Sync to WordPress post
             $sync = new ALM_Post_Sync();
-            $sync->sync_lesson_to_post($lesson_id);
+            $post_id = $sync->sync_lesson_to_post($lesson_id);
+            
+            // Save teacher to ACF field
+            if ($post_id && function_exists('update_field')) {
+                $teacher = isset($_POST['lesson_teacher']) ? sanitize_text_field($_POST['lesson_teacher']) : '';
+                update_field('lesson_teacher', $teacher, $post_id);
+                
+                // Save key to ACF field
+                $lesson_key = isset($_POST['lesson_key']) ? sanitize_text_field($_POST['lesson_key']) : '';
+                update_field('lesson_key', $lesson_key, $post_id);
+            }
             
             wp_redirect(add_query_arg('message', 'updated', admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . $lesson_id)));
             exit;
@@ -2110,7 +2593,7 @@ class ALM_Admin_Lessons {
             'lesson_title' => $new_title,
             'lesson_description' => $original_lesson->lesson_description,
             'post_date' => $original_lesson->post_date,
-            'duration' => intval($original_lesson->duration),
+            'duration' => 0, // Don't copy duration
             'song_lesson' => $original_lesson->song_lesson,
             'vtt' => $original_lesson->vtt,
             'sample_video_url' => $original_lesson->sample_video_url,
@@ -2120,7 +2603,7 @@ class ALM_Admin_Lessons {
             'lesson_level' => $original_lesson->lesson_level,
             'lesson_tags' => $original_lesson->lesson_tags,
             'lesson_style' => $original_lesson->lesson_style,
-            'resources' => $original_lesson->resources,
+            'resources' => '', // Don't copy resources
         );
         
         // Insert the new lesson
@@ -2128,28 +2611,6 @@ class ALM_Admin_Lessons {
         
         if ($result) {
             $new_lesson_id = $this->wpdb->insert_id;
-            
-            // Copy all chapters
-            $chapters_table = $this->database->get_table_name('chapters');
-            $chapters = $this->wpdb->get_results($this->wpdb->prepare(
-                "SELECT * FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
-                $lesson_id
-            ));
-            
-            foreach ($chapters as $chapter) {
-                $chapter_data = array(
-                    'lesson_id' => $new_lesson_id,
-                    'chapter_title' => $chapter->chapter_title,
-                    'chapter_description' => $chapter->chapter_description,
-                    'bunny_url' => $chapter->bunny_url,
-                    'vimeo_id' => intval($chapter->vimeo_id),
-                    'youtube_id' => $chapter->youtube_id,
-                    'duration' => intval($chapter->duration),
-                    'menu_order' => intval($chapter->menu_order),
-                    'resources' => $chapter->resources,
-                );
-                $this->wpdb->insert($chapters_table, $chapter_data);
-            }
             
             // Copy all pathways
             $pathways_table = $this->database->get_table_name('lesson_pathways');
@@ -2371,6 +2832,10 @@ class ALM_Admin_Lessons {
             $action = 'add_tag';
         } elseif (isset($_POST['submit_bulk_style'])) {
             $action = 'add_style';
+        } elseif (isset($_POST['submit_bulk_teacher'])) {
+            $action = 'update_teacher';
+        } elseif (isset($_POST['submit_bulk_sample_url'])) {
+            $action = 'update_sample_url';
         }
         
         if ($action === 'update_membership') {
@@ -2383,6 +2848,14 @@ class ALM_Admin_Lessons {
             $this->handle_bulk_tag_add();
         } elseif ($action === 'add_style') {
             $this->handle_bulk_style_add();
+        } elseif ($action === 'update_teacher') {
+            $this->handle_bulk_teacher_update();
+        } elseif ($action === 'update_sample_url') {
+            $this->handle_bulk_sample_url_update();
+        } elseif ($action === 'archive_lessons') {
+            $this->handle_bulk_archive();
+        } elseif ($action === 'unarchive_lessons') {
+            $this->handle_bulk_unarchive();
         }
     }
     
@@ -2457,13 +2930,13 @@ class ALM_Admin_Lessons {
         
         // Check if lessons were selected
         if (empty($lesson_ids)) {
-            wp_redirect(add_query_arg('message', 'no_lessons_selected', admin_url('admin.php?page=academy-manager-lessons')));
+            wp_redirect($this->build_redirect_url('no_lessons_selected'));
             exit;
         }
         
         // Check if membership level was selected
-        if ($membership_level === 0) {
-            wp_redirect(add_query_arg('message', 'no_level_selected', admin_url('admin.php?page=academy-manager-lessons')));
+        if ($membership_level === 0 || $membership_level === '') {
+            wp_redirect($this->build_redirect_url('no_level_selected'));
             exit;
         }
         
@@ -2483,7 +2956,7 @@ class ALM_Admin_Lessons {
             }
         }
         
-        wp_redirect(add_query_arg('message', 'bulk_updated', admin_url('admin.php?page=academy-manager-lessons')));
+        wp_redirect($this->build_redirect_url('bulk_lesson_level_updated'));
         exit;
     }
     
@@ -2497,13 +2970,13 @@ class ALM_Admin_Lessons {
         
         // Check if lessons were selected
         if (empty($lesson_ids)) {
-            wp_redirect(add_query_arg('message', 'no_lessons_selected', admin_url('admin.php?page=academy-manager-lessons')));
+            wp_redirect($this->build_redirect_url('no_lessons_selected'));
             exit;
         }
         
         // Check if collection was selected
         if ($collection_id === 0) {
-            wp_redirect(add_query_arg('message', 'no_collection_selected', admin_url('admin.php?page=academy-manager-lessons')));
+            wp_redirect($this->build_redirect_url('no_collection_selected'));
             exit;
         }
         
@@ -2523,7 +2996,7 @@ class ALM_Admin_Lessons {
             }
         }
         
-        wp_redirect(add_query_arg('message', 'collection_assigned', admin_url('admin.php?page=academy-manager-lessons')));
+        wp_redirect($this->build_redirect_url('collection_assigned'));
         exit;
     }
     
@@ -2640,7 +3113,7 @@ class ALM_Admin_Lessons {
      */
     private function get_lesson_count_by_membership($membership_level) {
         $count = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE membership_level = %d",
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE membership_level = %d AND (status = 'published' OR status IS NULL OR status = '')",
             $membership_level
         ));
         return intval($count);
@@ -2651,7 +3124,7 @@ class ALM_Admin_Lessons {
      */
     private function get_unassigned_lesson_count() {
         $count = $this->wpdb->get_var(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE collection_id = 0 OR collection_id IS NULL"
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE (collection_id = 0 OR collection_id IS NULL) AND (status = 'published' OR status IS NULL OR status = '')"
         );
         return intval($count);
     }
@@ -2661,7 +3134,7 @@ class ALM_Admin_Lessons {
      */
     private function get_lesson_count_by_collection($collection_id) {
         $count = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE collection_id = %d",
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE collection_id = %d AND (status = 'published' OR status IS NULL OR status = '')",
             $collection_id
         ));
         return intval($count);
@@ -2673,7 +3146,11 @@ class ALM_Admin_Lessons {
     private function get_lesson_count_by_pathway($pathway) {
         $pathways_table = $this->database->get_table_name('lesson_pathways');
         $count = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(DISTINCT lesson_id) FROM {$pathways_table} WHERE pathway = %s",
+            "SELECT COUNT(DISTINCT lp.lesson_id) 
+             FROM {$pathways_table} lp
+             INNER JOIN {$this->table_name} l ON lp.lesson_id = l.ID
+             WHERE lp.pathway = %s 
+             AND (l.status = 'published' OR l.status IS NULL OR l.status = '')",
             $pathway
         ));
         return intval($count);
@@ -2690,7 +3167,7 @@ class ALM_Admin_Lessons {
         }
         
         $count = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE lesson_level = %s",
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE lesson_level = %s AND (status = 'published' OR status IS NULL OR status = '')",
             $skill_level
         ));
         return intval($count);
@@ -2702,7 +3179,7 @@ class ALM_Admin_Lessons {
     private function get_lesson_count_by_style($style) {
         $style_escaped = $this->wpdb->esc_like(trim($style));
         return intval($this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE (lesson_style = %s OR lesson_style LIKE %s OR lesson_style LIKE %s OR lesson_style LIKE %s)",
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE (lesson_style = %s OR lesson_style LIKE %s OR lesson_style LIKE %s OR lesson_style LIKE %s) AND (status = 'published' OR status IS NULL OR status = '')",
             $style_escaped,
             $style_escaped . ',%',
             '%, ' . $style_escaped . ',%',
@@ -2715,7 +3192,7 @@ class ALM_Admin_Lessons {
      */
     private function get_lesson_count_with_resources() {
         $count = $this->wpdb->get_var(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE resources IS NOT NULL AND resources != '' AND resources != 'N;'"
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE resources IS NOT NULL AND resources != '' AND resources != 'N;' AND (status = 'published' OR status IS NULL OR status = '')"
         );
         return intval($count);
     }
@@ -2725,7 +3202,7 @@ class ALM_Admin_Lessons {
      */
     private function get_lesson_count_without_resources() {
         $count = $this->wpdb->get_var(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE resources IS NULL OR resources = '' OR resources = 'N;'"
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE (resources IS NULL OR resources = '' OR resources = 'N;') AND (status = 'published' OR status IS NULL OR status = '')"
         );
         return intval($count);
     }
@@ -2735,7 +3212,7 @@ class ALM_Admin_Lessons {
      */
     private function get_lesson_count_with_samples() {
         $count = $this->wpdb->get_var(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE (sample_video_url IS NOT NULL AND sample_video_url != '' AND sample_video_url != '0') OR (sample_chapter_id IS NOT NULL AND sample_chapter_id > 0)"
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE ((sample_video_url IS NOT NULL AND sample_video_url != '' AND sample_video_url != '0') OR (sample_chapter_id IS NOT NULL AND sample_chapter_id > 0)) AND (status = 'published' OR status IS NULL OR status = '')"
         );
         return intval($count);
     }
@@ -2745,9 +3222,293 @@ class ALM_Admin_Lessons {
      */
     private function get_lesson_count_without_samples() {
         $count = $this->wpdb->get_var(
-            "SELECT COUNT(*) FROM {$this->table_name} WHERE ((sample_video_url IS NULL OR sample_video_url = '' OR sample_video_url = '0') AND (sample_chapter_id IS NULL OR sample_chapter_id = 0))"
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE ((sample_video_url IS NULL OR sample_video_url = '' OR sample_video_url = '0') AND (sample_chapter_id IS NULL OR sample_chapter_id = 0)) AND (status = 'published' OR status IS NULL OR status = '')"
         );
         return intval($count);
+    }
+    
+    /**
+     * Get teacher from ACF field for a lesson
+     */
+    private function get_lesson_teacher($lesson) {
+        if (empty($lesson->post_id)) {
+            return '';
+        }
+        
+        if (!function_exists('get_field')) {
+            return '';
+        }
+        
+        $teacher = get_field('lesson_teacher', $lesson->post_id);
+        return !empty($teacher) ? sanitize_text_field($teacher) : '';
+    }
+    
+    /**
+     * Get all unique teachers from lessons
+     */
+    private function get_all_teachers() {
+        // Get teachers from database table
+        $teachers_table = $this->database->get_table_name('teachers');
+        $teachers_from_db = $this->wpdb->get_results(
+            "SELECT teacher_name FROM {$teachers_table} ORDER BY teacher_name ASC"
+        );
+        
+        $teachers = array();
+        foreach ($teachers_from_db as $teacher) {
+            $teachers[] = $teacher->teacher_name;
+        }
+        
+        // Also get teachers from ACF fields (for backward compatibility)
+        if (function_exists('get_field')) {
+            $lessons = $this->wpdb->get_results(
+                "SELECT DISTINCT post_id FROM {$this->table_name} WHERE post_id > 0"
+            );
+            
+            foreach ($lessons as $lesson) {
+                $teacher = get_field('lesson_teacher', $lesson->post_id);
+                if (!empty($teacher)) {
+                    $teacher = sanitize_text_field($teacher);
+                    if (!in_array($teacher, $teachers)) {
+                        $teachers[] = $teacher;
+                    }
+                }
+            }
+        }
+        
+        sort($teachers);
+        return $teachers;
+    }
+    
+    /**
+     * Get count of lessons by teacher
+     */
+    private function get_lesson_count_by_teacher($teacher) {
+        if (empty($teacher) || !function_exists('get_field')) {
+            return 0;
+        }
+        
+        $count = 0;
+        $lessons = $this->wpdb->get_results(
+            "SELECT post_id FROM {$this->table_name} WHERE post_id > 0 AND (status = 'published' OR status IS NULL OR status = '')"
+        );
+        
+        foreach ($lessons as $lesson) {
+            $lesson_teacher = get_field('lesson_teacher', $lesson->post_id);
+            if (!empty($lesson_teacher) && sanitize_text_field($lesson_teacher) === $teacher) {
+                $count++;
+            }
+        }
+        
+        return $count;
+    }
+    
+    /**
+     * Get ACF teacher choices from the lesson_teacher field
+     */
+    private function get_acf_teacher_choices() {
+        if (!function_exists('get_field_object')) {
+            return array();
+        }
+        
+        // Try to get the field object for lesson_teacher
+        $field_object = get_field_object('lesson_teacher');
+        
+        if ($field_object && isset($field_object['choices']) && is_array($field_object['choices'])) {
+            return array_keys($field_object['choices']);
+        }
+        
+        // Fallback: try to get from ACF field group
+        if (function_exists('acf_get_field_groups')) {
+            $field_groups = acf_get_field_groups();
+            foreach ($field_groups as $group) {
+                $fields = acf_get_fields($group['key']);
+                if ($fields) {
+                    foreach ($fields as $field) {
+                        if ($field['name'] === 'lesson_teacher' && isset($field['choices'])) {
+                            return array_keys($field['choices']);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Last resort: get from postmeta where field is stored
+        // ACF stores field definitions in postmeta with key like 'field_xxxxx'
+        $acf_fields = $this->wpdb->get_results(
+            "SELECT post_excerpt, post_content FROM {$this->wpdb->posts} 
+             WHERE post_type = 'acf-field' 
+             AND post_excerpt = 'lesson_teacher' 
+             LIMIT 1"
+        );
+        
+        if (!empty($acf_fields)) {
+            $field_data = maybe_unserialize($acf_fields[0]->post_content);
+            if (isset($field_data['choices']) && is_array($field_data['choices'])) {
+                return array_keys($field_data['choices']);
+            }
+        }
+        
+        return array();
+    }
+    
+    /**
+     * Get ACF key choices from the lesson_key field
+     */
+    private function get_acf_key_choices() {
+        if (!function_exists('get_field_object')) {
+            return array();
+        }
+        
+        // Try to get the field object for lesson_key
+        $field_object = get_field_object('lesson_key');
+        
+        if ($field_object && isset($field_object['choices'])) {
+            if (is_array($field_object['choices'])) {
+                return array_keys($field_object['choices']);
+            } elseif (is_string($field_object['choices'])) {
+                return $this->parse_acf_choices_string($field_object['choices']);
+            }
+        }
+        
+        // Fallback: try to get from ACF field group
+        if (function_exists('acf_get_field_groups')) {
+            $field_groups = acf_get_field_groups();
+            foreach ($field_groups as $group) {
+                $fields = acf_get_fields($group['key']);
+                if ($fields) {
+                    foreach ($fields as $field) {
+                        if ($field['name'] === 'lesson_key' && isset($field['choices'])) {
+                            if (is_array($field['choices'])) {
+                                return array_keys($field['choices']);
+                            } elseif (is_string($field['choices'])) {
+                                return $this->parse_acf_choices_string($field['choices']);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Last resort: get from postmeta where field is stored
+        // ACF stores field definitions in postmeta with key like 'field_xxxxx'
+        $acf_fields = $this->wpdb->get_results(
+            "SELECT post_excerpt, post_content FROM {$this->wpdb->posts} 
+             WHERE post_type = 'acf-field' 
+             AND post_excerpt = 'lesson_key' 
+             LIMIT 1"
+        );
+        
+        if (!empty($acf_fields)) {
+            $field_data = maybe_unserialize($acf_fields[0]->post_content);
+            if (isset($field_data['choices'])) {
+                if (is_array($field_data['choices'])) {
+                    return array_keys($field_data['choices']);
+                } elseif (is_string($field_data['choices'])) {
+                    return $this->parse_acf_choices_string($field_data['choices']);
+                }
+            }
+        }
+        
+        return array();
+    }
+    
+    /**
+     * Parse ACF choices string (one per line format)
+     */
+    private function parse_acf_choices_string($choices_string) {
+        $choices_array = array();
+        $lines = explode("\n", $choices_string);
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+            
+            // Handle format: "value : label" or just "value"
+            if (strpos($line, ' : ') !== false) {
+                $parts = explode(' : ', $line, 2);
+                $key = trim($parts[0]);
+                $choices_array[$key] = isset($parts[1]) ? trim($parts[1]) : $key;
+            } else {
+                // Just the value (label same as value)
+                $choices_array[$line] = $line;
+            }
+        }
+        
+        return array_keys($choices_array);
+    }
+    
+    /**
+     * Get count of lessons by key
+     */
+    private function get_lesson_count_by_key($key) {
+        if (empty($key) || !function_exists('get_field')) {
+            return 0;
+        }
+        
+        $count = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(DISTINCT l.ID) 
+             FROM {$this->table_name} l
+             INNER JOIN {$this->wpdb->postmeta} pm ON l.post_id = pm.post_id
+             WHERE pm.meta_key = 'lesson_key' 
+             AND pm.meta_value = %s
+             AND l.post_id > 0
+             AND (l.status = 'published' OR l.status IS NULL OR l.status = '')",
+            $key
+        ));
+        
+        return intval($count);
+    }
+    
+    /**
+     * Get count of lessons without a key
+     */
+    private function get_lesson_count_without_key() {
+        if (!function_exists('get_field')) {
+            return 0;
+        }
+        
+        $count = $this->wpdb->get_var(
+            "SELECT COUNT(DISTINCT l.ID) 
+             FROM {$this->table_name} l
+             LEFT JOIN {$this->wpdb->postmeta} pm ON l.post_id = pm.post_id AND pm.meta_key = 'lesson_key'
+             WHERE (l.post_id = 0 OR pm.meta_value IS NULL OR pm.meta_value = '')
+             AND (l.status = 'published' OR l.status IS NULL OR l.status = '')"
+        );
+        
+        return intval($count);
+    }
+    
+    /**
+     * Get count of lessons without a teacher
+     */
+    private function get_lesson_count_without_teacher() {
+        if (!function_exists('get_field')) {
+            // If ACF is not available, count all lessons without post_id
+            return intval($this->wpdb->get_var(
+                "SELECT COUNT(*) FROM {$this->table_name} WHERE post_id = 0 AND (status = 'published' OR status IS NULL OR status = '')"
+            ));
+        }
+        
+        $count = 0;
+        $lessons = $this->wpdb->get_results(
+            "SELECT post_id FROM {$this->table_name} WHERE (status = 'published' OR status IS NULL OR status = '')"
+        );
+        
+        foreach ($lessons as $lesson) {
+            if ($lesson->post_id == 0) {
+                // No post_id means no teacher can be set
+                $count++;
+            } else {
+                $lesson_teacher = get_field('lesson_teacher', $lesson->post_id);
+                if (empty($lesson_teacher)) {
+                    $count++;
+                }
+            }
+        }
+        
+        return $count;
     }
     
     /**
@@ -2766,10 +3527,12 @@ class ALM_Admin_Lessons {
             'column-post-id' => __('Post ID', 'academy-lesson-manager'),
             'column-date' => __('Date', 'academy-lesson-manager'),
             'column-title' => __('Lesson Title', 'academy-lesson-manager'),
+            'column-teacher' => __('Teacher', 'academy-lesson-manager'),
             'column-course' => __('Collection', 'academy-lesson-manager'),
             'column-duration' => __('Duration', 'academy-lesson-manager'),
             'column-membership' => __('Memb. Level', 'academy-lesson-manager'),
             'column-skill-level' => __('Skill Level', 'academy-lesson-manager'),
+            'column-key' => __('Key', 'academy-lesson-manager'),
             'column-pathways' => __('Pathways', 'academy-lesson-manager'),
             'column-tags' => __('Tags', 'academy-lesson-manager'),
             'column-lesson-style' => __('Lesson Style', 'academy-lesson-manager'),
@@ -2912,7 +3675,7 @@ class ALM_Admin_Lessons {
     /**
      * Render pagination controls (below table)
      */
-    private function render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $order_by, $order) {
+    private function render_pagination_controls($paged, $total_pages, $per_page, $search, $membership_filter, $collection_filter, $resources_filter, $sample_filter, $pathway_filter, $skill_level_filter, $tag_filter, $style_filter, $teacher_filter, $key_filter, $order_by, $order) {
         if ($total_pages <= 1) {
             return; // No pagination needed
         }
@@ -2927,7 +3690,7 @@ class ALM_Admin_Lessons {
         if (!empty($search)) {
             $query_args['search'] = $search;
         }
-        if ($membership_filter > 0) {
+        if ($membership_filter !== '' && $membership_filter !== null) {
             $query_args['membership_level'] = $membership_filter;
         }
         if (!empty($collection_filter)) {
@@ -2944,6 +3707,18 @@ class ALM_Admin_Lessons {
         }
         if (!empty($skill_level_filter)) {
             $query_args['skill_level_filter'] = $skill_level_filter;
+        }
+        if (!empty($tag_filter)) {
+            $query_args['tag'] = $tag_filter;
+        }
+        if (!empty($style_filter)) {
+            $query_args['style_filter'] = $style_filter;
+        }
+        if (!empty($teacher_filter)) {
+            $query_args['teacher_filter'] = $teacher_filter;
+        }
+        if (!empty($key_filter)) {
+            $query_args['key_filter'] = $key_filter;
         }
         
         echo '<div class="alm-pagination" style="margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 8px; padding: 20px 0;">';
@@ -2987,8 +3762,8 @@ class ALM_Admin_Lessons {
      * Render database statistics
      */
     private function render_statistics() {
-        // Get counts
-        $lessons_count = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name}");
+        // Get counts (exclude archived lessons)
+        $lessons_count = $this->wpdb->get_var("SELECT COUNT(*) FROM {$this->table_name} WHERE (status = 'published' OR status IS NULL OR status = '')");
         $unassigned_count = $this->get_unassigned_lesson_count();
         
         $collections_table = $this->database->get_table_name('collections');
@@ -3024,6 +3799,87 @@ class ALM_Admin_Lessons {
         echo '</div>';
         
         echo '</div>';
+    }
+    
+    /**
+     * Handle bulk tag addition
+     */
+    private function handle_bulk_tag_add() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+
+        $lesson_ids = isset($_POST['lesson']) ? array_map('intval', (array) $_POST['lesson']) : array();
+        
+        // Handle comma-separated values if submitted as a single string (legacy support)
+        if (count($lesson_ids) === 1 && is_string($lesson_ids[0]) && strpos($lesson_ids[0], ',') !== false) {
+            $lesson_ids = array_map('intval', explode(',', $lesson_ids[0]));
+        }
+
+        if (empty($lesson_ids)) {
+            wp_redirect(add_query_arg('message', 'no_lessons_selected', admin_url('admin.php?page=academy-manager-lessons')));
+            exit;
+        }
+
+        $tag_to_add = isset($_POST['bulk_tag_add']) ? trim(sanitize_text_field($_POST['bulk_tag_add'])) : '';
+
+        if (empty($tag_to_add)) {
+            wp_redirect(add_query_arg('message', 'no_tag_selected', admin_url('admin.php?page=academy-manager-lessons')));
+            exit;
+        }
+
+        // Verify tag exists in tags table
+        $tags_table = $this->database->get_table_name('tags');
+        $tag_exists = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT ID FROM {$tags_table} WHERE tag_name = %s",
+            $tag_to_add
+        ));
+
+        if (!$tag_exists) {
+            wp_redirect(add_query_arg('message', 'invalid_tag', admin_url('admin.php?page=academy-manager-lessons')));
+            exit;
+        }
+
+        $updated_count = 0;
+        foreach ($lesson_ids as $lesson_id) {
+            $current_lesson_tags_str = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT lesson_tags FROM {$this->table_name} WHERE ID = %d",
+                $lesson_id
+            ));
+
+            $current_lesson_tags = array();
+            if (!empty($current_lesson_tags_str)) {
+                $current_lesson_tags = array_map('trim', explode(',', $current_lesson_tags_str));
+                $current_lesson_tags = array_filter($current_lesson_tags);
+            }
+
+            if (!in_array($tag_to_add, $current_lesson_tags)) {
+                $current_lesson_tags[] = $tag_to_add;
+                sort($current_lesson_tags); // Keep tags sorted
+                $new_tags_string = implode(', ', $current_lesson_tags);
+
+                $result = $this->wpdb->update(
+                    $this->table_name,
+                    array('lesson_tags' => $new_tags_string),
+                    array('ID' => $lesson_id),
+                    array('%s'),
+                    array('%d')
+                );
+
+                if ($result !== false) {
+                    $updated_count++;
+                } else {
+                    error_log("ALM Bulk Tag Add: Failed to update lesson_tags for lesson ID: {$lesson_id}");
+                }
+            }
+        }
+
+        if ($updated_count > 0) {
+            wp_redirect($this->build_redirect_url('bulk_tag_added', array('tag' => $tag_to_add)));
+        } else {
+            wp_redirect($this->build_redirect_url('bulk_tag_error'));
+        }
+        exit;
     }
     
     /**
@@ -3095,10 +3951,178 @@ class ALM_Admin_Lessons {
         }
 
         if ($updated_count > 0) {
-            wp_redirect(add_query_arg(array('message' => 'bulk_style_added', 'style' => $style_to_add), admin_url('admin.php?page=academy-manager-lessons')));
+            wp_redirect($this->build_redirect_url('bulk_style_added', array('style' => $style_to_add)));
         } else {
-            wp_redirect(add_query_arg('message', 'bulk_style_error', admin_url('admin.php?page=academy-manager-lessons')));
+            wp_redirect($this->build_redirect_url('bulk_style_error'));
         }
+        exit;
+    }
+    
+    /**
+     * Handle bulk teacher update
+     */
+    private function handle_bulk_teacher_update() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        $lesson_ids = isset($_POST['lesson']) ? array_map('intval', (array) $_POST['lesson']) : array();
+        $teacher = isset($_POST['bulk_teacher']) ? sanitize_text_field($_POST['bulk_teacher']) : '';
+        
+        // Check if lessons were selected
+        if (empty($lesson_ids)) {
+            wp_redirect(add_query_arg('message', 'no_lessons_selected', admin_url('admin.php?page=academy-manager-lessons')));
+            exit;
+        }
+        
+        // Handle clear teacher option
+        if ($teacher === '__clear__') {
+            $teacher = '';
+        }
+        
+        $updated = 0;
+        $sync = new ALM_Post_Sync();
+        
+        foreach ($lesson_ids as $lesson_id) {
+            // Get lesson to find post_id
+            $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT post_id FROM {$this->table_name} WHERE ID = %d",
+                $lesson_id
+            ));
+            
+            if ($lesson && $lesson->post_id && function_exists('update_field')) {
+                // Update ACF field
+                update_field('lesson_teacher', $teacher, $lesson->post_id);
+                $updated++;
+            } elseif ($lesson && !$lesson->post_id) {
+                // If no post_id, sync first to create post
+                $post_id = $sync->sync_lesson_to_post($lesson_id);
+                if ($post_id && function_exists('update_field')) {
+                    update_field('lesson_teacher', $teacher, $post_id);
+                    $updated++;
+                }
+            }
+        }
+        
+        if ($updated > 0) {
+            wp_redirect($this->build_redirect_url('bulk_teacher_updated'));
+        } else {
+            wp_redirect($this->build_redirect_url('bulk_teacher_error'));
+        }
+        exit;
+    }
+    
+    /**
+     * Handle bulk sample URL update
+     */
+    private function handle_bulk_sample_url_update() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        $lesson_ids = isset($_POST['lesson']) ? array_map('intval', (array) $_POST['lesson']) : array();
+        $sample_url = isset($_POST['bulk_sample_url']) ? esc_url_raw(trim($_POST['bulk_sample_url'])) : '';
+        
+        // Check if lessons were selected
+        if (empty($lesson_ids)) {
+            wp_redirect($this->build_redirect_url('no_lessons_selected'));
+            exit;
+        }
+        
+        $updated = 0;
+        
+        foreach ($lesson_ids as $lesson_id) {
+            // Update sample_video_url and set sample_chapter_id to 0 (since we're using direct URL, not chapter)
+            $result = $this->wpdb->update(
+                $this->table_name,
+                array(
+                    'sample_video_url' => $sample_url,
+                    'sample_chapter_id' => 0
+                ),
+                array('ID' => $lesson_id),
+                array('%s', '%d'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                $updated++;
+            }
+        }
+        
+        if ($updated > 0) {
+            $message = $sample_url ? 'bulk_sample_url_updated' : 'bulk_sample_url_cleared';
+            wp_redirect($this->build_redirect_url($message));
+        } else {
+            wp_redirect($this->build_redirect_url('bulk_sample_url_error'));
+        }
+        exit;
+    }
+    
+    /**
+     * Handle bulk archive lessons
+     */
+    private function handle_bulk_archive() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        $lesson_ids = isset($_POST['lesson']) ? array_map('intval', $_POST['lesson']) : array();
+        
+        if (empty($lesson_ids)) {
+            wp_redirect($this->build_redirect_url('no_lessons_selected'));
+            exit;
+        }
+        
+        $updated = 0;
+        foreach ($lesson_ids as $lesson_id) {
+            $result = $this->wpdb->update(
+                $this->table_name,
+                array('status' => 'archived'),
+                array('ID' => $lesson_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                $updated++;
+            }
+        }
+        
+        wp_redirect($this->build_redirect_url('bulk_lessons_archived'));
+        exit;
+    }
+    
+    /**
+     * Handle bulk unarchive lessons
+     */
+    private function handle_bulk_unarchive() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        $lesson_ids = isset($_POST['lesson']) ? array_map('intval', $_POST['lesson']) : array();
+        
+        if (empty($lesson_ids)) {
+            wp_redirect($this->build_redirect_url('no_lessons_selected'));
+            exit;
+        }
+        
+        $updated = 0;
+        foreach ($lesson_ids as $lesson_id) {
+            $result = $this->wpdb->update(
+                $this->table_name,
+                array('status' => 'published'),
+                array('ID' => $lesson_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                $updated++;
+            }
+        }
+        
+        wp_redirect($this->build_redirect_url('bulk_lessons_unarchived'));
         exit;
     }
     
@@ -3141,5 +4165,87 @@ class ALM_Admin_Lessons {
         }
         
         return $styles_string;
+    }
+    
+    /**
+     * Build filter URL preserving other filters
+     */
+    private function build_filter_url($remove_filters = array()) {
+        $params = array('page' => 'academy-manager-lessons');
+        
+        // Get current filter values from GET or POST (preserved values)
+        $filters = array(
+            'search' => isset($_POST['preserve_search']) ? sanitize_text_field($_POST['preserve_search']) : (isset($_GET['search']) ? sanitize_text_field($_GET['search']) : ''),
+            'membership_level' => isset($_POST['preserve_membership']) ? ($_POST['preserve_membership'] !== '' ? intval($_POST['preserve_membership']) : '') : (isset($_GET['membership_level']) && $_GET['membership_level'] !== '' ? intval($_GET['membership_level']) : ''),
+            'collection_filter' => isset($_POST['preserve_collection']) ? sanitize_text_field($_POST['preserve_collection']) : (isset($_GET['collection_filter']) ? sanitize_text_field($_GET['collection_filter']) : ''),
+            'resources_filter' => isset($_POST['preserve_resources']) ? sanitize_text_field($_POST['preserve_resources']) : (isset($_GET['resources_filter']) ? sanitize_text_field($_GET['resources_filter']) : ''),
+            'sample_filter' => isset($_POST['preserve_sample']) ? sanitize_text_field($_POST['preserve_sample']) : (isset($_GET['sample_filter']) ? sanitize_text_field($_GET['sample_filter']) : ''),
+            'pathway_filter' => isset($_POST['preserve_pathway']) ? sanitize_key($_POST['preserve_pathway']) : (isset($_GET['pathway_filter']) ? sanitize_key($_GET['pathway_filter']) : ''),
+            'skill_level_filter' => isset($_POST['preserve_skill_level']) ? sanitize_key($_POST['preserve_skill_level']) : (isset($_GET['skill_level_filter']) ? sanitize_key($_GET['skill_level_filter']) : ''),
+            'tag' => isset($_POST['preserve_tag']) ? sanitize_text_field($_POST['preserve_tag']) : (isset($_GET['tag']) ? sanitize_text_field($_GET['tag']) : ''),
+            'style_filter' => isset($_POST['preserve_style']) ? sanitize_text_field($_POST['preserve_style']) : (isset($_GET['style_filter']) ? sanitize_text_field($_GET['style_filter']) : ''),
+            'teacher_filter' => isset($_POST['preserve_teacher']) ? sanitize_text_field($_POST['preserve_teacher']) : (isset($_GET['teacher_filter']) ? sanitize_text_field($_GET['teacher_filter']) : ''),
+            'key_filter' => isset($_POST['preserve_key']) ? sanitize_text_field($_POST['preserve_key']) : (isset($_GET['key_filter']) ? sanitize_text_field($_GET['key_filter']) : ''),
+            'hide_unassigned' => isset($_POST['preserve_hide_unassigned']) ? (bool)$_POST['preserve_hide_unassigned'] : (isset($_GET['hide_unassigned']) ? (bool)$_GET['hide_unassigned'] : false),
+            'show_archived' => isset($_POST['preserve_show_archived']) ? (bool)$_POST['preserve_show_archived'] : (isset($_GET['show_archived']) ? (bool)$_GET['show_archived'] : false),
+        );
+        
+        // Remove specified filters
+        foreach ($remove_filters as $key => $value) {
+            if (isset($filters[$key])) {
+                unset($filters[$key]);
+            }
+        }
+        
+        // Add non-empty filters to params
+        foreach ($filters as $key => $value) {
+            if (!empty($value) || ($key === 'search' && $value !== '') || ($key === 'hide_unassigned' && $value === true) || ($key === 'show_archived' && $value === true)) {
+                $params[$key] = $value;
+            }
+        }
+        
+        return admin_url('admin.php?' . http_build_query($params));
+    }
+    
+    /**
+     * Build redirect URL with preserved filters
+     */
+    private function build_redirect_url($message = '', $extra_params = array()) {
+        $params = array('page' => 'academy-manager-lessons');
+        
+        if (!empty($message)) {
+            $params['message'] = $message;
+        }
+        
+        // Preserve filters from POST (preserved values) or GET
+        $filters = array(
+            'search' => isset($_POST['preserve_search']) ? sanitize_text_field($_POST['preserve_search']) : (isset($_GET['search']) ? sanitize_text_field($_GET['search']) : ''),
+            'membership_level' => isset($_POST['preserve_membership']) ? ($_POST['preserve_membership'] !== '' ? intval($_POST['preserve_membership']) : '') : (isset($_GET['membership_level']) && $_GET['membership_level'] !== '' ? intval($_GET['membership_level']) : ''),
+            'collection_filter' => isset($_POST['preserve_collection']) ? sanitize_text_field($_POST['preserve_collection']) : (isset($_GET['collection_filter']) ? sanitize_text_field($_GET['collection_filter']) : ''),
+            'resources_filter' => isset($_POST['preserve_resources']) ? sanitize_text_field($_POST['preserve_resources']) : (isset($_GET['resources_filter']) ? sanitize_text_field($_GET['resources_filter']) : ''),
+            'sample_filter' => isset($_POST['preserve_sample']) ? sanitize_text_field($_POST['preserve_sample']) : (isset($_GET['sample_filter']) ? sanitize_text_field($_GET['sample_filter']) : ''),
+            'pathway_filter' => isset($_POST['preserve_pathway']) ? sanitize_key($_POST['preserve_pathway']) : (isset($_GET['pathway_filter']) ? sanitize_key($_GET['pathway_filter']) : ''),
+            'skill_level_filter' => isset($_POST['preserve_skill_level']) ? sanitize_key($_POST['preserve_skill_level']) : (isset($_GET['skill_level_filter']) ? sanitize_key($_GET['skill_level_filter']) : ''),
+            'tag' => isset($_POST['preserve_tag']) ? sanitize_text_field($_POST['preserve_tag']) : (isset($_GET['tag']) ? sanitize_text_field($_GET['tag']) : ''),
+            'style_filter' => isset($_POST['preserve_style']) ? sanitize_text_field($_POST['preserve_style']) : (isset($_GET['style_filter']) ? sanitize_text_field($_GET['style_filter']) : ''),
+            'teacher_filter' => isset($_POST['preserve_teacher']) ? sanitize_text_field($_POST['preserve_teacher']) : (isset($_GET['teacher_filter']) ? sanitize_text_field($_GET['teacher_filter']) : ''),
+            'key_filter' => isset($_POST['preserve_key']) ? sanitize_text_field($_POST['preserve_key']) : (isset($_GET['key_filter']) ? sanitize_text_field($_GET['key_filter']) : ''),
+            'hide_unassigned' => isset($_POST['preserve_hide_unassigned']) ? (bool)$_POST['preserve_hide_unassigned'] : (isset($_GET['hide_unassigned']) ? (bool)$_GET['hide_unassigned'] : false),
+            'show_archived' => isset($_POST['preserve_show_archived']) ? (bool)$_POST['preserve_show_archived'] : (isset($_GET['show_archived']) ? (bool)$_GET['show_archived'] : false),
+        );
+        
+        // Add non-empty filters
+        foreach ($filters as $key => $value) {
+            if (!empty($value) || ($key === 'search' && $value !== '')) {
+                $params[$key] = $value;
+            }
+        }
+        
+        // Add extra params
+        foreach ($extra_params as $key => $value) {
+            $params[$key] = $value;
+        }
+        
+        return admin_url('admin.php?' . http_build_query($params));
     }
 }

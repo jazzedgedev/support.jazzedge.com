@@ -167,7 +167,24 @@ class JPH_Gamification {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'jph_user_stats';
+        
+        // Use WordPress timezone consistently for both today and yesterday
+        // Get today's timestamp in WordPress timezone
+        $today_timestamp = current_time('timestamp');
         $today = current_time('Y-m-d');
+        
+        // Calculate yesterday using WordPress timezone
+        $yesterday_timestamp = $today_timestamp - DAY_IN_SECONDS;
+        if (function_exists('wp_date')) {
+            // WordPress 5.3+ - use wp_date which respects WordPress timezone
+            $yesterday = wp_date('Y-m-d', $yesterday_timestamp);
+        } else {
+            // Fallback for older WordPress versions
+            $wp_timezone = wp_timezone();
+            $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
+            $yesterday_datetime->setTimezone($wp_timezone);
+            $yesterday = $yesterday_datetime->format('Y-m-d');
+        }
         
         $stats = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE user_id = %d",
@@ -189,7 +206,6 @@ class JPH_Gamification {
         }
         
         // Check if yesterday was their last practice
-        $yesterday = date('Y-m-d', strtotime('-1 day'));
         if ($last_practice_date === $yesterday) {
             // Continue streak
             $new_streak = $current_streak + 1;

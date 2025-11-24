@@ -87,18 +87,72 @@
 
 .alm-library-search-form {
     display: flex;
+    flex-direction: column;
     gap: 16px;
     margin-bottom: 30px;
+    width: 100%;
+}
+
+.alm-library-search-row {
+    display: flex;
+    gap: 16px;
     align-items: center;
     width: 100%;
 }
 
-.alm-library-search-form > div {
+.alm-library-search-form .alm-library-search-row > div {
     position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
     align-items: center;
+}
+
+.alm-library-filters-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+.alm-library-filters-row label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.alm-library-filter-select {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 16px;
+    padding-right: 40px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #1f2937;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+    appearance: none;
+    background-image: url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E');
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    box-sizing: border-box;
+}
+
+.alm-library-filter-select:hover {
+    border-color: #3b82f6;
+}
+
+.alm-library-filter-select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .alm-library-search-input {
@@ -720,6 +774,28 @@
     
     .alm-library-search-form {
         flex-direction: column;
+    }
+    
+    .alm-library-search-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .alm-library-search-row > div {
+        width: 100%;
+    }
+    
+    .alm-library-filters-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .alm-library-filters-row label {
+        margin-right: 0;
+    }
+    
+    .alm-library-filter-select {
+        width: 100%;
     }
     
     .alm-library-search-input {

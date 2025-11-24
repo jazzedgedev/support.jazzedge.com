@@ -2219,7 +2219,7 @@ class Chapter_Transcription {
      */
     public function admin_page_chapters() {
         // Pagination settings
-        $allowed_per_page = array(5, 15, 20, 25, 30, 50);
+        $allowed_per_page = array(5, 15, 20, 25, 30, 100, 150, 200, 300, 400, 500);
         $per_page = isset($_GET['per_page']) && in_array(intval($_GET['per_page']), $allowed_per_page) 
             ? intval($_GET['per_page']) 
             : 50;
@@ -2307,8 +2307,8 @@ class Chapter_Transcription {
         }
         
         // Limit to prevent timeouts
-        if (count($chapter_ids) > 50) {
-            wp_send_json_error('Maximum 50 chapters at a time');
+        if (count($chapter_ids) > 500) {
+            wp_send_json_error('Maximum 500 chapters at a time');
         }
         
         $results = array();

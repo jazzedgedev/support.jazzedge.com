@@ -24,6 +24,12 @@ require_once ALM_SHORTCODES_PLUGIN_DIR . 'includes/class-chapter-handler.php';
 class ALM_Shortcodes_Plugin {
     
     /**
+     * Track whether events calendar assets have been printed
+     * @var bool
+     */
+    private static $events_calendar_assets_printed = false;
+    
+    /**
      * Ensure ALM_Admin_Settings class is loaded
      */
     private function ensure_alm_settings_loaded() {
@@ -35,6 +41,672 @@ class ALM_Shortcodes_Plugin {
             }
         }
         return class_exists('ALM_Admin_Settings');
+    }
+    
+    /**
+     * Print shared events calendar styles once
+     */
+    private function render_events_calendar_assets() {
+        if (self::$events_calendar_assets_printed) {
+            return;
+        }
+        
+        self::$events_calendar_assets_printed = true;
+        ?>
+        <style>
+        .alm-events-calendar-wrapper {
+            width: 100%;
+        }
+        
+.jph-events-section {
+    padding: 20px 0;
+}
+
+.events-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 32px 24px;
+    gap: 24px;
+    background: linear-gradient(135deg, #eef2ff 0%, #fef3c7 100%);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.events-header h3 {
+    margin: 0;
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+}
+
+.events-header-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+}
+
+.events-view-toggle {
+    display: flex;
+    gap: 8px;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: 8px;
+    justify-content: center;
+    width: 100%;
+    max-width: 320px;
+}
+
+.view-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #6b7280;
+    transition: all 0.2s ease;
+}
+
+.view-toggle-btn:hover {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.view-toggle-btn.active {
+    background: white;
+    color: #1f2937;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.view-toggle-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.events-filter-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 760px;
+}
+
+.events-filter-select {
+    padding: 8px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
+    font-size: 0.875rem;
+    color: #374151;
+    min-width: 150px;
+    cursor: pointer;
+}
+
+.events-filter-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.events-filter-btn,
+.events-reset-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.events-filter-btn {
+    background: #F04E23;
+    color: white;
+    border-color: #F04E23;
+}
+
+.events-filter-btn:hover {
+    background: #e0451f;
+    border-color: #e0451f;
+}
+
+.events-reset-btn:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.events-filter-btn svg,
+.events-reset-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.events-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+        
+        .event-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+        
+        .event-item:hover {
+            background: #f8fafc;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .event-date {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            color: #6b7280;
+            font-size: 0.9rem;
+            min-width: 120px;
+            text-align: center;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .event-date svg {
+            width: 20px;
+            height: 20px;
+            color: #3b82f6;
+        }
+        
+        .event-calendar-links {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 12px;
+            width: 100%;
+        }
+        
+        .calendar-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+        
+        .calendar-link:hover {
+            background: #f8fafc;
+            border-color: #d1d5db;
+            color: #374151;
+            transform: translateY(-1px);
+        }
+        
+        .calendar-link svg {
+            width: 12px;
+            height: 12px;
+            flex-shrink: 0;
+        }
+        
+        .gcal-link:hover {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #dc2626;
+        }
+        
+        .ical-link:hover {
+            background: #f0f9ff;
+            border-color: #bae6fd;
+            color: #0284c7;
+        }
+        
+        .event-info {
+            flex: 1;
+        }
+        
+        .event-info h4 {
+            margin: 0 0 8px 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .event-info a {
+            color: #1f2937;
+            text-decoration: none;
+        }
+        
+        .event-info a:hover {
+            color: #3b82f6;
+        }
+        
+        .event-description {
+            color: #6b7280;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin: 0 0 12px 0;
+        }
+        
+        .event-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .event-teacher {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #6b7280;
+            font-size: 0.85rem;
+        }
+        
+        .teacher-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #e0e7ff;
+            color: #3730a3;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        
+        .event-types {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .event-type-tag {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+        
+        .event-membership {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .membership-level-tag {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .membership-premier {
+            background: #fce7f3;
+            color: #9d174d;
+        }
+        
+        .membership-studio {
+            background: #ecfccb;
+            color: #3f6212;
+        }
+        
+        .membership-free {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+            font-weight: 700;
+            box-shadow: 0 1px 3px rgba(34, 197, 94, 0.2);
+        }
+        
+        .membership-essentials {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+        
+        .no-events-content {
+            background: #f9fafb;
+            border: 1px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            color: #6b7280;
+        }
+        
+        .no-events-content svg {
+            width: 36px;
+            height: 36px;
+            margin-bottom: 12px;
+            color: #9ca3af;
+        }
+        
+        .events-calendar-container {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            margin: 0;
+        }
+        
+        .calendar-header {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+        }
+        
+        .calendar-header h4 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            flex: 1;
+            text-align: center;
+        }
+        
+        .calendar-nav-btn {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            color: #374151;
+        }
+        
+        .calendar-nav-btn:hover {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+            color: #1f2937;
+        }
+        
+        .calendar-nav-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 1px;
+            background: #e5e7eb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            width: 100%;
+            min-width: 0;
+        }
+        
+        .calendar-weekday {
+            background: #f9fafb;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .calendar-day {
+            background: white;
+            min-height: 100px;
+            padding: 8px;
+            border: 1px solid #f3f4f6;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+            max-width: 100%;
+        }
+        
+        .calendar-day.empty {
+            background: #f9fafb;
+        }
+        
+        .calendar-day.today {
+            background: #eff6ff;
+            border-color: #3b82f6;
+        }
+        
+        .calendar-day.has-events {
+            background: #fffbf0;
+        }
+        
+        .calendar-day-number {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        
+        .calendar-day-events {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            overflow: hidden;
+            min-width: 0;
+        }
+        
+        .calendar-event-item {
+            display: block;
+            padding: 4px 6px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.75rem;
+            color: #1f2937;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+        
+        .calendar-event-item:hover {
+            background: #e5e7eb;
+            color: #F04E23;
+            transform: translateX(2px);
+        }
+        
+        .calendar-event-item .event-time {
+            font-weight: 600;
+            display: block;
+            color: #6b7280;
+            font-size: 0.7rem;
+            margin-bottom: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .calendar-event-item .event-title {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+            min-width: 0;
+            width: 100%;
+        }
+        
+        .calendar-more-events {
+            font-size: 0.7rem;
+            color: #6b7280;
+            font-weight: 600;
+            padding: 2px 4px;
+            text-align: center;
+        }
+        
+        .calendar-event-item.et-community-call {
+            background: #e8f7ee;
+            border-left: 3px solid #1e7f41;
+        }
+        
+        .calendar-event-item.et-special {
+            background: #fef3c7;
+            border-left: 3px solid #d97706 !important;
+        }
+        
+        .calendar-event-item.et-coaching {
+            background: #e9f3ff;
+            border-left: 3px solid #004555;
+        }
+        
+        .calendar-event-item.et-class {
+            background: #fff1ec;
+            border-left: 3px solid #f04e23;
+        }
+        
+        .calendar-event-item.et-workshop {
+            background: #fffbe6;
+            border-left: 3px solid #c58a00;
+        }
+        
+        .calendar-event-item.et-webinar {
+            background: #eef6ff;
+            border-left: 3px solid #0a5d6c;
+        }
+        
+        .no-events-filtered {
+            padding: 40px 20px;
+            text-align: center;
+            color: #6b7280;
+        }
+        
+        @media (max-width: 768px) {
+            .events-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .events-header h3 {
+                text-align: center;
+            }
+            
+            .events-header-actions {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            
+            .view-toggle-btn span {
+                display: none;
+            }
+            
+            .events-filter-controls {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .events-filter-select {
+                width: 100%;
+                min-width: auto;
+            }
+            
+            .events-filter-btn,
+            .events-reset-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .calendar-header {
+                padding: 0 5px;
+            }
+            
+            .calendar-nav-btn {
+                padding: 6px 8px;
+            }
+            
+            .calendar-nav-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .calendar-header h4 {
+                font-size: 1rem;
+            }
+            
+            .calendar-day {
+                min-height: 80px;
+                padding: 4px;
+            }
+            
+            .calendar-day-number {
+                font-size: 0.75rem;
+            }
+            
+            .calendar-event-item {
+                font-size: 0.65rem;
+                padding: 3px 4px;
+            }
+            
+            .calendar-event-item .event-title {
+                display: none;
+            }
+            
+            .calendar-weekday {
+                padding: 8px 4px;
+                font-size: 0.65rem;
+            }
+            
+            .event-item {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .event-date {
+                min-width: auto;
+                width: 100%;
+            }
+        }
+        </style>
+        <?php
     }
     
     public function __construct() {
@@ -170,9 +842,37 @@ class ALM_Shortcodes_Plugin {
     }
     
     /**
-     * Get user's membership level
-     * This is a placeholder - you'll need to implement this based on your membership system
+     * Get active promotional banner for join page
      */
+    private function get_active_promo_banner_for_join_page() {
+        global $wpdb;
+        
+        // Check if ALM_Database class exists
+        if (!class_exists('ALM_Database')) {
+            return null;
+        }
+        
+        $database = new ALM_Database();
+        $banners_table = $database->get_table_name('promotional_banners');
+        
+        $current_datetime = current_time('mysql');
+        
+        // Get the first active banner that is within date range and set to show on join page
+        $banner = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$banners_table} 
+            WHERE is_active = 1 
+            AND show_on_join_page = 1
+            AND (start_date IS NULL OR start_date <= %s)
+            AND (end_date IS NULL OR end_date >= %s)
+            ORDER BY created_at DESC
+            LIMIT 1",
+            $current_datetime,
+            $current_datetime
+        ), ARRAY_A);
+        
+        return $banner ?: null;
+    }
+    
     private function get_user_membership_level($user_id) {
         // TODO: Implement based on your membership system
         // For now, return a default level - you should replace this with actual logic
@@ -247,9 +947,12 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('alm_user_notes_manager', array($this, 'user_notes_manager_shortcode'));
         add_shortcode('alm_membership_list', array($this, 'membership_list_shortcode'));
         add_shortcode('academy_pricing_table', array($this, 'pricing_table_shortcode'));
-        add_shortcode('join_page_faqs', array($this, 'join_page_faqs_shortcode'));
+        add_shortcode('academy_faqs', array($this, 'join_page_faqs_shortcode'));
+        add_shortcode('black_friday_page', array($this, 'black_friday_page_shortcode'));
         add_shortcode('site_feedback_entries', array($this, 'site_feedback_entries_shortcode'));
         add_shortcode('alm_recently_viewed', array($this, 'recently_viewed_shortcode'));
+        add_shortcode('events_calendar', array($this, 'events_calendar_shortcode'));
+        add_shortcode('event_details', array($this, 'je_event_details_shortcode'));
         
         // Add debugging
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -382,6 +1085,19 @@ class ALM_Shortcodes_Plugin {
                 </div>
                 
                 <div class="alm-shortcode-card">
+                    <h3>Collection Complete</h3>
+                    <p>Display complete collection experience with lessons, progress, and stats</p>
+                    <div class="shortcode-example">
+                        <code>[alm_collection_complete]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_collection_complete]">Copy</button>
+                    </div>
+                    <div class="shortcode-example" style="margin-top: 8px;">
+                        <code>[alm_collection_complete collection_id="123"]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[alm_collection_complete collection_id="123"]'>Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
                     <h3>Favorites Management</h3>
                     <p>View and manage your favorite lessons and resources</p>
                     <div class="shortcode-example">
@@ -409,11 +1125,42 @@ class ALM_Shortcodes_Plugin {
                 </div>
                 
                 <div class="alm-shortcode-card">
+                    <h3>Essentials Library</h3>
+                    <p>Display Essentials library selection page where members can choose lessons to add to their library</p>
+                    <div class="shortcode-example">
+                        <code>[alm_essentials_library]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[alm_essentials_library]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
                     <h3>Pricing Table</h3>
                     <p>Display membership pricing table with Essentials, Studio, and Premier options</p>
                     <div class="shortcode-example">
                         <code>[academy_pricing_table]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[academy_pricing_table]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Academy FAQs</h3>
+                    <p>Display FAQ accordion for the join/pricing page. FAQs are managed in Academy Lesson Manager Settings > FAQs tab.</p>
+                    <div class="shortcode-example">
+                        <code>[academy_faqs]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[academy_faqs]">Copy</button>
+                    </div>
+                    <div class="shortcode-example" style="margin-top: 8px;">
+                        <code>[academy_faqs category="black-friday"]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[academy_faqs category="black-friday"]'>Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Black Friday 2025 Page</h3>
+                    <p>Display the top section of the Black Friday 2025 landing page with hero, pricing cards, and important details.</p>
+                    <div class="shortcode-example">
+                        <code>[black_friday_page]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[black_friday_page]">Copy</button>
                     </div>
                 </div>
                 
@@ -463,6 +1210,32 @@ class ALM_Shortcodes_Plugin {
                     <div class="shortcode-example">
                         <code>[alm_lesson_search_compact]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[alm_lesson_search_compact]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Events Calendar</h3>
+                    <p>Interactive events list with calendar view and filters.</p>
+                    <div class="shortcode-example">
+                        <code>[events_calendar]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[events_calendar]">Copy</button>
+                    </div>
+                    <div class="shortcode-example" style="margin-top: 8px;">
+                        <code>[events_calendar title="Live Sessions" count="25"]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[events_calendar title="Live Sessions" count="25"]'>Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Event Details</h3>
+                    <p>Display event details including date, time, teacher, membership level, calendar links, and join/register button. Free events are accessible to everyone (including non-logged-in users).</p>
+                    <div class="shortcode-example">
+                        <code>[event_details]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[event_details]">Copy</button>
+                    </div>
+                    <div class="shortcode-example" style="margin-top: 8px;">
+                        <code>[event_details id="123"]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[event_details id="123"]'>Copy</button>
                     </div>
                 </div>
             </div>
@@ -534,6 +1307,15 @@ class ALM_Shortcodes_Plugin {
                 </div>
                 
                 <div class="alm-shortcode-card">
+                    <h3>Timezone Settings</h3>
+                    <p>Let students view and update the timezone used for their Practice Hub streaks and reminders.</p>
+                    <div class="shortcode-example">
+                        <code>[jph_timezone_settings]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_timezone_settings]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
                     <h3>Badges Widget</h3>
                     <p>Display user badges and achievements</p>
                     <div class="shortcode-example">
@@ -557,6 +1339,33 @@ class ALM_Shortcodes_Plugin {
                     <div class="shortcode-example">
                         <code>[jph_streak_widget]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[jph_streak_widget]">Copy</button>
+                    </div>
+                </div>
+
+                <div class="alm-shortcode-card">
+                    <h3>Notifications Feed</h3>
+                    <p>Show the latest announcements from the Practice Hub notifications system.</p>
+                    <div class="shortcode-example">
+                        <code>[jph_notifications]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_notifications]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Timezone Settings</h3>
+                    <p>Allow users to set their timezone preference for accurate streak calculations</p>
+                    <div class="shortcode-example">
+                        <code>[jph_timezone_settings]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_timezone_settings]">Copy</button>
+                    </div>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Fix Streak</h3>
+                    <p>Allow users to recalculate their streak based on practice session history</p>
+                    <div class="shortcode-example">
+                        <code>[jph_fix_streak]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[jph_fix_streak]">Copy</button>
                     </div>
                 </div>
             </div>
@@ -808,6 +1617,61 @@ class ALM_Shortcodes_Plugin {
             <h4>Example Usage:</h4>
             <pre><code>[alm_collections_page]</code></pre>
             
+            <h3>academy_pricing_table</h3>
+            <p>Displays membership pricing table with Essentials, Studio, and Premier options</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Features:</h4>
+            <ul>
+                <li>Shows three membership tiers with pricing, features, and order form links</li>
+                <li>Supports retail, sale, and doorbuster pricing</li>
+                <li>Countdown timer for doorbuster pricing</li>
+                <li>Monthly/yearly toggle for Studio tier</li>
+                <li>Responsive card layout</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[academy_pricing_table]</code></pre>
+            
+            <h3>academy_faqs</h3>
+            <p>Displays FAQ accordion for the join/pricing page. FAQs are managed in the Academy Lesson Manager Settings > FAQs tab and pulled from the database.</p>
+            <h4>Parameters:</h4>
+            <ul>
+                <li><strong>category</strong> (optional): FAQ category to display. Defaults to "membership". Use different categories for different pages (e.g., "black-friday" for promotional pages).</li>
+            </ul>
+            <h4>Features:</h4>
+            <ul>
+                <li>Database-driven FAQs managed in admin area</li>
+                <li>Category-based filtering for different pages/promotions</li>
+                <li>Interactive accordion (only one FAQ open at a time)</li>
+                <li>Smooth animations and transitions</li>
+                <li>Responsive design for all devices</li>
+                <li>Automatic link handling (opens external links in new tab)</li>
+                <li>Display order control per category</li>
+                <li>Active/inactive status toggle</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[academy_faqs]</code></pre>
+            <pre><code>[academy_faqs category="membership"]</code></pre>
+            <pre><code>[academy_faqs category="black-friday"]</code></pre>
+            
+            <h3>black_friday_page</h3>
+            <p>Displays the top section of the Black Friday 2025 landing page with hero section, pricing cards for all membership tiers, and important details.</p>
+            <h4>Parameters:</h4>
+            <p>No parameters required</p>
+            <h4>Features:</h4>
+            <ul>
+                <li>Hero section with main headline and sale timing information</li>
+                <li>Three pricing cards (Premier, Studio, Essentials) with doorbuster and main sale pricing</li>
+                <li>Other brand offers (PianoWithWillie, HomeSchoolPiano)</li>
+                <li>Important details section with key policy information</li>
+                <li>Fully responsive design for all devices</li>
+                <li>Uses brand colors (#004555 primary, #f04e23 accent)</li>
+                <li>Semantic HTML structure</li>
+                <li>Self-contained CSS (no external dependencies)</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[black_friday_page]</code></pre>
+            
             <h3>alm_lesson_search</h3>
             <p>Full-featured lesson search page with advanced filtering options</p>
             <h4>Parameters:</h4>
@@ -913,6 +1777,15 @@ class ALM_Shortcodes_Plugin {
             <p>No parameters required</p>
             <h4>Example Usage:</h4>
             <pre><code>[jph_streak_widget]</code></pre>
+
+            <h3>jph_notifications</h3>
+            <p>Displays the latest notifications created in the Practice Hub admin area. Automatically marks notifications as read for the current student.</p>
+            <h4>Parameters:</h4>
+            <ul>
+                <li><strong>limit</strong> (optional): Number of notifications to show. Default: 25.</li>
+            </ul>
+            <h4>Example Usage:</h4>
+            <pre><code>[jph_notifications]</code></pre>
         </div>
         
         <style>
@@ -2121,6 +2994,111 @@ class ALM_Shortcodes_Plugin {
         
         // RIGHT COLUMN: Resources, Details, Collection
         $return .= '<div class="alm-sidebar-column">';
+        
+        // Teacher Info Section
+        $teacher_name = '';
+        if (!empty($lesson->post_id) && function_exists('get_field')) {
+            $teacher_name = get_field('lesson_teacher', $lesson->post_id);
+        }
+        
+        if (!empty($teacher_name)) {
+            // Get teacher data from database
+            $teacher = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}alm_teachers WHERE teacher_name = %s",
+                $teacher_name
+            ));
+            
+            if ($teacher) {
+                $return .= '<div class="alm-sidebar-card alm-teacher-card">';
+                $return .= '<div class="alm-card-header">MEET YOUR TEACHER</div>';
+                $return .= '<div class="alm-card-content">';
+                
+                // Teacher Picture
+                if (!empty($teacher->picture_id) && $teacher->picture_id > 0) {
+                    $picture_url = wp_get_attachment_image_url($teacher->picture_id, 'medium');
+                    if ($picture_url) {
+                        $return .= '<div class="alm-teacher-picture" style="margin-bottom: 16px; text-align: center;">';
+                        $return .= '<img src="' . esc_url($picture_url) . '" alt="' . esc_attr($teacher->teacher_name) . '" style="width: 120px; height: 120px; object-fit: cover; border-radius: 50%; border: 2px solid #e9ecef;" />';
+                        $return .= '</div>';
+                    }
+                }
+                
+                // Teacher Name
+                $return .= '<h3 class="alm-card-title" style="text-align: center; margin-bottom: 12px;">' . esc_html($teacher->teacher_name) . '</h3>';
+                
+                // Teacher Bio
+                if (!empty($teacher->short_bio)) {
+                    $return .= '<p class="alm-card-description" style="text-align: center; margin-bottom: 16px;">' . esc_html(wp_strip_all_tags($teacher->short_bio)) . '</p>';
+                }
+                
+                // Social Links
+                $social_links = array();
+                if (!empty($teacher->website_url)) {
+                    $social_links[] = array('url' => $teacher->website_url, 'icon' => 'globe-alt', 'label' => 'Website');
+                }
+                if (!empty($teacher->instagram_url)) {
+                    $social_links[] = array('url' => $teacher->instagram_url, 'icon' => 'instagram', 'label' => 'Instagram');
+                }
+                if (!empty($teacher->facebook_url)) {
+                    $social_links[] = array('url' => $teacher->facebook_url, 'icon' => 'facebook', 'label' => 'Facebook');
+                }
+                if (!empty($teacher->youtube_url)) {
+                    $social_links[] = array('url' => $teacher->youtube_url, 'icon' => 'youtube', 'label' => 'YouTube');
+                }
+                if (!empty($teacher->tiktok_url)) {
+                    $social_links[] = array('url' => $teacher->tiktok_url, 'icon' => 'tiktok', 'label' => 'TikTok');
+                }
+                if (!empty($teacher->linkedin_url)) {
+                    $social_links[] = array('url' => $teacher->linkedin_url, 'icon' => 'linkedin', 'label' => 'LinkedIn');
+                }
+                
+                if (!empty($social_links)) {
+                    $return .= '<div class="alm-teacher-social" style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 16px;">';
+                    
+                    foreach ($social_links as $social) {
+                        $icon_class = '';
+                        switch ($social['icon']) {
+                            case 'globe-alt':
+                                $icon_class = 'fa-solid fa-globe';
+                                break;
+                            case 'instagram':
+                                $icon_class = 'fa-brands fa-instagram';
+                                break;
+                            case 'facebook':
+                                $icon_class = 'fa-brands fa-facebook';
+                                break;
+                            case 'youtube':
+                                $icon_class = 'fa-brands fa-youtube';
+                                break;
+                            case 'tiktok':
+                                $icon_class = 'fa-brands fa-tiktok';
+                                break;
+                            case 'linkedin':
+                                $icon_class = 'fa-brands fa-linkedin';
+                                break;
+                        }
+                        
+                        $return .= '<a href="' . esc_url($social['url']) . '" target="_blank" rel="noopener noreferrer" title="' . esc_attr($social['label']) . '" class="alm-teacher-social-link" style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #f8f9fa; color: #495057; text-decoration: none; transition: all 0.2s;">';
+                        $return .= '<i class="' . esc_attr($icon_class) . '" style="font-size: 18px;"></i>';
+                        $return .= '</a>';
+                    }
+                    
+                    $return .= '</div>';
+                }
+                
+                $return .= '</div>';
+                $return .= '</div>';
+                
+                // Add CSS for social link hover effects
+                $return .= '<style>
+                .alm-teacher-social-link:hover {
+                    background: #e9ecef !important;
+                    color: #212529 !important;
+                    transform: translateY(-2px);
+                }
+                </style>';
+            }
+        }
         
         // Lesson Resources
         if ($has_access) {
@@ -3671,11 +4649,22 @@ class ALM_Shortcodes_Plugin {
         
         // Prepare favorites cache for current user (from JPH lesson favorites table)
         $favorites_titles = array();
+        $is_collection_favorited = false;
+        $collection_title = stripslashes($collection->collection_title);
         if ($user_id) {
             $jph_table = $wpdb->prefix . 'jph_lesson_favorites';
             // Ensure table exists before querying
             $jph_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $jph_table));
             if (!empty($jph_exists)) {
+                // Check if this collection is favorited
+                $collection_favorite = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$jph_table} WHERE user_id = %d AND title = %s AND category = 'collection'",
+                    $user_id,
+                    $collection_title
+                ));
+                $is_collection_favorited = !empty($collection_favorite);
+                
+                // Get all favorites for lessons
                 $rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT title FROM {$jph_table} WHERE user_id = %d",
                     $user_id
@@ -3792,6 +4781,7 @@ class ALM_Shortcodes_Plugin {
             }
         }
         </style>';
+        
         $return .= '<div class="alm-hero-top" style="display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:24px;">';
 
         // Dropdown first (will appear first on mobile via CSS order)
@@ -3835,20 +4825,46 @@ class ALM_Shortcodes_Plugin {
             $return .= '<div></div>';
         }
 
-        // Badges second (will appear second on mobile via CSS order)
-        $return .= '<div style="display:flex; align-items:center; gap:8px;">';
-        $return .= '<div class="alm-collection-badge">';
-        $return .= '<svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clip-rule="evenodd"/></svg>';
-        $return .= '<span>Lesson Collection</span>';
-        $return .= '</div>';
-        $return .= '<div class="alm-membership-badge"><span>' . esc_html($membership_name) . '</span></div>';
-        $return .= '</div>';
+        // Collection Favorite Button (only show if user is logged in) - where badges used to be
+        if ($user_id) {
+            $collection_url = get_permalink();
+            $favorite_button_class = $is_collection_favorited ? 'alm-collection-favorite-btn is-favorited' : 'alm-collection-favorite-btn';
+            $favorite_button_text = $is_collection_favorited ? 'Remove from Favorites' : 'Add to Favorites';
+            $favorite_button_aria = $is_collection_favorited ? 'Remove collection from favorites' : 'Add collection to favorites';
+            
+            $return .= '<div style="display:flex; align-items:center; gap:8px;">';
+            $return .= '<button class="' . esc_attr($favorite_button_class) . '" 
+                data-collection-id="' . esc_attr($atts['collection_id']) . '"
+                data-collection-title="' . esc_attr($collection_title) . '"
+                data-collection-url="' . esc_url($collection_url) . '"
+                data-is-favorited="' . ($is_collection_favorited ? '1' : '0') . '"
+                aria-label="' . esc_attr($favorite_button_aria) . '"
+                style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.15); color: white; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; cursor: pointer; transition: all 0.2s; white-space: nowrap; border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px);">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" style="width: 16px; height: 16px;">
+                    <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+                </svg>
+                <span class="alm-favorite-btn-text">' . esc_html($favorite_button_text) . '</span>
+            </button>';
+            $return .= '</div>';
+        } else {
+            $return .= '<div></div>';
+        }
 
         $return .= '</div>'; // end top row
         
         // Title and Description Container (centered with background)
-        $return .= '<div class="alm-hero-text-container">';
-        $return .= '<h1 class="alm-hero-title">' . esc_html(stripslashes($collection->collection_title)) . '</h1>';
+        $return .= '<div class="alm-hero-text-container" style="position: relative;">';
+        
+        // Badges in top-right of hero text container - pop out effect
+        $return .= '<div style="position: absolute; top: -20px; right: 20px; display: flex; align-items: center; gap: 8px; z-index: 10;">';
+        $return .= '<div class="alm-collection-badge" style="box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1); transform: translateY(-2px);">';
+        $return .= '<svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clip-rule="evenodd"/></svg>';
+        $return .= '<span>Lesson Collection</span>';
+        $return .= '</div>';
+        $return .= '<div class="alm-membership-badge" style="box-shadow: 0 4px 12px rgba(240, 78, 35, 0.25), 0 2px 4px rgba(240, 78, 35, 0.15); transform: translateY(-2px);"><span>' . esc_html($membership_name) . '</span></div>';
+        $return .= '</div>';
+        
+        $return .= '<h1 class="alm-hero-title" style="margin: 0;">' . esc_html($collection_title) . '</h1>';
         
         // Description
         if (!empty($collection->collection_description)) {
@@ -4026,10 +5042,11 @@ class ALM_Shortcodes_Plugin {
                     aria-label="Watch Free Sample Video"
                     onclick="event.preventDefault(); event.stopPropagation(); openSampleModal(\'' . $sample_url_js . '\', \'' . $lesson_title_for_modal . '\'); return false;"
                     title="Watch Free Sample Video">
-                    <span class="alm-sample-badge">FREE SAMPLE</span>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#239B90" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />
                     </svg>
+                    <span class="alm-sample-text">Sample</span>
                 </button>';
             }
             
@@ -4058,10 +5075,10 @@ class ALM_Shortcodes_Plugin {
             $return .= '</div>'; // Close alm-lesson-top-actions
             
             // Calculate padding-right for title based on button count
-            // Video sample button is wider (~120px) with FREE SAMPLE text, favorite button is ~44px
+            // Video sample button is ~100px with "sample" text, favorite button is ~44px
             $has_video = !empty($sample_video_url_to_use);
             $has_favorite = true; // Favorite button always shown if logged in
-            $title_padding = ($has_video ? 120 : 0) + ($has_favorite ? 44 : 0) + 20; // Add 20px extra spacing
+            $title_padding = ($has_video ? 100 : 0) + ($has_favorite ? 44 : 0) + 20; // Add 20px extra spacing
             
             // Lesson title - moved down 20px with margin-top
             $return .= '<h3 class="alm-lesson-title" style="padding-right: ' . $title_padding . 'px; margin-top: 20px;">' . esc_html(stripslashes($lesson->lesson_title)) . '</h3>';
@@ -4134,47 +5151,77 @@ class ALM_Shortcodes_Plugin {
         
         // Add CSS for video sample button with FREE SAMPLE badge and favorited background
         $return .= '<style>
+        /* Collection Hero - rounded top corners */
+        .alm-collection-hero {
+            border-top-left-radius: 12px !important;
+            border-top-right-radius: 12px !important;
+        }
+        
         /* Orange border for favorited lessons */
         .alm-lesson-card-course.alm-favorited {
             border-color: #f04e23 !important;
             border-width: 2px !important;
         }
+        
+        /* Collection Favorite Button - Square button */
+        .alm-collection-favorite-btn {
+            transition: all 0.2s ease !important;
+            border-radius: 8px !important;
+        }
+        .alm-collection-favorite-btn:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2) !important;
+            background: rgba(255, 255, 255, 0.2) !important;
+        }
+        .alm-collection-favorite-btn.is-favorited {
+            background: rgba(240, 78, 35, 0.9) !important;
+            border-color: rgba(240, 78, 35, 0.3) !important;
+        }
+        .alm-collection-favorite-btn.is-favorited:hover {
+            background: rgba(240, 78, 35, 1) !important;
+            border-color: rgba(240, 78, 35, 0.5) !important;
+        }
+        .alm-collection-favorite-btn svg {
+            width: 16px !important;
+            height: 16px !important;
+            flex-shrink: 0 !important;
+        }
         .alm-video-sample-btn {
             position: relative;
-            background: linear-gradient(135deg, #239B90 0%, #004555 100%) !important;
-            border: 2px solid #239B90 !important;
-            border-radius: 8px !important;
-            padding: 8px 12px !important;
-            display: flex !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            border-radius: 30px !important;
+            padding: 0 16px !important;
+            display: inline-flex !important;
             align-items: center !important;
             gap: 8px !important;
             cursor: pointer !important;
-            transition: all 0.3s ease !important;
+            transition: all 0.2s ease !important;
             width: auto !important;
-            height: auto !important;
+            height: 38px !important;
             opacity: 1 !important;
-            box-shadow: 0 2px 8px rgba(35, 155, 144, 0.2) !important;
+            backdrop-filter: blur(10px) !important;
         }
         
         .alm-video-sample-btn:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.4) !important;
-            background: linear-gradient(135deg, #004555 0%, #239B90 100%) !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3) !important;
+            background: rgba(35, 155, 144, 0.2) !important;
+            border-color: rgba(35, 155, 144, 0.4) !important;
         }
         
-        .alm-sample-badge {
-            font-size: 10px !important;
-            font-weight: 700 !important;
-            color: white !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.5px !important;
+        .alm-sample-text {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            color: #1f2937 !important;
+            letter-spacing: 0.3px !important;
             white-space: nowrap !important;
         }
         
         .alm-video-sample-btn svg {
-            width: 18px !important;
-            height: 18px !important;
-            stroke: white !important;
+            width: 20px !important;
+            height: 20px !important;
+            stroke: #1f2937 !important;
             flex-shrink: 0 !important;
         }
         </style>';
@@ -4621,6 +5668,143 @@ class ALM_Shortcodes_Plugin {
         })();
         </script>';
         
+        // Collection Favorites JavaScript (AJAX with optimistic updates)
+        if ($user_id) {
+            $rest_nonce = wp_create_nonce('wp_rest');
+            $favorites_add_url = rest_url('aph/v1/lesson-favorites');
+            $favorites_remove_url = rest_url('aph/v1/lesson-favorites/remove');
+            
+            $return .= '<script>
+            (function() {
+                document.addEventListener("DOMContentLoaded", function() {
+                    var collectionFavoriteBtns = document.querySelectorAll(".alm-collection-favorite-btn");
+                    
+                    collectionFavoriteBtns.forEach(function(btn) {
+                        btn.addEventListener("click", function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            var isFavorited = btn.getAttribute("data-is-favorited") === "1";
+                            var collectionTitle = btn.getAttribute("data-collection-title");
+                            var collectionUrl = btn.getAttribute("data-collection-url");
+                            var textSpan = btn.querySelector(".alm-favorite-btn-text");
+                            
+                            // Optimistic UI update - change button state immediately
+                            if (isFavorited) {
+                                // Removing favorite - change to unfilled immediately
+                                btn.classList.remove("is-favorited");
+                                btn.setAttribute("data-is-favorited", "0");
+                                btn.setAttribute("aria-label", "Add collection to favorites");
+                                if (textSpan) {
+                                    textSpan.textContent = "Add to Favorites";
+                                }
+                                btn.style.background = "rgba(255, 255, 255, 0.15)";
+                                btn.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                            } else {
+                                // Adding favorite - change to filled immediately
+                                btn.classList.add("is-favorited");
+                                btn.setAttribute("data-is-favorited", "1");
+                                btn.setAttribute("aria-label", "Remove collection from favorites");
+                                if (textSpan) {
+                                    textSpan.textContent = "Remove from Favorites";
+                                }
+                                btn.style.background = "rgba(240, 78, 35, 0.9)";
+                                btn.style.borderColor = "rgba(240, 78, 35, 0.3)";
+                            }
+                            
+                            // Disable button during request to prevent double-clicks
+                            btn.style.pointerEvents = "none";
+                            var originalOpacity = btn.style.opacity;
+                            btn.style.opacity = "0.7";
+                            
+                            var endpoint = isFavorited 
+                                ? "' . esc_js($favorites_remove_url) . '"
+                                : "' . esc_js($favorites_add_url) . '";
+                            
+                            var data = isFavorited 
+                                ? { title: collectionTitle }
+                                : { 
+                                    title: collectionTitle, 
+                                    url: collectionUrl, 
+                                    category: "collection",
+                                    description: ""
+                                };
+                            
+                            fetch(endpoint, {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "X-WP-Nonce": "' . esc_js($rest_nonce) . '"
+                                },
+                                body: JSON.stringify(data),
+                                credentials: "same-origin"
+                            })
+                            .then(function(response) { 
+                                return response.json(); 
+                            })
+                            .then(function(result) {
+                                // Re-enable button
+                                btn.style.pointerEvents = "auto";
+                                btn.style.opacity = originalOpacity || "1";
+                                
+                                if (!result.success) {
+                                    // Revert optimistic update on error
+                                    if (isFavorited) {
+                                        btn.classList.add("is-favorited");
+                                        btn.setAttribute("data-is-favorited", "1");
+                                        btn.setAttribute("aria-label", "Remove collection from favorites");
+                                        if (textSpan) {
+                                            textSpan.textContent = "Remove from Favorites";
+                                        }
+                                        btn.style.background = "rgba(240, 78, 35, 0.9)";
+                                        btn.style.borderColor = "rgba(240, 78, 35, 0.3)";
+                                    } else {
+                                        btn.classList.remove("is-favorited");
+                                        btn.setAttribute("data-is-favorited", "0");
+                                        btn.setAttribute("aria-label", "Add collection to favorites");
+                                        if (textSpan) {
+                                            textSpan.textContent = "Add to Favorites";
+                                        }
+                                        btn.style.background = "rgba(255, 255, 255, 0.15)";
+                                        btn.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                                    }
+                                    console.error("ALM: Collection favorite error", result);
+                                }
+                            })
+                            .catch(function(error) {
+                                // Re-enable button
+                                btn.style.pointerEvents = "auto";
+                                btn.style.opacity = originalOpacity || "1";
+                                
+                                // Revert optimistic update on error
+                                if (isFavorited) {
+                                    btn.classList.add("is-favorited");
+                                    btn.setAttribute("data-is-favorited", "1");
+                                    btn.setAttribute("aria-label", "Remove collection from favorites");
+                                    if (textSpan) {
+                                        textSpan.textContent = "Remove from Favorites";
+                                    }
+                                    btn.style.background = "rgba(240, 78, 35, 0.9)";
+                                    btn.style.borderColor = "rgba(240, 78, 35, 0.3)";
+                                } else {
+                                    btn.classList.remove("is-favorited");
+                                    btn.setAttribute("data-is-favorited", "0");
+                                    btn.setAttribute("aria-label", "Add collection to favorites");
+                                    if (textSpan) {
+                                        textSpan.textContent = "Add to Favorites";
+                                    }
+                                    btn.style.background = "rgba(255, 255, 255, 0.15)";
+                                    btn.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                                }
+                                console.error("ALM: Collection favorite AJAX error", error);
+                            });
+                        });
+                    });
+                });
+            })();
+            </script>';
+        }
+        
         return $return;
     }
     
@@ -4938,6 +6122,19 @@ class ALM_Shortcodes_Plugin {
     }
     
     /**
+     * Truncate text with ellipsis
+     * @param string $text The text to truncate
+     * @param int $max_length Maximum length before truncation
+     * @return string Truncated text with ellipsis
+     */
+    private function truncate_text($text, $max_length = 60) {
+        if (mb_strlen($text) <= $max_length) {
+            return $text;
+        }
+        return mb_substr($text, 0, $max_length - 3) . '...';
+    }
+    
+    /**
      * Collections Dropdown Shortcode
      * Displays a dropdown list of all lesson collections grouped by membership level
      */
@@ -5004,7 +6201,9 @@ class ALM_Shortcodes_Plugin {
                 $current_level = $membership_level;
             }
             
-            $return .= '<option value="' . esc_url($coll_url) . '">' . esc_html(stripslashes($coll->collection_title)) . '</option>';
+            $collection_title = stripslashes($coll->collection_title);
+            $truncated_title = $this->truncate_text($collection_title, 40);
+            $return .= '<option value="' . esc_url($coll_url) . '">' . esc_html($truncated_title) . '</option>';
         }
         
         // Close last optgroup
@@ -5020,11 +6219,11 @@ class ALM_Shortcodes_Plugin {
     
     /**
      * Collections Page Shortcode
-     * Displays information about lesson collections and membership levels
+     * Displays information about collections and membership levels
      */
     public function collections_page_shortcode($atts) {
         $atts = shortcode_atts(array(
-            'title' => 'Lesson Collections',
+            'title' => 'Collections',
             'show_all_dropdown' => 'true',
             'show_level_dropdowns' => 'true'
         ), $atts);
@@ -5357,7 +6556,7 @@ class ALM_Shortcodes_Plugin {
             
             <div class="alm-collections-intro">
                 <h1><?php echo esc_html($atts['title']); ?></h1>
-                <p>Lesson collections are our structured courses that guide you through comprehensive learning paths. Each collection contains multiple lessons organized to help you master specific topics, techniques, or songs systematically.</p>
+                <p>Collections are curated groups of lessons&mdash;like flexible courses&mdash;that guide you through comprehensive learning paths while letting you move through each lesson in whatever order fits your workflow.</p>
             </div>
             
             <?php if ($atts['show_all_dropdown'] === 'true'): ?>
@@ -6723,12 +7922,46 @@ class ALM_Shortcodes_Plugin {
         // Premier
         $premier_yearly = $pricing['premier']['yearly'] ?? array('price' => 649, 'order_form' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_premier_retail', 'is_sale' => false, 'is_doorbuster' => false, 'retail_price' => 649);
         
+        // Get active promotional banner for join page
+        $promo_banner = $this->get_active_promo_banner_for_join_page();
+        
         ob_start();
         ?>
         <div class="membership-order-form">
             
+            <?php if ($promo_banner): ?>
+            <!-- Promotional Banner Wrapper -->
+            <div class="alm-pricing-promo-wrapper" style="width: 100%; margin: 0 auto; text-align: center; margin-bottom: 30px;">
+                <div class="jph-promo-banner alm-pricing-banner" style="max-width: 100%; margin: 0 auto; text-align: center; display: block;">
+                    <?php if ($promo_banner['banner_type'] === 'image'): ?>
+                        <?php if (!empty($promo_banner['button_url'])): ?>
+                            <a href="<?php echo esc_url($promo_banner['button_url']); ?>" class="jph-promo-banner-link" style="display: block;">
+                        <?php endif; ?>
+                        <?php if ($promo_banner['image_id']): ?>
+                            <?php echo wp_get_attachment_image($promo_banner['image_id'], 'full', false, array('class' => 'jph-promo-banner-image', 'alt' => esc_attr($promo_banner['headline'] ?: 'Promotional banner'), 'style' => 'max-width: 100%; height: auto; display: block; margin: 0 auto;')); ?>
+                        <?php endif; ?>
+                        <?php if (!empty($promo_banner['button_url'])): ?>
+                            </a>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <div class="jph-promo-banner-content">
+                            <?php if (!empty($promo_banner['headline'])): ?>
+                                <h3 class="jph-promo-banner-headline"><?php echo esc_html($promo_banner['headline']); ?></h3>
+                            <?php endif; ?>
+                            <?php if (!empty($promo_banner['text_content'])): ?>
+                                <p class="jph-promo-banner-text"><?php echo esc_html($promo_banner['text_content']); ?></p>
+                            <?php endif; ?>
+                            <?php if (!empty($promo_banner['button_text']) && !empty($promo_banner['button_url'])): ?>
+                                <a href="<?php echo esc_url($promo_banner['button_url']); ?>" class="jph-promo-banner-button"><?php echo esc_html($promo_banner['button_text']); ?></a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <!-- Membership Cards Container -->
-            <div class="membership-cards">
+            <div class="membership-cards"<?php echo $promo_banner ? ' style="margin-top: 55px;"' : ''; ?>>
                 
                 <!-- Essentials Card -->
                 <div class="membership-card essentials-card">
@@ -6808,6 +8041,10 @@ class ALM_Shortcodes_Plugin {
                             <li>
                                 <span class="check-icon">✓</span> 
                                 <span aria-label="Join our monthly community call to ask questions and get personalized lesson or practice suggestions" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Monthly Community Q&A Call</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="JPC gives students a step by step approach to learning all the technical foundational skills they need to be successful, all baked in step by step along with teacher feedback." data-microtip-position="top" data-microtip-size="medium" role="tooltip">Jazzedge Practice Curriculum™</span>
                             </li>
                         </ul>
                     </div>
@@ -6920,7 +8157,7 @@ class ALM_Shortcodes_Plugin {
                             </li>
                             <li>
                                 <span class="check-icon">✓</span> 
-                                <span aria-label="Our comprehensive practice curriculum designed to build your skills systematically" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Jazzedge Practice Curriculum™</span>
+                                <span aria-label="JPC gives students a step by step approach to learning all the technical foundational skills they need to be successful, all baked in step by step along with teacher feedback." data-microtip-position="top" data-microtip-size="medium" role="tooltip">Jazzedge Practice Curriculum™</span>
                             </li>
                             <li>
                                 <span class="check-icon">✓</span> 
@@ -7030,6 +8267,10 @@ class ALM_Shortcodes_Plugin {
                             <li>
                                 <span class="check-icon">✓</span> 
                                 <span aria-label="Join our monthly community call to ask questions and get personalized lesson or practice suggestions" data-microtip-position="top" data-microtip-size="medium" role="tooltip">Monthly Community Q&A Call</span>
+                            </li>
+                            <li>
+                                <span class="check-icon">✓</span> 
+                                <span aria-label="JPC gives students a step by step approach to learning all the technical foundational skills they need to be successful, all baked in step by step along with teacher feedback." data-microtip-position="top" data-microtip-size="medium" role="tooltip">Jazzedge Practice Curriculum™</span>
                             </li>
                         </ul>
                     </div>
@@ -7187,6 +8428,24 @@ class ALM_Shortcodes_Plugin {
         }
         
         /* Membership Cards Container */
+        /* Promotional banner spacing on pricing page - using wrapper to ensure spacing */
+        .alm-pricing-promo-wrapper {
+            width: 100%;
+            margin: 0 auto 30px auto;
+            text-align: center;
+            display: block;
+            box-sizing: border-box;
+        }
+        
+        .alm-pricing-promo-wrapper .jph-promo-banner {
+            margin-bottom: 0 !important;
+            max-width: 100%;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            text-align: center;
+            display: block;
+        }
+        
         .membership-cards {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -8056,103 +9315,983 @@ class ALM_Shortcodes_Plugin {
     }
     
     /**
+     * Events calendar shortcode with filters and calendar view
+     */
+    public function events_calendar_shortcode($atts = array()) {
+        if (!function_exists('je_get_events_between') || !function_exists('je_ev_local_dt')) {
+            return '<div class="jph-events-section"><div class="no-events-content"><p>Events system is not available. Please check back later.</p></div></div>';
+        }
+        
+        $atts = shortcode_atts(array(
+            'title' => 'Upcoming Events',
+            'count' => 0,
+        ), $atts, 'events_calendar');
+        
+        $user_id = get_current_user_id();
+        $user_level = '';
+        $user_meta = get_user_meta($user_id, 'membership_level', true);
+        if (!empty($user_meta)) {
+            $user_level = sanitize_title($user_meta);
+        }
+        
+        $now_ts = current_time('timestamp');
+        $buffer_hours = 6;
+        $now_with_buffer = $now_ts - ($buffer_hours * 3600);
+        $start = new DateTimeImmutable('@' . $now_with_buffer);
+        $end = (new DateTimeImmutable('@' . $now_ts))->modify('+365 days');
+        
+        $events = je_get_events_between($start, $end, array(
+            'teacher' => '',
+            'membership-level' => $user_level,
+        ));
+        
+        if (empty($events) || !is_array($events)) {
+            return '<div class="jph-events-section"><div class="no-events-content"><p>No upcoming events scheduled. Check back soon for new live sessions!</p></div></div>';
+        }
+        
+        $items = array();
+        foreach ($events as $ev) {
+            $raw = get_post_meta($ev->ID, 'je_event_start', true);
+            $dt = je_ev_local_dt($raw);
+            if (!$dt) {
+                continue;
+            }
+            
+            $ts = $dt->getTimestamp();
+            $raw_end = get_post_meta($ev->ID, 'je_event_end', true);
+            $end_dt = $raw_end ? je_ev_local_dt($raw_end) : null;
+            $end_ts = $end_dt ? $end_dt->getTimestamp() : ($ts + (2 * 3600));
+            $visible_until = $end_ts + (6 * 3600);
+            
+            if ($visible_until < $now_ts) {
+                continue;
+            }
+            
+            $event_types = wp_get_post_terms($ev->ID, 'event-type', array('fields' => 'names'));
+            if (is_wp_error($event_types) || empty($event_types)) {
+                $event_types = wp_get_post_terms($ev->ID, 'event_type', array('fields' => 'names'));
+            }
+            $event_types = is_wp_error($event_types) ? array() : $event_types;
+            
+            $membership_levels = wp_get_post_terms($ev->ID, 'membership-level', array('fields' => 'names'));
+            if (is_wp_error($membership_levels) || empty($membership_levels)) {
+                $membership_levels = wp_get_post_terms($ev->ID, 'membership_level', array('fields' => 'names'));
+            }
+            $membership_levels = is_wp_error($membership_levels) ? array() : $membership_levels;
+            
+            $teacher_terms = wp_get_post_terms($ev->ID, 'teacher', array('fields' => 'names'));
+            if (!is_wp_error($teacher_terms) && !empty($teacher_terms)) {
+                $event_teacher = implode(', ', $teacher_terms);
+            } else {
+                $event_teacher = get_post_meta($ev->ID, 'je_event_teacher', true);
+                if (empty($event_teacher)) {
+                    $event_teacher = get_post_meta($ev->ID, 'event_teacher', true);
+                }
+            }
+            
+            $items[] = array(
+                'id' => $ev->ID,
+                'ts' => $ts,
+                'end_ts' => $end_ts,
+                'title' => get_the_title($ev->ID),
+                'permalink' => get_permalink($ev->ID),
+                'teacher' => $event_teacher ?: '',
+                'types' => $event_types,
+                'membership_levels' => $membership_levels,
+                'excerpt' => get_the_excerpt($ev->ID) ?: wp_trim_words(get_the_content($ev->ID), 20),
+            );
+        }
+        
+        if (empty($items)) {
+            return '<div class="jph-events-section"><div class="no-events-content"><p>No upcoming events scheduled. Check back soon for new live sessions!</p></div></div>';
+        }
+        
+        usort($items, function($a, $b) {
+            return $a['ts'] <=> $b['ts'];
+        });
+        
+        $count = absint($atts['count']);
+        if ($count > 0) {
+            $items = array_slice($items, 0, $count);
+        }
+        
+        $unique_teachers = array();
+        $unique_membership_levels = array();
+        $unique_event_types = array();
+        
+        $teacher_terms = get_terms(array(
+            'taxonomy' => 'teacher',
+            'hide_empty' => false,
+        ));
+        if (!is_wp_error($teacher_terms) && !empty($teacher_terms)) {
+            foreach ($teacher_terms as $term) {
+                $unique_teachers[] = $term->name;
+            }
+        } else {
+            foreach ($items as $item) {
+                if (!empty($item['teacher']) && !in_array($item['teacher'], $unique_teachers, true)) {
+                    $unique_teachers[] = $item['teacher'];
+                }
+            }
+        }
+        
+        $membership_tax = taxonomy_exists('membership-level') ? 'membership-level' : (taxonomy_exists('membership_level') ? 'membership_level' : '');
+        if ($membership_tax) {
+            $membership_terms = get_terms(array(
+                'taxonomy' => $membership_tax,
+                'hide_empty' => false,
+            ));
+            if (!is_wp_error($membership_terms) && !empty($membership_terms)) {
+                foreach ($membership_terms as $term) {
+                    $unique_membership_levels[] = $term->name;
+                }
+            }
+        }
+        if (empty($unique_membership_levels)) {
+            foreach ($items as $item) {
+                foreach ($item['membership_levels'] as $level) {
+                    if (!empty($level) && !in_array($level, $unique_membership_levels, true)) {
+                        $unique_membership_levels[] = $level;
+                    }
+                }
+            }
+        }
+        
+        $event_type_tax = taxonomy_exists('event-type') ? 'event-type' : (taxonomy_exists('event_type') ? 'event_type' : '');
+        if ($event_type_tax) {
+            $event_type_terms = get_terms(array(
+                'taxonomy' => $event_type_tax,
+                'hide_empty' => false,
+            ));
+            if (!is_wp_error($event_type_terms) && !empty($event_type_terms)) {
+                foreach ($event_type_terms as $term) {
+                    $unique_event_types[] = $term->name;
+                }
+            }
+        }
+        if (empty($unique_event_types)) {
+            foreach ($items as $item) {
+                foreach ($item['types'] as $type) {
+                    if (!empty($type) && !in_array($type, $unique_event_types, true)) {
+                        $unique_event_types[] = $type;
+                    }
+                }
+            }
+        }
+        
+        sort($unique_teachers);
+        sort($unique_membership_levels);
+        sort($unique_event_types);
+        
+        $events_json = wp_json_encode(array_map(function($item) {
+            return array(
+                'id' => $item['id'],
+                'ts' => $item['ts'],
+                'end_ts' => $item['end_ts'],
+                'title' => $item['title'],
+                'permalink' => $item['permalink'],
+                'teacher' => $item['teacher'],
+                'types' => $item['types'],
+                'membership_levels' => $item['membership_levels'],
+                'excerpt' => $item['excerpt'],
+                'date' => wp_date('Y-m-d', $item['ts']),
+                'time' => wp_date('g:i a', $item['ts']),
+            );
+        }, $items));
+        
+        $filter_options_json = wp_json_encode(array(
+            'teachers' => $unique_teachers,
+            'membership_levels' => $unique_membership_levels,
+            'event_types' => $unique_event_types,
+        ));
+        
+        $wrapper_id = 'events-calendar-' . wp_generate_password(6, false, false);
+        $events_data_id = $wrapper_id . '-events-data';
+        $filter_options_id = $wrapper_id . '-filter-options';
+        $list_view_id = $wrapper_id . '-list-view';
+        $calendar_view_id = $wrapper_id . '-calendar-view';
+        $membership_select_id = $wrapper_id . '-filter-membership';
+        $teacher_select_id = $wrapper_id . '-filter-teacher';
+        $type_select_id = $wrapper_id . '-filter-type';
+        $filter_button_id = $wrapper_id . '-filter-btn';
+        $reset_button_id = $wrapper_id . '-reset-btn';
+        
+        $this->render_events_calendar_assets();
+        
+        ob_start();
+        ?>
+        <div id="<?php echo esc_attr($wrapper_id); ?>" class="alm-events-calendar-wrapper">
+            <div class="jph-events-section">
+                <div class="events-header">
+                    <h3><?php echo esc_html($atts['title']); ?></h3>
+                    <div class="events-header-actions">
+                        <div class="events-view-toggle">
+                            <button class="view-toggle-btn active" data-view="list" title="List View" aria-label="List View">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM7.5 6.75h.007v.008H7.5V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm.375 5.25h.007v.008H8.25v-.008Zm0 5.25h.007v.008H8.25V18Zm-.375-5.25h.007v.008H7.875v-.008Zm0 5.25h.007v.008H7.875V18Zm3.75-5.25h.007v.008H11.625v-.008Zm0 5.25h.007v.008H11.625V18Zm-.375-5.25h.007v.008h-.007v-.008Zm0 5.25h.007v.008h-.007V18Z" />
+                                </svg>
+                                <span>List</span>
+                            </button>
+                            <button class="view-toggle-btn" data-view="calendar" title="Calendar View" aria-label="Calendar View">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                                </svg>
+                                <span>Calendar</span>
+                            </button>
+                        </div>
+                        <div class="events-filter-controls">
+                            <select id="<?php echo esc_attr($membership_select_id); ?>" class="events-filter-select" aria-label="Filter by membership level">
+                                <option value="">All Membership Levels</option>
+                            </select>
+                            <select id="<?php echo esc_attr($teacher_select_id); ?>" class="events-filter-select" aria-label="Filter by teacher">
+                                <option value="">All Teachers</option>
+                            </select>
+                            <select id="<?php echo esc_attr($type_select_id); ?>" class="events-filter-select" aria-label="Filter by event type">
+                                <option value="">All Event Types</option>
+                            </select>
+                            <button id="<?php echo esc_attr($filter_button_id); ?>" class="events-filter-btn" type="button">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+                                </svg>
+                                <span>Filter</span>
+                            </button>
+                            <button id="<?php echo esc_attr($reset_button_id); ?>" class="events-reset-btn" type="button" style="display: none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                <span>Reset</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="events-content">
+                    <?php if (!empty($items)) : ?>
+                        <script type="application/json" id="<?php echo esc_attr($events_data_id); ?>"><?php echo $events_json; ?></script>
+                        <script type="application/json" id="<?php echo esc_attr($filter_options_id); ?>"><?php echo $filter_options_json; ?></script>
+                        
+                        <div class="events-list-view" id="<?php echo esc_attr($list_view_id); ?>">
+                            <?php foreach ($items as $it) :
+                                $pid = $it['id'];
+                                $event_types = $it['types'];
+                                $membership_levels = $it['membership_levels'];
+                                $event_teacher = $it['teacher'];
+                                $event_excerpt = $it['excerpt'];
+                                $event_date = wp_date('D, M j • g:i a', $it['ts']);
+                                $teacher_names_for_filter = '';
+                                $teacher_terms_for_filter = wp_get_post_terms($pid, 'teacher', array('fields' => 'names'));
+                                if (!is_wp_error($teacher_terms_for_filter) && !empty($teacher_terms_for_filter)) {
+                                    $teacher_names_for_filter = implode(', ', array_map('strtolower', $teacher_terms_for_filter));
+                                } elseif (!empty($event_teacher)) {
+                                    $teacher_names_for_filter = strtolower($event_teacher);
+                                }
+                            ?>
+                            <div class="event-item" data-event-id="<?php echo esc_attr($pid); ?>" data-event-date="<?php echo esc_attr(wp_date('Y-m-d', $it['ts'])); ?>" data-event-teacher="<?php echo esc_attr($teacher_names_for_filter); ?>" data-event-types="<?php echo esc_attr(implode(',', array_map('strtolower', $event_types))); ?>" data-event-membership="<?php echo esc_attr(implode(',', array_map('strtolower', $membership_levels))); ?>">
+                                <div class="event-date">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                    <span><?php echo esc_html($event_date); ?></span>
+                                    <div class="event-calendar-links">
+                                        <?php
+                                        $s = je_ev_local_dt(get_post_meta($pid, 'je_event_start', true));
+                                        $e_dt = je_ev_local_dt(get_post_meta($pid, 'je_event_end', true));
+                                        $tz = wp_timezone_string();
+                                        if ($s) {
+                                            $title = wp_strip_all_tags($it['title']);
+                                            $desc = wp_strip_all_tags($event_excerpt ?: get_post_field('post_content', $pid));
+                                            $gcal = add_query_arg(array(
+                                                'action' => 'TEMPLATE',
+                                                'text' => $title,
+                                                'dates' => je_gcal_range($s, $e_dt),
+                                                'details' => $desc . "\n" . get_permalink($pid),
+                                                'ctz' => $tz,
+                                            ), 'https://www.google.com/calendar/render');
+                                            $ics = add_query_arg(array('action' => 'je_ics', 'id' => $pid), admin_url('admin-ajax.php'));
+                                            ?>
+                                            <a class="calendar-link gcal-link" href="<?php echo esc_url($gcal); ?>" target="_blank" rel="noopener" title="Add to Google Calendar">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                                </svg>
+                                                <span>Google</span>
+                                            </a>
+                                            <a class="calendar-link ical-link" href="<?php echo esc_url($ics); ?>" title="Add to iCal/Outlook">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                                </svg>
+                                                <span>iCal</span>
+                                            </a>
+                                            <?php
+                                        }
+                                        ?>
+                                    </div>
+                                </div>
+                                <div class="event-info">
+                                    <h4><a href="<?php echo esc_url($it['permalink']); ?>"><?php echo esc_html($it['title']); ?></a></h4>
+                                    <?php if (!empty($event_excerpt)) : ?>
+                                        <p class="event-description"><?php echo esc_html($event_excerpt); ?></p>
+                                    <?php endif; ?>
+                                    <div class="event-meta">
+                                        <?php if (!empty($event_teacher)) : ?>
+                                            <div class="event-teacher">
+                                                <span class="teacher-pill"><?php echo esc_html($event_teacher); ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($event_types)) : ?>
+                                            <div class="event-types">
+                                                <?php foreach ($event_types as $type) : ?>
+                                                    <span class="event-type-tag"><?php echo esc_html($type); ?></span>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($membership_levels)) : ?>
+                                            <div class="event-membership">
+                                                <?php foreach ($membership_levels as $level) : ?>
+                                                    <span class="membership-level-tag membership-<?php echo esc_attr(strtolower($level)); ?>"><?php echo esc_html($level); ?></span>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        
+                        <div class="events-calendar-view" id="<?php echo esc_attr($calendar_view_id); ?>" style="display: none;">
+                            <div id="<?php echo esc_attr($calendar_view_id); ?>-container"></div>
+                        </div>
+                    <?php else : ?>
+                        <div class="no-events-content">
+                            <p>No upcoming events scheduled. Check back soon for new live sessions!</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        
+        <?php if (!empty($items)) : ?>
+        <script>
+        (function($){
+            $(function(){
+                const $root = $('#<?php echo esc_js($wrapper_id); ?>');
+                if (!$root.length) {
+                    return;
+                }
+                
+                const eventsDataEl = document.getElementById('<?php echo esc_js($events_data_id); ?>');
+                if (!eventsDataEl) {
+                    return;
+                }
+                
+                let calendarDisplayMonth = null;
+                let calendarDisplayYear = null;
+                let baseEvents = [];
+                try {
+                    baseEvents = JSON.parse(eventsDataEl.textContent || '[]');
+                } catch (error) {
+                    console.error('Error parsing events data JSON:', error);
+                }
+                const filterOptionsEl = document.getElementById('<?php echo esc_js($filter_options_id); ?>');
+                const $listView = $('#<?php echo esc_js($list_view_id); ?>');
+                const $calendarView = $('#<?php echo esc_js($calendar_view_id); ?>');
+                const $calendarContainer = $('#<?php echo esc_js($calendar_view_id); ?>-container');
+                const $toggleBtns = $root.find('.view-toggle-btn');
+                const $filterBtn = $('#<?php echo esc_js($filter_button_id); ?>');
+                const $resetBtn = $('#<?php echo esc_js($reset_button_id); ?>');
+                const $membershipSelect = $('#<?php echo esc_js($membership_select_id); ?>');
+                const $teacherSelect = $('#<?php echo esc_js($teacher_select_id); ?>');
+                const $typeSelect = $('#<?php echo esc_js($type_select_id); ?>');
+                
+                if (filterOptionsEl) {
+                    try {
+                        const filterOptions = JSON.parse(filterOptionsEl.textContent || '{}');
+                        (filterOptions.membership_levels || []).forEach(function(level) {
+                            $membershipSelect.append('<option value="' + level.replace(/"/g, '&quot;') + '">' + level + '</option>');
+                        });
+                        (filterOptions.teachers || []).forEach(function(teacher) {
+                            $teacherSelect.append('<option value="' + teacher.replace(/"/g, '&quot;') + '">' + teacher + '</option>');
+                        });
+                        (filterOptions.event_types || []).forEach(function(type) {
+                            $typeSelect.append('<option value="' + type.replace(/"/g, '&quot;') + '">' + type + '</option>');
+                        });
+                    } catch (e) {
+                        console.error('Error parsing filter options:', e);
+                    }
+                }
+                
+                $toggleBtns.on('click', function() {
+                    const view = $(this).data('view');
+                    $toggleBtns.removeClass('active');
+                    $(this).addClass('active');
+                    
+                    if (view === 'calendar') {
+                        $listView.hide();
+                        $calendarView.show();
+                        renderCalendarView();
+                    } else {
+                        $listView.show();
+                        $calendarView.hide();
+                    }
+                });
+                
+                $filterBtn.on('click', function() {
+                    filterEvents();
+                });
+                
+                $resetBtn.on('click', function() {
+                    $membershipSelect.val('');
+                    $teacherSelect.val('');
+                    $typeSelect.val('');
+                    filterEvents();
+                });
+                
+                filterEvents();
+                
+                function filterEvents() {
+                    const filterMembership = ($membershipSelect.val() || '').toLowerCase();
+                    const filterTeacher = ($teacherSelect.val() || '').toLowerCase();
+                    const filterType = ($typeSelect.val() || '').toLowerCase();
+                    
+                    if (filterMembership || filterTeacher || filterType) {
+                        $resetBtn.show();
+                    } else {
+                        $resetBtn.hide();
+                    }
+                    
+                    const $eventItems = $listView.find('.event-item');
+                    let visibleCount = 0;
+                    
+                    $eventItems.each(function() {
+                        const $item = $(this);
+                        const itemTeacher = ($item.data('event-teacher') || '').toLowerCase();
+                        const itemTypes = ($item.data('event-types') || '').split(',').map(function(t) { return t.trim().toLowerCase(); });
+                        const itemMembership = ($item.data('event-membership') || '').split(',').map(function(m) { return m.trim().toLowerCase(); });
+                        
+                        let show = true;
+                        
+                        if (filterMembership && !itemMembership.includes(filterMembership)) {
+                            show = false;
+                        }
+                        
+                        if (show && filterTeacher) {
+                            const teacherList = itemTeacher.split(',').map(function(t) { return t.trim(); });
+                            if (!teacherList.includes(filterTeacher)) {
+                                show = false;
+                            }
+                        }
+                        
+                        if (show && filterType && !itemTypes.includes(filterType)) {
+                            show = false;
+                        }
+                        
+                        if (show) {
+                            $item.show();
+                            visibleCount++;
+                        } else {
+                            $item.hide();
+                        }
+                    });
+                    
+                    if (visibleCount === 0) {
+                        if ($listView.find('.no-events-filtered').length === 0) {
+                            $listView.append('<div class="no-events-filtered"><p>No events match your filters. Try adjusting your selection.</p></div>');
+                        }
+                    } else {
+                        $listView.find('.no-events-filtered').remove();
+                    }
+                    
+                    if ($calendarView.is(':visible')) {
+                        renderCalendarView();
+                    }
+                }
+                
+                function initCalendarMonth() {
+                    const now = new Date();
+                    calendarDisplayMonth = now.getMonth();
+                    calendarDisplayYear = now.getFullYear();
+                }
+                
+                function renderCalendarView(month, year) {
+                    if (calendarDisplayMonth === null || calendarDisplayYear === null) {
+                        initCalendarMonth();
+                    }
+                    
+                    if (typeof month === 'number' && typeof year === 'number') {
+                        calendarDisplayMonth = month;
+                        calendarDisplayYear = year;
+                    }
+                    
+                    try {
+                        let events = baseEvents.slice();
+                        const filterMembership = ($membershipSelect.val() || '').toLowerCase();
+                        const filterTeacher = ($teacherSelect.val() || '').toLowerCase();
+                        const filterType = ($typeSelect.val() || '').toLowerCase();
+                        
+                        if (filterMembership || filterTeacher || filterType) {
+                            events = events.filter(function(event) {
+                                let show = true;
+                                if (filterMembership) {
+                                    const eventMembership = (event.membership_levels || []).map(function(m) { return (m || '').toLowerCase(); });
+                                    if (!eventMembership.includes(filterMembership)) {
+                                        show = false;
+                                    }
+                                }
+                                if (show && filterTeacher) {
+                                    const eventTeacher = (event.teacher || '').toLowerCase();
+                                    const teacherList = eventTeacher.split(',').map(function(t) { return t.trim(); });
+                                    if (!teacherList.includes(filterTeacher)) {
+                                        show = false;
+                                    }
+                                }
+                                if (show && filterType) {
+                                    const eventTypes = (event.types || []).map(function(t) { return (t || '').toLowerCase(); });
+                                    if (!eventTypes.includes(filterType)) {
+                                        show = false;
+                                    }
+                                }
+                                return show;
+                            });
+                        }
+                        
+                        const displayMonth = typeof month === 'number' ? month : calendarDisplayMonth;
+                        const displayYear = typeof year === 'number' ? year : calendarDisplayYear;
+                        const firstDay = new Date(displayYear, displayMonth, 1);
+                        const lastDay = new Date(displayYear, displayMonth + 1, 0);
+                        const daysInMonth = lastDay.getDate();
+                        const startingDayOfWeek = firstDay.getDay();
+                        const eventsByDate = {};
+                        const displayMonthStr = String(displayMonth + 1).padStart(2, '0');
+                        
+                        events.forEach(function(event) {
+                            const eventDate = event.date;
+                            if (eventDate && eventDate.startsWith(displayYear + '-' + displayMonthStr + '-')) {
+                                if (!eventsByDate[eventDate]) {
+                                    eventsByDate[eventDate] = [];
+                                }
+                                eventsByDate[eventDate].push(event);
+                            }
+                        });
+                        
+                        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                        const prevMonth = displayMonth === 0 ? 11 : displayMonth - 1;
+                        const prevYear = displayMonth === 0 ? displayYear - 1 : displayYear;
+                        const nextMonth = displayMonth === 11 ? 0 : displayMonth + 1;
+                        const nextYear = displayMonth === 11 ? displayYear + 1 : displayYear;
+                        
+                        let calendarHTML = '<div class="events-calendar-container">';
+                        calendarHTML += '<div class="calendar-header">';
+                        calendarHTML += '<button type="button" class="calendar-nav-btn calendar-prev" data-month="' + prevMonth + '" data-year="' + prevYear + '">';
+                        calendarHTML += '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>';
+                        calendarHTML += '</button>';
+                        calendarHTML += '<h4>' + monthNames[displayMonth] + ' ' + displayYear + '</h4>';
+                        calendarHTML += '<button type="button" class="calendar-nav-btn calendar-next" data-month="' + nextMonth + '" data-year="' + nextYear + '">';
+                        calendarHTML += '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>';
+                        calendarHTML += '</button>';
+                        calendarHTML += '</div>';
+                        calendarHTML += '<div class="calendar-grid">';
+                        
+                        dayNames.forEach(function(day) {
+                            calendarHTML += '<div class="calendar-weekday">' + day + '</div>';
+                        });
+                        
+                        for (let i = 0; i < startingDayOfWeek; i++) {
+                            calendarHTML += '<div class="calendar-day empty"></div>';
+                        }
+                        
+                        const today = new Date();
+                        const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+                        
+                        for (let day = 1; day <= daysInMonth; day++) {
+                            const dateStr = displayYear + '-' + String(displayMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                            const isToday = dateStr === todayStr;
+                            const hasEvents = eventsByDate[dateStr] && eventsByDate[dateStr].length > 0;
+                            
+                            let dayClasses = 'calendar-day';
+                            if (isToday) dayClasses += ' today';
+                            if (hasEvents) dayClasses += ' has-events';
+                            
+                            calendarHTML += '<div class="' + dayClasses + '" data-date="' + dateStr + '">';
+                            calendarHTML += '<div class="calendar-day-number">' + day + '</div>';
+                            
+                            if (hasEvents) {
+                                calendarHTML += '<div class="calendar-day-events">';
+                                // Sort events within the day by time
+                                const dayEvents = eventsByDate[dateStr].slice().sort(function(a, b) {
+                                    // Helper function to parse time string (e.g., "9:00 am", "12:30 pm")
+                                    function parseTime(timeStr) {
+                                        if (!timeStr) return 0;
+                                        const match = timeStr.match(/(\d+):(\d+)\s*(am|pm)/i);
+                                        if (!match) return 0;
+                                        let hours = parseInt(match[1], 10);
+                                        const minutes = parseInt(match[2], 10);
+                                        const period = match[3].toLowerCase();
+                                        if (period === 'pm' && hours !== 12) hours += 12;
+                                        if (period === 'am' && hours === 12) hours = 0;
+                                        return hours * 60 + minutes; // Convert to minutes for easy comparison
+                                    }
+                                    return parseTime(a.time) - parseTime(b.time);
+                                });
+                                
+                                dayEvents.slice(0, 3).forEach(function(event) {
+                                    const typeClass = event.types && event.types.length > 0 ? 'et-' + event.types[0].toLowerCase().replace(/\\s+/g, '-').replace(/[^a-z0-9-]/g, '') : '';
+                                    const eventTitle = (event.title || 'Event').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                                    const eventTime = (event.time || '').replace(/"/g, '&quot;');
+                                    const eventPermalink = (event.permalink || '#').replace(/"/g, '&quot;');
+                                    calendarHTML += '<a href="' + eventPermalink + '" class="calendar-event-item ' + typeClass + '" title="' + eventTitle + ' - ' + eventTime + '">';
+                                    calendarHTML += '<span class="event-time">' + eventTime + '</span>';
+                                    calendarHTML += '<span class="event-title">' + eventTitle + '</span>';
+                                    calendarHTML += '</a>';
+                                });
+                                
+                                if (dayEvents.length > 3) {
+                                    calendarHTML += '<div class="calendar-more-events">+' + (dayEvents.length - 3) + ' more</div>';
+                                }
+                                
+                                calendarHTML += '</div>';
+                            }
+                            
+                            calendarHTML += '</div>';
+                        }
+                        
+                        const totalCells = 7 + startingDayOfWeek + daysInMonth;
+                        const remainingCells = 7 - (totalCells % 7);
+                        if (remainingCells < 7 && remainingCells > 0) {
+                            for (let i = 0; i < remainingCells; i++) {
+                                calendarHTML += '<div class="calendar-day empty"></div>';
+                            }
+                        }
+                        
+                        calendarHTML += '</div></div>';
+                        $calendarContainer.html(calendarHTML);
+                        
+                        $calendarContainer.find('.calendar-nav-btn').on('click', function() {
+                            const nextMonth = parseInt($(this).data('month'), 10);
+                            const nextYear = parseInt($(this).data('year'), 10);
+                            renderCalendarView(nextMonth, nextYear);
+                        });
+                    } catch (error) {
+                        console.error('Error rendering calendar view:', error);
+                        $calendarContainer.html('<div class="no-events-content"><p>Error loading calendar view.</p></div>');
+                    }
+                }
+            });
+        })(jQuery);
+        </script>
+        <?php endif; ?>
+        <?php
+        
+        return ob_get_clean();
+    }
+    
+    /**
+     * Event Details Shortcode
+     * Displays event details including date, time, teacher, membership level, calendar links, and join/register button
+     * [event_details id=""]
+     */
+    public function je_event_details_shortcode($atts) {
+        // Check if required functions exist
+        if (!function_exists('je_dt_local') || !function_exists('je_gcal_range')) {
+            return '<div class="je-session-card"><p>Events system is not available. Please check back later.</p></div>';
+        }
+        
+        $id = absint($atts['id'] ?? get_the_ID());
+        $s  = je_dt_local(get_post_meta($id, 'je_event_start', true));
+        if (!$s) return '';
+        
+        $e  = je_dt_local(get_post_meta($id, 'je_event_end', true));
+        $tz = wp_timezone_string();
+
+        // Date/Time strings
+        $day  = wp_date('D', $s->getTimestamp()); // Thu, Fri, etc.
+        $date = wp_date('F j, Y', $s->getTimestamp());
+        $time = wp_date('g:i a', $s->getTimestamp()) . ($e ? ' – ' . wp_date('g:i a', $e->getTimestamp()) : '');
+
+        // Helper to get term names (handles membership-level vs membership_level)
+        $get_terms_uc = function($post_id, $tax_slugs) {
+            $tax_slugs = (array) $tax_slugs;
+            foreach ($tax_slugs as $tx) {
+                $names = wp_get_post_terms($post_id, $tx, ['fields' => 'names']);
+                if (!is_wp_error($names) && !empty($names)) {
+                    return implode(', ', array_map(function($n) {
+                        return ucfirst(strtolower($n));
+                    }, $names));
+                }
+            }
+            return '';
+        };
+
+        $teacher = $get_terms_uc($id, 'teacher');
+        $level   = $get_terms_uc($id, 'membership-level');
+
+        // Calendar links
+        $title = wp_strip_all_tags(get_the_title($id));
+        $desc  = wp_strip_all_tags(get_the_excerpt($id) ?: get_post_field('post_content', $id));
+        $gcal  = add_query_arg([
+            'action'  => 'TEMPLATE',
+            'text'    => $title,
+            'dates'   => je_gcal_range($s, $e),
+            'details' => $desc . "\n" . get_permalink($id),
+            'ctz'     => $tz,
+        ], 'https://www.google.com/calendar/render');
+        $ics   = add_query_arg(['action' => 'je_ics', 'id' => $id], admin_url('admin-ajax.php'));
+
+        // Join / Registration
+        $join     = trim((string) get_post_meta($id, 'je_event_zoom_link', true));
+        $reg_url  = trim((string) get_post_meta($id, 'je_event_registration', true));
+        $has_reg  = !empty($reg_url);
+
+        // Buffer (hide cal links if event start is >12h in the past)
+        $now = new DateTime('now', wp_timezone());
+        $cutoff = (clone $now)->modify('-12 hours');
+        $show_cal_links = ($s >= $cutoff);
+
+        // Check event access - allow free events for non-logged-in users
+        $event_level = $this->je_event_required_level($id);
+        $can_access = $this->je_event_access_check($id, $event_level);
+
+        ob_start(); ?>
+        <div class="je-session-card">
+            <div class="je-session-dt">
+                <div class="je-session-date"><?php echo $day . '. ' . esc_html($date); ?></div>
+                <div class="je-session-time"><?php echo esc_html($time); ?> <span class="je-session-tz"><?php echo esc_html($tz); ?></span></div>
+            </div>
+
+            <?php if ($teacher || $level): ?>
+                <div class="je-session-tags">
+                    <?php if ($teacher): ?>
+                        <span class="je-chip"><strong>Teacher:</strong> <?php echo esc_html($teacher); ?></span>
+                    <?php endif; ?>
+                    <?php if ($level): ?>
+                        <span class="je-chip je-chip--level"><strong>Level:</strong> <?php echo esc_html($level); ?></span>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="je-cal je-cal--center je-cal--tight">
+                <?php if ($show_cal_links): ?>
+                    <div class="je-ical-row">
+                        <a class="je-btn je-btn--sm je-gcal" target="_blank" rel="noopener" href="<?php echo esc_url($gcal); ?>">
+                            <i class="fa-regular fa-calendar-plus" aria-hidden="true"></i><span>Add to Google</span>
+                        </a>
+                        <a class="je-btn je-btn--sm je-ics" href="<?php echo esc_url($ics); ?>">
+                            <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><span>Add to iCal</span>
+                        </a>
+                    </div>
+                <?php endif; ?>
+
+                <?php
+                // If a Registration URL is set → show REGISTER (styled like Join) and do NOT show Join
+                if ($has_reg) {
+                    echo '<a class="je-btn je-join je-join--full je-register" href="' . esc_url($reg_url) . '" rel="noopener" target="_blank">
+                            <i class="fa-solid fa-ticket" aria-hidden="true"></i><span>Register</span>
+                          </a>';
+                    echo '<p class="je-register-note">After registering, your join link will be sent via email before the session.</p>';
+                } else {
+                    // Otherwise, show Join with access check
+                    if ($join) {
+                        if ($can_access['ok']) {
+                            echo '<a class="je-btn je-join je-join--full" href="' . esc_url($join) . '">
+                                    <i class="fa-solid fa-video" aria-hidden="true"></i><span>Join Session</span>
+                                  </a>';
+                        } else {
+                            echo '<a class="je-btn je-join je-join--full je-btn--disabled" href="#" aria-disabled="true" onclick="return false;">
+                                    <i class="fa-solid fa-video" aria-hidden="true"></i><span>Join Session</span>
+                                  </a>';
+                            if (!empty($can_access['msg'])) {
+                                echo '<p class="je-access-msg">' . $can_access['msg'] . '</p>';
+                            }
+                        }
+                    }
+                }
+                ?>
+            </div>
+        </div>
+
+        <style>
+            /* Small, 2-col calendar buttons */
+            .je-ical-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                width: 100%;
+                max-width: 420px;
+                margin: 0 auto 10px;
+            }
+            .je-btn.je-btn--sm {
+                padding: 10px 12px;
+                font-size: 14px;
+                line-height: 1.2;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-weight: 700;
+                text-decoration: none;
+            }
+            /* Keep your existing Join button look */
+            .je-btn.je-join {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                padding: 14px 18px;
+                border-radius: 14px;
+                font-weight: 700;
+                text-decoration: none;
+                background: #0b4c56;
+                color: #fff;
+            }
+            .je-btn.je-join:hover {
+                background: #083b43;
+                color: #fff;
+            }
+            .je-btn--disabled {
+                opacity: .55;
+                pointer-events: none;
+            }
+
+            /* Register styled same as join */
+            .je-btn.je-register {
+                background: #0b4c56;
+                color: #fff;
+            }
+            .je-btn.je-register:hover {
+                background: #083b43;
+                color: #fff;
+            }
+
+            .je-register-note {
+                text-align: center;
+                margin: 8px 0 0;
+                font-size: 13px;
+                opacity: .8;
+            }
+        </style>
+        <?php
+        return trim(ob_get_clean());
+    }
+    
+    /**
+     * Helper: Get event required membership level
+     */
+    private function je_event_required_level($post_id) {
+        $slugs = wp_get_post_terms($post_id, 'membership-level', ['fields' => 'slugs']);
+        if (is_wp_error($slugs) || empty($slugs)) {
+            $slugs = wp_get_post_terms($post_id, 'membership_level', ['fields' => 'slugs']);
+        }
+        if (is_wp_error($slugs) || empty($slugs)) {
+            return 'free';
+        }
+        $slug = reset($slugs);
+        return $slug ?: 'free';
+    }
+    
+    /**
+     * Helper: Check event access - UPDATED to allow free events for non-logged-in users
+     */
+    private function je_event_access_check($post_id, $req_level = null) {
+        if ($req_level === null) {
+            $req_level = $this->je_event_required_level($post_id);
+        }
+        
+        // Free events are now accessible to everyone (including non-logged-in users)
+        if ($req_level === 'free') {
+            return ['ok' => true, 'msg' => ''];
+        }
+
+        // For studio/premier events, require login
+        if (!is_user_logged_in()) {
+            return ['ok' => false, 'msg' => 'This session is for members. Please <a href="/login">log in</a> to continue.'];
+        }
+
+        // Get user's membership level
+        $usr = $this->je_user_level();
+
+        if ($req_level === 'studio') {
+            if ($usr === 'studio' || $usr === 'premier') {
+                return ['ok' => true, 'msg' => ''];
+            }
+            return ['ok' => false, 'msg' => 'This session is for Studio or <a href="/premier">Premier members</a>.'];
+        }
+
+        if ($req_level === 'premier') {
+            if ($usr === 'premier') {
+                return ['ok' => true, 'msg' => ''];
+            }
+            return ['ok' => false, 'msg' => 'This session is for <a href="/premier">Premier members</a>.'];
+        }
+
+        return ['ok' => false, 'msg' => ''];
+    }
+    
+    /**
+     * Helper: Get user membership level
+     */
+    private function je_user_level() {
+        global $user_membership_level;
+        $lvl = $user_membership_level ?: get_user_meta(get_current_user_id(), 'je_membership_level', true);
+        return strtolower(trim((string) $lvl));
+    }
+    
+    /**
      * Join Page FAQs Shortcode
      * Displays FAQ accordion for the join/pricing page
      */
     public function join_page_faqs_shortcode($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'category' => 'membership'
+        ), $atts, 'academy_faqs');
+        
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'alm_faqs';
+        
+        // Get FAQs from database
+        $faqs = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name} 
+            WHERE category = %s AND is_active = 1 
+            ORDER BY display_order ASC, id ASC",
+            sanitize_text_field($atts['category'])
+        ));
+        
+        if (empty($faqs)) {
+            return ''; // Return empty if no FAQs found
+        }
+        
         ob_start();
         ?>
         <div class="membership-faq-section">
             <h2 class="faq-heading">Frequently Asked Questions</h2>
             <div class="faq-accordion">
+                <?php foreach ($faqs as $faq): ?>
                 <div class="faq-item">
                     <button class="faq-question" aria-expanded="false">
-                        <span>What is the 30-day money-back guarantee?</span>
+                        <span><?php echo esc_html($faq->question); ?></span>
                         <span class="faq-icon">+</span>
                     </button>
                     <div class="faq-answer">
-                        <p>We offer a <strong>30-day money-back guarantee</strong> on your first payment. If you're not satisfied with your membership within the first 30 days, you're eligible for a full refund. Simply contact us and we'll process your refund, no questions asked.</p>
-                        <p><strong>Important:</strong> Renewals are non-refundable. Once your membership renews, the payment is final.</p>
+                        <?php 
+                        // Process answer content - convert links to open in new tab
+                        $answer = $faq->answer;
+                        // Add target="_blank" to all links
+                        $answer = preg_replace_callback(
+                            '/<a\s+([^>]*?)href=["\']([^"\']*?)["\']([^>]*?)>/i',
+                            function($matches) {
+                                $attrs = $matches[1] . $matches[3];
+                                // Check if target already exists
+                                if (stripos($attrs, 'target=') === false) {
+                                    return '<a ' . $attrs . ' href="' . esc_url($matches[2]) . '" target="_blank">';
+                                }
+                                return $matches[0];
+                            },
+                            $answer
+                        );
+                        echo wp_kses_post($answer); 
+                        ?>
                     </div>
                 </div>
-                
-                <div class="faq-item">
-                    <button class="faq-question" aria-expanded="false">
-                        <span>Can I upgrade my membership at any time?</span>
-                        <span class="faq-icon">+</span>
-                    </button>
-                    <div class="faq-answer">
-                        <p>Yes! You can upgrade your membership at any time by <a href="https://support.jazzedge.com/support/?site=academy" target="_blank">contacting us</a>. We'll help you upgrade to a higher tier (Essentials to Studio, or Studio to Premier) and adjust your billing accordingly.</p>
-                        <p>When you upgrade, you'll immediately gain access to all the additional features and content available in your new membership level.</p>
-                    </div>
-                </div>
-                
-                <div class="faq-item">
-                    <button class="faq-question" aria-expanded="false">
-                        <span>How do I cancel my membership?</span>
-                        <span class="faq-icon">+</span>
-                    </button>
-                    <div class="faq-answer">
-                        <p>You can cancel your membership at any time directly from your <strong>Account Area</strong>. Simply log in to your account, navigate to your membership settings, and click the cancel option.</p>
-                        <p>Your membership will remain active until the end of your current billing period, and you'll continue to have access to all content until that time. No further charges will be made after cancellation.</p>
-                    </div>
-                </div>
-                
-                <div class="faq-item">
-                    <button class="faq-question" aria-expanded="false">
-                        <span>Do Studio and Premier members get new lessons?</span>
-                        <span class="faq-icon">+</span>
-                    </button>
-                    <div class="faq-answer">
-                        <p>Yes! Both <strong>Studio</strong> and <strong>Premier</strong> members receive access to all new lessons as they're added to the Academy.</p>
-                        <p>Studio members get access to all new Studio-level lessons, while Premier members get access to all new content including both Studio and Premier-exclusive lessons. New content is added regularly, so you'll always have fresh material to learn from.</p>
-                    </div>
-                </div>
-                
-                <div class="faq-item">
-                    <button class="faq-question" aria-expanded="false">
-                        <span>What's the difference between monthly and yearly billing?</span>
-                        <span class="faq-icon">+</span>
-                    </button>
-                    <div class="faq-answer">
-                        <p><strong>Studio</strong> is the only membership tier that offers both monthly and yearly billing options. <strong>Essentials</strong> and <strong>Premier</strong> are yearly-only memberships.</p>
-                        <p>With yearly billing, you pay once per year and typically save compared to monthly billing. Your membership will automatically renew each year on the same date as your initial purchase unless you cancel.</p>
-                        <p><strong>Important:</strong> Our system cannot send renewal reminder emails, so please make a note of your renewal date in your Account Area.</p>
-                    </div>
-                </div>
-                
-                <div class="faq-item">
-                    <button class="faq-question" aria-expanded="false">
-                        <span>What happens if I cancel my membership?</span>
-                        <span class="faq-icon">+</span>
-                    </button>
-                    <div class="faq-answer">
-                        <p>When you cancel your membership, you'll continue to have access to all content until the end of your current billing period. After that, your access will end and you'll no longer be charged.</p>
-                        <p>If you decide to rejoin later, you can sign up again at any time. However, any special pricing or promotions you had may not be available when you return.</p>
-                    </div>
-                </div>
-                
-                <div class="faq-item">
-                    <button class="faq-question" aria-expanded="false">
-                        <span>Can I switch between monthly and yearly billing for Studio?</span>
-                        <span class="faq-icon">+</span>
-                    </button>
-                    <div class="faq-answer">
-                        <p>Yes, Studio members can switch between monthly and yearly billing. To make this change, please <a href="https://support.jazzedge.com/support/?site=academy" target="_blank">contact us</a> and we'll help you switch your billing cycle.</p>
-                        <p>If you're switching from monthly to yearly, you'll be charged for the yearly membership and your billing date will be updated. If switching from yearly to monthly, the change will take effect at your next renewal date.</p>
-                    </div>
-                </div>
-                
-                <div class="faq-item">
-                    <button class="faq-question" aria-expanded="false">
-                        <span>What payment methods do you accept?</span>
-                        <span class="faq-icon">+</span>
-                    </button>
-                    <div class="faq-answer">
-                        <p>We accept all major credit cards (Visa, Mastercard, American Express), debit cards, and PayPal. Payments are processed securely through our payment processor.</p>
-                        <p>All memberships are set to automatically renew unless you cancel. Make sure your payment method is up to date in your Account Area to avoid any interruption in service.</p>
-                    </div>
-                </div>
+                <?php endforeach; ?>
             </div>
         </div>
         
@@ -8343,6 +10482,583 @@ class ALM_Shortcodes_Plugin {
             });
         });
         </script>
+        <?php
+        return ob_get_clean();
+    }
+    
+    /**
+     * Black Friday 2025 Page Shortcode
+     * Displays the top section of the Black Friday 2025 landing page
+     */
+    public function black_friday_page_shortcode($atts) {
+        // Parse shortcode attributes
+        $atts = shortcode_atts(array(
+            'video' => 'false',
+            'video_url' => '',
+            'splash_text' => 'Click to play video'
+        ), $atts);
+        
+        $show_video = ($atts['video'] === 'true' || $atts['video'] === '1');
+        
+        // Determine video URL for fvplayer
+        $video_url = '';
+        if ($show_video) {
+            if (!empty($atts['video_url'])) {
+                $video_url = esc_url_raw($atts['video_url']);
+                
+                // Convert YouTube embed URL to watch URL if needed (fvplayer works better with watch URLs)
+                if (strpos($video_url, 'youtube.com/embed/') !== false) {
+                    // Extract video ID from embed URL
+                    preg_match('/embed\/([^"&?\/\s]{11})/', $video_url, $matches);
+                    if (!empty($matches[1])) {
+                        $video_id = $matches[1];
+                        $video_url = 'https://www.youtube.com/watch?v=' . $video_id;
+                    }
+                }
+            } else {
+                // Default video if no URL provided
+                $video_url = 'https://www.youtube.com/watch?v=C0DPdy98e4c';
+            }
+        }
+        
+        // Get splash text
+        $splash_text = !empty($atts['splash_text']) ? esc_attr($atts['splash_text']) : 'Click to play video';
+        
+        ob_start();
+        ?>
+        <div class="alm-bf-2025">
+            <!-- Hero Section -->
+            <section class="alm-bf-hero">
+                <header class="alm-bf-hero-header">
+                    <h1 class="alm-bf-hero-title">Jazzedge Black Friday 2025</h1>
+                    <p class="alm-bf-hero-subtitle">Lock in your best first-year rate on Premier, Studio, and Essentials—before prices return to normal.</p>
+                </header>
+                
+                <div class="alm-bf-hero-timing">
+                    <div class="alm-bf-timing-item">
+                        <strong>Doorbuster:</strong> Wed, Nov 26 – Fri, Nov 28
+                    </div>
+                    <div class="alm-bf-timing-item">
+                        <strong>Main Sale:</strong> Sat, Nov 29 – Wed, Dec 3
+                    </div>
+                </div>
+                
+                <div class="alm-bf-hero-cta">
+                    <a href="#alm-bf-pricing" class="alm-bf-btn-primary">View Black Friday Offers</a>
+                    <a href="#alm-bf-details" class="alm-bf-btn-secondary">Already a member? See upgrade details below</a>
+                </div>
+            </section>
+            
+            <?php if ($show_video && !empty($video_url)): ?>
+            <!-- Video Section -->
+            <div class="alm-bf-video-section">
+                <div class="alm-bf-video-wrapper">
+                    <?php 
+                    // Use fvplayer shortcode
+                    $fvplayer_shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" height="600" splash_text="' . $splash_text . '"]';
+                    echo do_shortcode($fvplayer_shortcode);
+                    ?>
+                </div>
+            </div>
+            <?php endif; ?>
+            
+            <!-- Pricing Section -->
+            <section id="alm-bf-pricing" class="alm-bf-pricing">
+                <h2 class="alm-bf-section-title">Black Friday Membership Pricing</h2>
+                
+                <div class="alm-bf-pricing-grid">
+                    <!-- Premier Card -->
+                    <div class="alm-bf-card alm-bf-card-premier">
+                        <h3 class="alm-bf-card-title">Premier</h3>
+                        <p class="alm-bf-card-tagline">For players who want it all</p>
+                        
+                        <div class="alm-bf-card-pricing">
+                            <div class="alm-bf-price-tier alm-bf-price-doorbuster">
+                                <span class="alm-bf-price-label">Doorbuster:</span>
+                                <span class="alm-bf-price-dates">Wed, Nov 26 – Fri, Nov 28</span>
+                                <span class="alm-bf-price-value">$499</span>
+                                <span class="alm-bf-price-period">Save $150 off first year</span>
+                            </div>
+                            <div class="alm-bf-price-tier alm-bf-price-sale">
+                                <span class="alm-bf-price-label">Main Sale:</span>
+                                <span class="alm-bf-price-dates">Sat, Nov 29 – Wed, Dec 3</span>
+                                <span class="alm-bf-price-value">$549</span>
+                                <span class="alm-bf-price-period">Save $100 off first year</span>
+                            </div>
+                            <div class="alm-bf-price-tier alm-bf-price-regular">
+                                <span class="alm-bf-price-label">Regular:</span>
+                                <span class="alm-bf-price-value">$649/year</span>
+                            </div>
+                            <p class="alm-bf-renewal-note">Renews at $649/year after the first year.</p>
+                        </div>
+                        
+                        <ul class="alm-bf-card-features">
+                            <li>Full Premier lesson library</li>
+                            <li>Live coaching and replays</li>
+                            <li>Guided learning paths</li>
+                            <li>Priority access to new content</li>
+                        </ul>
+                        <a href="/join" class="alm-bf-card-button">Purchase</a>
+                    </div>
+                    
+                    <!-- Studio Card -->
+                    <div class="alm-bf-card alm-bf-card-studio">
+                        <h3 class="alm-bf-card-title">Studio</h3>
+                        <p class="alm-bf-card-tagline">Skill-building membership.</p>
+                        
+                        <div class="alm-bf-card-pricing">
+                            <div class="alm-bf-price-tier alm-bf-price-doorbuster">
+                                <span class="alm-bf-price-label">Doorbuster:</span>
+                                <span class="alm-bf-price-dates">Wed, Nov 26 – Fri, Nov 28</span>
+                                <span class="alm-bf-price-value">$299</span>
+                                <span class="alm-bf-price-period">Save $91 off first year</span>
+                            </div>
+                            <div class="alm-bf-price-tier alm-bf-price-sale">
+                                <span class="alm-bf-price-label">Main Sale:</span>
+                                <span class="alm-bf-price-dates">Sat, Nov 29 – Wed, Dec 3</span>
+                                <span class="alm-bf-price-value">$339</span>
+                                <span class="alm-bf-price-period">Save $51 off first year</span>
+                            </div>
+                            <div class="alm-bf-price-tier alm-bf-price-regular">
+                                <span class="alm-bf-price-label">Regular:</span>
+                                <span class="alm-bf-price-value">$390/year</span>
+                            </div>
+                            <p class="alm-bf-renewal-note">Renews at $390/year after the first year.</p>
+                        </div>
+                        
+                        <ul class="alm-bf-card-features">
+                            <li>Full Studio lesson library</li>
+                            <li>Structured learning paths</li>
+                            <li>Practice tracking tools</li>
+                        </ul>
+                        <a href="/join" class="alm-bf-card-button">Purchase</a>
+                    </div>
+                    
+                    <!-- Essentials Card -->
+                    <div class="alm-bf-card alm-bf-card-essentials">
+                        <h3 class="alm-bf-card-title">Essentials</h3>
+                        <p class="alm-bf-card-tagline">Perfect starter.</p>
+                        
+                        <div class="alm-bf-card-pricing">
+                            <div class="alm-bf-price-tier alm-bf-price-doorbuster">
+                                <span class="alm-bf-price-label">Doorbuster:</span>
+                                <span class="alm-bf-price-dates">Wed, Nov 26 – Fri, Nov 28</span>
+                                <span class="alm-bf-price-value">$125</span>
+                                <span class="alm-bf-price-period">Save $50 off first year</span>
+                            </div>
+                            <div class="alm-bf-price-tier alm-bf-price-sale">
+                                <span class="alm-bf-price-label">Main Sale:</span>
+                                <span class="alm-bf-price-dates">Sat, Nov 29 – Wed, Dec 3</span>
+                                <span class="alm-bf-price-value">$149</span>
+                                <span class="alm-bf-price-period">Save $26 off first year</span>
+                            </div>
+                            <div class="alm-bf-price-tier alm-bf-price-regular">
+                                <span class="alm-bf-price-label">Regular:</span>
+                                <span class="alm-bf-price-value">$175/year</span>
+                            </div>
+                            <p class="alm-bf-renewal-note">Renews at $175/year after the first year.</p>
+                        </div>
+                        
+                        <ul class="alm-bf-card-features">
+                            <li>Choose any 1 Studio lesson per month and it stays in your account.</li>
+                            <li>Starter resources and core concepts</li>
+                        </ul>
+                        <a href="/join" class="alm-bf-card-button">Purchase</a>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Important Details Section -->
+            <section id="alm-bf-details" class="alm-bf-details">
+                <h2 class="alm-bf-section-title">Important Details</h2>
+                <ul class="alm-bf-details-list">
+                    <li>Black Friday pricing applies to the first year only.</li>
+                    <li>All memberships renew at the standard yearly rate after the first year.</li>
+                    <li>You can't stack multiple years at the Black Friday rate.</li>
+                    <li>Existing yearly members can upgrade during the sale; upgrades start immediately.</li>
+                    <li>For yearly upgrades, we convert unused time into extra days on your new plan. We don't refund or prorate past payments.</li>
+                </ul>
+            </section>
+        </div>
+        
+        <style>
+        /* Black Friday 2025 Styles */
+        .alm-bf-2025 {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Hero Section */
+        .alm-bf-hero {
+            background: #004555;
+            color: #ffffff;
+            padding: 60px 40px;
+            text-align: center;
+            margin-bottom: 60px;
+            border-radius: 8px;
+        }
+        
+        .alm-bf-hero-header {
+            margin-bottom: 30px;
+        }
+        
+        .alm-bf-hero-title {
+            font-size: 48px;
+            font-weight: 700;
+            margin: 0 0 20px 0;
+            line-height: 1.2;
+        }
+        
+        .alm-bf-hero-subtitle {
+            font-size: 20px;
+            margin: 0;
+            line-height: 1.5;
+            opacity: 0.95;
+        }
+        
+        .alm-bf-hero-timing {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+        
+        .alm-bf-timing-item {
+            font-size: 18px;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+        }
+        
+        .alm-bf-timing-item strong {
+            color: #f04e23;
+        }
+        
+        .alm-bf-hero-cta {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-top: 40px;
+        }
+        
+        .alm-bf-btn-primary,
+        .alm-bf-btn-secondary {
+            display: inline-block;
+            padding: 16px 32px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+        
+        .alm-bf-btn-primary {
+            background: #f04e23;
+            color: #ffffff;
+        }
+        
+        .alm-bf-btn-primary:hover {
+            background: #d93e1a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.4);
+        }
+        
+        .alm-bf-btn-secondary {
+            color: #ffffff;
+            text-decoration: underline;
+            opacity: 0.85;
+        }
+        
+        .alm-bf-btn-secondary:hover {
+            opacity: 1;
+            color: #ffffff;
+        }
+        
+        /* Pricing Section */
+        .alm-bf-pricing {
+            margin-bottom: 60px;
+        }
+        
+        .alm-bf-section-title {
+            font-size: 36px;
+            font-weight: 700;
+            color: #004555;
+            text-align: center;
+            margin: 0 0 40px 0;
+        }
+        
+        .alm-bf-pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-bottom: 40px;
+            align-items: stretch;
+        }
+        
+        .alm-bf-card {
+            background: #ffffff;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .alm-bf-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+        
+        .alm-bf-card-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #004555;
+            margin: 0 0 10px 0;
+            min-height: 40px;
+        }
+        
+        .alm-bf-card-tagline {
+            font-size: 16px;
+            color: #6b7280;
+            margin: 0 0 20px 0;
+            min-height: 24px;
+        }
+        
+        .alm-bf-card-pricing {
+            margin-bottom: 25px;
+            padding-bottom: 25px;
+            border-bottom: 1px solid #e5e7eb;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .alm-bf-price-tier {
+            margin-bottom: 12px;
+            padding: 12px 16px;
+            border-radius: 6px;
+            min-height: 95px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        
+        .alm-bf-price-doorbuster {
+            background: #fff5f2;
+            color: #f04e23;
+            border: 1px solid #ffe0d6;
+        }
+        
+        .alm-bf-price-sale {
+            background: #f0f9fa;
+            color: #004555;
+            border: 1px solid #d1e7e9;
+        }
+        
+        .alm-bf-price-regular {
+            background: #f9fafb;
+            color: #6b7280;
+            font-size: 14px;
+            border: 1px solid #e5e7eb;
+            min-height: 60px;
+        }
+        
+        .alm-bf-price-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .alm-bf-price-dates {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 8px;
+            opacity: 0.8;
+            min-height: 16px;
+        }
+        
+        .alm-bf-price-value {
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-top: auto;
+        }
+        
+        .alm-bf-price-period {
+            font-size: 16px;
+            display: block;
+            margin-top: 4px;
+        }
+        
+        .alm-bf-renewal-note {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 15px 0 0 0;
+            font-style: italic;
+            min-height: 18px;
+        }
+        
+        .alm-bf-card-features {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+        }
+        
+        .alm-bf-card-features li {
+            padding: 8px 0;
+            padding-left: 24px;
+            position: relative;
+            color: #374151;
+            line-height: 1.6;
+            min-height: 24px;
+        }
+        
+        .alm-bf-card-features li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #f04e23;
+            font-weight: bold;
+        }
+        
+        .alm-bf-card-button {
+            display: block;
+            width: 100%;
+            padding: 14px 24px;
+            background: #10b981;
+            color: #ffffff;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            margin-top: 20px;
+            transition: background 0.3s ease, transform 0.2s ease;
+        }
+        
+        .alm-bf-card-button:hover {
+            background: #10b981;
+            color: #ffffff;
+            text-decoration: underline;
+        }
+        
+        .alm-bf-card-button:active {
+            transform: translateY(0);
+        }
+        
+        /* Video Section */
+        .alm-bf-video-section {
+            margin: 60px 0;
+            text-align: center;
+        }
+        
+        .alm-bf-video-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        
+        .alm-bf-video-wrapper .fvplayer {
+            width: 100% !important;
+            max-width: 100%;
+        }
+        
+        /* Details Section */
+        .alm-bf-details {
+            background: #f9fafb;
+            padding: 40px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+        }
+        
+        .alm-bf-details-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .alm-bf-details-list li {
+            padding: 12px 0;
+            padding-left: 28px;
+            position: relative;
+            color: #374151;
+            line-height: 1.7;
+            font-size: 16px;
+        }
+        
+        .alm-bf-details-list li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #f04e23;
+            font-size: 24px;
+            line-height: 1;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 968px) {
+            .alm-bf-pricing-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .alm-bf-hero {
+                padding: 40px 20px;
+            }
+            
+            .alm-bf-hero-title {
+                font-size: 36px;
+            }
+            
+            .alm-bf-hero-subtitle {
+                font-size: 18px;
+            }
+            
+            .alm-bf-hero-timing {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .alm-bf-2025 {
+                padding: 0 15px;
+            }
+            
+            .alm-bf-hero-title {
+                font-size: 28px;
+            }
+            
+            .alm-bf-hero-subtitle {
+                font-size: 16px;
+            }
+            
+            .alm-bf-section-title {
+                font-size: 28px;
+            }
+            
+            .alm-bf-card {
+                padding: 20px;
+            }
+            
+            .alm-bf-btn-primary {
+                width: 100%;
+                text-align: center;
+            }
+        }
+        </style>
         <?php
         return ob_get_clean();
     }

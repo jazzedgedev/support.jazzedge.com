@@ -10,6 +10,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+if (!class_exists('ALM_Notifications_Manager')) {
+    $alm_notifications_file = WP_PLUGIN_DIR . '/academy-lesson-manager/includes/class-notifications.php';
+    if (file_exists($alm_notifications_file)) {
+        require_once $alm_notifications_file;
+    }
+}
+
 class JPH_Frontend {
     
     private $database;
@@ -26,6 +33,7 @@ class JPH_Frontend {
         add_shortcode('jph_badges_widget', array($this, 'render_badges_widget'));
         add_shortcode('jph_gems_widget', array($this, 'render_gems_widget'));
         add_shortcode('jph_streak_widget', array($this, 'render_streak_widget'));
+        add_shortcode('jph_notifications', array($this, 'render_notifications_feed'));
     }
     
     /**
@@ -868,6 +876,38 @@ class JPH_Frontend {
         // Fallback to home URL if no page is set
         return home_url('/');
     }
+
+    /**
+     * Get active promotional banner
+     */
+    private function get_active_promo_banner() {
+        global $wpdb;
+        
+        // Check if ALM_Database class exists
+        if (!class_exists('ALM_Database')) {
+            return null;
+        }
+        
+        $database = new ALM_Database();
+        $banners_table = $database->get_table_name('promotional_banners');
+        
+        $current_datetime = current_time('mysql');
+        
+        // Get the first active banner that is within date range and set to show on dashboard
+        $banner = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$banners_table} 
+            WHERE is_active = 1 
+            AND show_on_dashboard = 1
+            AND (start_date IS NULL OR start_date <= %s)
+            AND (end_date IS NULL OR end_date >= %s)
+            ORDER BY created_at DESC
+            LIMIT 1",
+            $current_datetime,
+            $current_datetime
+        ), ARRAY_A);
+        
+        return $banner ?: null;
+    }
     
     /**
      * Render the student dashboard
@@ -879,6 +919,49 @@ class JPH_Frontend {
         }
         
         $user_id = get_current_user_id();
+        $notifications_page_url = apply_filters('jph_notifications_page_url', home_url('/notifications/'));
+        $unread_notifications = 0;
+        $notifications_category_palette = array();
+        $active_notification_category = 'site_alert';
+        $notification_indicator_style = '';
+
+        if (class_exists('ALM_Notifications_Manager')) {
+            $notifications_category_palette = ALM_Notifications_Manager::get_category_palette();
+            $active_notification_category = ALM_Notifications_Manager::DEFAULT_CATEGORY;
+            $notifications_manager = new ALM_Notifications_Manager();
+            $unread_notifications = $notifications_manager->get_unread_count($user_id);
+
+            $latest_notification = $notifications_manager->get_latest_notification(array(
+                'status' => 'active',
+                'only_published' => true,
+                'unread_for' => $unread_notifications ? $user_id : 0,
+            ));
+
+            if (!$latest_notification) {
+                $latest_notification = $notifications_manager->get_latest_notification(array(
+                    'status' => 'active',
+                    'only_published' => true,
+                ));
+            }
+
+            if (!empty($latest_notification['category'])) {
+                $latest_category_slug = sanitize_key($latest_notification['category']);
+                if (isset($notifications_category_palette[$latest_category_slug])) {
+                    $active_notification_category = $latest_category_slug;
+                }
+            }
+
+            if (!empty($notifications_category_palette[$active_notification_category])) {
+                $palette_entry = $notifications_category_palette[$active_notification_category];
+                $notification_indicator_style = sprintf(
+                    '--notification-indicator-bg:%1$s;--notification-indicator-color:%2$s;--notification-indicator-border:%3$s;',
+                    $palette_entry['background'],
+                    $palette_entry['text'],
+                    $palette_entry['border']
+                );
+            }
+        }
+        $notification_indicator_style_attr = $notification_indicator_style ? ' style="' . esc_attr($notification_indicator_style) . '"' : '';
         
         // Get user's practice items
         $practice_items = $this->database->get_user_practice_items($user_id);
@@ -908,9 +991,41 @@ class JPH_Frontend {
         wp_enqueue_script('jquery-ui-core');
         wp_enqueue_script('jquery-ui-dialog');
         
+        // Get active promotional banner
+        $promo_banner = $this->get_active_promo_banner();
+        
         ob_start();
         ?>
         <div class="jph-student-dashboard">
+            
+            <?php if ($promo_banner): ?>
+            <!-- Promotional Banner -->
+            <div class="jph-promo-banner">
+                <?php if ($promo_banner['banner_type'] === 'image'): ?>
+                    <?php if (!empty($promo_banner['button_url'])): ?>
+                        <a href="<?php echo esc_url($promo_banner['button_url']); ?>" class="jph-promo-banner-link">
+                    <?php endif; ?>
+                    <?php if ($promo_banner['image_id']): ?>
+                        <?php echo wp_get_attachment_image($promo_banner['image_id'], 'full', false, array('class' => 'jph-promo-banner-image', 'alt' => esc_attr($promo_banner['headline'] ?: 'Promotional banner'))); ?>
+                    <?php endif; ?>
+                    <?php if (!empty($promo_banner['button_url'])): ?>
+                        </a>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <div class="jph-promo-banner-content">
+                        <?php if (!empty($promo_banner['headline'])): ?>
+                            <h3 class="jph-promo-banner-headline"><?php echo esc_html($promo_banner['headline']); ?></h3>
+                        <?php endif; ?>
+                        <?php if (!empty($promo_banner['text_content'])): ?>
+                            <p class="jph-promo-banner-text"><?php echo esc_html($promo_banner['text_content']); ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($promo_banner['button_text']) && !empty($promo_banner['button_url'])): ?>
+                            <a href="<?php echo esc_url($promo_banner['button_url']); ?>" class="jph-promo-banner-button"><?php echo esc_html($promo_banner['button_text']); ?></a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
             
             <!-- Beta Notice Banner -->
             <div class="jph-beta-notice">
@@ -982,7 +1097,7 @@ class JPH_Frontend {
                 <div class="header-top">
                     <div class="welcome-title-container">
                         <h2 id="jph-welcome-title">🎹 Your Practice Dashboard</h2>
-                        <button id="jph-edit-name-btn" class="jph-edit-name-btn" title="Edit leaderboard name" style="display: none;">
+                        <button id="jph-edit-name-btn" class="jph-edit-name-btn" aria-label="Edit leaderboard name" data-microtip-position="top" role="tooltip" style="display: none;">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
                             </svg>
@@ -996,7 +1111,7 @@ class JPH_Frontend {
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
                                 </svg>
                             </span>
-                            Tutorial
+                            Support
                         </button>
                         <!-- Leaderboard Button -->
                         <button id="jph-leaderboard-btn" type="button" class="jph-btn jph-btn-secondary jph-leaderboard-btn" onclick="openLeaderboard()">
@@ -1014,7 +1129,25 @@ class JPH_Frontend {
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                                 </svg>
                             </span>
-                            About Stats
+                            Stats
+                        </button>
+                        <!-- Notifications Button -->
+                        <button id="jph-notifications-btn" type="button" class="jph-btn jph-btn-secondary jph-notifications-btn" data-unread-count="<?php echo intval($unread_notifications); ?>" onclick="window.location.href='<?php echo esc_url($notifications_page_url); ?>';">
+                            <span class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 18.75a2.25 2.25 0 1 1-4.5 0m9-6.75V9a6.75 6.75 0 1 0-13.5 0v3c0 1.146-.43 2.25-1.2 3.09a.75.75 0 0 0 .564 1.26h16.272a.75.75 0 0 0 .564-1.26 5.374 5.374 0 0 1-1.2-3.09Z" />
+                                </svg>
+                            </span>
+                            <span class="notification-label">Notifications</span>
+                            <span class="notification-indicator<?php echo $unread_notifications ? ' is-active' : ''; ?>"<?php echo $notification_indicator_style_attr; ?> aria-hidden="<?php echo $unread_notifications ? 'false' : 'true'; ?>">NEW</span>
+                            <?php if ($unread_notifications): ?>
+                                <span class="screen-reader-text">
+                                    <?php
+                                        /* translators: %d: unread notifications count */
+                                        printf(_n('You have %d new notification', 'You have %d new notifications', intval($unread_notifications), 'academy-practice-hub'), intval($unread_notifications));
+                                    ?>
+                                </span>
+                            <?php endif; ?>
                         </button>
                     </div>
                 </div>
@@ -1705,6 +1838,14 @@ class JPH_Frontend {
                             <small class="jph-help-text">Leave empty to use your WordPress display name</small>
                         </div>
                         
+                        <div class="jph-form-group">
+                            <label for="jph-hide-from-leaderboard" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="jph-hide-from-leaderboard" name="hide_from_leaderboard" value="1" style="width: auto; margin: 0;">
+                                <span>Hide myself from the leaderboard</span>
+                            </label>
+                            <small class="jph-help-text">When checked, your name will not appear on the leaderboard</small>
+                        </div>
+                        
                         <div class="jph-form-actions">
                             <button id="jph-save-display-name" class="jph-btn jph-btn-primary">Save Name</button>
                             <button id="jph-cancel-display-name" class="jph-btn jph-btn-secondary">Cancel</button>
@@ -1906,7 +2047,7 @@ class JPH_Frontend {
                                     <div class="card-icon">⭐</div>
                                     <div class="card-content">
                                         <h4>From Favorites</h4>
-                                        <p>Choose from lesson favorites</p>
+                                        <p>Choose from favorites</p>
                                     </div>
                                     <div class="card-radio">
                                         <input type="radio" name="practice_type" value="favorite">
@@ -1921,7 +2062,7 @@ class JPH_Frontend {
                         </div>
                         
                         <div class="form-group" id="favorite-selection-group" style="display: none;">
-                            <label>Select Lesson Favorite:</label>
+                            <label>Select Favorite:</label>
                             <select name="lesson_favorite" id="lesson-favorite-select">
                                 <option value="">Loading favorites...</option>
                             </select>
@@ -2018,6 +2159,96 @@ class JPH_Frontend {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f8fffe 0%, #f0f8f7 100%);
             min-height: 100vh;
+        }
+
+        /* Promotional Banner */
+        .jph-promo-banner {
+            margin-bottom: 20px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .jph-promo-banner-link {
+            display: block;
+            text-decoration: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .jph-promo-banner-link:hover {
+            opacity: 0.95;
+        }
+
+        .jph-promo-banner-image {
+            width: 100%;
+            height: auto;
+            display: block;
+            max-height: 300px;
+            object-fit: cover;
+        }
+
+        .jph-promo-banner-content {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #ffffff;
+            padding: 24px 32px;
+            text-align: center;
+        }
+
+        .jph-promo-banner-headline {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 12px 0;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+
+        .jph-promo-banner-text {
+            font-size: 16px;
+            margin: 0 0 20px 0;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        .jph-promo-banner-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            text-decoration: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .jph-promo-banner-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        }
+
+        @media (max-width: 768px) {
+            .jph-promo-banner-content {
+                padding: 20px 24px;
+            }
+
+            .jph-promo-banner-headline {
+                font-size: 22px;
+            }
+
+            .jph-promo-banner-text {
+                font-size: 14px;
+            }
+
+            .jph-promo-banner-button {
+                padding: 10px 24px;
+                font-size: 14px;
+            }
+
+            .jph-promo-banner-image {
+                max-height: 200px;
+            }
         }
 
         /* Beta Notice Banner */
@@ -2321,6 +2552,8 @@ class JPH_Frontend {
             border: none;
             border-radius: 6px;
             padding: 6px;
+            margin-left: 12px;
+            margin-right: 12px;
             color: white;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -2350,6 +2583,38 @@ class JPH_Frontend {
             text-align: center;
             font-size: 14px;
             line-height: 1.2;
+        }
+
+        .jph-notifications-btn {
+            position: relative;
+            padding-right: 36px;
+        }
+
+        .jph-notifications-btn .notification-indicator {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            padding: 2px 8px;
+            min-width: 32px;
+            border-radius: 999px;
+            background: var(--notification-indicator-bg, #ef4444);
+            color: var(--notification-indicator-color, #ffffff);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            line-height: 1.2;
+            text-align: center;
+            border: 1px solid var(--notification-indicator-border, rgba(248, 113, 113, 0.5));
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: none;
+            pointer-events: none;
+        }
+
+        .jph-notifications-btn .notification-indicator.is-active {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         
         /* Modern Pro Tip Styling */
@@ -7037,11 +7302,100 @@ class JPH_Frontend {
                             select.empty();
                             
                             if (response.favorites.length === 0) {
-                                select.append('<option value="">No lesson favorites found</option>');
+                                select.append('<option value="">No favorites found</option>');
                             } else {
-                                select.append('<option value="">Select a lesson favorite...</option>');
+                                select.append('<option value="">Select a favorite...</option>');
+                                
+                                // Group favorites by category (only Lessons and Collections)
+                                var favoritesByCategory = {
+                                    'Collections': [],
+                                    'Lessons': []
+                                };
+                                
                                 $.each(response.favorites, function(index, favorite) {
-                                    select.append('<option value="' + favorite.id + '" data-title="' + escapeHtml(favorite.title) + '" data-category="' + escapeHtml(favorite.category) + '" data-description="' + escapeHtml(favorite.description || '') + '">' + escapeHtml(favorite.title) + '</option>');
+                                    var category = favorite.category || 'lesson';
+                                    var title = favorite.title || '';
+                                    var resourceType = favorite.resource_type || '';
+                                    
+                                    // Check if it's a collection first - collections are always included
+                                    if (category === 'collection') {
+                                        if (!favoritesByCategory['Collections']) {
+                                            favoritesByCategory['Collections'] = [];
+                                        }
+                                        favoritesByCategory['Collections'].push(favorite);
+                                        return; // Continue to next item
+                                    }
+                                    
+                                    // Skip resources - only include Lessons (collections already handled above)
+                                    var isResource = false;
+                                    if (resourceType) {
+                                        isResource = true;
+                                    } else if (category !== 'lesson') {
+                                        isResource = true;
+                                    } else {
+                                        // Check for resource indicators in title
+                                        var resourceIndicators = ['(Sheet Music)', '(PDF)', '(Sheet)', '(Music)', '(Resource)'];
+                                        for (var i = 0; i < resourceIndicators.length; i++) {
+                                            if (title.toLowerCase().indexOf(resourceIndicators[i].toLowerCase()) !== -1) {
+                                                isResource = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Skip resources
+                                    if (isResource) {
+                                        return;
+                                    }
+                                    
+                                    // It's a lesson - add to Lessons
+                                    if (!favoritesByCategory['Lessons']) {
+                                        favoritesByCategory['Lessons'] = [];
+                                    }
+                                    favoritesByCategory['Lessons'].push(favorite);
+                                });
+                                
+                                // Sort each category alphabetically
+                                $.each(favoritesByCategory, function(cat, items) {
+                                    items.sort(function(a, b) {
+                                        var titleA = (a.title || '').toLowerCase();
+                                        var titleB = (b.title || '').toLowerCase();
+                                        return titleA.localeCompare(titleB);
+                                    });
+                                });
+                                
+                                // Helper function to decode HTML entities and strip slashes
+                                function decodeAndClean(text) {
+                                    if (!text) return '';
+                                    // Create a temporary div to decode HTML entities
+                                    var div = document.createElement('div');
+                                    div.innerHTML = text;
+                                    var decoded = div.textContent || div.innerText || '';
+                                    // Remove any remaining slashes
+                                    return decoded.replace(/\\/g, '');
+                                }
+                                
+                                // Add optgroups in order: Collections, Lessons
+                                var categoryOrder = ['Collections', 'Lessons'];
+                                $.each(categoryOrder, function(index, categoryName) {
+                                    if (favoritesByCategory[categoryName] && favoritesByCategory[categoryName].length > 0) {
+                                        var optgroup = $('<optgroup>').attr('label', categoryName);
+                                        $.each(favoritesByCategory[categoryName], function(idx, favorite) {
+                                            // Decode and clean the title
+                                            var favTitle = decodeAndClean(favorite.title || '');
+                                            var favDescription = decodeAndClean(favorite.description || '');
+                                            var favCategory = decodeAndClean(favorite.category || '');
+                                            
+                                            var option = $('<option>')
+                                                .attr('value', favorite.id)
+                                                .attr('data-title', favTitle)
+                                                .attr('data-category', favCategory)
+                                                .attr('data-description', favDescription)
+                                                .text(favTitle);
+                                            optgroup.append(option);
+                                        });
+                                        select.append(optgroup);
+                                    }
                                 });
                             }
                         } else {
@@ -7479,17 +7833,30 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
-                        if (response.success && response.data.display_name && response.data.display_name.trim() !== '') {
-                            // Use custom display name if set
-                            $('#jph-display-name-input').val(response.data.display_name);
+                        if (response.success) {
+                            // Set display name
+                            if (response.data.display_name && response.data.display_name.trim() !== '') {
+                                // Use custom display name if set
+                                $('#jph-display-name-input').val(response.data.display_name);
+                            } else {
+                                // Use WordPress display name as fallback
+                                $('#jph-display-name-input').val(wpDisplayName);
+                            }
+                            
+                            // Set checkbox state (show_on_leaderboard: 1 = show, 0 = hide)
+                            // Checkbox is checked when show_on_leaderboard is 0 (hidden)
+                            const isHidden = response.data.show_on_leaderboard === 0 || response.data.show_on_leaderboard === false;
+                            $('#jph-hide-from-leaderboard').prop('checked', isHidden);
                         } else {
                             // Use WordPress display name as fallback
                             $('#jph-display-name-input').val(wpDisplayName);
+                            $('#jph-hide-from-leaderboard').prop('checked', false);
                         }
                     },
                     error: function() {
                         // Use WordPress display name as fallback
                         $('#jph-display-name-input').val(wpDisplayName);
+                        $('#jph-hide-from-leaderboard').prop('checked', false);
                         console.log('Failed to load custom display name, using WordPress name');
                     }
                 });
@@ -7498,6 +7865,7 @@ class JPH_Frontend {
             // Save display name
             function saveDisplayName() {
                 const displayName = $('#jph-display-name-input').val().trim();
+                const hideFromLeaderboard = $('#jph-hide-from-leaderboard').is(':checked');
                 const saveBtn = $('#jph-save-display-name');
                 const messageDiv = $('#jph-display-name-message');
                 
@@ -7505,6 +7873,7 @@ class JPH_Frontend {
                 saveBtn.prop('disabled', true).text('Saving...');
                 messageDiv.hide();
                 
+                // Save display name first
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/leaderboard/display-name'); ?>',
                     method: 'POST',
@@ -7516,12 +7885,40 @@ class JPH_Frontend {
                     },
                     success: function(response) {
                         if (response.success) {
-                            showModalMessage('Display name updated successfully!', 'success');
-                            $('#jph-display-name-modal').hide();
-                            // Update welcome title with new name
-                            updateWelcomeTitle(displayName);
+                            // Then save leaderboard visibility
+                            $.ajax({
+                                url: '<?php echo rest_url('aph/v1/leaderboard/visibility'); ?>',
+                                method: 'POST',
+                                headers: {
+                                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                                },
+                                data: {
+                                    show_on_leaderboard: !hideFromLeaderboard
+                                },
+                                success: function(visibilityResponse) {
+                                    if (visibilityResponse.success) {
+                                        showModalMessage('Settings updated successfully!', 'success');
+                                        $('#jph-display-name-modal').hide();
+                                        // Update welcome title with new name
+                                        updateWelcomeTitle(displayName);
+                                    } else {
+                                        showModalMessage('Display name saved, but failed to update visibility: ' + (visibilityResponse.message || 'Unknown error'), 'error');
+                                    }
+                                },
+                                error: function(xhr) {
+                                    let errorMessage = 'Display name saved, but failed to update visibility';
+                                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                                        errorMessage = 'Display name saved, but ' + xhr.responseJSON.message;
+                                    }
+                                    showModalMessage(errorMessage, 'error');
+                                },
+                                complete: function() {
+                                    saveBtn.prop('disabled', false).text('Save Name');
+                                }
+                            });
                         } else {
                             showModalMessage('Failed to update display name: ' + (response.message || 'Unknown error'), 'error');
+                            saveBtn.prop('disabled', false).text('Save Name');
                         }
                     },
                     error: function(xhr) {
@@ -7530,8 +7927,6 @@ class JPH_Frontend {
                             errorMessage = xhr.responseJSON.message;
                         }
                         showModalMessage(errorMessage, 'error');
-                    },
-                    complete: function() {
                         saveBtn.prop('disabled', false).text('Save Name');
                     }
                 });
@@ -7622,8 +8017,10 @@ class JPH_Frontend {
             function updateWelcomeTitle(displayName) {
                 const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
                 const nameToShow = displayName && displayName.trim() !== '' ? displayName : wpDisplayName;
+                const maxNameLength = 25;
+                const truncatedName = nameToShow.length > maxNameLength ? nameToShow.substring(0, maxNameLength) : nameToShow;
                 
-                $('#jph-welcome-title').text('🎹 Welcome, ' + nameToShow + '!');
+                $('#jph-welcome-title').text('🎹 Hi, ' + truncatedName + '!');
                 $('#jph-edit-name-btn').show();
             }
             
@@ -10535,5 +10932,364 @@ class JPH_Frontend {
         <?php
         
         return ob_get_clean();
+    }
+
+    /**
+     * Render notifications feed shortcode ([jph_notifications])
+     */
+    public function render_notifications_feed($atts = array()) {
+        if (!is_user_logged_in()) {
+            $login_url = wp_login_url(get_permalink());
+            return '<div class="jph-notifications-feed jph-notifications-feed--login"><p>' .
+                sprintf(
+                    __('Please <a href="%s">log in</a> to view notifications.', 'academy-practice-hub'),
+                    esc_url($login_url)
+                ) .
+            '</p></div>';
+        }
+
+        if (!class_exists('ALM_Notifications_Manager')) {
+            return '<div class="jph-notifications-feed jph-notifications-feed--error"><p>' .
+                esc_html__('Notifications are not available right now. Please try again later.', 'academy-practice-hub') .
+            '</p></div>';
+        }
+
+        $atts = shortcode_atts(array(
+            'limit' => 25,
+        ), $atts);
+
+        $manager = new ALM_Notifications_Manager();
+        $notifications = $manager->get_notifications(array(
+            'status' => 'active',
+            'only_published' => true,
+            'limit' => intval($atts['limit']),
+        ));
+
+        if (!empty($notifications)) {
+            $manager->mark_notifications_read(wp_list_pluck($notifications, 'ID'), get_current_user_id());
+        }
+
+        $category_palette = ALM_Notifications_Manager::get_category_palette();
+        $default_category = ALM_Notifications_Manager::DEFAULT_CATEGORY;
+        $container_id = function_exists('wp_unique_id') ? wp_unique_id('jph-notifications-') : 'jph-notifications-' . uniqid();
+
+        ob_start();
+        $this->maybe_output_notifications_styles();
+        ?>
+        <div id="<?php echo esc_attr($container_id); ?>" class="jph-notifications-page">
+            <header class="jph-notifications-header">
+                <h1 class="jph-notifications-title"><?php esc_html_e('Notifications', 'academy-practice-hub'); ?></h1>
+                <p class="jph-notifications-description"><?php esc_html_e('Stay up to date with the latest announcements and updates from JazzEdge Academy.', 'academy-practice-hub'); ?></p>
+            </header>
+            <?php if (!empty($notifications)): ?>
+                <div class="jph-notifications-controls" aria-label="<?php esc_attr_e('Filter notifications by type', 'academy-practice-hub'); ?>">
+                    <label for="<?php echo esc_attr($container_id . '-filter'); ?>"><?php esc_html_e('Filter by type', 'academy-practice-hub'); ?></label>
+                    <div class="jph-select-wrapper">
+                        <select id="<?php echo esc_attr($container_id . '-filter'); ?>" class="jph-notifications-filter">
+                            <option value="all"><?php esc_html_e('All notifications', 'academy-practice-hub'); ?></option>
+                            <?php foreach ($category_palette as $slug => $data): ?>
+                                <option value="<?php echo esc_attr($slug); ?>"><?php echo esc_html($data['label']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="select-caret" aria-hidden="true">▾</span>
+                    </div>
+                </div>
+            <?php endif; ?>
+            <div class="jph-notifications-feed">
+            <?php if (empty($notifications)): ?>
+                <div class="jph-notification-card jph-notification-card--empty">
+                    <div class="jph-notification-icon">🎉</div>
+                    <h3><?php esc_html_e('You\'re all caught up!', 'academy-practice-hub'); ?></h3>
+                    <p><?php esc_html_e('We\'ll post announcements here when something new is available.', 'academy-practice-hub'); ?></p>
+                </div>
+            <?php else: ?>
+                <?php foreach ($notifications as $notification): ?>
+                    <?php
+                        $category_slug = sanitize_key($notification['category'] ?? $default_category);
+                        if (empty($category_slug) || !isset($category_palette[$category_slug])) {
+                            $category_slug = $default_category;
+                        }
+                        $category_label = $category_palette[$category_slug]['label'];
+                        $pill_style = sprintf(
+                            '--notification-pill-bg:%1$s;--notification-pill-color:%2$s;--notification-pill-border:%3$s;',
+                            $category_palette[$category_slug]['background'],
+                            $category_palette[$category_slug]['text'],
+                            $category_palette[$category_slug]['border']
+                        );
+                    ?>
+                    <article class="jph-notification-card" data-category="<?php echo esc_attr($category_slug); ?>">
+                        <header class="jph-notification-card__header">
+                            <div class="jph-notification-card__title">
+                                <h3><?php echo esc_html(wp_unslash($notification['title'])); ?></h3>
+                            </div>
+                            <div class="jph-notification-card__meta">
+                                <span class="jph-notification-pill" style="<?php echo esc_attr($pill_style); ?>">
+                                    <?php echo esc_html($category_label); ?>
+                                </span>
+                                <time datetime="<?php echo esc_attr(date('c', strtotime($notification['publish_at']))); ?>">
+                                    <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($notification['publish_at']))); ?>
+                                </time>
+                            </div>
+                        </header>
+                        <div class="jph-notification-card__content">
+                            <?php echo wp_kses_post(wpautop(wp_unslash($notification['content']))); ?>
+                        </div>
+                        <?php if (!empty($notification['link_url'])): ?>
+                            <div class="jph-notification-card__actions">
+                                <a class="jph-btn jph-btn-primary" href="<?php echo esc_url($notification['link_url']); ?>" target="_blank" rel="noopener">
+                                    <?php echo esc_html(!empty($notification['link_label']) ? wp_unslash($notification['link_label']) : __('View Resource', 'academy-practice-hub')); ?>
+                                </a>
+                            </div>
+                        <?php endif; ?>
+                    </article>
+                <?php endforeach; ?>
+            <?php endif; ?>
+            </div>
+            <div class="jph-notifications-empty-filter" aria-live="polite">
+                <div>
+                    <strong><?php esc_html_e('No notifications match this type yet.', 'academy-practice-hub'); ?></strong>
+                    <p><?php esc_html_e('Try selecting another category to keep exploring updates.', 'academy-practice-hub'); ?></p>
+                </div>
+            </div>
+        </div>
+        <?php if (!empty($notifications)): ?>
+        <script>
+        (function() {
+            var container = document.getElementById('<?php echo esc_js($container_id); ?>');
+            if (!container) {
+                return;
+            }
+            var filterEl = container.querySelector('.jph-notifications-filter');
+            var cards = [].slice.call(container.querySelectorAll('.jph-notification-card[data-category]'));
+            var emptyState = container.querySelector('.jph-notifications-empty-filter');
+            if (!filterEl || !cards.length) {
+                if (emptyState) {
+                    emptyState.style.display = 'none';
+                }
+                return;
+            }
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+            function applyFilter() {
+                var selected = filterEl.value;
+                var visibleCount = 0;
+                cards.forEach(function(card) {
+                    var matches = selected === 'all' || card.dataset.category === selected;
+                    card.style.display = matches ? '' : 'none';
+                    if (matches) {
+                        visibleCount++;
+                    }
+                });
+                if (emptyState) {
+                    emptyState.style.display = visibleCount ? 'none' : 'flex';
+                }
+            }
+            filterEl.addEventListener('change', applyFilter);
+        })();
+        </script>
+        <?php endif; ?>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Output shared styles for notifications shortcode once per request
+     */
+    private function maybe_output_notifications_styles() {
+        static $styles_output = false;
+        if ($styles_output) {
+            return;
+        }
+        $styles_output = true;
+        ?>
+        <style>
+            .jph-notifications-page {
+                max-width: 1000px;
+                margin: 0 auto;
+                padding: 0 20px;
+            }
+            .jph-notifications-header {
+                text-align: center;
+                margin-bottom: 40px;
+                padding-bottom: 30px;
+                border-bottom: 2px solid rgba(15, 23, 42, 0.1);
+            }
+            .jph-notifications-title {
+                font-size: 2.5rem;
+                font-weight: 700;
+                color: #0f172a;
+                margin: 0 0 12px 0;
+                line-height: 1.2;
+            }
+            .jph-notifications-description {
+                font-size: 1.1rem;
+                color: #64748b;
+                margin: 0;
+                line-height: 1.6;
+            }
+            .jph-notifications-controls {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 12px;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+            }
+            .jph-notifications-controls label {
+                font-weight: 600;
+                color: #0f172a;
+            }
+            .jph-select-wrapper {
+                position: relative;
+                min-width: 220px;
+            }
+            .jph-select-wrapper select {
+                width: 100%;
+                appearance: none;
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                background: #ffffff;
+                border: 1px solid rgba(15, 23, 42, 0.15);
+                border-radius: 12px;
+                padding: 10px 36px 10px 14px;
+                font-size: 0.95rem;
+                font-weight: 500;
+                color: #0f172a;
+                box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+            }
+            .jph-select-wrapper .select-caret {
+                position: absolute;
+                right: 14px;
+                top: 50%;
+                transform: translateY(-50%);
+                pointer-events: none;
+                color: #475569;
+                font-size: 0.8rem;
+            }
+
+            .jph-notifications-feed {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+            .jph-notification-card {
+                background: #fff;
+                border-radius: 16px;
+                padding: 24px;
+                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+                border: 1px solid rgba(15, 23, 42, 0.06);
+            }
+            .jph-notification-card__header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+            .jph-notification-card__title {
+                flex: 1 1 220px;
+            }
+            .jph-notification-card__header h3 {
+                margin: 0;
+                font-size: 1.3rem;
+            }
+            .jph-notification-card__meta {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                text-align: right;
+                font-size: 0.9rem;
+                color: #64748b;
+            }
+            .jph-notification-pill {
+                display: inline-flex;
+                align-items: center;
+                padding: 4px 12px;
+                border-radius: 999px;
+                font-size: 0.85rem;
+                font-weight: 600;
+                background: var(--notification-pill-bg, #e2e8f0);
+                color: var(--notification-pill-color, #0f172a);
+                border: 1px solid var(--notification-pill-border, rgba(148, 163, 184, 0.5));
+                letter-spacing: 0.02em;
+                white-space: nowrap;
+            }
+            .jph-notification-card__header time {
+                font-size: 0.9rem;
+                color: #64748b;
+            }
+            .jph-notification-card__content {
+                font-size: 1rem;
+                line-height: 1.6;
+                color: #0f172a;
+            }
+            .jph-notification-card__content p {
+                margin-top: 0;
+            }
+            .jph-notification-card__actions {
+                margin-top: 16px;
+            }
+            .jph-notification-card--empty {
+                text-align: center;
+                border: 1px dashed rgba(15, 23, 42, 0.2);
+            }
+            .jph-notification-card--empty .jph-notification-icon {
+                font-size: 2rem;
+                margin-bottom: 10px;
+            }
+            .jph-notifications-empty-filter {
+                margin-top: 24px;
+                padding: 24px;
+                border-radius: 16px;
+                border: 1px dashed rgba(15, 23, 42, 0.2);
+                background: #f8fafc;
+                display: none;
+                justify-content: center;
+                text-align: center;
+                color: #0f172a;
+            }
+            .jph-notifications-empty-filter p {
+                margin: 6px 0 0;
+                color: #475569;
+            }
+            @media (max-width: 600px) {
+                .jph-notifications-page {
+                    padding: 0 12px;
+                }
+                .jph-notifications-header {
+                    margin-bottom: 30px;
+                    padding-bottom: 20px;
+                }
+                .jph-notifications-title {
+                    font-size: 2rem;
+                }
+                .jph-notifications-description {
+                    font-size: 1rem;
+                }
+                .jph-notification-card {
+                    padding: 18px;
+                }
+                .jph-notification-card__header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+                .jph-notification-card__meta {
+                    width: 100%;
+                    justify-content: flex-start;
+                    text-align: left;
+                }
+                .jph-notifications-controls {
+                    justify-content: flex-start;
+                }
+                .jph-select-wrapper {
+                    width: 100%;
+                }
+            }
+        </style>
+        <?php
     }
 }

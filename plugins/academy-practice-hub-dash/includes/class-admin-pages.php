@@ -13,7 +13,9 @@ if (!defined('ABSPATH')) {
 class JPH_Admin_Pages {
     
     public function __construct() {
-        add_action('admin_menu', array($this, 'add_admin_menu'));
+        add_action('admin_menu', array($this, 'add_admin_menu'), 999);
+        add_action('admin_head', array($this, 'add_menu_badge_styles'));
+        add_action('admin_menu', array($this, 'update_grade_jpc_menu_badge'), 1000);
     }
     
     /**
@@ -31,6 +33,16 @@ class JPH_Admin_Pages {
             array($this, 'students_page'),
             'dashicons-format-audio',
             30
+        );
+        
+        // Add submenu item for Students (links to main page)
+        add_submenu_page(
+            'aph-practice-hub',
+            __('Students', 'academy-practice-hub'),
+            __('Students', 'academy-practice-hub'),
+            'manage_options',
+            'aph-practice-hub',
+            array($this, 'students_page')
         );
         
         add_submenu_page(
@@ -134,6 +146,89 @@ class JPH_Admin_Pages {
     }
     
     /**
+     * Get count of pending JPC submissions (pending + redo)
+     * Excludes hidden submissions (grade = 'HIDE')
+     * Only counts submissions with video_url (actual submissions to grade)
+     * Matches the exact logic used on the grading page
+     * 
+     * @return int Total count of submissions needing attention
+     */
+    private function get_pending_jpc_count() {
+        global $wpdb;
+        
+        // Pending: grade IS NULL and has video_url (matches grading page exactly)
+        // Note: grade IS NULL already excludes grade = 'HIDE', but we're explicit for clarity
+        $pending_count = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+             WHERE grade IS NULL 
+             AND video_url != ''"
+        );
+        
+        // Redo: grade = 'redo' (matches grading page exactly)
+        // Note: grade = 'redo' already excludes grade = 'HIDE'
+        $redo_count = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+             WHERE grade = 'redo'"
+        );
+        
+        return intval($pending_count) + intval($redo_count);
+    }
+    
+    /**
+     * Update the Grade JPC menu title with badge count
+     * This runs after the menu is registered to add the badge
+     * Adds badge to both top-level menu and submenu
+     * Uses WordPress native badge styling
+     */
+    public function update_grade_jpc_menu_badge() {
+        global $menu, $submenu;
+        
+        $pending_count = $this->get_pending_jpc_count();
+        
+        if ($pending_count > 0) {
+            // Use WordPress native badge styling
+            $badge_html = '<span class="update-plugins count-' . esc_attr($pending_count) . '"><span class="plugin-count">' . esc_html($pending_count) . '</span></span>';
+            
+            // Add badge to top-level Practice Hub menu
+            if (isset($menu)) {
+                foreach ($menu as $key => $item) {
+                    if (isset($item[2]) && $item[2] === 'aph-practice-hub') {
+                        $menu[$key][0] = __('Practice Hub', 'academy-practice-hub') . ' ' . $badge_html;
+                        break;
+                    }
+                }
+            }
+            
+            // Add badge to Grade JPC submenu
+            if (isset($submenu['aph-practice-hub'])) {
+                foreach ($submenu['aph-practice-hub'] as $key => $item) {
+                    if (isset($item[2]) && $item[2] === 'aph-grade-jpc') {
+                        $submenu['aph-practice-hub'][$key][0] = __('Grade JPC', 'academy-practice-hub') . ' ' . $badge_html;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Add CSS styles for the menu badge
+     * WordPress native styling handles most of it, but we ensure it works for our menu
+     */
+    public function add_menu_badge_styles() {
+        ?>
+        <style>
+            /* Ensure WordPress native badge styling works properly for our menu items */
+            #adminmenu a[href*="aph-practice-hub"] .update-plugins,
+            #adminmenu a[href*="aph-grade-jpc"] .update-plugins {
+                display: inline-block;
+                margin-left: 5px;
+            }
+        </style>
+        <?php
+    }
+    
+    /**
      * Admin dashboard page
      */
     public function admin_page() {
@@ -224,6 +319,7 @@ class JPH_Admin_Pages {
                             <th>Badges</th>
                             <th>Shields</th>
                             <th>Last Practice</th>
+                            <th>Days Since</th>
                             <th>Total Sessions</th>
                             <th>Total Hours</th>
                             <th>Gems</th>
@@ -242,6 +338,7 @@ class JPH_Admin_Pages {
                 <button type="button" class="button button-primary" onclick="refreshStudents()">Refresh Data</button>
                 <button type="button" class="button button-secondary" onclick="exportStudents()">Export CSV</button>
                 <button type="button" class="button button-secondary" onclick="showStudentAnalytics()">View Analytics</button>
+                <button type="button" class="button button-secondary" onclick="showBulkFixModal()" style="background: #d63638; color: white; border-color: #d63638;">🔧 Bulk Fix Stats</button>
             </div>
         </div>
         
@@ -271,6 +368,50 @@ class JPH_Admin_Pages {
                 </div>
                 <div class="jph-modal-body" id="jph-edit-student-content">
                     <div class="jph-loading">Loading student data...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bulk Fix Stats Modal -->
+        <div id="jph-bulk-fix-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content" style="max-width: 600px;">
+                <div class="jph-modal-header">
+                    <h2>🔧 Bulk Fix Student Stats</h2>
+                    <button class="jph-modal-close" onclick="closeBulkFixModal()">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+                <div class="jph-modal-body">
+                    <p><strong>This will recalculate streaks and levels for all active users based on their practice session history.</strong></p>
+                    <p style="color: #d63638;">⚠️ This process may take several minutes depending on the number of users.</p>
+                    
+                    <div style="margin: 20px 0;">
+                        <label style="display: block; margin-bottom: 10px;">
+                            <input type="checkbox" id="bulk-fix-streaks" checked> Fix Streaks (recalculate from practice sessions)
+                        </label>
+                        <label style="display: block; margin-bottom: 10px;">
+                            <input type="checkbox" id="bulk-fix-levels" checked> Fix Levels (recalculate from total XP)
+                        </label>
+                    </div>
+                    
+                    <div id="bulk-fix-progress" style="display: none; margin: 20px 0;">
+                        <div style="background: #f0f0f0; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                            <div id="bulk-fix-status">Processing...</div>
+                            <div style="background: #fff; border-radius: 4px; height: 20px; margin-top: 10px; overflow: hidden;">
+                                <div id="bulk-fix-progress-bar" style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="bulk-fix-results" style="display: none; margin: 20px 0; padding: 15px; background: #f0f6fc; border-left: 4px solid #2271b1; border-radius: 4px;">
+                        <h3>Results:</h3>
+                        <div id="bulk-fix-results-content"></div>
+                    </div>
+                    
+                    <div class="jph-edit-form-actions" style="margin-top: 20px;">
+                        <button type="button" class="button button-secondary" onclick="closeBulkFixModal()">Cancel</button>
+                        <button type="button" class="button button-primary" id="bulk-fix-start-btn" onclick="startBulkFix()">Start Bulk Fix</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -605,12 +746,12 @@ class JPH_Admin_Pages {
                 if (data.success) {
                     displayStudents(data.students);
                 } else {
-                    document.getElementById('students-table-body').innerHTML = '<tr><td colspan="13">Error loading students</td></tr>';
+                    document.getElementById('students-table-body').innerHTML = '<tr><td colspan="14">Error loading students</td></tr>';
                 }
             })
             .catch(error => {
                 console.error('Error loading students:', error);
-                document.getElementById('students-table-body').innerHTML = '<tr><td colspan="13">Error loading students</td></tr>';
+                document.getElementById('students-table-body').innerHTML = '<tr><td colspan="14">Error loading students</td></tr>';
             });
         }
         
@@ -618,11 +759,32 @@ class JPH_Admin_Pages {
             const tbody = document.getElementById('students-table-body');
             
             if (students.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="13">No students found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14">No students found</td></tr>';
                 return;
             }
             
-            tbody.innerHTML = students.map(student => `
+            tbody.innerHTML = students.map(student => {
+                // Calculate days since last practice
+                let daysSince = null;
+                let daysSinceClass = '';
+                if (student.last_practice_date) {
+                    const lastPractice = new Date(student.last_practice_date);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    lastPractice.setHours(0, 0, 0, 0);
+                    daysSince = Math.floor((today - lastPractice) / (1000 * 60 * 60 * 24));
+                    
+                    // Color coding: red for >7 days, yellow for 3-7 days, green for 0-2 days
+                    if (daysSince > 7) {
+                        daysSinceClass = 'style="color: #dc2626; font-weight: bold;"';
+                    } else if (daysSince >= 3) {
+                        daysSinceClass = 'style="color: #d97706; font-weight: bold;"';
+                    } else {
+                        daysSinceClass = 'style="color: #16a34a;"';
+                    }
+                }
+                
+                return `
                 <tr>
                     <td>
                         <a href="<?php echo admin_url('user-edit.php?user_id='); ?>${student.ID}" target="_blank">
@@ -640,15 +802,20 @@ class JPH_Admin_Pages {
                     <td>${student.badges_earned || 0}</td>
                     <td>${student.streak_shield_count || 0}</td>
                     <td>${student.last_practice_date ? formatDate(student.last_practice_date) : 'Never'}</td>
+                    <td ${daysSinceClass}>${daysSince !== null ? daysSince : 'N/A'}</td>
                     <td>${student.total_sessions || 0}</td>
                     <td>${Math.round((student.total_minutes || 0) / 60 * 10) / 10}h</td>
                     <td>${student.gems_balance || 0}</td>
                     <td>
                         <button type="button" class="button button-small" onclick="viewStudent(${student.ID})">View</button>
                         <button type="button" class="button button-small" onclick="editStudentStats(${student.ID})">Edit</button>
+                        <button type="button" class="button button-small" onclick="fixStudentStreak(${student.ID}, this)" title="Recalculate streak from practice sessions">🔧 Fix Streak</button>
+                        <button type="button" class="button button-small" onclick="fixStudentLevel(${student.ID}, this)" title="Recalculate level from total XP">⭐ Fix Level</button>
+                        <button type="button" class="button button-small" onclick="copyStudentDebugData(${student.ID}, this)" title="Copy all debug data to clipboard">🐛 Debug</button>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
         
         function viewStudent(userId) {
@@ -674,8 +841,8 @@ class JPH_Admin_Pages {
                             <p><strong>Email:</strong> ${student.user_email || 'N/A'}</p>
                             <p><strong>Total XP:</strong> ${student.total_xp || 0}</p>
                             <p><strong>Level:</strong> ${student.current_level || 1}</p>
-                            <p><strong>Current Streak:</strong> ${student.current_streak || 0}</p>
-                            <p><strong>Longest Streak:</strong> ${student.longest_streak || 0}</p>
+                            <p><strong>Current Streak:</strong> <span id="student-current-streak">${student.current_streak || 0}</span></p>
+                            <p><strong>Longest Streak:</strong> <span id="student-longest-streak">${student.longest_streak || 0}</span></p>
                             <p><strong>Badges Earned:</strong> ${student.badges_earned || 0}</p>
                             <p><strong>Total Sessions:</strong> ${student.total_sessions || 0}</p>
                             <p><strong>Total Minutes:</strong> ${student.total_minutes || 0}</p>
@@ -683,6 +850,10 @@ class JPH_Admin_Pages {
                             <p><strong>Hearts Count:</strong> ${student.hearts_count || 0}</p>
                             <p><strong>Streak Shields:</strong> ${student.streak_shield_count || 0}</p>
                             <p><strong>Last Practice:</strong> ${student.last_practice_date ? formatDate(student.last_practice_date) : 'Never'}</p>
+                            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                                <button type="button" class="button button-primary" onclick="fixStudentStreak(${student.ID})" id="fix-streak-btn-${student.ID}">🔧 Fix Streak</button>
+                                <span id="fix-streak-message-${student.ID}" style="margin-left: 10px;"></span>
+                            </div>
                         </div>
                     `;
                 } else {
@@ -812,6 +983,181 @@ class JPH_Admin_Pages {
             });
         }
         
+        function fixStudentLevel(userId, buttonElement) {
+            // Get button element
+            const btn = buttonElement;
+            
+            if (!confirm('Recalculate level from total XP? This will update the current level based on the level formula.')) {
+                return;
+            }
+            
+            // Disable button and show loading
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Fixing...';
+            }
+            
+            fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}/fix-level`, {
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Refresh the students table to show updated values
+                    loadStudents();
+                    loadStudentsStats();
+                    
+                    // Show success notification
+                    if (data.level_changed) {
+                        alert(`Level fixed successfully!\nTotal XP: ${data.total_xp}\nOld Level: ${data.old_level}\nNew Level: ${data.new_level}`);
+                    } else {
+                        alert(`Level is already correct!\nTotal XP: ${data.total_xp}\nLevel: ${data.new_level}`);
+                    }
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error fixing level:', error);
+                alert('Error fixing level');
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '⭐ Fix Level';
+                }
+            });
+        }
+        
+        function fixStudentStreak(userId, buttonElement) {
+            // Get button element - either passed in or from modal
+            const btn = buttonElement || document.getElementById(`fix-streak-btn-${userId}`);
+            const message = document.getElementById(`fix-streak-message-${userId}`);
+            
+            if (!confirm('Recalculate streak from practice session history? This will update the current and longest streak values.')) {
+                return;
+            }
+            
+            // Disable button and show loading
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Fixing...';
+            }
+            if (message) {
+                message.textContent = '';
+                message.style.color = '';
+            }
+            
+            fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}/fix-streak`, {
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the displayed streak values in modal if it exists
+                    const modalCurrentStreak = document.getElementById('student-current-streak');
+                    const modalLongestStreak = document.getElementById('student-longest-streak');
+                    if (modalCurrentStreak) {
+                        modalCurrentStreak.textContent = data.current_streak;
+                    }
+                    if (modalLongestStreak) {
+                        modalLongestStreak.textContent = data.longest_streak;
+                    }
+                    
+                    if (message) {
+                        let messageText = `✓ Streak fixed! Current: ${data.current_streak}, Longest: ${data.longest_streak}`;
+                        if (data.timezone_warning) {
+                            messageText += `\n⚠️ ${data.timezone_warning}`;
+                        }
+                        message.textContent = messageText;
+                        message.style.color = data.timezone_warning ? '#f0b849' : '#46b450';
+                    }
+                    
+                    // Refresh the students table to show updated values
+                    loadStudents();
+                    loadStudentsStats();
+                    
+                    // Show success notification with timezone warning if applicable
+                    let alertMessage = `Streak fixed successfully!\nCurrent Streak: ${data.current_streak} days\nLongest Streak: ${data.longest_streak} days\n\nTimezone used: ${data.timezone_used || 'Unknown'}`;
+                    if (data.timezone_warning) {
+                        alertMessage += `\n\n⚠️ WARNING: ${data.timezone_warning}`;
+                    }
+                    alert(alertMessage);
+                } else {
+                    if (message) {
+                        message.textContent = 'Error: ' + (data.message || 'Unknown error');
+                        message.style.color = '#dc3232';
+                    } else {
+                        alert('Error: ' + (data.message || 'Unknown error'));
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fixing streak:', error);
+                if (message) {
+                    message.textContent = 'Error fixing streak';
+                    message.style.color = '#dc3232';
+                } else {
+                    alert('Error fixing streak');
+                }
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🔧 Fix Streak';
+                }
+            });
+        }
+        
+        async function copyStudentDebugData(userId, btn) {
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+            
+            try {
+                const response = await fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}/debug-data`, {
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.debug_data) {
+                    // Format the debug data as a readable JSON string
+                    const debugText = JSON.stringify(data.debug_data, null, 2);
+                    
+                    // Copy to clipboard
+                    await navigator.clipboard.writeText(debugText);
+                    
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+                    
+                    alert('Debug data copied to clipboard! You can paste it anywhere to share with support.');
+                } else {
+                    throw new Error(data.message || 'Failed to get debug data');
+                }
+            } catch (error) {
+                console.error('Debug data error:', error);
+                btn.textContent = 'Error';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 2000);
+                alert('Error getting debug data: ' + error.message);
+            }
+        }
+        
         function closeViewStudentModal() {
             document.getElementById('jph-view-student-modal').style.display = 'none';
         }
@@ -832,6 +1178,132 @@ class JPH_Admin_Pages {
         function showStudentAnalytics() {
             // Redirect to analytics page instead of showing modal
             window.location.href = '<?php echo admin_url('admin.php?page=jph-students-analytics'); ?>';
+        }
+        
+        function showBulkFixModal() {
+            document.getElementById('jph-bulk-fix-modal').style.display = 'flex';
+            document.getElementById('bulk-fix-progress').style.display = 'none';
+            document.getElementById('bulk-fix-results').style.display = 'none';
+            document.getElementById('bulk-fix-start-btn').disabled = false;
+            document.getElementById('bulk-fix-start-btn').textContent = 'Start Bulk Fix';
+        }
+        
+        function closeBulkFixModal() {
+            document.getElementById('jph-bulk-fix-modal').style.display = 'none';
+        }
+        
+        function startBulkFix() {
+            const fixStreaks = document.getElementById('bulk-fix-streaks').checked;
+            const fixLevels = document.getElementById('bulk-fix-levels').checked;
+            
+            if (!fixStreaks && !fixLevels) {
+                alert('Please select at least one option to fix.');
+                return;
+            }
+            
+            if (!confirm('This will process all active users. This may take several minutes. Continue?')) {
+                return;
+            }
+            
+            const startBtn = document.getElementById('bulk-fix-start-btn');
+            const progressDiv = document.getElementById('bulk-fix-progress');
+            const resultsDiv = document.getElementById('bulk-fix-results');
+            const statusDiv = document.getElementById('bulk-fix-status');
+            const progressBar = document.getElementById('bulk-fix-progress-bar');
+            const resultsContent = document.getElementById('bulk-fix-results-content');
+            
+            startBtn.disabled = true;
+            startBtn.textContent = 'Processing...';
+            progressDiv.style.display = 'block';
+            resultsDiv.style.display = 'none';
+            statusDiv.textContent = 'Starting bulk fix...';
+            progressBar.style.width = '0%';
+            
+            let totalProcessed = 0;
+            let totalStreaksFixed = 0;
+            let totalLevelsFixed = 0;
+            let offset = 0;
+            const limit = 100;
+            let hasMore = true;
+            const errors = [];
+            
+            function processBatch() {
+                fetch('<?php echo rest_url('aph/v1/admin/bulk-fix-stats'); ?>', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    body: JSON.stringify({
+                        fix_streaks: fixStreaks,
+                        fix_levels: fixLevels,
+                        limit: limit,
+                        offset: offset
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        totalProcessed += data.processed;
+                        totalStreaksFixed += data.streaks_fixed;
+                        totalLevelsFixed += data.levels_fixed;
+                        
+                        if (data.errors && data.errors.length > 0) {
+                            errors.push(...data.errors);
+                        }
+                        
+                        // Update progress
+                        const progressPercent = Math.min(95, (offset / (offset + data.processed)) * 100);
+                        progressBar.style.width = progressPercent + '%';
+                        statusDiv.textContent = `Processed ${totalProcessed} users... (${totalStreaksFixed} streaks fixed, ${totalLevelsFixed} levels fixed)`;
+                        
+                        if (data.has_more) {
+                            offset = data.next_offset;
+                            // Process next batch with a small delay to avoid overwhelming the server
+                            setTimeout(processBatch, 500);
+                        } else {
+                            // Done
+                            progressBar.style.width = '100%';
+                            statusDiv.textContent = 'Complete!';
+                            
+                            resultsContent.innerHTML = `
+                                <p><strong>Total Processed:</strong> ${totalProcessed} users</p>
+                                <p><strong>Streaks Fixed:</strong> ${totalStreaksFixed}</p>
+                                <p><strong>Levels Fixed:</strong> ${totalLevelsFixed}</p>
+                                ${errors.length > 0 ? '<p style="color: #d63638;"><strong>Errors:</strong> ' + errors.length + ' (check console for details)</p>' : ''}
+                            `;
+                            
+                            if (errors.length > 0) {
+                                console.error('Bulk fix errors:', errors);
+                            }
+                            
+                            resultsDiv.style.display = 'block';
+                            startBtn.disabled = false;
+                            startBtn.textContent = 'Done - Refresh Page';
+                            startBtn.onclick = function() {
+                                location.reload();
+                            };
+                            
+                            // Refresh the students table
+                            loadStudents();
+                            loadStudentsStats();
+                        }
+                    } else {
+                        alert('Error: ' + (data.message || 'Unknown error'));
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Bulk Fix';
+                    }
+                })
+                .catch(error => {
+                    console.error('Bulk fix error:', error);
+                    alert('Error during bulk fix: ' + error.message);
+                    startBtn.disabled = false;
+                    startBtn.textContent = 'Start Bulk Fix';
+                });
+            }
+            
+            // Start processing
+            processBatch();
         }
         
         // Close modals when clicking outside
@@ -7026,7 +7498,7 @@ Return only the cleaned feedback text, no explanations or additional commentary.
         ?>
         <div class="wrap">
             <h1>Student Analytics</h1>
-            <p>Track student engagement and identify at-risk students for proactive outreach.</p>
+            <p>Track student engagement with detailed analytics, charts, and shareable statistics.</p>
             
             <!-- Analytics Overview Cards -->
             <div class="jph-analytics-overview">
@@ -7079,61 +7551,115 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 </div>
             </div>
             
-            <!-- Filters -->
+            <!-- Time Period Selector -->
             <div class="jph-analytics-filters">
                 <div class="jph-filter-group">
-                    <label for="risk-filter">Risk Level:</label>
-                    <select id="risk-filter">
-                        <option value="all">All Students</option>
-                        <option value="low">Low Risk (Active)</option>
-                        <option value="medium">Medium Risk (7-30 days)</option>
-                        <option value="high">High Risk (30+ days)</option>
+                    <label for="time-period-select">Time Period:</label>
+                    <select id="time-period-select">
+                        <option value="today">Today</option>
+                        <option value="week">Last 7 Days</option>
+                        <option value="month" selected>Last 30 Days</option>
+                        <option value="90days">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                        <option value="custom">Custom Range</option>
                     </select>
                 </div>
                 
-                <div class="jph-filter-group">
-                    <label for="level-filter">Level:</label>
-                    <select id="level-filter">
-                        <option value="all">All Levels</option>
-                        <option value="1">Level 1</option>
-                        <option value="2">Level 2</option>
-                        <option value="3">Level 3</option>
-                        <option value="4">Level 4</option>
-                        <option value="5">Level 5+</option>
-                    </select>
+                <div class="jph-filter-group" id="custom-date-range" style="display: none;">
+                    <label for="start-date">Start Date:</label>
+                    <input type="date" id="start-date">
                 </div>
                 
-                <div class="jph-filter-group">
-                    <label for="search-students-analytics">Search:</label>
-                    <input type="text" id="search-students-analytics" placeholder="Search by name or email">
+                <div class="jph-filter-group" id="custom-date-range-end" style="display: none;">
+                    <label for="end-date">End Date:</label>
+                    <input type="date" id="end-date">
                 </div>
                 
-                <button type="button" class="button button-primary" id="apply-filters-btn">Apply Filters</button>
-                <button type="button" class="button button-secondary" id="export-at-risk-btn">Export At-Risk Students</button>
+                <button type="button" class="button button-primary" id="load-analytics-btn">Load Analytics</button>
             </div>
             
-            <!-- Students Table -->
-            <div class="jph-analytics-table-container">
-                <table class="jph-analytics-table">
-                    <thead>
-                        <tr>
-                            <th>Student</th>
-                            <th>Level</th>
-                            <th>Last Practice</th>
-                            <th>Days Since</th>
-                            <th>Risk Level</th>
-                            <th>Total Sessions</th>
-                            <th>Current Streak</th>
-                            <th>Last Email Sent</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="analytics-table-body">
-                        <tr>
-                            <td colspan="9" class="jph-loading">Loading analytics...</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- Charts Section -->
+            <div class="jph-analytics-charts">
+                <div class="jph-chart-container">
+                    <h2>Practice Activity Over Time</h2>
+                    <canvas id="practice-activity-chart"></canvas>
+                </div>
+                
+                <div class="jph-charts-grid">
+                    <div class="jph-chart-container">
+                        <h2>Level Distribution</h2>
+                        <canvas id="level-distribution-chart"></canvas>
+                    </div>
+                    
+                    <div class="jph-chart-container">
+                        <h2>Total Statistics</h2>
+                        <div id="total-stats-display" class="jph-stats-display">
+                            <div class="jph-stat-box">
+                                <span class="jph-stat-label">Total Sessions</span>
+                                <span class="jph-stat-value" id="stat-total-sessions">--</span>
+                            </div>
+                            <div class="jph-stat-box">
+                                <span class="jph-stat-label">Total Hours</span>
+                                <span class="jph-stat-value" id="stat-total-hours">--</span>
+                            </div>
+                            <div class="jph-stat-box">
+                                <span class="jph-stat-label">Active Students</span>
+                                <span class="jph-stat-value" id="stat-active-students">--</span>
+                            </div>
+                            <div class="jph-stat-box">
+                                <span class="jph-stat-label">Avg Session Duration</span>
+                                <span class="jph-stat-value" id="stat-avg-duration">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="jph-chart-container">
+                    <h2>Streak Statistics</h2>
+                    <div id="streak-stats-display" class="jph-stats-display">
+                        <div class="jph-stat-box">
+                            <span class="jph-stat-label">Average Streak</span>
+                            <span class="jph-stat-value" id="stat-avg-streak">--</span>
+                        </div>
+                        <div class="jph-stat-box">
+                            <span class="jph-stat-label">Longest Streak</span>
+                            <span class="jph-stat-value" id="stat-max-streak">--</span>
+                        </div>
+                        <div class="jph-stat-box">
+                            <span class="jph-stat-label">Students with 7+ Day Streak</span>
+                            <span class="jph-stat-value" id="stat-streak-7plus">--</span>
+                        </div>
+                        <div class="jph-stat-box">
+                            <span class="jph-stat-label">Students with 30+ Day Streak</span>
+                            <span class="jph-stat-value" id="stat-streak-30plus">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Public Stats Section -->
+            <div class="jph-public-stats-section">
+                <h2>📊 Public Statistics (Shareable)</h2>
+                <p>These statistics can be shared publicly to motivate students and showcase community engagement.</p>
+                <div id="public-stats-display" class="jph-public-stats-grid">
+                    <div class="jph-public-stat-card">
+                        <h3>Last 7 Days</h3>
+                        <div class="jph-public-stat-content">
+                            <p><strong id="public-sessions-7days">--</strong> practice sessions</p>
+                            <p><strong id="public-hours-7days">--</strong> hours practiced</p>
+                            <p><strong id="public-active-7days">--</strong> active students</p>
+                        </div>
+                    </div>
+                    <div class="jph-public-stat-card">
+                        <h3>Last 30 Days</h3>
+                        <div class="jph-public-stat-content">
+                            <p><strong id="public-sessions-30days">--</strong> practice sessions</p>
+                            <p><strong id="public-hours-30days">--</strong> hours practiced</p>
+                            <p><strong id="public-active-30days">--</strong> active students</p>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="button button-secondary" id="copy-public-stats-btn">Copy Stats for Sharing</button>
             </div>
         </div>
         
@@ -7212,104 +7738,158 @@ Return only the cleaned feedback text, no explanations or additional commentary.
             min-width: 150px;
         }
         
-        .jph-analytics-table-container {
-            background: #fff;
-            border: 1px solid #e1e5e9;
-            border-radius: 8px;
-            overflow: hidden;
+        .jph-analytics-charts {
             margin: 20px 0;
         }
         
-        .jph-analytics-table {
-            width: 100%;
-            border-collapse: collapse;
+        .jph-chart-container {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
         }
         
-        .jph-analytics-table th {
+        .jph-chart-container h2 {
+            margin: 0 0 20px 0;
+            color: #004555;
+            font-size: 20px;
+        }
+        
+        .jph-charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .jph-stats-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .jph-stat-box {
             background: #f8fafc;
-            padding: 15px 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #374151;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        
-        .jph-analytics-table td {
-            padding: 15px 12px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        
-        .jph-analytics-table tr:hover {
-            background: #f8fafc;
-        }
-        
-        .risk-low {
-            background: #dcfce7;
-            color: #166534;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        .risk-medium {
-            background: #fef3c7;
-            color: #92400e;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        .risk-high {
-            background: #fecaca;
-            color: #991b1b;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        .jph-loading {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
             text-align: center;
-            color: #6b7280;
-            font-style: italic;
         }
         
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .action-buttons .button {
-            padding: 4px 8px;
+        .jph-stat-box .jph-stat-label {
+            display: block;
             font-size: 12px;
-            height: auto;
+            color: #6b7280;
+            margin-bottom: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .jph-stat-box .jph-stat-value {
+            display: block;
+            font-size: 28px;
+            font-weight: 700;
+            color: #004555;
+        }
+        
+        .jph-public-stats-section {
+            background: #f0fdf4;
+            border: 2px solid #86efac;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+        
+        .jph-public-stats-section h2 {
+            margin: 0 0 10px 0;
+            color: #004555;
+        }
+        
+        .jph-public-stats-section p {
+            color: #6b7280;
+            margin: 0 0 20px 0;
+        }
+        
+        .jph-public-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .jph-public-stat-card {
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .jph-public-stat-card h3 {
+            margin: 0 0 15px 0;
+            color: #004555;
+            font-size: 18px;
+        }
+        
+        .jph-public-stat-content p {
+            margin: 10px 0;
+            color: #374151;
+            font-size: 14px;
+        }
+        
+        .jph-public-stat-content strong {
+            color: #459E90;
+            font-size: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-charts-grid {
+                grid-template-columns: 1fr;
+            }
         }
         </style>
         
+        <!-- Chart.js Library -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        
         <script>
+        let practiceActivityChart = null;
+        let levelDistributionChart = null;
+        
         document.addEventListener('DOMContentLoaded', function() {
+            // Load initial data
             loadAnalyticsData();
+            loadPublicStats();
             
-            document.getElementById('apply-filters-btn').addEventListener('click', function() {
+            // Time period selector change
+            document.getElementById('time-period-select').addEventListener('change', function() {
+                const isCustom = this.value === 'custom';
+                document.getElementById('custom-date-range').style.display = isCustom ? 'flex' : 'none';
+                document.getElementById('custom-date-range-end').style.display = isCustom ? 'flex' : 'none';
+            });
+            
+            // Load analytics button
+            document.getElementById('load-analytics-btn').addEventListener('click', function() {
                 loadAnalyticsData();
             });
             
-            document.getElementById('export-at-risk-btn').addEventListener('click', function() {
-                exportAtRiskStudents();
+            // Copy public stats button
+            document.getElementById('copy-public-stats-btn').addEventListener('click', function() {
+                copyPublicStats();
             });
         });
         
         function loadAnalyticsData() {
-            const riskFilter = document.getElementById('risk-filter').value;
-            const levelFilter = document.getElementById('level-filter').value;
-            const searchTerm = document.getElementById('search-students-analytics').value;
+            const period = document.getElementById('time-period-select').value;
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
             
             const params = new URLSearchParams();
-            if (riskFilter !== 'all') params.append('risk', riskFilter);
-            if (levelFilter !== 'all') params.append('level', levelFilter);
-            if (searchTerm) params.append('search', searchTerm);
+            params.append('period', period);
+            if (period === 'custom' && startDate && endDate) {
+                params.append('start_date', startDate);
+                params.append('end_date', endDate);
+            }
             
             // Load overview stats
             fetch('<?php echo rest_url('aph/v1/analytics/overview'); ?>', {
@@ -7328,10 +7908,8 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 })
                 .catch(error => console.error('Error loading analytics overview:', error));
             
-            // Load students data
-            const url = '<?php echo rest_url('aph/v1/analytics/students'); ?>' + (params.toString() ? '?' + params.toString() : '');
-            
-            fetch(url, {
+            // Load time-based analytics
+            fetch('<?php echo rest_url('aph/v1/analytics/time-based'); ?>?' + params.toString(), {
                 headers: {
                     'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                 }
@@ -7339,96 +7917,176 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        displayAnalyticsStudents(data.data.students);
-                    } else {
-                        document.getElementById('analytics-table-body').innerHTML = '<tr><td colspan="9">Error loading analytics data</td></tr>';
+                        displayCharts(data.data);
+                        displayTotalStats(data.data.total_stats);
+                        displayStreakStats(data.data.streak_stats);
                     }
                 })
                 .catch(error => {
-                    console.error('Error loading analytics data:', error);
-                    document.getElementById('analytics-table-body').innerHTML = '<tr><td colspan="9">Error loading analytics data</td></tr>';
+                    console.error('Error loading time-based analytics:', error);
                 });
         }
         
-        function displayAnalyticsStudents(students) {
-            const tbody = document.getElementById('analytics-table-body');
+        function displayCharts(analyticsData) {
+            // Practice Activity Chart
+            const activityCtx = document.getElementById('practice-activity-chart').getContext('2d');
+            const dates = analyticsData.daily_data.map(d => new Date(d.date).toLocaleDateString());
+            const sessions = analyticsData.daily_data.map(d => parseInt(d.sessions));
+            const hours = analyticsData.daily_data.map(d => Math.round((parseInt(d.minutes) / 60) * 10) / 10);
+            const activeUsers = analyticsData.daily_data.map(d => parseInt(d.active_users));
             
-            if (students.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9">No students found matching criteria</td></tr>';
-                return;
+            if (practiceActivityChart) {
+                practiceActivityChart.destroy();
             }
             
-            tbody.innerHTML = students.map(student => {
-                const daysSince = student.days_since_last_practice || 0;
-                let riskClass = 'risk-low';
-                let riskText = 'Low';
-                
-                if (daysSince > 30) {
-                    riskClass = 'risk-high';
-                    riskText = 'High';
-                } else if (daysSince > 7) {
-                    riskClass = 'risk-medium';
-                    riskText = 'Medium';
-                }
-                
-                return `
-                    <tr>
-                        <td>
-                            <strong>${student.display_name}</strong><br>
-                            <small style="color: #6b7280;">${student.user_email}</small>
-                        </td>
-                        <td>${student.level || 'N/A'}</td>
-                        <td>${student.last_practice_date ? new Date(student.last_practice_date).toLocaleDateString() : 'Never'}</td>
-                        <td>${daysSince} days</td>
-                        <td><span class="${riskClass}">${riskText}</span></td>
-                        <td>${student.total_sessions || 0}</td>
-                        <td>${student.current_streak || 0}</td>
-                        <td>${student.last_email_sent ? new Date(student.last_email_sent).toLocaleDateString() : 'Never'}</td>
-                        <td>
-                            <div class="action-buttons">
-                                <button class="button button-secondary" onclick="viewStudentDetails(${student.user_id})">View</button>
-                                <button class="button button-primary" onclick="sendOutreachEmail(${student.user_id})">Reach Out</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-        
-        function viewStudentDetails(userId) {
-            // Open student details modal or redirect to student page
-            window.open('<?php echo admin_url('admin.php?page=aph-practice-hub'); ?>&student_id=' + userId, '_blank');
-        }
-        
-        function sendOutreachEmail(userId) {
-            if (confirm('Send outreach email to this student?')) {
-                fetch('<?php echo rest_url('aph/v1/analytics/send-outreach'); ?>', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+            practiceActivityChart = new Chart(activityCtx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [
+                        {
+                            label: 'Sessions',
+                            data: sessions,
+                            borderColor: '#459E90',
+                            backgroundColor: 'rgba(69, 158, 144, 0.1)',
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Hours',
+                            data: hours,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            yAxisID: 'y1',
+                        },
+                        {
+                            label: 'Active Students',
+                            data: activeUsers,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            yAxisID: 'y',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
                     },
-                    body: JSON.stringify({
-                        user_id: userId
-                    })
-                })
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                    },
+                }
+            });
+            
+            // Level Distribution Chart
+            const levelCtx = document.getElementById('level-distribution-chart').getContext('2d');
+            const levels = analyticsData.level_distribution.map(d => 'Level ' + d.level);
+            const levelCounts = analyticsData.level_distribution.map(d => parseInt(d.count));
+            
+            if (levelDistributionChart) {
+                levelDistributionChart.destroy();
+            }
+            
+            levelDistributionChart = new Chart(levelCtx, {
+                type: 'bar',
+                data: {
+                    labels: levels,
+                    datasets: [{
+                        label: 'Students',
+                        data: levelCounts,
+                        backgroundColor: '#459E90',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        function displayTotalStats(stats) {
+            document.getElementById('stat-total-sessions').textContent = (stats.total_sessions || 0).toLocaleString();
+            document.getElementById('stat-total-hours').textContent = Math.round((stats.total_minutes || 0) / 60 * 10) / 10;
+            document.getElementById('stat-active-students').textContent = (stats.active_students || 0).toLocaleString();
+            document.getElementById('stat-avg-duration').textContent = Math.round((stats.avg_session_duration || 0) * 10) / 10 + ' min';
+        }
+        
+        function displayStreakStats(stats) {
+            document.getElementById('stat-avg-streak').textContent = Math.round((stats.avg_streak || 0) * 10) / 10;
+            document.getElementById('stat-max-streak').textContent = (stats.max_streak || 0).toLocaleString();
+            document.getElementById('stat-streak-7plus').textContent = (stats.students_7plus_streak || 0).toLocaleString();
+            document.getElementById('stat-streak-30plus').textContent = (stats.students_30plus_streak || 0).toLocaleString();
+        }
+        
+        function loadPublicStats() {
+            fetch('<?php echo rest_url('aph/v1/analytics/public-stats'); ?>')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        alert('Outreach email sent successfully!');
-                    } else {
-                        alert('Error sending email: ' + (data.message || 'Unknown error'));
+                        const stats7 = data.data.last_7_days;
+                        const stats30 = data.data.last_30_days;
+                        
+                        document.getElementById('public-sessions-7days').textContent = stats7.sessions.toLocaleString();
+                        document.getElementById('public-hours-7days').textContent = stats7.hours.toLocaleString();
+                        document.getElementById('public-active-7days').textContent = stats7.active_students.toLocaleString();
+                        
+                        document.getElementById('public-sessions-30days').textContent = stats30.sessions.toLocaleString();
+                        document.getElementById('public-hours-30days').textContent = stats30.hours.toLocaleString();
+                        document.getElementById('public-active-30days').textContent = stats30.active_students.toLocaleString();
                     }
                 })
-                .catch(error => {
-                    console.error('Error sending outreach email:', error);
-                    alert('Error sending outreach email');
-                });
-            }
+                .catch(error => console.error('Error loading public stats:', error));
         }
         
-        function exportAtRiskStudents() {
-            window.location.href = '<?php echo rest_url('aph/v1/analytics/export-at-risk'); ?>';
+        function copyPublicStats() {
+            const stats7 = {
+                sessions: document.getElementById('public-sessions-7days').textContent,
+                hours: document.getElementById('public-hours-7days').textContent,
+                active: document.getElementById('public-active-7days').textContent
+            };
+            const stats30 = {
+                sessions: document.getElementById('public-sessions-30days').textContent,
+                hours: document.getElementById('public-hours-30days').textContent,
+                active: document.getElementById('public-active-30days').textContent
+            };
+            
+            const text = `🎹 JazzEdge Academy Practice Statistics
+
+Last 7 Days:
+• ${stats7.sessions} practice sessions
+• ${stats7.hours} hours practiced
+• ${stats7.active} active students
+
+Last 30 Days:
+• ${stats30.sessions} practice sessions
+• ${stats30.hours} hours practiced
+• ${stats30.active} active students
+
+Keep practicing! 🎵`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Statistics copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy statistics. Please copy manually.');
+            });
         }
         </script>
         <?php

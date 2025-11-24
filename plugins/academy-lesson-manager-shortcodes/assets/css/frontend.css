@@ -2189,3 +2189,23 @@
         font-size: 14px;
     }
 }
+
+/* Collections Dropdown Styles */
+.alm-collections-dropdown-wrapper {
+    max-width: 100%;
+    width: 100%;
+}
+
+.alm-collections-dropdown {
+    max-width: 100%;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.alm-collections-dropdown option {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
