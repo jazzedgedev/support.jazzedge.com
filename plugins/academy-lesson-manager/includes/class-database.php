@@ -115,6 +115,9 @@ class ALM_Database {
 
         // Ensure notifications table has a category column for tagging
         $this->check_and_add_notification_category_column();
+        
+        // Ensure notifications table has a show_popup column
+        $this->check_and_add_notification_popup_column();
     }
     
     /**
@@ -631,13 +634,15 @@ class ALM_Database {
             link_label varchar(100) DEFAULT '',
             link_url varchar(500) DEFAULT '',
             is_active tinyint(1) DEFAULT 1,
+            show_popup tinyint(1) DEFAULT 0,
             publish_at datetime DEFAULT CURRENT_TIMESTAMP,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (ID),
             KEY is_active (is_active),
             KEY publish_at (publish_at),
-            KEY category (category)
+            KEY category (category),
+            KEY show_popup (show_popup)
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -682,6 +687,23 @@ class ALM_Database {
         if (empty($category_column)) {
             $this->wpdb->query("ALTER TABLE {$notifications_table} ADD COLUMN category varchar(50) NOT NULL DEFAULT 'site_update' AFTER title, ADD KEY category (category)");
             $this->wpdb->query($this->wpdb->prepare("UPDATE {$notifications_table} SET category = %s WHERE category = '' OR category IS NULL", 'site_update'));
+        }
+    }
+
+    /**
+     * Ensure the notifications table has a show_popup column
+     */
+    private function check_and_add_notification_popup_column() {
+        $notifications_table = $this->tables['notifications'];
+
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$notifications_table}'") === $notifications_table;
+        if (!$table_exists) {
+            return;
+        }
+
+        $popup_column = $this->wpdb->get_results("SHOW COLUMNS FROM {$notifications_table} LIKE 'show_popup'");
+        if (empty($popup_column)) {
+            $this->wpdb->query("ALTER TABLE {$notifications_table} ADD COLUMN show_popup tinyint(1) DEFAULT 0 AFTER is_active, ADD KEY show_popup (show_popup)");
         }
     }
 

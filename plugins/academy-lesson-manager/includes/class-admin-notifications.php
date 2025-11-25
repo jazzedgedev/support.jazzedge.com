@@ -80,6 +80,7 @@ class ALM_Admin_Notifications {
                     'link_url' => esc_url_raw(wp_unslash($_POST['notification_link_url'] ?? '')),
                     'publish_at' => sanitize_text_field(wp_unslash($_POST['notification_publish_at'] ?? current_time('mysql'))),
                     'is_active' => isset($_POST['notification_is_active']) ? 1 : 0,
+                    'show_popup' => isset($_POST['notification_show_popup']) ? 1 : 0,
                     'category' => sanitize_key($_POST['notification_category'] ?? ALM_Notifications_Manager::DEFAULT_CATEGORY),
                 );
                 if (empty($data['category']) || !isset($category_palette[$data['category']])) {
@@ -275,6 +276,14 @@ class ALM_Admin_Notifications {
         echo '<td><label><input type="checkbox" name="notification_is_active" value="1" ' . checked(1, $is_active, false) . ' /> ' . esc_html__('Visible to students', 'academy-lesson-manager') . '</label></td>';
         echo '</tr>';
 
+        $show_popup = isset($editing_notification['show_popup']) ? intval($editing_notification['show_popup']) : 0;
+        echo '<tr>';
+        echo '<th scope="row">' . esc_html__('Show Popup on Dashboard', 'academy-lesson-manager') . '</th>';
+        echo '<td><label><input type="checkbox" name="notification_show_popup" value="1" ' . checked(1, $show_popup, false) . ' /> ' . esc_html__('Show as popup on dashboard (once per user)', 'academy-lesson-manager') . '</label>';
+        echo '<p class="description">' . esc_html__('When enabled, this notification will appear as a popup on the dashboard for users who haven\'t seen it yet. Users can click the Notifications button to see all notifications.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+
         echo '</tbody></table>';
 
         echo '<p class="submit">';
@@ -361,6 +370,7 @@ Return only the expanded text, no explanations or additional commentary.";
             echo '<th>' . esc_html__('Title', 'academy-lesson-manager') . '</th>';
             echo '<th>' . esc_html__('Type', 'academy-lesson-manager') . '</th>';
             echo '<th>' . esc_html__('Status', 'academy-lesson-manager') . '</th>';
+            echo '<th>' . esc_html__('Popup', 'academy-lesson-manager') . '</th>';
             echo '<th>' . esc_html__('Publish Date', 'academy-lesson-manager') . '</th>';
             echo '<th>' . esc_html__('Link', 'academy-lesson-manager') . '</th>';
             echo '<th>' . esc_html__('Actions', 'academy-lesson-manager') . '</th>';
@@ -376,6 +386,10 @@ Return only the expanded text, no explanations or additional commentary.";
                 $type_label = $category_palette[$type_slug]['label'] ?? $category_palette[ALM_Notifications_Manager::DEFAULT_CATEGORY]['label'];
                 echo '<td>' . esc_html($type_label) . '</td>';
                 echo '<td>' . esc_html($status_label) . '</td>';
+                $show_popup = isset($notification['show_popup']) ? intval($notification['show_popup']) : 0;
+                $popup_label = $show_popup ? __('Yes', 'academy-lesson-manager') : __('No', 'academy-lesson-manager');
+                $popup_style = $show_popup ? 'color: #15803d; font-weight: 600;' : 'color: #6b7280;';
+                echo '<td><span style="' . esc_attr($popup_style) . '">' . esc_html($popup_label) . '</span></td>';
                 echo '<td>' . esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($notification['publish_at']))) . '</td>';
                 if (!empty($notification['link_url'])) {
                     echo '<td><a href="' . esc_url($notification['link_url']) . '" target="_blank" rel="noopener">' . esc_html($notification['link_label'] ?: __('View Resource', 'academy-lesson-manager')) . '</a></td>';

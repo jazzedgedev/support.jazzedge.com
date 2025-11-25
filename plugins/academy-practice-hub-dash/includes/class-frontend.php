@@ -172,7 +172,7 @@ class JPH_Frontend {
             
             <div class="jph-stats-grid">
                 <?php if (in_array('xp', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-xp">
+                    <div class="jph-stat-item jph-stat-xp" aria-label="Total experience points earned from practice sessions" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
@@ -186,7 +186,7 @@ class JPH_Frontend {
                 <?php endif; ?>
                 
                 <?php if (in_array('level', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-level">
+                    <div class="jph-stat-item jph-stat-level" aria-label="Your current level based on total XP earned" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
@@ -200,7 +200,7 @@ class JPH_Frontend {
                 <?php endif; ?>
                 
                 <?php if (in_array('streak', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-streak">
+                    <div class="jph-stat-item jph-stat-streak" aria-label="Consecutive days of practice" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
@@ -214,7 +214,7 @@ class JPH_Frontend {
                 <?php endif; ?>
                 
                 <?php if (in_array('badges', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-badges">
+                    <div class="jph-stat-item jph-stat-badges" aria-label="Achievement badges you've earned" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"></path>
@@ -228,7 +228,7 @@ class JPH_Frontend {
                 <?php endif; ?>
                 
                 <?php if (in_array('sessions', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-sessions">
+                    <div class="jph-stat-item jph-stat-sessions" aria-label="Total number of practice sessions logged" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2 2 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
@@ -242,7 +242,7 @@ class JPH_Frontend {
                 <?php endif; ?>
                 
                 <?php if (in_array('minutes', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-minutes">
+                    <div class="jph-stat-item jph-stat-minutes" aria-label="Total minutes practiced across all sessions" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -256,7 +256,7 @@ class JPH_Frontend {
                 <?php endif; ?>
                 
                 <?php if (in_array('gems', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-gems">
+                    <div class="jph-stat-item jph-stat-gems" aria-label="Gems earned from practice and achievements" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
@@ -270,7 +270,7 @@ class JPH_Frontend {
                 <?php endif; ?>
                 
                 <?php if (in_array('hearts', $show_fields)): ?>
-                    <div class="jph-stat-item jph-stat-hearts">
+                    <div class="jph-stat-item jph-stat-hearts" aria-label="Hearts received from the community" data-microtip-position="top" role="tooltip">
                         <div class="jph-stat-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
@@ -402,7 +402,6 @@ class JPH_Frontend {
             font-size: 12px;
         }
         
-        .jph-login-required,
         .jph-error {
             text-align: center;
             color: #666;
@@ -998,7 +997,85 @@ class JPH_Frontend {
     public function render_dashboard($atts) {
         // Only show to logged-in users
         if (!is_user_logged_in()) {
-            return '<div class="jph-login-required">Please log in to access your practice dashboard.</div>';
+            return '<style>
+                .jph-login-required {
+                    text-align: center;
+                    padding: 60px 40px;
+                    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                    border-radius: 16px;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+                    margin: 40px auto;
+                    max-width: 600px;
+                    border: 1px solid #e9ecef;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .jph-login-required::before {
+                    content: "";
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 4px;
+                    background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
+                }
+                
+                .login-notice h3 {
+                    color: #2c3e50;
+                    margin-bottom: 24px;
+                    font-size: 28px;
+                    font-weight: 700;
+                    letter-spacing: -0.5px;
+                    position: relative;
+                }
+                
+                .login-notice h3::after {
+                    content: "🔑";
+                    margin-left: 12px;
+                    font-size: 24px;
+                    opacity: 0.7;
+                }
+                
+                .login-notice p {
+                    color: #5a6c7d;
+                    margin-bottom: 20px;
+                    font-size: 18px;
+                    line-height: 1.6;
+                    font-weight: 400;
+                }
+                
+                .login-notice a {
+                    display: inline-block;
+                    background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
+                    color: white;
+                    text-decoration: none;
+                    font-weight: 600;
+                    padding: 14px 28px;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 12px rgba(0, 115, 170, 0.3);
+                    margin-top: 8px;
+                }
+                
+                .login-notice a:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(0, 115, 170, 0.4);
+                    background: linear-gradient(135deg, #005a87 0%, #004066 100%);
+                }
+                
+                .login-notice a:active {
+                    transform: translateY(0);
+                }
+            </style>
+            <div class="jph-login-required">
+                <div class="login-notice">
+                    <h3>Login Required</h3>
+                    <p>Please log in to access your practice dashboard.</p>
+                    <a href="' . esc_url(wp_login_url(get_permalink())) . '">Log In</a>
+                </div>
+            </div>';
         }
         
         // Check if user has active membership
@@ -1156,6 +1233,27 @@ class JPH_Frontend {
         // Sanitize user stats for output
         $user_stats = $this->sanitize_user_stats($user_stats);
         
+        // Load dashboard preferences
+        $dashboard_prefs_json = get_user_meta($user_id, 'aph_dashboard_preferences', true);
+        $dashboard_prefs = array(
+            'stats' => true,
+            'search_section' => true,
+            'repertoire_section' => true,
+            'tab_shield' => true,
+            'tab_badges' => true,
+            'tab_analytics' => true
+        );
+        if (!empty($dashboard_prefs_json)) {
+            $parsed_prefs = json_decode($dashboard_prefs_json, true);
+            if (is_array($parsed_prefs)) {
+                $dashboard_prefs = wp_parse_args($parsed_prefs, $dashboard_prefs);
+                // Ensure all values are boolean
+                foreach ($dashboard_prefs as $key => $value) {
+                    $dashboard_prefs[$key] = (bool) $value;
+                }
+            }
+        }
+        
         // Enqueue scripts and styles
         wp_enqueue_script('jquery');
         wp_enqueue_script('jquery-ui-core');
@@ -1266,7 +1364,38 @@ class JPH_Frontend {
                 </div>
             </div>
             
+            <!-- Notification Popup Modal -->
+            <div id="jph-notification-popup" class="jph-notification-popup" style="display: none;">
+                <div class="jph-notification-popup-overlay"></div>
+                <div class="jph-notification-popup-content">
+                    <div class="jph-notification-popup-header">
+                        <span class="jph-notification-popup-pill" id="jph-notification-popup-pill"></span>
+                        <button class="jph-notification-popup-close" id="jph-notification-popup-close">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="jph-notification-popup-body">
+                        <h3 id="jph-notification-popup-title"></h3>
+                        <div id="jph-notification-popup-content"></div>
+                        <div class="jph-notification-popup-actions" id="jph-notification-popup-actions" style="display: none;">
+                            <a id="jph-notification-popup-link" class="jph-btn jph-btn-primary" href="" target="_blank" rel="noopener"></a>
+                        </div>
+                        <p class="jph-notification-popup-footer-text">
+                            <strong>Want to see all notifications?</strong> Click the Notifications button in the header to view your complete notification feed.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Temporary placement of Dashboard Settings button at bottom -->
+            
             <div class="jph-header">
+            <!-- Support Pill Badge - floating badge attached to header -->
+            <a href="/support" target="_blank" rel="noopener noreferrer" class="jph-support-pill">
+                Need help? Click here
+            </a>
                 <div class="header-top">
                     <div class="welcome-title-container">
                         <h2 id="jph-welcome-title">
@@ -1282,15 +1411,6 @@ class JPH_Frontend {
                         </button>
                     </div>
                     <div class="header-actions">
-                        <!-- Tutorial Button -->
-                        <button id="jph-tutorial-btn" type="button" class="jph-btn jph-btn-secondary jph-tutorial-btn" onclick="window.open('/help', '_blank')">
-                            <span class="btn-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-                                </svg>
-                            </span>
-                            Support
-                        </button>
                         <!-- Leaderboard Button -->
                         <button id="jph-leaderboard-btn" type="button" class="jph-btn jph-btn-secondary jph-leaderboard-btn" onclick="openLeaderboard()">
                             <span class="btn-icon">
@@ -1299,15 +1419,6 @@ class JPH_Frontend {
                                 </svg>
                             </span>
                             Leaderboard
-                        </button>
-                        <!-- About Stats Button -->
-                        <button id="jph-stats-explanation-btn" type="button" class="jph-btn jph-btn-secondary jph-stats-help-btn">
-                            <span class="btn-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                                </svg>
-                            </span>
-                            Stats
                         </button>
                         <!-- Notifications Button -->
                         <button id="jph-notifications-btn" type="button" class="jph-btn jph-btn-secondary jph-notifications-btn" data-unread-count="<?php echo intval($unread_notifications); ?>" onclick="window.location.href='<?php echo esc_url($notifications_page_url); ?>';">
@@ -1327,8 +1438,19 @@ class JPH_Frontend {
                                 </span>
                             <?php endif; ?>
                         </button>
+                        <!-- Settings Button -->
+                        <button id="jph-dashboard-settings-btn" type="button" class="jph-btn jph-btn-secondary jph-dashboard-settings-btn">
+                            <span class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </span>
+                            Settings
+                        </button>
                     </div>
                 </div>
+                <?php if ($dashboard_prefs['stats'] ?? true): ?>
                 <div class="jph-stats">
                     <div class="stat">
                         <span class="stat-value stat-level">
@@ -1367,8 +1489,10 @@ class JPH_Frontend {
                         <span class="stat-label">GEMS</span>
                     </div>
                 </div>
+                <?php endif; ?>
                 
                 <!-- Search Section - Professional 2-Column Layout -->
+                <?php if ($dashboard_prefs['search_section'] ?? true): ?>
                 <div class="jph-search-section">
                     <div class="search-section-grid">
                         <!-- Left Column - Continue Learning & Dropdowns (40%) -->
@@ -1695,6 +1819,7 @@ class JPH_Frontend {
                     </div>
                 </div>
             </div>
+                <?php endif; ?>
             
             <!-- Tabbed Navigation -->
             <div class="jph-tabs-container">
@@ -1731,6 +1856,7 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Community</span>
                     </button>
+                    <?php if ($dashboard_prefs['tab_shield'] ?? true): ?>
                     <button class="jph-tab-btn" data-tab="shield-protection">
                         <span class="tab-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
@@ -1739,6 +1865,8 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Shield</span>
                     </button>
+                    <?php endif; ?>
+                    <?php if ($dashboard_prefs['tab_badges'] ?? true): ?>
                     <button class="jph-tab-btn" data-tab="badges">
                         <span class="tab-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
@@ -1747,6 +1875,8 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Badges</span>
                     </button>
+                    <?php endif; ?>
+                    <?php if ($dashboard_prefs['tab_analytics'] ?? true): ?>
                     <button class="jph-tab-btn" data-tab="analytics">
                         <span class="tab-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
@@ -1755,6 +1885,7 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Analytics</span>
                     </button>
+                    <?php endif; ?>
                 </div>
                 
                 <!-- Tab Content -->
@@ -1804,7 +1935,7 @@ class JPH_Frontend {
                                 ?>
                                     <div class="jph-item sortable-practice-item" data-item-id="<?php echo esc_attr($item['id']); ?>" draggable="true" style="display:flex; flex-direction:column; min-height:240px;">
                                         <!-- Drag Handle -->
-                                        <div class="drag-handle" title="Drag to reorder">
+                                        <div class="drag-handle" aria-label="Drag to reorder" data-microtip-position="top" role="tooltip">
                                             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                                                 <circle cx="4" cy="4" r="1" fill="#666"/>
                                                 <circle cx="8" cy="4" r="1" fill="#666"/>
@@ -1839,18 +1970,18 @@ class JPH_Frontend {
                                             </button>
                                             <div class="item-controls">
                                                 <?php if (isset($lesson_urls[$item['name']])): ?>
-                                                <a href="<?php echo esc_url($lesson_urls[$item['name']]); ?>" target="_blank" class="lesson-link-icon" title="View Lesson">
+                                                <a href="<?php echo esc_url($lesson_urls[$item['name']]); ?>" target="_blank" class="lesson-link-icon" aria-label="View Lesson" data-microtip-position="top" role="tooltip">
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
                                                         <path d="M384 64C366.3 64 352 78.3 352 96C352 113.7 366.3 128 384 128L466.7 128L265.3 329.4C252.8 341.9 252.8 362.2 265.3 374.7C277.8 387.2 298.1 387.2 310.6 374.7L512 173.3L512 256C512 273.7 526.3 288 544 288C561.7 288 576 273.7 576 256L576 96C576 78.3 561.7 64 544 64L384 64zM144 160C99.8 160 64 195.8 64 240L64 496C64 540.2 99.8 576 144 576L400 576C444.2 576 480 540.2 480 496L480 416C480 398.3 465.7 384 448 384C430.3 384 416 398.3 416 416L416 496C416 504.8 408.8 512 400 512L144 512C135.2 512 128 504.8 128 496L128 240C128 231.2 135.2 224 144 224L224 224C241.7 224 256 209.7 256 192C256 174.3 241.7 160 224 160L144 160z"/>
                                                     </svg>
                                                 </a>
                                                 <?php endif; ?>
-                                                <button type="button" class="jph-edit-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" data-category="<?php echo esc_attr($item['category']); ?>" data-description="<?php echo esc_attr($item['description']); ?>" title="Edit">
+                                                <button type="button" class="jph-edit-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" data-category="<?php echo esc_attr($item['category']); ?>" data-description="<?php echo esc_attr($item['description']); ?>" aria-label="Edit this practice item" data-microtip-position="top" role="tooltip">
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
                                                         <path d="M100.4 417.2C104.5 402.6 112.2 389.3 123 378.5L304.2 197.3L338.1 163.4C354.7 180 389.4 214.7 442.1 267.4L476 301.3L442.1 335.2L260.9 516.4C250.2 527.1 236.8 534.9 222.2 539L94.4 574.6C86.1 576.9 77.1 574.6 71 568.4C64.9 562.2 62.6 553.3 64.9 545L100.4 417.2zM156 413.5C151.6 418.2 148.4 423.9 146.7 430.1L122.6 517L209.5 492.9C215.9 491.1 221.7 487.8 226.5 483.2L155.9 413.5zM510 267.4C493.4 250.8 458.7 216.1 406 163.4L372 129.5C398.5 103 413.4 88.1 416.9 84.6C430.4 71 448.8 63.4 468 63.4C487.2 63.4 505.6 71 519.1 84.6L554.8 120.3C568.4 133.9 576 152.3 576 171.4C576 190.5 568.4 209 554.8 222.5C551.3 226 536.4 240.9 509.9 267.4z"/>
                                                     </svg>
                                                 </button>
-                                                <button type="button" class="jph-delete-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" title="Delete">
+                                                <button type="button" class="jph-delete-item-btn icon-btn" data-item-id="<?php echo esc_attr($item['id']); ?>" data-name="<?php echo esc_attr($item['name']); ?>" aria-label="Delete this practice item" data-microtip-position="top" role="tooltip">
                                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" fill="currentColor">
                                                         <path d="M232.7 69.9L224 96L128 96C110.3 96 96 110.3 96 128C96 145.7 110.3 160 128 160L512 160C529.7 160 544 145.7 544 128C544 110.3 529.7 96 512 96L416 96L407.3 69.9C402.9 56.8 390.7 48 376.9 48L263.1 48C249.3 48 237.1 56.8 232.7 69.9zM512 208L128 208L149.1 531.1C150.7 556.4 171.7 576 197 576L443 576C468.3 576 489.3 556.4 490.9 531.1L512 208z"/>
                                                     </svg>
@@ -1860,7 +1991,7 @@ class JPH_Frontend {
                                     </div>
                                 <?php else: ?>
                                     <div class="jph-item jph-empty-item sortable-empty-slot">
-                                        <div class="drag-handle disabled" title="Empty slot - not draggable">
+                                        <div class="drag-handle disabled" aria-label="Empty slot - not draggable" data-microtip-position="top" role="tooltip">
                                             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                                                 <circle cx="4" cy="4" r="1" fill="#ccc"/>
                                                 <circle cx="8" cy="4" r="1" fill="#ccc"/>
@@ -1891,17 +2022,18 @@ class JPH_Frontend {
                         </div>
                         
                         <!-- Repertoire Section -->
+                        <?php if ($dashboard_prefs['repertoire_section'] ?? true): ?>
                         <div class="jph-repertoire-section" style="margin-top: 40px;">
                             <div class="repertoire-header">
                                 <h3>My Repertoire</h3>
                                 <div class="repertoire-header-actions">
-                                    <button type="button" class="jph-btn jph-btn-secondary" id="jph-print-repertoire-btn">
+                                    <button type="button" class="jph-btn jph-btn-secondary" id="jph-print-repertoire-btn" aria-label="Print your repertoire list" data-microtip-position="top" role="tooltip">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
                                         </svg>
                                         Print
                                     </button>
-                                    <button type="button" class="jph-btn jph-btn-primary" id="jph-add-repertoire-btn">
+                                    <button type="button" class="jph-btn jph-btn-primary" id="jph-add-repertoire-btn" aria-label="Add a new piece to your repertoire" data-microtip-position="top" role="tooltip">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                         </svg>
@@ -1913,7 +2045,7 @@ class JPH_Frontend {
                             <div class="repertoire-controls">
                                 <div class="sort-controls">
                                     <label>Sort by:</label>
-                                    <select id="repertoire-sort">
+                                    <select id="repertoire-sort" aria-label="Sort repertoire items" data-microtip-position="top" role="tooltip">
                                         <option value="last_practiced">Last Practice Date</option>
                                         <option value="title">Title</option>
                                         <option value="date_added">Date Added</option>
@@ -1939,6 +2071,7 @@ class JPH_Frontend {
                                 </table>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
                     
                     <!-- Events Tab -->
@@ -1946,16 +2079,36 @@ class JPH_Frontend {
                         <!-- Events Section -->
                         <div class="jph-events-section">
                             <div class="events-header">
-                                <h3>Upcoming Events</h3>
+                                <div class="events-header-title">
+                                    <h3>Upcoming Events</h3>
+                                    <?php
+                                    $current_timezone_display = '';
+                                    if ($user_id > 0) {
+                                        $user_timezone_string = APH_Gamification::get_user_timezone_string($user_id);
+                                        $current_timezone_display = esc_html($user_timezone_string);
+                                    }
+                                    ?>
+                                    <div class="events-timezone-info">
+                                    <a href="https://jazzedge.academy/user-preferences/" target="_blank" rel="noopener" class="events-timezone-link" aria-label="Update your timezone preferences" data-microtip-position="top" role="tooltip">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                        </svg>
+                                        <span>Set Timezone</span>
+                                    </a>
+                                        <?php if ($current_timezone_display): ?>
+                                            <span class="events-timezone-current"><?php echo $current_timezone_display; ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
                                 <div class="events-header-actions">
                                     <div class="events-view-toggle">
-                                        <button class="view-toggle-btn active" data-view="list" title="List View" aria-label="List View">
+                                        <button class="view-toggle-btn active" data-view="list" aria-label="List View" data-microtip-position="top" role="tooltip">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM7.5 6.75h.007v.008H7.5V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm.375 5.25h.007v.008H8.25v-.008Zm0 5.25h.007v.008H8.25V18Zm-.375-5.25h.007v.008H7.875v-.008Zm0 5.25h.007v.008H7.875V18Zm3.75-5.25h.007v.008H11.625v-.008Zm0 5.25h.007v.008H11.625V18Zm-.375-5.25h.007v.008h-.007v-.008Zm0 5.25h.007v.008h-.007V18Z" />
                                             </svg>
                                             <span>List</span>
                                         </button>
-                                        <button class="view-toggle-btn" data-view="calendar" title="Calendar View" aria-label="Calendar View">
+                                        <button class="view-toggle-btn" data-view="calendar" aria-label="Calendar View" data-microtip-position="top" role="tooltip">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
                                             </svg>
@@ -1997,6 +2150,13 @@ class JPH_Frontend {
                                     $user_meta = get_user_meta($user_id, 'membership_level', true);
                                     if ($user_meta) {
                                         $user_level = sanitize_title($user_meta);
+                                    }
+                                    
+                                    // Check if user wants to show events in their timezone
+                                    $show_events_in_timezone = get_user_meta($user_id, 'aph_show_events_in_timezone', true) === '1';
+                                    $user_timezone = null;
+                                    if ($show_events_in_timezone) {
+                                        $user_timezone = APH_Gamification::get_user_timezone($user_id);
                                     }
                                     
                                     // Use the complete events shortcode logic
@@ -2148,7 +2308,7 @@ class JPH_Frontend {
                                         ]);
                                         
                                         // Store items as JSON for JavaScript (don't limit count here, let filtering handle it)
-                                        $events_json = json_encode(array_map(function($item) {
+                                        $events_json = json_encode(array_map(function($item) use ($user_timezone) {
                                             return [
                                                 'id' => $item['id'],
                                                 'ts' => $item['ts'],
@@ -2159,8 +2319,8 @@ class JPH_Frontend {
                                                 'types' => $item['types'],
                                                 'membership_levels' => $item['membership_levels'],
                                                 'excerpt' => $item['excerpt'],
-                                                'date' => wp_date('Y-m-d', $item['ts']),
-                                                'time' => wp_date('g:i a', $item['ts']),
+                                                'date' => wp_date('Y-m-d', $item['ts'], $user_timezone),
+                                                'time' => wp_date('g:i a', $item['ts'], $user_timezone),
                                             ];
                                         }, $items));
                                         
@@ -2177,7 +2337,7 @@ class JPH_Frontend {
                                                     $pid = $it['id'];
                                                     $event_title = $it['title'];
                                                     $event_permalink = $it['permalink'];
-                                                    $event_date = wp_date('D, M j • g:i a', $it['ts']);
+                                                    $event_date = wp_date('D, M j • g:i a', $it['ts'], $user_timezone);
                                                     $event_types = $it['types'];
                                                     $membership_levels = $it['membership_levels'];
                                                     $event_excerpt = $it['excerpt'];
@@ -2192,7 +2352,7 @@ class JPH_Frontend {
                                                         $teacher_names_for_filter = strtolower($event_teacher);
                                                     }
                                                     ?>
-                                                    <div class="event-item" data-event-id="<?php echo esc_attr($pid); ?>" data-event-date="<?php echo esc_attr(wp_date('Y-m-d', $it['ts'])); ?>" data-event-teacher="<?php echo esc_attr($teacher_names_for_filter); ?>" data-event-types="<?php echo esc_attr(implode(',', array_map('strtolower', $event_types))); ?>" data-event-membership="<?php echo esc_attr(implode(',', array_map('strtolower', $membership_levels))); ?>">
+                                                    <div class="event-item" data-event-id="<?php echo esc_attr($pid); ?>" data-event-date="<?php echo esc_attr(wp_date('Y-m-d', $it['ts'], $user_timezone)); ?>" data-event-teacher="<?php echo esc_attr($teacher_names_for_filter); ?>" data-event-types="<?php echo esc_attr(implode(',', array_map('strtolower', $event_types))); ?>" data-event-membership="<?php echo esc_attr(implode(',', array_map('strtolower', $membership_levels))); ?>">
                                                     <div class="event-date">
                                                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -2223,13 +2383,13 @@ class JPH_Frontend {
                                                                 // iCal link
                                                                 $ics = add_query_arg(['action' => 'je_ics', 'id' => $pid], admin_url('admin-ajax.php'));
                                                                 ?>
-                                                                <a class="calendar-link gcal-link" href="<?php echo esc_url($gcal); ?>" target="_blank" rel="noopener" title="Add to Google Calendar">
+                                                                <a class="calendar-link gcal-link" href="<?php echo esc_url($gcal); ?>" target="_blank" rel="noopener" aria-label="Add to Google Calendar" data-microtip-position="top" role="tooltip">
                                                                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                                                     </svg>
                                                                     <span>Google</span>
                                                                 </a>
-                                                                <a class="calendar-link ical-link" href="<?php echo esc_url($ics); ?>" title="Add to iCal/Outlook">
+                                                                <a class="calendar-link ical-link" href="<?php echo esc_url($ics); ?>" aria-label="Add to iCal/Outlook" data-microtip-position="top" role="tooltip">
                                                                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                                                     </svg>
@@ -2378,7 +2538,7 @@ class JPH_Frontend {
                                             <div class="jpc-focus-details">
                                                 <p><strong>KEY OF:</strong> <?php echo esc_html($key_name); ?></p>
                                                 <p><strong>SUGGESTED TEMPO:</strong> <?php echo esc_html($tempo); ?> BPM 
-                                                    <span class="tempo-info-icon" title="Tempo is only a suggestion. Focus on playing steady and accurately - you can go slower if needed!">
+                                                    <span class="tempo-info-icon" aria-label="Tempo is only a suggestion. Focus on playing steady and accurately - you can go slower if needed!" data-microtip-position="top" role="tooltip">
                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
                                                         </svg>
@@ -2441,6 +2601,7 @@ class JPH_Frontend {
                     Fix my progress
                 </a>
             </div>
+            
                                                 </div>
                                             </div>
                                         </div>
@@ -3666,6 +3827,7 @@ class JPH_Frontend {
             </div>
         </div>
         
+        
         <!-- Stats Explanation Modal -->
         <div id="jph-stats-explanation-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content">
@@ -4073,6 +4235,115 @@ class JPH_Frontend {
             </div>
         </div>
         
+        <!-- Dashboard Settings Modal -->
+        <div id="jph-dashboard-settings-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h2>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; margin-right: 8px; vertical-align: middle;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Dashboard Settings
+                    </h2>
+                    <span class="jph-close"><i class="fa-solid fa-circle-xmark"></i></span>
+                </div>
+                <div class="jph-modal-body jph-settings-modal-body-compact">
+                    <p class="jph-settings-description">
+                        Choose which stats, sections, and tabs you want to see on your dashboard. You can tweak these anytime—your preferences are saved automatically.
+                    </p>
+                    <div class="jph-dashboard-settings">
+                        <div class="settings-section">
+                            <h3>Uncheck the sections you want to hide</h3>
+                            <div class="settings-checkbox-item">
+                                <label>
+                                    <input type="checkbox" id="setting-stats" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Stats</strong>
+                                        <span class="checkbox-description">Your level, XP, streak, and gems</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="settings-checkbox-item">
+                                <label>
+                                    <input type="checkbox" id="setting-search-section" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Search Section</strong>
+                                        <span class="checkbox-description">Quick search bar to find lessons and content</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="settings-checkbox-item">
+                                <label>
+                                    <input type="checkbox" id="setting-repertoire-section" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Repertoire Section</strong>
+                                        <span class="checkbox-description">Your saved repertoire</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="settings-checkbox-item">
+                                <label>
+                                    <input type="checkbox" id="setting-tab-shield" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Shield Tab</strong>
+                                        <span class="checkbox-description">Streak protection shields and shield management</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="settings-checkbox-item">
+                                <label>
+                                    <input type="checkbox" id="setting-tab-badges" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Badges Tab</strong>
+                                        <span class="checkbox-description">Achievement badges you've earned</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="settings-checkbox-item">
+                                <label>
+                                    <input type="checkbox" id="setting-tab-analytics" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Analytics Tab</strong>
+                                        <span class="checkbox-description">Detailed practice analytics and charts</span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="jph-modal-footer jph-modal-footer-compact">
+                        <button type="button" class="jph-btn jph-btn-secondary" id="jph-cancel-dashboard-settings">Cancel</button>
+                        <button type="button" class="jph-btn jph-btn-primary" id="jph-save-dashboard-settings">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; margin-right: 4px; vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                            Save Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        </div>
+        
+        <!-- Simple Test Modal - placed outside dashboard container like working modals -->
+        <div id="jph-dashboard-settings-test-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h3>Dashboard Settings (Test)</h3>
+                    <span class="jph-close"><i class="fa-solid fa-circle-xmark"></i></span>
+                </div>
+                <div class="jph-modal-body">
+                    <p>This is a simple test modal to confirm the Settings button works.</p>
+                    <p>Once this is confirmed, we can wire it up to the full modal.</p>
+                </div>
+                <div class="jph-modal-footer">
+                    <button type="button" class="jph-btn jph-btn-secondary" id="jph-settings-test-close">
+                        Close
+                    </button>
+                </div>
+            </div>
         </div>
         
         <style>
@@ -4083,11 +4354,12 @@ class JPH_Frontend {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f8fffe 0%, #f0f8f7 100%);
             min-height: 100vh;
+            position: relative;
         }
 
         /* Promotional Banner */
         .jph-promo-banner {
-            margin-bottom: 20px;
+            margin-bottom: 50px;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -4183,6 +4455,7 @@ class JPH_Frontend {
             margin-bottom: 20px;
             padding: 16px 20px;
             box-shadow: 0 2px 4px rgba(96, 165, 250, 0.1);
+            display: none;
         }
 
         .beta-notice-content {
@@ -4305,6 +4578,7 @@ class JPH_Frontend {
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.7);
+            z-index: 10001;
             backdrop-filter: blur(4px);
         }
 
@@ -4361,6 +4635,138 @@ class JPH_Frontend {
         .jph-beta-disclaimer-modal .jph-modal-close {
             color: #ffffff;
         }
+        
+        /* Notification Popup Styles */
+        .jph-notification-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 80px;
+            padding-bottom: 40px;
+            box-sizing: border-box;
+        }
+        
+        body.jph-notification-popup-open {
+            overflow: hidden;
+        }
+        
+        .jph-notification-popup-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10001;
+            backdrop-filter: blur(4px);
+        }
+        
+        .jph-notification-popup-content {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-width: 900px;
+            width: 90%;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease-out;
+            z-index: 10002;
+        }
+        
+        .jph-notification-popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .jph-notification-popup-pill {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid;
+        }
+        
+        .jph-notification-popup-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: #6b7280;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .jph-notification-popup-close:hover {
+            color: #1f2937;
+        }
+        
+        .jph-notification-popup-body {
+            padding: 24px;
+        }
+        
+        .jph-notification-popup-body h3 {
+            margin: 0 0 16px 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .jph-notification-popup-body > div:first-of-type {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            color: #4b5563;
+        }
+        
+        .jph-notification-popup-actions {
+            margin: 24px 0;
+        }
+        
+        .jph-notification-popup-footer-text {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+        
+        .jph-notification-popup-footer-text strong {
+            color: #1f2937;
+        }
+        
+        @media (max-width: 640px) {
+            .jph-notification-popup {
+                padding-top: 60px;
+                padding-bottom: 20px;
+            }
+            
+            .jph-notification-popup-content {
+                width: 95%;
+                max-width: none;
+                max-height: calc(100vh - 80px);
+            }
+            
+            .jph-notification-popup-body {
+                padding: 20px;
+            }
+            
+            .jph-notification-popup-body h3 {
+                font-size: 20px;
+            }
+        }
 
         .jph-beta-disclaimer-modal .jph-modal-close:hover {
             background: rgba(255, 255, 255, 0.1);
@@ -4410,7 +4816,279 @@ class JPH_Frontend {
         .jph-modal-body li {
             margin-bottom: 8px;
             line-height: 1.5;
-            color: #374151;
+        }
+        
+        /* Dashboard Settings Modal */
+        .jph-dashboard-settings {
+            padding: 0;
+        }
+        
+        .jph-settings-modal-body-compact {
+            max-height: calc(70vh + 30px);
+            overflow-y: auto;
+            padding: 16px 20px;
+        }
+        
+        .jph-settings-description {
+            font-size: 13px;
+            color: #4b5563;
+            margin: 0 0 12px 0;
+        }
+        
+        .settings-section {
+            margin-bottom: 16px;
+        }
+        
+        .settings-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .settings-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #004555;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .settings-checkbox-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .settings-checkbox-item:last-child {
+            border-bottom: none;
+        }
+        
+        .settings-checkbox-item label {
+            display: flex;
+            align-items: flex-start;
+            cursor: pointer;
+            gap: 10px;
+        }
+        
+        .settings-checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        
+        .checkbox-text {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .checkbox-text strong {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .checkbox-description {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+        
+        .settings-color-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .settings-color-item:last-child {
+            border-bottom: none;
+        }
+        
+        .settings-color-item label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        
+        .color-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+        
+        .color-picker {
+            width: 50px;
+            height: 32px;
+            border: 2px solid #e5e7eb;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0;
+        }
+        
+        .settings-select-item {
+            padding: 8px 0;
+        }
+        
+        .settings-select-item label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        
+        .select-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+        
+        .theme-select {
+            padding: 6px 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+            min-width: 120px;
+        }
+        
+        .jph-modal-footer-compact {
+            padding: 12px 20px;
+            margin-top: 12px;
+        }
+        
+        /* Support Pill Badge - floating badge attached to header */
+        .jph-support-pill {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #f04e23;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3);
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            pointer-events: auto;
+            white-space: nowrap;
+        }
+        
+        .jph-support-pill:hover {
+            transform: translateX(-50%) translateY(-2px);
+            box-shadow: 0 6px 16px rgba(240, 78, 35, 0.4);
+            background: #e0451f;
+            color: white;
+            text-decoration: none;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-support-pill {
+                top: -8px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 5px 12px;
+                font-size: 10px;
+            }
+        }
+        
+        /* Dark Mode Styles */
+        .jph-student-dashboard.jph-theme-dark {
+            background-color: #1a1a1a !important;
+            color: #e5e5e5;
+        }
+        
+        .jph-student-dashboard.jph-theme-dark .jph-hero-section,
+        .jph-student-dashboard.jph-theme-dark .jph-stats,
+        .jph-student-dashboard.jph-theme-dark .jph-search-section,
+        .jph-student-dashboard.jph-theme-dark .jph-tabs-content {
+            background-color: #2d2d2d;
+            color: #e5e5e5;
+        }
+        
+        .jph-student-dashboard.jph-theme-dark .jph-card,
+        .jph-student-dashboard.jph-theme-dark .jph-tab-pane {
+            background-color: #2d2d2d;
+            color: #e5e5e5;
+            border-color: #404040;
+        }
+        
+        .jph-student-dashboard.jph-theme-dark h1,
+        .jph-student-dashboard.jph-theme-dark h2,
+        .jph-student-dashboard.jph-theme-dark h3,
+        .jph-student-dashboard.jph-theme-dark h4 {
+            color: #ffffff;
+        }
+        
+        .jph-student-dashboard.jph-theme-dark .jph-tab-btn {
+            color: #b0b0b0;
+        }
+        
+        .jph-student-dashboard.jph-theme-dark .jph-tab-btn.active {
+            color: #ffffff;
+            border-bottom-color: #ffffff;
+        }
+        
+        /* Theme Presets */
+        .jph-student-dashboard.jph-theme-ocean {
+            background-color: #f0f9ff;
+        }
+        
+        .jph-student-dashboard.jph-theme-ocean .jph-btn-primary {
+            background-color: #0284c7;
+        }
+        
+        .jph-student-dashboard.jph-theme-forest {
+            background-color: #f0fdf4;
+        }
+        
+        .jph-student-dashboard.jph-theme-forest .jph-btn-primary {
+            background-color: #16a34a;
+        }
+        
+        .jph-student-dashboard.jph-theme-sunset {
+            background-color: #fff7ed;
+        }
+        
+        .jph-student-dashboard.jph-theme-sunset .jph-btn-primary {
+            background-color: #ea580c;
+        }
+        
+        .jph-student-dashboard.jph-theme-lavender {
+            background-color: #faf5ff;
+        }
+        
+        .jph-student-dashboard.jph-theme-lavender .jph-btn-primary {
+            background-color: #9333ea;
+        }
+        
+        .jph-student-dashboard.jph-theme-midnight {
+            background-color: #1e293b;
+            color: #e2e8f0;
+        }
+        
+        .jph-student-dashboard.jph-theme-midnight .jph-card,
+        .jph-student-dashboard.jph-theme-midnight .jph-tab-pane {
+            background-color: #334155;
+            color: #e2e8f0;
+        }
+        
+        .jph-student-dashboard.jph-theme-midnight .jph-btn-primary {
+            background-color: #3b82f6;
+        }
+        
+        @media (max-width: 768px) {
+        .jph-settings-test-btn-wrapper {
+            display: flex;
+            justify-content: center;
+            padding: 20px 0 60px;
+        }
         }
 
         .jph-modal-footer {
@@ -4469,7 +5147,7 @@ class JPH_Frontend {
             border-radius: 20px;
             box-shadow: 0 15px 40px rgba(0, 69, 85, 0.3);
             position: relative;
-            overflow: hidden;
+            overflow: visible;
         }
         
         .header-top {
@@ -6850,11 +7528,51 @@ class JPH_Frontend {
             gap: 15px;
         }
 
+        .events-header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
         .events-header h3 {
             font-size: 1.5rem;
             font-weight: 700;
             color: #1f2937;
             margin: 0;
+        }
+
+        .events-timezone-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .events-timezone-link {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-decoration: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .events-timezone-link:hover {
+            color: #374151;
+            background: #f3f4f6;
+        }
+
+        .events-timezone-link svg {
+            flex-shrink: 0;
+        }
+
+        .events-timezone-current {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            font-weight: 400;
         }
         
         .events-header-actions {
@@ -8017,6 +8735,8 @@ class JPH_Frontend {
             max-width: 600px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             animation: modalSlideIn 0.3s ease-out;
+            position: relative;
+            z-index: 10002;
         }
         
         @keyframes modalSlideIn {
@@ -8043,6 +8763,7 @@ class JPH_Frontend {
         .jph-modal-header h2 {
             margin: 0;
             font-size: 1.4em;
+            color: white;
         }
         
         .jph-modal-close {
@@ -8965,6 +9686,19 @@ class JPH_Frontend {
         .jph-empty-item:hover {
             opacity: 1;
             border-color: #004555;
+        }
+        
+        /* Ensure practice items text is readable - override any white text from search section */
+        .jph-item p,
+        .jph-empty-item p,
+        .item-info p {
+            color: #666 !important;
+        }
+        
+        .jph-item h4,
+        .jph-empty-item h4,
+        .item-info h4 {
+            color: #004555 !important;
         }
         
         .item-count {
@@ -11774,6 +12508,13 @@ class JPH_Frontend {
             // Initialize events functionality
             initEventsViewToggle();
             
+            // Initialize dashboard settings
+            initDashboardSettings();
+            loadAndApplyPreferences();
+            
+            // Initialize notification popup
+            initNotificationPopup();
+            
             // Handle last lesson card click - make entire card clickable
             $('.last-lesson-card').on('click', function(e) {
                 const link = $(this).find('.last-lesson-link');
@@ -12111,6 +12852,350 @@ class JPH_Frontend {
                 });
             }
             
+            // Initialize dashboard settings modal
+            function initDashboardSettings() {
+                // Settings button click handler - simple pattern like display name modal
+                $('#jph-dashboard-settings-btn').on('click', function(e) {
+                    e.preventDefault();
+                    const modal = $('#jph-dashboard-settings-modal');
+                    
+                    // Move modal to body if it's not already there (like working modals)
+                    if (modal.parent()[0] !== document.body) {
+                        modal.appendTo('body');
+                    }
+                    
+                    // Load preferences and show modal
+                    loadDashboardPreferences();
+                    modal.show();
+                });
+                
+                // Save settings
+                $('#jph-save-dashboard-settings').on('click', function() {
+                    saveDashboardPreferences();
+                });
+                
+                // Ensure active tab is visible on page load
+                checkActiveTabVisibility();
+            }
+
+            
+            // Check if active tab is visible, switch if not
+            function checkActiveTabVisibility() {
+                const activeTab = $('.jph-tab-btn.active');
+                if (activeTab.length && activeTab.is(':hidden')) {
+                    // Switch to first visible tab or practice-items
+                    const firstVisible = $('.jph-tab-btn:visible').first();
+                    if (firstVisible.length) {
+                        firstVisible.click();
+                    } else {
+                        $('.jph-tab-btn[data-tab="practice-items"]').click();
+                    }
+                }
+            }
+            
+            // Load current dashboard preferences
+            function loadDashboardPreferences() {
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
+                    method: 'GET',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success && response.preferences) {
+                            const prefs = response.preferences;
+                            $('#setting-stats').prop('checked', prefs.stats !== false);
+                            $('#setting-search-section').prop('checked', prefs.search_section !== false);
+                            $('#setting-repertoire-section').prop('checked', prefs.repertoire_section !== false);
+                            $('#setting-tab-shield').prop('checked', prefs.tab_shield !== false);
+                            $('#setting-tab-badges').prop('checked', prefs.tab_badges !== false);
+                            $('#setting-tab-analytics').prop('checked', prefs.tab_analytics !== false);
+                            
+                            // Load theme preferences
+                            $('#setting-dark-mode').prop('checked', prefs.dark_mode === true);
+                            $('#setting-bg-color').val(prefs.bg_color || '#ffffff');
+                            $('#setting-accent-color').val(prefs.accent_color || '#004555');
+                            $('#setting-theme').val(prefs.theme || 'default');
+                            
+                            // Apply theme if theme preset is selected
+                            if (prefs.theme && prefs.theme !== 'default') {
+                                applyThemePreset(prefs.theme);
+                            }
+                        }
+                    },
+                    error: function() {
+                        // Default to all checked if load fails
+                        $('#setting-stats, #setting-search-section, #setting-tab-shield, #setting-tab-badges, #setting-tab-analytics').prop('checked', true);
+                    }
+                });
+            }
+            
+            // Load and apply preferences on page load
+            function loadAndApplyPreferences() {
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
+                    method: 'GET',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success && response.preferences) {
+                            const prefs = response.preferences;
+                            updateDashboardVisibility(prefs);
+                            applyDashboardTheme(prefs);
+                        }
+                    }
+                });
+            }
+            
+            // Initialize notification popup
+            function initNotificationPopup() {
+                const popup = $('#jph-notification-popup');
+                const overlay = popup.find('.jph-notification-popup-overlay');
+                const closeBtn = $('#jph-notification-popup-close');
+                
+                // Close handlers
+                function closePopup() {
+                    popup.fadeOut(200);
+                    $('body').removeClass('jph-notification-popup-open');
+                }
+                
+                closeBtn.on('click', closePopup);
+                overlay.on('click', closePopup);
+                
+                // Check for popup notification on page load
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/notifications/popup')); ?>',
+                    method: 'GET',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success && response.notification) {
+                            const notif = response.notification;
+                            
+                            // Populate popup content
+                            $('#jph-notification-popup-title').text(notif.title);
+                            $('#jph-notification-popup-content').html(notif.content.replace(/\n/g, '<br>'));
+                            
+                            // Set category pill
+                            const pill = $('#jph-notification-popup-pill');
+                            pill.text(notif.category_label);
+                            if (notif.category_colors) {
+                                pill.css({
+                                    'background-color': notif.category_colors.background,
+                                    'color': notif.category_colors.text,
+                                    'border-color': notif.category_colors.border
+                                });
+                            }
+                            
+                            // Set link if available
+                            const actionsContainer = $('#jph-notification-popup-actions');
+                            if (notif.link_url && notif.link_label) {
+                                $('#jph-notification-popup-link').attr('href', notif.link_url).text(notif.link_label);
+                                actionsContainer.show();
+                            } else {
+                                actionsContainer.hide();
+                            }
+                            
+                            // Show popup
+                            popup.fadeIn(300);
+                            $('body').addClass('jph-notification-popup-open');
+                            
+                            // Mark as shown when popup is closed
+                            const markAsShown = function() {
+                                $.ajax({
+                                    url: '<?php echo esc_url(rest_url('aph/v1/notifications/popup/')); ?>' + notif.ID + '/mark-shown',
+                                    method: 'POST',
+                                    beforeSend: function(xhr) {
+                                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                                    },
+                                    success: function() {
+                                        // Successfully marked as shown
+                                    }
+                                });
+                            };
+                            
+                            // Create new close handler that marks as shown
+                            const closeWithMark = function() {
+                                markAsShown();
+                                popup.fadeOut(200);
+                                $('body').removeClass('jph-notification-popup-open');
+                            };
+                            
+                            // Update close handlers
+                            closeBtn.off('click').on('click', closeWithMark);
+                            overlay.off('click').on('click', closeWithMark);
+                        }
+                    }
+                });
+            }
+            
+            // Save dashboard preferences
+            function saveDashboardPreferences() {
+                const preferences = {
+                    stats: $('#setting-stats').is(':checked'),
+                    search_section: $('#setting-search-section').is(':checked'),
+                    repertoire_section: $('#setting-repertoire-section').is(':checked'),
+                    tab_shield: $('#setting-tab-shield').is(':checked'),
+                    tab_badges: $('#setting-tab-badges').is(':checked'),
+                    tab_analytics: $('#setting-tab-analytics').is(':checked'),
+                    dark_mode: $('#setting-dark-mode').is(':checked'),
+                    bg_color: $('#setting-bg-color').val(),
+                    accent_color: $('#setting-accent-color').val(),
+                    theme: $('#setting-theme').val()
+                };
+                
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(preferences),
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Update visibility immediately
+                            updateDashboardVisibility(preferences);
+                            
+                            // Apply theme immediately
+                            applyDashboardTheme(preferences);
+                            
+                            // Show success message
+                            showMessage('Dashboard settings saved successfully!', 'success');
+                            
+                            // Close modal
+                            $('#jph-dashboard-settings-modal').hide();
+                            $('body').removeClass('modal-open');
+                        
+                        // Reload page to ensure layout reflects new settings
+                        window.location.reload();
+                        } else {
+                            showMessage('Error saving settings. Please try again.', 'error');
+                        }
+                    },
+                    error: function() {
+                        showMessage('Error saving settings. Please try again.', 'error');
+                    }
+                });
+            }
+            
+            // Apply theme preset
+            function applyThemePreset(theme) {
+                const themes = {
+                    ocean: { bg: '#f0f9ff', accent: '#0284c7' },
+                    forest: { bg: '#f0fdf4', accent: '#16a34a' },
+                    sunset: { bg: '#fff7ed', accent: '#ea580c' },
+                    lavender: { bg: '#faf5ff', accent: '#9333ea' },
+                    midnight: { bg: '#1e293b', accent: '#3b82f6' }
+                };
+                
+                if (themes[theme]) {
+                    $('#setting-bg-color').val(themes[theme].bg);
+                    $('#setting-accent-color').val(themes[theme].accent);
+                }
+            }
+            
+            // Apply dashboard theme
+            function applyDashboardTheme(prefs) {
+                const dashboard = $('.jph-student-dashboard');
+                
+                // Remove existing theme classes
+                dashboard.removeClass('jph-theme-dark jph-theme-ocean jph-theme-forest jph-theme-sunset jph-theme-lavender jph-theme-midnight');
+                
+                // Apply dark mode
+                if (prefs.dark_mode) {
+                    dashboard.addClass('jph-theme-dark');
+                }
+                
+                // Apply theme preset class
+                if (prefs.theme && prefs.theme !== 'default') {
+                    dashboard.addClass('jph-theme-' + prefs.theme);
+                }
+                
+                // Apply custom colors via CSS variables
+                dashboard.css('--dashboard-bg-color', prefs.bg_color || '#ffffff');
+                dashboard.css('--dashboard-accent-color', prefs.accent_color || '#004555');
+                
+                // Apply background color
+                if (prefs.bg_color) {
+                    dashboard.css('background-color', prefs.bg_color);
+                }
+            }
+            
+            // Theme selector change handler
+            $('#setting-theme').on('change', function() {
+                const theme = $(this).val();
+                if (theme !== 'default') {
+                    applyThemePreset(theme);
+                }
+            });
+            
+            // Update dashboard visibility based on preferences
+            function updateDashboardVisibility(preferences) {
+                // Update stats section
+                if (preferences.stats) {
+                    $('.jph-stats').show();
+                } else {
+                    $('.jph-stats').hide();
+                }
+                
+                // Update search section
+                if (preferences.search_section) {
+                    $('.jph-search-section').show();
+                } else {
+                    $('.jph-search-section').hide();
+                }
+                
+                // Update repertoire section
+                if (preferences.repertoire_section) {
+                    $('.jph-repertoire-section').show();
+                } else {
+                    $('.jph-repertoire-section').hide();
+                }
+                
+                // Update tab buttons
+                if (preferences.tab_shield) {
+                    $('.jph-tab-btn[data-tab="shield-protection"]').show();
+                } else {
+                    $('.jph-tab-btn[data-tab="shield-protection"]').hide();
+                    // Hide tab content if active
+                    $('#shield-protection-tab').removeClass('active').hide();
+                    // If this tab is active, switch to practice-items
+                    if ($('.jph-tab-btn[data-tab="shield-protection"]').hasClass('active')) {
+                        $('.jph-tab-btn[data-tab="practice-items"]').click();
+                    }
+                }
+                
+                if (preferences.tab_badges) {
+                    $('.jph-tab-btn[data-tab="badges"]').show();
+                } else {
+                    $('.jph-tab-btn[data-tab="badges"]').hide();
+                    // Hide tab content if active
+                    $('#badges-tab').removeClass('active').hide();
+                    // If this tab is active, switch to practice-items
+                    if ($('.jph-tab-btn[data-tab="badges"]').hasClass('active')) {
+                        $('.jph-tab-btn[data-tab="practice-items"]').click();
+                    }
+                }
+                
+                if (preferences.tab_analytics) {
+                    $('.jph-tab-btn[data-tab="analytics"]').show();
+                } else {
+                    $('.jph-tab-btn[data-tab="analytics"]').hide();
+                    // Hide tab content if active
+                    $('#analytics-tab').removeClass('active').hide();
+                    // If this tab is active, switch to practice-items
+                    if ($('.jph-tab-btn[data-tab="analytics"]').hasClass('active')) {
+                        $('.jph-tab-btn[data-tab="practice-items"]').click();
+                    }
+                }
+                
+                // Ensure a visible tab is active
+                checkActiveTabVisibility();
+            }
+            
             // Load badges
             loadBadges();
             
@@ -12129,6 +13214,23 @@ class JPH_Frontend {
             initShieldHandlers();
             initStatsHandlers();
             initDisplayNameHandlers();
+            
+            
+            // Close modal handlers for settings modal - simple pattern like display name modal
+            $('#jph-dashboard-settings-modal .jph-close').on('click', function() {
+                $('#jph-dashboard-settings-modal').hide();
+            });
+            
+            $('#jph-cancel-dashboard-settings').on('click', function() {
+                $('#jph-dashboard-settings-modal').hide();
+            });
+            
+            // Close when clicking outside
+            $(window).on('click', function(event) {
+                if (event.target.id === 'jph-dashboard-settings-modal') {
+                    $('#jph-dashboard-settings-modal').hide();
+                }
+            });
             
             // Clean Neuroscience Tips (Adult-oriented)
             function initNeuroscienceTips() {
@@ -14787,17 +15889,17 @@ class JPH_Frontend {
                             <td class="repertoire-date">${lastPracticed}</td>
                             <td class="repertoire-notes">${escapeHtml(notesPreview)}</td>
                             <td class="repertoire-actions">
-                                <button class="btn-mark-practiced" data-item-id="${item.ID}" title="Mark as practiced (25 XP)">
+                                <button class="btn-mark-practiced" data-item-id="${item.ID}" aria-label="Mark as practiced (25 XP)" data-microtip-position="top" role="tooltip">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                                     </svg>
                                 </button>
-                                <button class="btn-edit-repertoire" data-item-id="${item.ID}" title="Edit">
+                                <button class="btn-edit-repertoire" data-item-id="${item.ID}" aria-label="Edit this repertoire item" data-microtip-position="top" role="tooltip">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                                     </svg>
                                 </button>
-                                <button class="btn-delete-repertoire" data-item-id="${item.ID}" title="Delete">
+                                <button class="btn-delete-repertoire" data-item-id="${item.ID}" aria-label="Delete this repertoire item" data-microtip-position="top" role="tooltip">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                     </svg>
@@ -18739,6 +19841,7 @@ WHERE s.show_on_leaderboard = 1
 
         $user_id = get_current_user_id();
         $current_timezone = APH_Gamification::get_user_timezone_string($user_id);
+        $show_events_in_timezone = get_user_meta($user_id, 'aph_show_events_in_timezone', true) === '1';
         $timezones = timezone_identifiers_list();
         $rest_url = esc_url_raw(rest_url('aph/v1/user/timezone'));
         $nonce = wp_create_nonce('wp_rest');
@@ -18750,7 +19853,7 @@ WHERE s.show_on_leaderboard = 1
         <div class="jph-timezone-settings" data-rest-url="<?php echo esc_attr($rest_url); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
             <div class="jph-timezone-header">
                 <h3><?php esc_html_e('Timezone Preferences', 'academy-practice-hub'); ?></h3>
-                <p><?php esc_html_e('Choose the timezone you’d like the Practice Hub to use when calculating your streaks, reminders, and daily stats.', 'academy-practice-hub'); ?></p>
+                <p><?php esc_html_e('Choose the timezone you\'d like the Practice Hub to use when calculating your streaks, reminders, and daily stats.', 'academy-practice-hub'); ?></p>
             </div>
             <div class="jph-timezone-current">
                 <span class="label"><?php esc_html_e('Current timezone:', 'academy-practice-hub'); ?></span>
@@ -18764,6 +19867,13 @@ WHERE s.show_on_leaderboard = 1
                     </option>
                 <?php endforeach; ?>
             </select>
+            <div class="jph-timezone-events-option">
+                <label class="jph-timezone-checkbox-label">
+                    <input type="checkbox" id="jph-show-events-in-timezone" class="jph-timezone-checkbox" <?php checked($show_events_in_timezone); ?>>
+                    <span><?php esc_html_e('Show events in my timezone', 'academy-practice-hub'); ?></span>
+                </label>
+                <p class="jph-timezone-checkbox-description"><?php esc_html_e('When enabled, event times in the dashboard will be displayed in your selected timezone instead of the site timezone.', 'academy-practice-hub'); ?></p>
+            </div>
             <div class="jph-timezone-actions">
                 <button type="button" class="button jph-timezone-detect"><?php esc_html_e('Use my device timezone', 'academy-practice-hub'); ?></button>
                 <button type="button" class="button button-primary jph-timezone-save"><?php esc_html_e('Save Timezone', 'academy-practice-hub'); ?></button>
@@ -18831,6 +19941,34 @@ WHERE s.show_on_leaderboard = 1
                 margin-bottom: 16px;
                 background: #fff;
             }
+            .jph-timezone-events-option {
+                margin-bottom: 20px;
+                padding: 16px;
+                background: #f8fafc;
+                border-radius: 8px;
+                border: 1px solid #e2e8f0;
+            }
+            .jph-timezone-checkbox-label {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                cursor: pointer;
+                font-weight: 600;
+                color: #334155;
+                margin-bottom: 8px;
+            }
+            .jph-timezone-checkbox {
+                width: 18px;
+                height: 18px;
+                cursor: pointer;
+                accent-color: #000;
+            }
+            .jph-timezone-checkbox-description {
+                margin: 0;
+                font-size: 0.875rem;
+                color: #64748b;
+                padding-left: 28px;
+            }
             .jph-timezone-actions {
                 display: flex;
                 gap: 10px;
@@ -18887,6 +20025,7 @@ WHERE s.show_on_leaderboard = 1
                 const saveBtn = container.querySelector('.jph-timezone-save');
                 const statusEl = container.querySelector('.jph-timezone-status');
                 const currentValueEl = container.querySelector('.jph-timezone-current-value');
+                const showEventsCheckbox = container.querySelector('#jph-show-events-in-timezone');
                 
                 if (!restUrl || !selectEl || !statusEl || !currentValueEl) {
                     return;
@@ -18916,6 +20055,9 @@ WHERE s.show_on_leaderboard = 1
                                 selectEl.value = data.timezone;
                             }
                             currentValueEl.textContent = data.timezone;
+                            if (showEventsCheckbox && data.show_events_in_timezone !== undefined) {
+                                showEventsCheckbox.checked = data.show_events_in_timezone === true || data.show_events_in_timezone === '1';
+                            }
                             setStatus('', null);
                         }
                     })
@@ -18944,6 +20086,7 @@ WHERE s.show_on_leaderboard = 1
                         setStatus('Please select a timezone.', 'error');
                         return;
                     }
+                    const showEventsInTimezone = showEventsCheckbox ? showEventsCheckbox.checked : false;
                     saveBtn.disabled = true;
                     setStatus('Saving your timezone...', null);
                     
@@ -18954,13 +20097,16 @@ WHERE s.show_on_leaderboard = 1
                             'Content-Type': 'application/json',
                             'X-WP-Nonce': nonce
                         },
-                        body: JSON.stringify({ timezone })
+                        body: JSON.stringify({ 
+                            timezone: timezone,
+                            show_events_in_timezone: showEventsInTimezone
+                        })
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data && data.success) {
                             currentValueEl.textContent = timezone;
-                            setStatus('Timezone updated successfully.', 'success');
+                            setStatus('Timezone preferences updated successfully.', 'success');
                         } else {
                             const message = (data && data.message) ? data.message : 'Unable to save timezone.';
                             setStatus(message, 'error');

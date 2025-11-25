@@ -186,6 +186,7 @@ class ALM_Notifications_Manager {
             'link_label' => '',
             'link_url' => '',
             'is_active' => 1,
+            'show_popup' => 0,
             'publish_at' => current_time('mysql'),
             'category' => self::DEFAULT_CATEGORY,
         );
@@ -209,6 +210,7 @@ class ALM_Notifications_Manager {
             'link_label' => sanitize_text_field($data['link_label']),
             'link_url' => esc_url_raw($data['link_url']),
             'is_active' => intval($data['is_active']) ? 1 : 0,
+            'show_popup' => intval($data['show_popup']) ? 1 : 0,
             'publish_at' => $publish_timestamp ? date('Y-m-d H:i:s', $publish_timestamp) : current_time('mysql'),
             'category' => $category,
         );
@@ -218,7 +220,7 @@ class ALM_Notifications_Manager {
                 $this->notifications_table,
                 $prepared,
                 array('ID' => intval($data['ID'])),
-                array('%s', '%s', '%s', '%s', '%d', '%s', '%s'),
+                array('%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s'),
                 array('%d')
             );
 
@@ -228,7 +230,7 @@ class ALM_Notifications_Manager {
         $inserted = $this->wpdb->insert(
             $this->notifications_table,
             $prepared,
-            array('%s', '%s', '%s', '%s', '%d', '%s', '%s')
+            array('%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
         );
 
         if (false === $inserted) {
@@ -401,6 +403,77 @@ class ALM_Notifications_Manager {
 
         $ids = wp_list_pluck($notifications, 'ID');
         $this->mark_notifications_read($ids, $user_id);
+    }
+
+    /**
+     * Get popup notification for a user (one that hasn't been shown yet)
+     *
+     * @param int $user_id
+     * @return array|null
+     */
+    public function get_popup_notification($user_id) {
+        if (empty($user_id)) {
+            return null;
+        }
+
+        // Get notifications that are set to show as popup
+        $notifications = $this->get_notifications(array(
+            'status' => 'active',
+            'only_published' => true,
+            'limit' => 50, // Get enough to check which haven't been shown
+            'order' => 'DESC',
+        ));
+
+        if (empty($notifications)) {
+            return null;
+        }
+
+        // Filter to only those with show_popup = 1
+        $popup_notifications = array_filter($notifications, function($notif) {
+            return !empty($notif['show_popup']) && intval($notif['show_popup']) === 1;
+        });
+
+        if (empty($popup_notifications)) {
+            return null;
+        }
+
+        // Get list of notification IDs that have already been shown as popups to this user
+        $shown_popups = get_user_meta($user_id, 'alm_notification_popups_shown', true);
+        if (!is_array($shown_popups)) {
+            $shown_popups = array();
+        }
+
+        // Find the first popup notification that hasn't been shown yet
+        foreach ($popup_notifications as $notification) {
+            if (!in_array(intval($notification['ID']), $shown_popups)) {
+                return $notification;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Mark a notification popup as shown for a user
+     *
+     * @param int $notification_id
+     * @param int $user_id
+     */
+    public function mark_popup_shown($notification_id, $user_id) {
+        if (empty($notification_id) || empty($user_id)) {
+            return;
+        }
+
+        $shown_popups = get_user_meta($user_id, 'alm_notification_popups_shown', true);
+        if (!is_array($shown_popups)) {
+            $shown_popups = array();
+        }
+
+        $notification_id = intval($notification_id);
+        if (!in_array($notification_id, $shown_popups)) {
+            $shown_popups[] = $notification_id;
+            update_user_meta($user_id, 'alm_notification_popups_shown', $shown_popups);
+        }
     }
 }
 

@@ -104,6 +104,32 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // Dashboard preferences endpoints
+        register_rest_route('aph/v1', '/user/dashboard-preferences', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_dashboard_preferences'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+
+        register_rest_route('aph/v1', '/user/dashboard-preferences', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_update_dashboard_preferences'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // Notification popup endpoints
+        register_rest_route('aph/v1', '/notifications/popup', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_popup_notification'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/notifications/popup/(?P<id>\d+)/mark-shown', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_mark_popup_shown'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Practice Sessions endpoints
         register_rest_route('aph/v1', '/practice-sessions', array(
             'methods' => 'POST',
@@ -5726,11 +5752,13 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
             $stored_timezone = get_user_meta($user_id, 'aph_user_timezone', true);
             $timezone = APH_Gamification::get_user_timezone_string($user_id);
+            $show_events_in_timezone = get_user_meta($user_id, 'aph_show_events_in_timezone', true) === '1';
             
             return rest_ensure_response(array(
                 'success' => true,
                 'timezone' => $timezone,
-                'source' => $stored_timezone ? 'user' : 'default'
+                'source' => $stored_timezone ? 'user' : 'default',
+                'show_events_in_timezone' => $show_events_in_timezone
             ));
             
         } catch (Exception $e) {
@@ -5759,17 +5787,270 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 return new WP_Error('invalid_timezone', 'Invalid timezone identifier', array('status' => 400));
             }
             
+            // Handle show_events_in_timezone preference
+            $show_events_in_timezone = $request->get_param('show_events_in_timezone');
+            if ($show_events_in_timezone !== null) {
+                update_user_meta($user_id, 'aph_show_events_in_timezone', $show_events_in_timezone ? '1' : '0');
+            }
+            
             update_user_meta($user_id, 'aph_user_timezone', $timezone);
             update_user_meta($user_id, 'aph_timezone_updated_at', current_time('mysql'));
             
             return rest_ensure_response(array(
                 'success' => true,
-                'message' => 'Timezone updated successfully',
-                'timezone' => $timezone
+                'message' => 'Timezone preferences updated successfully',
+                'timezone' => $timezone,
+                'show_events_in_timezone' => get_user_meta($user_id, 'aph_show_events_in_timezone', true) === '1'
             ));
             
         } catch (Exception $e) {
             return new WP_Error('user_timezone_update_error', 'Error updating timezone: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+
+    /**
+     * Get the current user's dashboard preferences
+     */
+    public function rest_get_dashboard_preferences($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $preferences_json = get_user_meta($user_id, 'aph_dashboard_preferences', true);
+            
+            // Default preferences (all visible)
+            $default_preferences = array(
+                'stats' => true,
+                'search_section' => true,
+                'tab_shield' => true,
+                'tab_badges' => true,
+                'tab_analytics' => true,
+                'dark_mode' => false,
+                'bg_color' => '#ffffff',
+                'accent_color' => '#004555',
+                'theme' => 'default'
+            );
+            
+            if (empty($preferences_json)) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'preferences' => $default_preferences
+                ));
+            }
+            
+            $preferences = json_decode($preferences_json, true);
+            
+            // Merge with defaults to ensure all keys exist
+            $preferences = wp_parse_args($preferences, $default_preferences);
+            
+            // Ensure boolean values are boolean, keep strings as strings
+            $boolean_keys = array('stats', 'search_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
+            foreach ($boolean_keys as $key) {
+                if (isset($preferences[$key])) {
+                    $preferences[$key] = (bool) $preferences[$key];
+                }
+            }
+            
+            // Sanitize color values
+            if (isset($preferences['bg_color'])) {
+                $preferences['bg_color'] = sanitize_hex_color($preferences['bg_color']) ?: '#ffffff';
+            }
+            if (isset($preferences['accent_color'])) {
+                $preferences['accent_color'] = sanitize_hex_color($preferences['accent_color']) ?: '#004555';
+            }
+            
+            // Sanitize theme
+            if (isset($preferences['theme'])) {
+                $allowed_themes = array('default', 'ocean', 'forest', 'sunset', 'lavender', 'midnight');
+                $preferences['theme'] = in_array($preferences['theme'], $allowed_themes) ? $preferences['theme'] : 'default';
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'preferences' => $preferences
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('dashboard_preferences_error', 'Error retrieving preferences: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+
+    /**
+     * Update the current user's dashboard preferences
+     */
+    public function rest_update_dashboard_preferences($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            // Get preferences from request body
+            $preferences = $request->get_json_params();
+            
+            if (empty($preferences) || !is_array($preferences)) {
+                return new WP_Error('invalid_preferences', 'Preferences must be a valid JSON object', array('status' => 400));
+            }
+            
+            // Define allowed preference keys with defaults
+            $default_preferences = array(
+                'stats' => true,
+                'search_section' => true,
+                'repertoire_section' => true,
+                'tab_shield' => true,
+                'tab_badges' => true,
+                'tab_analytics' => true,
+                'dark_mode' => false,
+                'bg_color' => '#ffffff',
+                'accent_color' => '#004555',
+                'theme' => 'default'
+            );
+            
+            // Validate and sanitize preferences
+            $sanitized_preferences = array();
+            
+            // Boolean preferences
+            $boolean_keys = array('stats', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
+            foreach ($boolean_keys as $key) {
+                if (isset($preferences[$key])) {
+                    $sanitized_preferences[$key] = (bool) $preferences[$key];
+                } else {
+                    $sanitized_preferences[$key] = $default_preferences[$key];
+                }
+            }
+            
+            // Color preferences
+            if (isset($preferences['bg_color'])) {
+                $sanitized_preferences['bg_color'] = sanitize_hex_color($preferences['bg_color']) ?: $default_preferences['bg_color'];
+            } else {
+                $sanitized_preferences['bg_color'] = $default_preferences['bg_color'];
+            }
+            
+            if (isset($preferences['accent_color'])) {
+                $sanitized_preferences['accent_color'] = sanitize_hex_color($preferences['accent_color']) ?: $default_preferences['accent_color'];
+            } else {
+                $sanitized_preferences['accent_color'] = $default_preferences['accent_color'];
+            }
+            
+            // Theme preference
+            $allowed_themes = array('default', 'ocean', 'forest', 'sunset', 'lavender', 'midnight');
+            if (isset($preferences['theme']) && in_array($preferences['theme'], $allowed_themes)) {
+                $sanitized_preferences['theme'] = $preferences['theme'];
+            } else {
+                $sanitized_preferences['theme'] = $default_preferences['theme'];
+            }
+            
+            // Save as JSON string
+            $preferences_json = json_encode($sanitized_preferences);
+            update_user_meta($user_id, 'aph_dashboard_preferences', $preferences_json);
+            update_user_meta($user_id, 'aph_dashboard_preferences_updated_at', current_time('mysql'));
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Dashboard preferences updated successfully',
+                'preferences' => $sanitized_preferences
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('dashboard_preferences_update_error', 'Error updating preferences: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get popup notification for current user
+     */
+    public function rest_get_popup_notification($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            if (!class_exists('ALM_Notifications_Manager')) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'notification' => null
+                ));
+            }
+            
+            $notifications_manager = new ALM_Notifications_Manager();
+            $popup_notification = $notifications_manager->get_popup_notification($user_id);
+            
+            if (empty($popup_notification)) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'notification' => null
+                ));
+            }
+            
+            // Get category palette for styling
+            $category_palette = ALM_Notifications_Manager::get_category_palette();
+            $category_slug = sanitize_key($popup_notification['category'] ?? ALM_Notifications_Manager::DEFAULT_CATEGORY);
+            if (!isset($category_palette[$category_slug])) {
+                $category_slug = ALM_Notifications_Manager::DEFAULT_CATEGORY;
+            }
+            
+            $category_data = $category_palette[$category_slug];
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'notification' => array(
+                    'ID' => intval($popup_notification['ID']),
+                    'title' => wp_unslash($popup_notification['title']),
+                    'content' => wp_unslash($popup_notification['content']),
+                    'link_label' => wp_unslash($popup_notification['link_label'] ?? ''),
+                    'link_url' => $popup_notification['link_url'] ?? '',
+                    'category' => $category_slug,
+                    'category_label' => $category_data['label'],
+                    'category_colors' => array(
+                        'background' => $category_data['background'],
+                        'text' => $category_data['text'],
+                        'border' => $category_data['border'],
+                    ),
+                )
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('popup_notification_error', 'Error getting popup notification: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Mark popup notification as shown for current user
+     */
+    public function rest_mark_popup_shown($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $notification_id = isset($request['id']) ? intval($request['id']) : 0;
+            
+            if (empty($notification_id)) {
+                return new WP_Error('invalid_notification_id', 'Notification ID is required', array('status' => 400));
+            }
+            
+            if (!class_exists('ALM_Notifications_Manager')) {
+                return new WP_Error('notifications_unavailable', 'Notifications manager is not available', array('status' => 503));
+            }
+            
+            $notifications_manager = new ALM_Notifications_Manager();
+            $notifications_manager->mark_popup_shown($notification_id, $user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Popup notification marked as shown'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('mark_popup_error', 'Error marking popup as shown: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

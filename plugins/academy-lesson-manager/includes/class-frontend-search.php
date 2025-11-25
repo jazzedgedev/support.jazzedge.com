@@ -576,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (width <= 1024) {
       filtersContainer.style.gridTemplateColumns = 'repeat(2, 1fr)';
     } else {
-      filtersContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    filtersContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
     }
     filtersContainer.style.gap = '16px';
     filtersContainer.style.alignItems = 'center';
@@ -1493,8 +1493,8 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsHeader.style.alignItems = 'flex-start';
         resultsHeader.style.padding = '12px 16px';
       } else {
-        resultsHeader.style.justifyContent = 'space-between';
-        resultsHeader.style.alignItems = 'center';
+      resultsHeader.style.justifyContent = 'space-between';
+      resultsHeader.style.alignItems = 'center';
       }
       resultsHeader.style.gap = '16px';
       
@@ -1541,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', function() {
           rightContainer.style.flexDirection = 'column';
           rightContainer.style.alignItems = 'flex-start';
         } else {
-          rightContainer.style.alignItems = 'center';
+        rightContainer.style.alignItems = 'center';
         }
         rightContainer.style.gap = '16px';
         
@@ -1640,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', function() {
           perPageContainer.style.alignItems = 'flex-start';
           perPageContainer.style.width = '100%';
         } else {
-          perPageContainer.style.alignItems = 'center';
+        perPageContainer.style.alignItems = 'center';
         }
         perPageContainer.style.gap = '8px';
         
@@ -1692,7 +1692,7 @@ document.addEventListener('DOMContentLoaded', function() {
           perPageSelect.style.width = '100%';
           perPageSelect.style.minWidth = 'auto';
         } else {
-          perPageSelect.style.minWidth = '70px';
+        perPageSelect.style.minWidth = '70px';
         }
         
         // Update per page select on resize
@@ -1775,8 +1775,8 @@ document.addEventListener('DOMContentLoaded', function() {
           container.style.gridTemplateColumns = 'repeat(2, 1fr)';
           container.style.gap = '30px';
         } else {
-          container.style.gridTemplateColumns = 'repeat(3, 1fr)';
-          container.style.gap = '30px';
+        container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        container.style.gap = '30px';
         }
         container.style.marginTop = '0';
         container.style.padding = '0 0 60px 0';

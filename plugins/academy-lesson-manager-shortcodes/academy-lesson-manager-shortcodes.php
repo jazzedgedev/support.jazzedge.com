@@ -10549,18 +10549,56 @@ class ALM_Shortcodes_Plugin {
                 </div>
             </section>
             
-            <?php if ($show_video && !empty($video_url)): ?>
             <!-- Video Section -->
             <div class="alm-bf-video-section">
-                <div class="alm-bf-video-wrapper">
-                    <?php 
-                    // Use fvplayer shortcode
-                    $fvplayer_shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" height="600" splash_text="' . $splash_text . '"]';
-                    echo do_shortcode($fvplayer_shortcode);
-                    ?>
+                <h2 class="alm-bf-section-title">Watch Our Videos</h2>
+                <div class="alm-bf-video-grid">
+                    <!-- Video 1: Site overview -->
+                    <div class="alm-bf-video-item">
+                        <h3 class="alm-bf-video-title">Site overview <span class="alm-bf-video-duration">49:49</span></h3>
+                        <div class="alm-bf-video-wrapper">
+                            <?php 
+                            $video1_url = 'https://vz-0696d3da-4b7.b-cdn.net/8728c444-3d44-431f-872c-f8e10b5d20d6/playlist.m3u8';
+                            $fvplayer_shortcode = '[fvplayer src="' . esc_url($video1_url) . '" width="100%" height="400" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]';
+                            echo do_shortcode($fvplayer_shortcode);
+                            ?>
+                        </div>
+                    </div>
+                    
+                    <!-- Video 2: Which membership is right for me -->
+                    <div class="alm-bf-video-item">
+                        <h3 class="alm-bf-video-title">Which membership is right for me? <span class="alm-bf-video-duration">27:25</span></h3>
+                        <div class="alm-bf-video-wrapper">
+                            <?php 
+                            $video2_url = 'https://vz-0696d3da-4b7.b-cdn.net/451afe70-1b6f-489e-bfa8-c1eca1e6433a/playlist.m3u8';
+                            $fvplayer_shortcode = '[fvplayer src="' . esc_url($video2_url) . '" width="100%" height="400" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]';
+                            echo do_shortcode($fvplayer_shortcode);
+                            ?>
+                        </div>
+                    </div>
+                    
+                    <!-- Video 3: Doorbuster pricing -->
+                    <div class="alm-bf-video-item">
+                        <h3 class="alm-bf-video-title">Doorbuster pricing</h3>
+                        <p class="alm-bf-video-message">This video will be posted Wed, Nov 26</p>
+                        <div class="alm-bf-video-wrapper">
+                            <?php 
+                            $video3_url = 'https://youtu.be/NpEaa2P7qZI';
+                            // Convert YouTube short URL to watch URL if needed
+                            if (strpos($video3_url, 'youtu.be/') !== false) {
+                                preg_match('/youtu\.be\/([^"&?\/\s]{11})/', $video3_url, $matches);
+                                if (!empty($matches[1])) {
+                                    $video_id = $matches[1];
+                                    $video3_url = 'https://www.youtube.com/watch?v=' . $video_id;
+                                }
+                            }
+                            $fvplayer_shortcode = '[fvplayer src="' . esc_url($video3_url) . '" width="100%" height="400" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]';
+                            echo do_shortcode($fvplayer_shortcode);
+                            ?>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <?php endif; ?>
             
             <!-- Pricing Section -->
             <section id="alm-bf-pricing" class="alm-bf-pricing">
@@ -10958,15 +10996,61 @@ class ALM_Shortcodes_Plugin {
         /* Video Section */
         .alm-bf-video-section {
             margin: 60px 0;
+        }
+        
+        .alm-bf-video-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+            margin-top: 40px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 0 40px;
+        }
+        
+        .alm-bf-video-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .alm-bf-video-title {
+            font-size: 26px;
+            font-weight: 700;
+            color: #004555;
+            margin: 0 0 20px 0;
             text-align: center;
+            line-height: 1.4;
+            padding: 18px 24px;
+            background: linear-gradient(135deg, #f0f9fa 0%, #ffffff 100%);
+            border-left: 4px solid #f04e23;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 69, 85, 0.1);
+            letter-spacing: -0.3px;
+        }
+        
+        .alm-bf-video-duration {
+            font-size: 18px;
+            font-weight: 500;
+            color: #6b7280;
+            margin-left: 8px;
+        }
+        
+        .alm-bf-video-message {
+            font-size: 16px;
+            font-weight: 500;
+            color: #f04e23;
+            margin: -10px 0 20px 0;
+            text-align: center;
+            font-style: italic;
         }
         
         .alm-bf-video-wrapper {
-            max-width: 800px;
-            margin: 0 auto;
+            width: 100%;
             border-radius: 8px;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
             overflow: hidden;
+            background: #000;
         }
         
         .alm-bf-video-wrapper .fvplayer {
@@ -11014,6 +11098,20 @@ class ALM_Shortcodes_Plugin {
                 grid-template-columns: 1fr;
             }
             
+            .alm-bf-video-grid {
+                gap: 40px;
+                padding: 0 30px;
+            }
+            
+            .alm-bf-video-title {
+                font-size: 24px;
+                padding: 16px 20px;
+            }
+            
+            .alm-bf-video-duration {
+                font-size: 17px;
+            }
+            
             .alm-bf-hero {
                 padding: 40px 20px;
             }
@@ -11056,6 +11154,35 @@ class ALM_Shortcodes_Plugin {
             .alm-bf-btn-primary {
                 width: 100%;
                 text-align: center;
+            }
+            
+            .alm-bf-video-grid {
+                padding: 0 20px;
+                gap: 35px;
+            }
+            
+            .alm-bf-video-title {
+                font-size: 20px;
+                padding: 14px 18px;
+            }
+            
+            .alm-bf-video-duration {
+                font-size: 16px;
+                display: block;
+                margin-left: 0;
+                margin-top: 4px;
+            }
+            
+            .alm-bf-video-message {
+                font-size: 14px;
+            }
+            
+            .alm-bf-video-wrapper {
+                height: auto;
+            }
+            
+            .alm-bf-video-wrapper .fvplayer {
+                height: 250px !important;
             }
         }
         </style>
