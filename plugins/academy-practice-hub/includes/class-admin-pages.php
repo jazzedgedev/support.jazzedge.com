@@ -3669,11 +3669,11 @@ class JPH_Admin_Pages {
     public function ai_settings_page() {
         // Handle form submission
         if (isset($_POST['submit']) && wp_verify_nonce($_POST['ai_settings_nonce'], 'ai_settings_action')) {
-            $ai_prompt = sanitize_textarea_field($_POST['ai_prompt']);
-            $ai_system_message = sanitize_textarea_field($_POST['ai_system_message']);
-            $ai_model = sanitize_text_field($_POST['ai_model']);
-            $ai_max_tokens = intval($_POST['ai_max_tokens']);
-            $ai_temperature = floatval($_POST['ai_temperature']);
+            $ai_prompt = sanitize_textarea_field(wp_unslash($_POST['ai_prompt']));
+            $ai_system_message = sanitize_textarea_field(wp_unslash($_POST['ai_system_message']));
+            $ai_model = sanitize_text_field(wp_unslash($_POST['ai_model']));
+            $ai_max_tokens = intval(wp_unslash($_POST['ai_max_tokens']));
+            $ai_temperature = floatval(wp_unslash($_POST['ai_temperature']));
             
             update_option('aph_ai_prompt', $ai_prompt);
             update_option('aph_ai_system_message', $ai_system_message);

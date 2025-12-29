@@ -43,20 +43,152 @@ class ALM_Admin_Lesson_Samples {
         $this->database = new ALM_Database();
         $this->table_name = $this->database->get_table_name('lessons');
         
-        // Handle actions
-        add_action('admin_init', array($this, 'handle_actions'));
+        // Handle actions - use early priority to catch download requests before redirects
+        add_action('admin_init', array($this, 'handle_actions'), 1);
+        
+        // Hook into init for download requests (very early, before any output)
+        add_action('init', array($this, 'handle_download_request'), 1);
+        
+        // Also hook into template_redirect as a fallback (runs after WordPress loads but before output)
+        add_action('template_redirect', array($this, 'handle_download_request'), 1);
+        
+        // Hook into plugins_loaded as earliest possible (before init)
+        add_action('plugins_loaded', array($this, 'handle_download_request'), 1);
+        
+        // Debug: Log that class was instantiated
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: ALM_Admin_Lesson_Samples class instantiated at ' . date('Y-m-d H:i:s') . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
         
         // Note: AJAX handlers are registered in main plugin class (academy-lesson-manager.php)
         // to ensure they're available for AJAX requests
     }
     
     /**
+     * Handle download requests early (before admin_init)
+     */
+    public function handle_download_request() {
+        // Check if this is a download request
+        $has_download_param = isset($_GET['download_chapter']);
+        $has_chapter_id = isset($_GET['chapter_id']);
+        $has_nonce = isset($_GET['nonce']);
+        
+        // If this is not a download request, skip it
+        if (!$has_download_param || !$has_chapter_id || !$has_nonce) {
+            return;
+        }
+        
+        // Check if we're in admin (by checking if admin.php is in the request or page parameter)
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+        $is_admin_request = (strpos($request_uri, '/wp-admin/') !== false) || 
+                           (isset($_GET['page']) && strpos($_GET['page'], 'academy-manager') !== false);
+        
+        if (!$is_admin_request) {
+            return;
+        }
+        
+        // IMPORTANT: Stop WordPress from outputting anything else
+        // Remove all output buffering
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Disable WordPress default output
+        remove_all_actions('wp_head');
+        remove_all_actions('wp_footer');
+        remove_all_actions('admin_head');
+        remove_all_actions('admin_footer');
+        
+        // Check user capabilities
+        if (!function_exists('current_user_can') || !current_user_can('manage_options')) {
+            status_header(403);
+            wp_die(__('You do not have permission to download this file.', 'academy-lesson-manager'));
+        }
+        
+        // Verify nonce
+        $nonce_check = wp_verify_nonce($_GET['nonce'], 'alm_download_chapter');
+        
+        if (!$nonce_check) {
+            status_header(403);
+            wp_die(__('Security check failed.', 'academy-lesson-manager'));
+        }
+        
+        $chapter_id = intval($_GET['chapter_id']);
+        
+        if (!$chapter_id) {
+            status_header(400);
+            wp_die(__('Invalid chapter ID.', 'academy-lesson-manager'));
+        }
+        
+        // Clear all output buffers before starting download
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Disable error display during download to prevent output
+        $old_error_reporting = error_reporting(0);
+        $old_display_errors = ini_get('display_errors');
+        ini_set('display_errors', '0');
+        
+        try {
+            $this->download_chapter_for_sample_by_id($chapter_id);
+        } catch (Exception $e) {
+            // Restore error settings
+            error_reporting($old_error_reporting);
+            ini_set('display_errors', $old_display_errors);
+            
+            status_header(500);
+            wp_die(sprintf(__('Error downloading chapter: %s', 'academy-lesson-manager'), $e->getMessage()));
+        } catch (Error $e) {
+            // Restore error settings
+            error_reporting($old_error_reporting);
+            ini_set('display_errors', $old_display_errors);
+            
+            status_header(500);
+            wp_die(sprintf(__('Fatal error downloading chapter: %s', 'academy-lesson-manager'), $e->getMessage()));
+        }
+        
+        // Restore error settings (shouldn't reach here if download succeeds)
+        error_reporting($old_error_reporting);
+        ini_set('display_errors', $old_display_errors);
+        
+        exit;
+    }
+    
+    /**
      * Handle admin actions
      */
     public function handle_actions() {
+        // DISABLED: Debug logging
+        // error_log('ALM Download Debug: handle_actions called');
+        
         if (!current_user_can('manage_options')) {
+            // error_log('ALM Download Debug: handle_actions - User does not have manage_options');
             return;
         }
+        
+        // Handle download chapter for sample FIRST (before any redirects)
+        // Check if this is a download request (can come from any admin page)
+        if (isset($_GET['download_chapter']) && isset($_GET['chapter_id']) && isset($_GET['nonce'])) {
+            // error_log('ALM Download Debug: handle_actions - Download request detected');
+            
+            // Verify nonce
+            $nonce_check = wp_verify_nonce($_GET['nonce'], 'alm_download_chapter');
+            // error_log('ALM Download Debug: handle_actions - Nonce check = ' . ($nonce_check ? 'PASSED' : 'FAILED'));
+            
+            if (!$nonce_check) {
+                wp_die(__('Security check failed.', 'academy-lesson-manager'));
+            }
+            
+            $chapter_id = intval($_GET['chapter_id']);
+            // error_log('ALM Download Debug: handle_actions - Calling download with chapter_id = ' . $chapter_id);
+            
+            $this->download_chapter_for_sample_by_id($chapter_id);
+            exit;
+        }
+        
+        // error_log('ALM Download Debug: handle_actions - No download request found');
         
         // Handle hide action (single or bulk)
         if (isset($_POST['alm_hide_lessons']) && isset($_POST['lesson_ids'])) {
@@ -812,6 +944,30 @@ class ALM_Admin_Lesson_Samples {
                                             <span style="color: #dc3232; font-size: 11px;"> - No video</span>
                                         <?php endif; ?>
                                     </div>
+                                    <?php if ($has_video && (!empty($intro_chapter->bunny_url) || ($intro_chapter->vimeo_id > 0))): ?>
+                                        <?php
+                                        $download_url = wp_nonce_url(
+                                            add_query_arg(array(
+                                                'page' => 'academy-manager-lesson-samples',
+                                                'download_chapter' => '1',
+                                                'chapter_id' => $intro_chapter->ID
+                                            ), admin_url('admin.php')),
+                                            'alm_download_chapter',
+                                            'nonce'
+                                        );
+                                        ?>
+                                        <div style="margin-top: 5px;">
+                                            <a href="<?php echo esc_url($download_url); ?>" class="button button-small button-secondary" title="<?php echo esc_attr__('Download Chapter for Sample', 'academy-lesson-manager'); ?>">
+                                                <?php echo __('Download', 'academy-lesson-manager'); ?>
+                                            </a>
+                                        </div>
+                                    <?php elseif ($has_video && !empty($intro_chapter->youtube_id)): ?>
+                                        <div style="margin-top: 5px;">
+                                            <span class="button button-small" style="cursor: help; opacity: 0.7;" title="<?php echo esc_attr__('YouTube videos cannot be downloaded directly.', 'academy-lesson-manager'); ?>">
+                                                <?php echo __('YouTube', 'academy-lesson-manager'); ?>
+                                            </span>
+                                        </div>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <span style="color: #999; font-size: 12px;">—</span>
                                 <?php endif; ?>
@@ -822,6 +978,36 @@ class ALM_Admin_Lesson_Samples {
                                         <strong>1 chapter only</strong>
                                         <br><span style="font-size: 11px; color: #666;">(Would give full access)</span>
                                     </div>
+                                    <?php if ($shortest_chapter && $shortest_has_video): ?>
+                                        <?php
+                                        $has_bunny_or_vimeo = !empty($shortest_chapter->bunny_url) || ($shortest_chapter->vimeo_id > 0);
+                                        $has_youtube = !empty($shortest_chapter->youtube_id);
+                                        ?>
+                                        <?php if ($has_bunny_or_vimeo): ?>
+                                            <?php
+                                            $download_url = wp_nonce_url(
+                                                add_query_arg(array(
+                                                    'page' => 'academy-manager-lesson-samples',
+                                                    'download_chapter' => '1',
+                                                    'chapter_id' => $shortest_chapter->ID
+                                                ), admin_url('admin.php')),
+                                                'alm_download_chapter',
+                                                'nonce'
+                                            );
+                                            ?>
+                                            <div style="margin-top: 5px;">
+                                                <a href="<?php echo esc_url($download_url); ?>" class="button button-small button-secondary" title="<?php echo esc_attr__('Download Chapter for Sample', 'academy-lesson-manager'); ?>">
+                                                    <?php echo __('Download', 'academy-lesson-manager'); ?>
+                                                </a>
+                                            </div>
+                                        <?php elseif ($has_youtube): ?>
+                                            <div style="margin-top: 5px;">
+                                                <span class="button button-small" style="cursor: help; opacity: 0.7;" title="<?php echo esc_attr__('YouTube videos cannot be downloaded directly.', 'academy-lesson-manager'); ?>">
+                                                    <?php echo __('YouTube', 'academy-lesson-manager'); ?>
+                                                </span>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
                                 <?php elseif ($shortest_chapter && $shortest_has_video): 
                                     $shortest_duration = intval($shortest_chapter->duration);
                                     $shortest_duration_display = $shortest_duration > 0 ? ALM_Helpers::format_duration_short($shortest_duration) : '';
@@ -842,6 +1028,34 @@ class ALM_Admin_Lesson_Samples {
                                             <?php endif; ?>
                                         </span>
                                     </div>
+                                    <?php
+                                    $has_bunny_or_vimeo = !empty($shortest_chapter->bunny_url) || ($shortest_chapter->vimeo_id > 0);
+                                    $has_youtube = !empty($shortest_chapter->youtube_id);
+                                    ?>
+                                    <?php if ($has_bunny_or_vimeo): ?>
+                                        <?php
+                                        $download_url = wp_nonce_url(
+                                            add_query_arg(array(
+                                                'page' => 'academy-manager-lesson-samples',
+                                                'download_chapter' => '1',
+                                                'chapter_id' => $shortest_chapter->ID
+                                            ), admin_url('admin.php')),
+                                            'alm_download_chapter',
+                                            'nonce'
+                                        );
+                                        ?>
+                                        <div style="margin-top: 5px;">
+                                            <a href="<?php echo esc_url($download_url); ?>" class="button button-small button-secondary" title="<?php echo esc_attr__('Download Chapter for Sample', 'academy-lesson-manager'); ?>">
+                                                <?php echo __('Download', 'academy-lesson-manager'); ?>
+                                            </a>
+                                        </div>
+                                    <?php elseif ($has_youtube): ?>
+                                        <div style="margin-top: 5px;">
+                                            <span class="button button-small" style="cursor: help; opacity: 0.7;" title="<?php echo esc_attr__('YouTube videos cannot be downloaded directly.', 'academy-lesson-manager'); ?>">
+                                                <?php echo __('YouTube', 'academy-lesson-manager'); ?>
+                                            </span>
+                                        </div>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <span style="color: #999; font-size: 12px;">—</span>
                                 <?php endif; ?>
@@ -1172,6 +1386,564 @@ class ALM_Admin_Lesson_Samples {
         })();
         </script>
         <?php
+    }
+    
+    /**
+     * Get single chapter for a lesson (when lesson has only one chapter)
+     * 
+     * @param int $lesson_id Lesson ID
+     * @return object|null Chapter object or null
+     */
+    private function get_single_chapter($lesson_id) {
+        $chapters_table = $this->database->get_table_name('chapters');
+        
+        $chapter = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT ID, chapter_title, duration, bunny_url, vimeo_id, youtube_id 
+             FROM {$chapters_table} 
+             WHERE lesson_id = %d 
+             ORDER BY menu_order ASC 
+             LIMIT 1",
+            $lesson_id
+        ));
+        
+        return $chapter;
+    }
+    
+    /**
+     * Download chapter video for sample creation by chapter ID
+     * 
+     * @param int $chapter_id Chapter ID
+     */
+    public function download_chapter_for_sample_by_id($chapter_id) {
+        // Prevent any output buffering issues
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Ensure no headers have been sent
+        if (headers_sent($file, $line)) {
+            throw new Exception(sprintf(__('Headers already sent in %s on line %d. Cannot start download.', 'academy-lesson-manager'), $file, $line));
+        }
+        
+        // Clear any existing headers
+        if (!headers_sent()) {
+            header_remove();
+        }
+        
+        $chapters_table = $this->database->get_table_name('chapters');
+        
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: Getting chapter info for chapter_id = ' . $chapter_id . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+        
+        // Get chapter info
+        $chapter = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT c.ID, c.chapter_title, c.bunny_url, c.vimeo_id, c.youtube_id, c.lesson_id, l.lesson_title 
+             FROM {$chapters_table} c
+             LEFT JOIN {$this->table_name} l ON c.lesson_id = l.ID
+             WHERE c.ID = %d",
+            $chapter_id
+        ));
+        
+        if (!$chapter) {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: Chapter not found for chapter_id = ' . $chapter_id . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            wp_die(__('Chapter not found.', 'academy-lesson-manager'));
+        }
+        
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: Chapter found - bunny_url: ' . (!empty($chapter->bunny_url) ? 'YES' : 'NO') . ', vimeo_id: ' . $chapter->vimeo_id . ', youtube_id: ' . (!empty($chapter->youtube_id) ? $chapter->youtube_id : 'NO') . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+        
+        // Check if chapter has video
+        $video_url = $this->get_chapter_video_url($chapter);
+        
+        if (!$video_url) {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: Chapter does not have a video URL' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            wp_die(__('Chapter does not have a video.', 'academy-lesson-manager'));
+        }
+        
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: Video URL found: ' . $video_url . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+        
+        // Generate filename: {lessonid}-{chapterid}-id{chapterid}-{lesson-slug}
+        $lesson_slug = sanitize_file_name($chapter->lesson_title);
+        $lesson_slug = str_replace(' ', '-', $lesson_slug);
+        $lesson_slug = preg_replace('/[^a-z0-9\-]/i', '', $lesson_slug);
+        $filename = sprintf('%d-%d-id%d-%s', 
+            $chapter->lesson_id, 
+            $chapter->ID, 
+            $chapter->ID, 
+            $lesson_slug
+        );
+        
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: Generated filename: ' . $filename . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+        
+        // Determine video source and handle download
+        if (!empty($chapter->bunny_url)) {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: Calling download_bunny_video' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            // Bunny.net video - try to download via API
+            $this->download_bunny_video($chapter->bunny_url, $filename);
+        } elseif (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: Calling download_vimeo_video with vimeo_id = ' . $chapter->vimeo_id . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            // Vimeo video - download via Vimeo API
+            $this->download_vimeo_video($chapter->vimeo_id, $filename);
+        } elseif (!empty($chapter->youtube_id)) {
+            // YouTube video - provide download link/instructions
+            wp_die(sprintf(
+                __('YouTube videos cannot be downloaded directly. Please use a YouTube download tool or contact support. Video ID: %s', 'academy-lesson-manager'),
+                esc_html($chapter->youtube_id)
+            ));
+        } else {
+            wp_die(__('Unable to determine video source.', 'academy-lesson-manager'));
+        }
+    }
+    
+    /**
+     * Download Bunny.net video
+     * 
+     * @param string $bunny_url Bunny.net video URL
+     * @param string $filename Desired filename
+     */
+    private function download_bunny_video($bunny_url, $filename) {
+        // Prevent any output buffering issues
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Extract video ID from URL
+        $bunny_api = new ALM_Bunny_API();
+        $video_id = $bunny_api->extract_video_id_from_url($bunny_url);
+        
+        if (!$video_id) {
+            wp_die(__('Could not extract video ID from Bunny.net URL.', 'academy-lesson-manager'));
+        }
+        
+        // Get library ID and API key
+        $library_id = get_option('alm_bunny_library_id', '');
+        $api_key = get_option('alm_bunny_api_key', '');
+        
+        if (empty($library_id) || empty($api_key)) {
+            wp_die(__('Bunny.net API is not configured. Please configure it in Lesson Manager settings.', 'academy-lesson-manager'));
+        }
+        
+        // Get video metadata from Bunny.net API to find source file
+        $api_base_url = 'https://video.bunnycdn.com';
+        $url = $api_base_url . '/library/' . $library_id . '/videos/' . $video_id;
+        
+        $args = array(
+            'headers' => array(
+                'AccessKey' => $api_key,
+                'accept' => 'application/json'
+            ),
+            'timeout' => 30
+        );
+        
+        $response = wp_remote_get($url, $args);
+        
+        if (is_wp_error($response)) {
+            wp_die(sprintf(
+                __('Error fetching video metadata from Bunny.net: %s', 'academy-lesson-manager'),
+                $response->get_error_message()
+            ));
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code !== 200) {
+            wp_die(sprintf(
+                __('Bunny.net API returned error status: %d', 'academy-lesson-manager'),
+                $status_code
+            ));
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            wp_die(__('Failed to parse JSON response from Bunny.net API.', 'academy-lesson-manager'));
+        }
+        
+        // Construct MP4 URL using Bunny.net's MP4 fallback URL pattern:
+        // https://{pull_zone_hostname}/{video_id}/play_{height}p.mp4
+        // Most common: play_720p.mp4
+        
+        // Get pull zone hostname (playback hostname)
+        $pull_zone_hostname = null;
+        
+        // First, try to extract from bunny_url
+        $parsed = parse_url($bunny_url);
+        if (isset($parsed['host']) && strpos($parsed['host'], 'vz-') === 0) {
+            $pull_zone_hostname = $parsed['host'];
+        }
+        
+        // If not found, try to get from settings or API response
+        if (!$pull_zone_hostname) {
+            $cdn_hostname = get_option('bunny_video_webhook_cdn_hostname', '');
+            if (!empty($cdn_hostname) && strpos($cdn_hostname, 'vz-') === 0) {
+                $pull_zone_hostname = $cdn_hostname;
+            }
+        }
+        
+        // If still not found, check API response for hostname
+        if (!$pull_zone_hostname && isset($data['hostname']) && !empty($data['hostname'])) {
+            $pull_zone_hostname = $data['hostname'];
+        }
+        
+        // Last resort: try to extract from any URL in the response
+        if (!$pull_zone_hostname && isset($data['thumbnailFileName'])) {
+            // Sometimes the thumbnail URL contains the hostname
+            if (isset($data['thumbnailUrl']) && !empty($data['thumbnailUrl'])) {
+                $thumb_parsed = parse_url($data['thumbnailUrl']);
+                if (isset($thumb_parsed['host']) && strpos($thumb_parsed['host'], 'vz-') === 0) {
+                    $pull_zone_hostname = $thumb_parsed['host'];
+                }
+            }
+        }
+        
+        if (!$pull_zone_hostname) {
+            wp_die(__('Could not determine Bunny.net pull zone hostname. Please check your Bunny.net URL format or settings.', 'academy-lesson-manager'));
+        }
+        
+        // Construct the MP4 URL using the correct pattern
+        // Use 720p as default (most common)
+        $download_url = sprintf('https://%s/%s/play_720p.mp4', $pull_zone_hostname, $video_id);
+        
+        // Stream the file from Bunny.net with download headers to force download
+        // Clear any output buffers first
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Disable error display
+        @ini_set('display_errors', 0);
+        
+        // Set headers to force download
+        if (!headers_sent()) {
+            // Generate filename from chapter title or use video ID
+            $safe_filename = sanitize_file_name($filename);
+            if (empty($safe_filename)) {
+                $safe_filename = 'video-' . $video_id;
+            }
+            if (strpos($safe_filename, '.mp4') === false) {
+                $safe_filename .= '.mp4';
+            }
+            
+            // Set download headers
+            header('Content-Type: video/mp4');
+            header('Content-Disposition: attachment; filename="' . $safe_filename . '"');
+            header('Content-Transfer-Encoding: binary');
+            header('Cache-Control: no-cache, must-revalidate');
+            header('Expires: Sat, 26 Jul 1997 05:00:00 GMT');
+            
+            // Stream the file from Bunny.net with proper headers to avoid 403
+            $ch = curl_init($download_url);
+            curl_setopt_array($ch, array(
+                CURLOPT_RETURNTRANSFER => false,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HEADER => false,
+                CURLOPT_FAILONERROR => false,
+                CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                CURLOPT_REFERER => home_url(),
+                CURLOPT_HTTPHEADER => array(
+                    'Accept: video/mp4,video/*;q=0.9,*/*;q=0.8',
+                    'Accept-Language: en-US,en;q=0.9',
+                    'Accept-Encoding: identity',
+                    'Connection: keep-alive',
+                ),
+                CURLOPT_WRITEFUNCTION => function($ch, $data) {
+                    echo $data;
+                    flush();
+                    if (ob_get_level()) {
+                        ob_flush();
+                    }
+                    return strlen($data);
+                }
+            ));
+            
+            $result = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+            
+            if (!$result || $http_code !== 200) {
+                // If streaming failed, try wp_remote_get with proper headers
+                header_remove();
+                
+                // Reset headers for download
+                header('Content-Type: video/mp4');
+                header('Content-Disposition: attachment; filename="' . $safe_filename . '"');
+                header('Content-Transfer-Encoding: binary');
+                
+                // Try using wp_remote_get to fetch and stream
+                $response = wp_remote_get($download_url, array(
+                    'timeout' => 300,
+                    'stream' => true,
+                    'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'headers' => array(
+                        'Referer' => home_url(),
+                        'Accept' => 'video/mp4,video/*;q=0.9,*/*;q=0.8',
+                    ),
+                    'sslverify' => true,
+                ));
+                
+                if (!is_wp_error($response)) {
+                    $response_code = wp_remote_retrieve_response_code($response);
+                    if ($response_code === 200) {
+                        // Stream the body in chunks
+                        $body = wp_remote_retrieve_body($response);
+                        if (!empty($body)) {
+                            echo $body;
+                            flush();
+                            exit;
+                        }
+                    }
+                }
+                
+                // Last resort: output JavaScript to force download client-side
+                header_remove();
+                echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Downloading...</title></head><body>';
+                echo '<script>';
+                echo 'var link = document.createElement("a");';
+                echo 'link.href = ' . json_encode($download_url) . ';';
+                echo 'link.download = ' . json_encode($safe_filename) . ';';
+                echo 'link.target = "_blank";';
+                echo 'document.body.appendChild(link);';
+                echo 'link.click();';
+                echo 'document.body.removeChild(link);';
+                echo 'setTimeout(function(){ window.close(); }, 1000);';
+                echo '</script>';
+                echo '<p>Download should start automatically. <a href="' . esc_url($download_url) . '" download="' . esc_attr($safe_filename) . '">Click here if it doesn\'t</a>.</p>';
+                echo '</body></html>';
+                exit;
+            }
+            
+            exit;
+        } else {
+            // If headers already sent, fall back to redirect
+            wp_redirect($download_url, 302);
+            exit;
+        }
+    }
+    
+    /**
+     * Download Vimeo video
+     * 
+     * @param int $vimeo_id Vimeo video ID
+     * @param string $filename Desired filename
+     */
+    private function download_vimeo_video($vimeo_id, $filename) {
+        // Prevent any output buffering issues
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: download_vimeo_video called with vimeo_id = ' . $vimeo_id . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+        
+        // Try to use the existing vimeo_return_download_link function
+        if (function_exists('vimeo_return_download_link')) {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: Using vimeo_return_download_link function' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            
+            $vimeo_data = vimeo_return_download_link($vimeo_id, 'array');
+            
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: vimeo_return_download_link result: ' . print_r($vimeo_data, true) . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            
+            if ($vimeo_data && !empty($vimeo_data['url'])) {
+                $download_url = $vimeo_data['url'];
+                // DISABLED: Debug logging
+                // $debug_msg = 'ALM Download Debug: Got Vimeo download URL: ' . $download_url . "\n";
+                // error_log($debug_msg);
+                // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            } else {
+                // DISABLED: Debug logging
+                // $debug_msg = 'ALM Download Debug: vimeo_return_download_link returned no URL' . "\n";
+                // error_log($debug_msg);
+                // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+                wp_die(__('Could not get Vimeo download URL. The video may not have downloads enabled or API access may be limited.', 'academy-lesson-manager'));
+            }
+        } else {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: vimeo_return_download_link function not found, using ALM_Vimeo_API' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            // Fallback: Use ALM_Vimeo_API class
+            if (!class_exists('ALM_Vimeo_API')) {
+                require_once ALM_PLUGIN_DIR . 'includes/class-vimeo-api.php';
+            }
+            
+            $vimeo_api = new ALM_Vimeo_API();
+            $metadata = $vimeo_api->get_video_metadata($vimeo_id);
+            
+            if (!$metadata || !isset($metadata['files'])) {
+                wp_die(__('Could not get Vimeo video metadata. The video may not have downloads enabled.', 'academy-lesson-manager'));
+            }
+            
+            // Get download URLs from metadata
+            $downloadUrls = array();
+            foreach ($metadata['files'] as $file) {
+                if (isset($file['quality'], $file['link']) && $file['quality'] !== 'hls' && $file['quality'] !== 'dash') {
+                    $downloadUrls[$file['quality'] . $file['rendition']] = $file['link'];
+                }
+            }
+            
+            // Prefer highest quality
+            $preferredQualityOrder = array('sourcesource', 'hd1080p', 'hd720p', 'sd540p', 'sd360p', 'sd240p');
+            $download_url = '';
+            foreach ($preferredQualityOrder as $quality) {
+                if (isset($downloadUrls[$quality])) {
+                    $download_url = $downloadUrls[$quality];
+                    break;
+                }
+            }
+            
+            if (empty($download_url)) {
+                wp_die(__('No suitable Vimeo download URL found. The video may not have downloads enabled.', 'academy-lesson-manager'));
+            }
+        }
+        
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: Setting download headers and streaming file' . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+        
+        // Disable WordPress redirects
+        remove_action('admin_init', 'wp_admin_headers');
+        
+        // Set headers to force download (not play in browser)
+        nocache_headers();
+        header('Content-Type: application/octet-stream'); // Force download
+        header('Content-Disposition: attachment; filename="' . $filename . '.mp4"');
+        header('Content-Transfer-Encoding: binary');
+        
+        // DISABLED: Debug logging
+        // $debug_msg = 'ALM Download Debug: Attempting to stream file from URL: ' . $download_url . "\n";
+        // error_log($debug_msg);
+        // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+        
+        // Use fopen/fpassthru for streaming large files to avoid memory issues
+        // This also handles redirects automatically
+        $context = stream_context_create(array(
+            'http' => array(
+                'method' => 'GET',
+                'header' => array(
+                    'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                ),
+                'timeout' => 300,
+                'follow_location' => true,
+                'max_redirects' => 5
+            )
+        ));
+        
+        $handle = @fopen($download_url, 'rb', false, $context);
+        if ($handle) {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: fopen successful, streaming in chunks.' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            
+            // Get content length if available
+            $meta = stream_get_meta_data($handle);
+            $content_length = 0;
+            if (isset($meta['wrapper_data'])) {
+                foreach ($meta['wrapper_data'] as $header) {
+                    if (stripos($header, 'content-length:') === 0) {
+                        $content_length = intval(trim(substr($header, 15)));
+                        break;
+                    }
+                }
+            }
+            
+            if ($content_length > 0) {
+                header('Content-Length: ' . $content_length);
+                // DISABLED: Debug logging
+                // $debug_msg = 'ALM Download Debug: Content-Length: ' . $content_length . "\n";
+                // error_log($debug_msg);
+                // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            }
+            
+            // Stream file using fpassthru (most efficient)
+            fpassthru($handle);
+            fclose($handle);
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: File streamed successfully using fpassthru.' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            exit;
+        } else {
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: fopen failed, falling back to wp_remote_get.' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            
+            // Fallback to wp_remote_get if fopen fails
+            $file_response = wp_remote_get($download_url, array(
+                'timeout' => 300,
+                'redirection' => 5
+            ));
+            
+            if (is_wp_error($file_response)) {
+                // DISABLED: Debug logging
+                // $debug_msg = 'ALM Download Debug: wp_remote_get error: ' . $file_response->get_error_message() . "\n";
+                // error_log($debug_msg);
+                // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+                wp_die(sprintf(
+                    __('Error downloading video: %s', 'academy-lesson-manager'),
+                    $file_response->get_error_message()
+                ));
+            }
+            
+            $status_code = wp_remote_retrieve_response_code($file_response);
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: wp_remote_get HTTP status code: ' . $status_code . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            
+            if ($status_code !== 200) {
+                wp_die(sprintf(
+                    __('Error downloading video. HTTP status: %d', 'academy-lesson-manager'),
+                    $status_code
+                ));
+            }
+            
+            $content_length = wp_remote_retrieve_header($file_response, 'content-length');
+            if ($content_length) {
+                header('Content-Length: ' . $content_length);
+            }
+            
+            $body = wp_remote_retrieve_body($file_response);
+            echo $body;
+            // DISABLED: Debug logging
+            // $debug_msg = 'ALM Download Debug: File body output complete via wp_remote_get, ' . strlen($body) . ' bytes.' . "\n";
+            // error_log($debug_msg);
+            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
+            exit;
+        }
     }
 }
 

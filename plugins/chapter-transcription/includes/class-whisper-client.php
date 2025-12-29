@@ -260,9 +260,9 @@ class Transcription_Whisper_Client {
             }
             
             // Make API request using manually constructed multipart body
-            $ch = curl_init($this->api_url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
+        $ch = curl_init($this->api_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
             
             // Set the manually constructed multipart body
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);

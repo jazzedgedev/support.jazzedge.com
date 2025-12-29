@@ -187,10 +187,11 @@ class Bunny_Video_Webhook_Admin {
             <code>{lesson-id}-{chapter-id}-id{chapter-id}-{title}-sample.mp4</code>
             <p>Example: <code>78-797-id797-Finding-Scale-Secrets-sample.mp4</code></p>
             <ul>
-                <li>First number (78) = Lesson ID</li>
-                <li>Second number (797) = Chapter ID</li>
+                <li>First number (78) = Lesson ID (required)</li>
+                <li>Second number (797) = Chapter ID (optional, may be present but is not used)</li>
                 <li>Must contain "-sample" in the filename</li>
             </ul>
+            <p><strong>Note:</strong> Only the lesson ID is required. The chapter ID in the filename is ignored since there is only one sample per lesson. The sample video will be set as a "Direct URL" on the lesson edit page.</p>
         </div>
         <?php
     }
@@ -300,8 +301,20 @@ class Bunny_Video_Webhook_Admin {
                                     </span>
                                 </td>
                                 <td><?php echo esc_html($log['message']); ?></td>
-                                <td><?php echo esc_html($log['lesson_id'] ?: '-'); ?></td>
-                                <td><?php echo esc_html($log['chapter_id'] ?: '-'); ?></td>
+                                <td>
+                                    <?php if (!empty($log['lesson_id'])): ?>
+                                        <a href="<?php echo admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . intval($log['lesson_id'])); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($log['lesson_id']); ?></a>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($log['chapter_id'])): ?>
+                                        <a href="<?php echo admin_url('admin.php?page=academy-manager-chapters&action=edit&id=' . intval($log['chapter_id'])); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($log['chapter_id']); ?></a>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
                                 <td><?php echo esc_html($log['video_id'] ?: '-'); ?></td>
                             </tr>
                             <?php if (!empty($log['error_details']) || !empty($log['webhook_data'])): ?>

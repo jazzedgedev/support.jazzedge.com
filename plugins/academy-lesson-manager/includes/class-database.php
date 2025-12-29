@@ -37,6 +37,7 @@ class ALM_Database {
             'lessons' => $wpdb->prefix . 'alm_lessons',
             'chapters' => $wpdb->prefix . 'alm_chapters',
             'transcripts' => $wpdb->prefix . 'alm_transcripts',
+            'lesson_transcript' => $wpdb->prefix . 'alm_lesson_transcript',
             'lesson_embeddings' => $wpdb->prefix . 'alm_lesson_embeddings',
             'ai_paths' => $wpdb->prefix . 'alm_ai_paths',
             'lesson_pathways' => $wpdb->prefix . 'alm_lesson_pathways',
@@ -47,7 +48,8 @@ class ALM_Database {
             'notification_reads' => $wpdb->prefix . 'alm_notification_reads',
             'promotional_banners' => $wpdb->prefix . 'alm_promotional_banners',
             'faqs' => $wpdb->prefix . 'alm_faqs',
-            'teachers' => $wpdb->prefix . 'alm_teachers'
+            'teachers' => $wpdb->prefix . 'alm_teachers',
+            'starter_plan' => $wpdb->prefix . 'alm_starter_plan'
         );
     }
     
@@ -59,6 +61,7 @@ class ALM_Database {
         $this->create_lessons_table();
         $this->create_chapters_table();
         $this->create_transcripts_table();
+        $this->create_lesson_transcript_table();
         $this->create_lesson_embeddings_table();
         $this->create_ai_paths_table();
         $this->create_lesson_pathways_table();
@@ -70,6 +73,7 @@ class ALM_Database {
         $this->create_promotional_banners_table();
         $this->create_faqs_table();
         $this->create_teachers_table();
+        $this->create_starter_plan_table();
         
         // Insert default FAQs if table is empty
         $this->insert_default_faqs();
@@ -94,6 +98,9 @@ class ALM_Database {
         
         // Check and add chapter_id column to transcripts table if it doesn't exist
         $this->check_and_add_chapter_id_column();
+        
+        // Check and add mp3_file_url column to chapters table if it doesn't exist
+        $this->check_and_add_mp3_file_url_column();
         
         // Ensure lesson_pathways table exists (migration for existing installations)
         $this->ensure_lesson_pathways_table();
@@ -233,6 +240,26 @@ class ALM_Database {
     }
     
     /**
+     * Check and add mp3_file_url column to chapters table
+     */
+    public function check_and_add_mp3_file_url_column() {
+        $chapters_table = $this->tables['chapters'];
+        
+        // Check if table exists first
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$chapters_table}'") == $chapters_table;
+        if (!$table_exists) {
+            return; // Table doesn't exist yet, will be created with column
+        }
+        
+        // Check for mp3_file_url column
+        $mp3_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $chapters_table LIKE 'mp3_file_url'");
+        if (empty($mp3_columns)) {
+            // Add mp3_file_url column after bunny_url
+            $this->wpdb->query("ALTER TABLE $chapters_table ADD COLUMN mp3_file_url varchar(255) DEFAULT NULL AFTER bunny_url");
+        }
+    }
+    
+    /**
      * Create collections table
      */
     private function create_collections_table() {
@@ -353,6 +380,28 @@ class ALM_Database {
             UNIQUE KEY uniq_lesson_chapter_source (lesson_id, chapter_id, source),
             KEY lesson_id (lesson_id),
             KEY chapter_id (chapter_id)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * Create lesson transcript table (stores combined transcript text for lessons)
+     */
+    private function create_lesson_transcript_table() {
+        $table_name = $this->tables['lesson_transcript'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            lesson_id int(11) NOT NULL,
+            transcript_text longtext,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            UNIQUE KEY lesson_id (lesson_id)
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -635,6 +684,7 @@ class ALM_Database {
             link_url varchar(500) DEFAULT '',
             is_active tinyint(1) DEFAULT 1,
             show_popup tinyint(1) DEFAULT 0,
+            popup_stop_date datetime DEFAULT NULL,
             publish_at datetime DEFAULT CURRENT_TIMESTAMP,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -642,7 +692,8 @@ class ALM_Database {
             KEY is_active (is_active),
             KEY publish_at (publish_at),
             KEY category (category),
-            KEY show_popup (show_popup)
+            KEY show_popup (show_popup),
+            KEY popup_stop_date (popup_stop_date)
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -704,6 +755,12 @@ class ALM_Database {
         $popup_column = $this->wpdb->get_results("SHOW COLUMNS FROM {$notifications_table} LIKE 'show_popup'");
         if (empty($popup_column)) {
             $this->wpdb->query("ALTER TABLE {$notifications_table} ADD COLUMN show_popup tinyint(1) DEFAULT 0 AFTER is_active, ADD KEY show_popup (show_popup)");
+        }
+        
+        // Check if popup_stop_date column exists
+        $popup_stop_date_column = $this->wpdb->get_results("SHOW COLUMNS FROM {$notifications_table} LIKE 'popup_stop_date'");
+        if (empty($popup_stop_date_column)) {
+            $this->wpdb->query("ALTER TABLE {$notifications_table} ADD COLUMN popup_stop_date datetime DEFAULT NULL AFTER show_popup, ADD KEY popup_stop_date (popup_stop_date)");
         }
     }
 
@@ -799,6 +856,36 @@ class ALM_Database {
         
         // Check and add social media columns if they don't exist (for existing installations)
         $this->check_and_add_teacher_social_columns();
+    }
+    
+    /**
+     * Create starter plan table
+     */
+    private function create_starter_plan_table() {
+        $table_name = $this->tables['starter_plan'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            lesson_id int(11) NOT NULL,
+            post_id int(11) NOT NULL,
+            lesson_title varchar(255) NOT NULL,
+            chapter_id int(11) DEFAULT 0,
+            chapter_order int(11) DEFAULT 0,
+            chapter_title varchar(255) DEFAULT '',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            KEY lesson_id (lesson_id),
+            KEY post_id (post_id),
+            KEY lesson_title (lesson_title),
+            KEY chapter_id (chapter_id),
+            KEY chapter_order (chapter_order)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
     }
     
     /**

@@ -32,6 +32,9 @@ class ALM_Admin_Settings {
         register_setting('alm_settings', 'alm_bunny_library_id');
         register_setting('alm_settings', 'alm_bunny_api_key');
         register_setting('alm_settings', 'alm_pathways');
+        register_setting('alm_settings', 'alm_ai_lesson_description_prompt');
+        register_setting('alm_settings', 'alm_free_trial_lesson_ids');
+        register_setting('alm_settings', 'alm_starter_paid_lesson_ids');
     }
     
     /**
@@ -80,6 +83,30 @@ class ALM_Admin_Settings {
             return; // Exit early after delete
         }
         
+        // Handle webhook settings save
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_webhook_settings'])) {
+            $this->save_webhook_settings();
+            return; // Exit early after save
+        }
+        
+        // Handle webhook log clear
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_webhook_logs'])) {
+            $this->clear_webhook_logs();
+            return; // Exit early after clear
+        }
+        
+        // Handle AI prompts settings save
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ai_prompts'])) {
+            $this->save_ai_prompts();
+            return; // Exit early after save
+        }
+        
+        // Handle free trial lessons save
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_free_trial_lessons'])) {
+            $this->save_free_trial_lessons();
+            return; // Exit early after save
+        }
+        
         echo '<div class="wrap">';
         echo '<h1>' . __('Academy Lesson Manager Settings', 'academy-lesson-manager') . '</h1>';
         
@@ -120,6 +147,18 @@ class ALM_Admin_Settings {
                 case 'tag_not_found':
                     echo '<div class="notice notice-error"><p>' . __('An error occurred while processing the tag.', 'academy-lesson-manager') . '</p></div>';
                     break;
+                case 'webhook_settings_saved':
+                    echo '<div class="notice notice-success"><p>' . __('Webhook settings saved successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'webhook_logs_cleared':
+                    echo '<div class="notice notice-success"><p>' . __('Webhook logs cleared successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'free_trial_saved':
+                    echo '<div class="notice notice-success"><p>' . __('Starter Plan lessons saved successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'popup_settings_saved':
+                    echo '<div class="notice notice-success"><p>' . __('Popup settings saved successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
             }
         }
         
@@ -131,10 +170,15 @@ class ALM_Admin_Settings {
         echo '<nav class="nav-tab-wrapper">';
         echo '<a href="?page=academy-manager-settings&tab=general" class="nav-tab ' . ($current_tab === 'general' ? 'nav-tab-active' : '') . '">' . __('General', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=ai" class="nav-tab ' . ($current_tab === 'ai' ? 'nav-tab-active' : '') . '">' . __('AI Settings', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=ai-prompts" class="nav-tab ' . ($current_tab === 'ai-prompts' ? 'nav-tab-active' : '') . '">' . __('AI Prompts', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=tags" class="nav-tab ' . ($current_tab === 'tags' ? 'nav-tab-active' : '') . '">' . __('Tags', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=memberships" class="nav-tab ' . ($current_tab === 'memberships' ? 'nav-tab-active' : '') . '">' . __('Memberships', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=keap-tags" class="nav-tab ' . ($current_tab === 'keap-tags' ? 'nav-tab-active' : '') . '">' . __('Keap Tags', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=free-trial" class="nav-tab ' . ($current_tab === 'free-trial' ? 'nav-tab-active' : '') . '">' . __('Starter Program', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=popup" class="nav-tab ' . ($current_tab === 'popup' ? 'nav-tab-active' : '') . '">' . __('Popup', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=faqs" class="nav-tab ' . ($current_tab === 'faqs' ? 'nav-tab-active' : '') . '">' . __('FAQs', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=promotions" class="nav-tab ' . ($current_tab === 'promotions' ? 'nav-tab-active' : '') . '">' . __('Promotions', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=webhook" class="nav-tab ' . ($current_tab === 'webhook' ? 'nav-tab-active' : '') . '">' . __('Webhook', 'academy-lesson-manager') . '</a>';
         echo '</nav>';
         
         // Handle promotional banner actions
@@ -151,18 +195,27 @@ class ALM_Admin_Settings {
         
         if ($current_tab === 'ai') {
             $this->render_ai_settings();
+        } elseif ($current_tab === 'ai-prompts') {
+            $this->render_ai_prompts_tab();
         } elseif ($current_tab === 'tags') {
             $this->render_tags_settings();
         } elseif ($current_tab === 'memberships') {
             $membership_pricing = new ALM_Admin_Membership_Pricing();
             $membership_pricing->render_tab();
+        } elseif ($current_tab === 'keap-tags') {
+            $this->render_keap_tags_settings();
+        } elseif ($current_tab === 'free-trial') {
+            $this->render_free_trial_settings();
+        } elseif ($current_tab === 'popup') {
+            $this->render_starter_popup_settings();
         } elseif ($current_tab === 'faqs') {
             $faqs_admin = new ALM_Admin_FAQs();
             $faqs_admin->render_tab();
         } elseif ($current_tab === 'promotions') {
             $this->render_promotions_tab();
+        } elseif ($current_tab === 'webhook') {
+            $this->render_webhook_tab();
         } else {
-            $this->render_keap_tags_settings();
             $this->render_bunny_api_settings();
             $this->render_database_update_section();
             $this->render_sync_section();
@@ -187,12 +240,22 @@ class ALM_Admin_Settings {
      * Render Keap tags settings
      */
     private function render_keap_tags_settings() {
-        $keap_tags = get_option('alm_keap_tags', array(
-            'free' => '',
+        $default_tags = array(
+            'starter_free' => '9661',
+            'starter_paid' => '',
             'essentials' => '10290,10288',
             'studio' => '9954,10136,9807,9827,9819,9956,10136',
             'premier' => '9821,9813,10142'
-        ));
+        );
+        
+        // Get existing tags and merge with defaults for backward compatibility
+        $existing_tags = get_option('alm_keap_tags', array());
+        $keap_tags = wp_parse_args($existing_tags, $default_tags);
+        
+        // Handle migration from old 'free' key to 'starter_free'
+        if (isset($keap_tags['free']) && !isset($keap_tags['starter_free'])) {
+            $keap_tags['starter_free'] = $keap_tags['free'];
+        }
         
         echo '<div class="alm-settings-section">';
         echo '<h2>' . __('Keap Tag IDs', 'academy-lesson-manager') . '</h2>';
@@ -202,11 +265,31 @@ class ALM_Admin_Settings {
         echo '<table class="form-table">';
         echo '<tbody>';
         
-        foreach ($keap_tags as $level => $tags) {
+        // Academy Starter Free Tags
+        echo '<tr>';
+        echo '<th scope="row"><label for="keap_tags_starter_free">' . __('Academy Starter Free Tags', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" id="keap_tags_starter_free" name="keap_tags[starter_free]" value="' . esc_attr($keap_tags['starter_free'] ?? '') . '" class="regular-text" placeholder="e.g., 9661" />';
+        echo '<p class="description">' . __('Comma-separated tag IDs', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Academy Starter Paid Tags
+        echo '<tr>';
+        echo '<th scope="row"><label for="keap_tags_starter_paid">' . __('Academy Starter Paid Tags', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" id="keap_tags_starter_paid" name="keap_tags[starter_paid]" value="' . esc_attr($keap_tags['starter_paid'] ?? '') . '" class="regular-text" placeholder="e.g., 12345" />';
+        echo '<p class="description">' . __('Comma-separated tag IDs', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Essentials, Studio, Premier (keep as-is)
+        $other_levels = array('essentials', 'studio', 'premier');
+        foreach ($other_levels as $level) {
             echo '<tr>';
             echo '<th scope="row"><label for="keap_tags_' . $level . '">' . ucfirst($level) . ' Tags</label></th>';
             echo '<td>';
-            echo '<input type="text" id="keap_tags_' . $level . '" name="keap_tags[' . $level . ']" value="' . esc_attr($tags) . '" class="regular-text" placeholder="e.g., 10290,10288" />';
+            echo '<input type="text" id="keap_tags_' . $level . '" name="keap_tags[' . $level . ']" value="' . esc_attr($keap_tags[$level] ?? '') . '" class="regular-text" placeholder="e.g., 10290,10288" />';
             echo '<p class="description">' . __('Comma-separated tag IDs', 'academy-lesson-manager') . '</p>';
             echo '</td>';
             echo '</tr>';
@@ -486,7 +569,12 @@ class ALM_Admin_Settings {
         }
         
         if (isset($_POST['keap_tags'])) {
-            update_option('alm_keap_tags', $_POST['keap_tags']);
+            // Sanitize keap tags array
+            $keap_tags = array();
+            foreach ($_POST['keap_tags'] as $level => $tags) {
+                $keap_tags[sanitize_key($level)] = sanitize_text_field($tags);
+            }
+            update_option('alm_keap_tags', $keap_tags);
         }
         
         // Save blocking tags
@@ -503,7 +591,13 @@ class ALM_Admin_Settings {
             update_option('alm_bunny_api_key', sanitize_text_field($_POST['alm_bunny_api_key']));
         }
         
-        wp_redirect(add_query_arg('message', 'settings_saved', admin_url('admin.php?page=academy-manager-settings')));
+        // Determine redirect tab based on which form was submitted
+        $redirect_tab = 'general';
+        if (isset($_POST['keap_tags'])) {
+            $redirect_tab = 'keap-tags';
+        }
+        
+        wp_redirect(add_query_arg(array('message' => 'settings_saved', 'tab' => $redirect_tab), admin_url('admin.php?page=academy-manager-settings')));
         exit;
     }
     
@@ -1624,4 +1718,1125 @@ class ALM_Admin_Settings {
         exit;
     }
     
+    /**
+     * Render webhook settings tab
+     */
+    private function render_webhook_tab() {
+        require_once ALM_PLUGIN_DIR . 'includes/class-zoom-webhook.php';
+        $webhook = new ALM_Zoom_Webhook();
+        
+        // Get current settings
+        $secret = get_option('alm_zoom_webhook_secret', '');
+        $auto_migrate = get_option('alm_zoom_webhook_auto_migrate', false);
+        $webhook_url = rest_url('alm/v1/zoom-recording');
+        
+        // Get debug logs
+        $debug_logs = $webhook->get_debug_logs();
+        
+        echo '<div class="alm-settings-section">';
+        echo '<h2>' . __('Zoom Webhook Settings', 'academy-lesson-manager') . '</h2>';
+        echo '<p class="description">' . __('Configure the webhook endpoint for automated Zoom recording processing from Zapier.', 'academy-lesson-manager') . '</p>';
+        
+        // Webhook URL display
+        echo '<div style="background: #f0f0f1; border: 1px solid #ddd; padding: 15px; margin-bottom: 20px;">';
+        echo '<h3>' . __('Webhook URL', 'academy-lesson-manager') . '</h3>';
+        echo '<p><strong>' . __('Endpoint:', 'academy-lesson-manager') . '</strong></p>';
+        echo '<code style="display: block; padding: 10px; background: #fff; border: 1px solid #ccc; margin: 10px 0;">' . esc_html($webhook_url) . '</code>';
+        echo '<p class="description">' . __('Use this URL in your Zapier webhook configuration. The endpoint accepts POST requests with form data.', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        // Zoom Title Format Documentation
+        echo '<div style="background: #e7f5e7; border: 1px solid #46b450; padding: 15px; margin-bottom: 20px;">';
+        echo '<h3>' . __('Zoom Recording Title Format', 'academy-lesson-manager') . '</h3>';
+        echo '<p><strong>' . __('Important:', 'academy-lesson-manager') . '</strong> ' . __('Your Zoom recording titles must include a special format tag to identify the collection and event type.', 'academy-lesson-manager') . '</p>';
+        echo '<p><strong>' . __('Format:', 'academy-lesson-manager') . '</strong></p>';
+        echo '<code style="display: block; padding: 10px; background: #fff; border: 1px solid #ccc; margin: 10px 0; font-size: 14px;">{id123|willie-coaching}</code>';
+        echo '<ul style="margin-left: 20px; margin-top: 10px;">';
+        echo '<li><strong>' . __('Left side (before pipe |):', 'academy-lesson-manager') . '</strong> ' . __('Collection ID - The ID of the ALM collection where the lesson should be added. Example: <code>id123</code> or <code>id191</code>', 'academy-lesson-manager') . '</li>';
+        echo '<li><strong>' . __('Right side (after pipe |):', 'academy-lesson-manager') . '</strong> ' . __('Event Type - The zoom identifier that matches the ACF field on your je_event posts. Valid values:', 'academy-lesson-manager') . '</li>';
+        echo '<ul style="margin-left: 20px; margin-top: 5px;">';
+        echo '<li><code>willie-coaching</code></li>';
+        echo '<li><code>willie-special</code></li>';
+        echo '<li><code>willie-community</code></li>';
+        echo '<li><code>paul-class</code></li>';
+        echo '</ul>';
+        echo '</ul>';
+        echo '<p><strong>' . __('Example Zoom Title:', 'academy-lesson-manager') . '</strong></p>';
+        echo '<code style="display: block; padding: 10px; background: #fff; border: 1px solid #ccc; margin: 10px 0; font-size: 14px;">Willie Coaching Session - November 2025 {id191|willie-coaching}</code>';
+        echo '<p class="description" style="margin-top: 10px;">' . __('The system will extract collection ID 191 and match events with zoom_identifier "willie-coaching" that occurred within ±2 hours of the recording date.', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        
+        // Settings form
+        echo '<form method="post" action="">';
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="alm_zoom_webhook_secret">' . __('Shared Secret', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" id="alm_zoom_webhook_secret" name="alm_zoom_webhook_secret" value="' . esc_attr($secret) . '" class="regular-text" />';
+        echo '<p class="description">' . __('Secret key that Zapier must include in the "code" field. This validates incoming webhook requests.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="alm_zoom_webhook_auto_migrate">' . __('Auto-Migrate Events', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<label>';
+        echo '<input type="checkbox" id="alm_zoom_webhook_auto_migrate" name="alm_zoom_webhook_auto_migrate" value="1" ' . checked($auto_migrate, true, false) . ' />';
+        echo ' ' . __('Automatically migrate events to collections when Vimeo ID is added', 'academy-lesson-manager');
+        echo '</label>';
+        echo '<p class="description">' . __('If enabled, events will be automatically converted to lessons and added to the specified collection when a recording is processed.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '</tbody>';
+        echo '</table>';
+        
+        echo '<p class="submit">';
+        echo '<input type="hidden" name="save_webhook_settings" value="1" />';
+        echo '<input type="submit" class="button-primary" value="' . __('Save Webhook Settings', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        echo '</form>';
+        
+        // Debug logs section
+        echo '<div style="margin-top: 30px;">';
+        echo '<h3>' . __('Debug Logs', 'academy-lesson-manager') . '</h3>';
+        echo '<p class="description">' . __('Recent webhook processing logs. Click "Copy to Clipboard" to share debug information.', 'academy-lesson-manager') . '</p>';
+        
+        echo '<div style="margin-bottom: 10px;">';
+        echo '<button type="button" id="refresh-logs-btn" class="button">' . __('Refresh Logs', 'academy-lesson-manager') . '</button> ';
+        echo '<button type="button" id="clear-logs-btn" class="button">' . __('Clear Logs', 'academy-lesson-manager') . '</button> ';
+        echo '<button type="button" id="download-logs-btn" class="button">' . __('Download as JSON', 'academy-lesson-manager') . '</button>';
+        echo '</div>';
+        
+        echo '<div id="webhook-logs-container" style="max-height: 600px; overflow-y: auto; border: 1px solid #ddd; background: #fff; padding: 15px;">';
+        if (empty($debug_logs)) {
+            echo '<p style="color: #666; font-style: italic;">' . __('No debug logs yet. Webhook activity will appear here.', 'academy-lesson-manager') . '</p>';
+        } else {
+            foreach ($debug_logs as $index => $log) {
+                $log_id = 'log-' . $index;
+                $log_json = json_encode($log, JSON_PRETTY_PRINT);
+                $success = isset($log['success']) && $log['success'];
+                $status_class = $success ? 'notice-success' : 'notice-error';
+                
+                echo '<div class="notice ' . $status_class . ' inline" style="margin-bottom: 15px; padding: 10px;">';
+                echo '<p><strong>' . __('Timestamp:', 'academy-lesson-manager') . '</strong> ' . esc_html($log['timestamp']) . '</p>';
+                
+                if (isset($log['error'])) {
+                    echo '<p><strong>' . __('Error:', 'academy-lesson-manager') . '</strong> <span style="color: #dc3232;">' . esc_html($log['error']) . '</span></p>';
+                }
+                
+                if (isset($log['parsed'])) {
+                    echo '<p><strong>' . __('Parsed Data:', 'academy-lesson-manager') . '</strong></p>';
+                    echo '<ul style="margin-left: 20px;">';
+                    foreach ($log['parsed'] as $key => $value) {
+                        echo '<li><strong>' . esc_html($key) . ':</strong> ' . esc_html($value) . '</li>';
+                    }
+                    echo '</ul>';
+                }
+                
+                if (isset($log['matched_event'])) {
+                    echo '<p><strong>' . __('Matched Event:', 'academy-lesson-manager') . '</strong> ID ' . esc_html($log['matched_event']['event_id']) . ' - ' . esc_html($log['matched_event']['event_title']) . '</p>';
+                }
+                
+                if (isset($log['sql_query'])) {
+                    echo '<p><strong>' . __('SQL Query:', 'academy-lesson-manager') . '</strong></p>';
+                    echo '<pre style="background: #f5f5f5; padding: 10px; margin-top: 5px; overflow-x: auto; font-size: 11px; max-height: 200px; overflow-y: auto; border: 1px solid #ddd;">' . esc_html($log['sql_query']) . '</pre>';
+                }
+                
+                if (isset($log['checked_events']) && !empty($log['checked_events'])) {
+                    echo '<p><strong>' . __('Events Checked:', 'academy-lesson-manager') . '</strong> (' . count($log['checked_events']) . ' found)</p>';
+                    echo '<table style="width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 11px;">';
+                    echo '<thead><tr style="background: #f0f0f1;">';
+                    echo '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">ID</th>';
+                    echo '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Title</th>';
+                    echo '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Event Start (Local)</th>';
+                    echo '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Event Start (UTC)</th>';
+                    echo '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Recording (UTC)</th>';
+                    echo '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Diff (hours)</th>';
+                    echo '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Status</th>';
+                    echo '</tr></thead><tbody>';
+                    foreach ($log['checked_events'] as $checked) {
+                        $status_color = isset($checked['within_window']) && $checked['within_window'] ? '#46b450' : '#dc3232';
+                        $status_text = isset($checked['within_window']) && $checked['within_window'] ? 'Within ±2h' : (isset($checked['reason']) ? $checked['reason'] : 'Outside ±2h');
+                        echo '<tr>';
+                        echo '<td style="padding: 8px; border: 1px solid #ddd;">' . esc_html($checked['event_id']) . '</td>';
+                        echo '<td style="padding: 8px; border: 1px solid #ddd;">' . esc_html($checked['event_title']) . '</td>';
+                        echo '<td style="padding: 8px; border: 1px solid #ddd;">' . (isset($checked['event_start_local']) ? esc_html($checked['event_start_local']) : (isset($checked['event_start']) ? esc_html($checked['event_start']) : 'N/A')) . '</td>';
+                        echo '<td style="padding: 8px; border: 1px solid #ddd;">' . (isset($checked['event_start_utc']) ? esc_html($checked['event_start_utc']) : 'N/A') . '</td>';
+                        echo '<td style="padding: 8px; border: 1px solid #ddd;">' . (isset($checked['recording_date_utc']) ? esc_html($checked['recording_date_utc']) : 'N/A') . '</td>';
+                        echo '<td style="padding: 8px; border: 1px solid #ddd;">' . (isset($checked['diff_hours']) ? esc_html($checked['diff_hours']) : 'N/A') . '</td>';
+                        echo '<td style="padding: 8px; border: 1px solid #ddd; color: ' . $status_color . ';">' . esc_html($status_text) . '</td>';
+                        echo '</tr>';
+                    }
+                    echo '</tbody></table>';
+                }
+                
+                echo '<details style="margin-top: 10px;">';
+                echo '<summary style="cursor: pointer; font-weight: bold;">' . __('View Full Debug Info', 'academy-lesson-manager') . '</summary>';
+                echo '<pre id="log-pre-' . esc_attr($log_id) . '" style="background: #f5f5f5; padding: 10px; margin-top: 10px; overflow-x: auto; font-size: 12px; max-height: 400px; overflow-y: auto;">' . esc_html($log_json) . '</pre>';
+                echo '</details>';
+                
+                // Store JSON in a hidden textarea for reliable copying
+                // Use base64 encoding to avoid any HTML entity issues
+                echo '<textarea id="log-json-' . esc_attr($log_id) . '" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">' . esc_textarea($log_json) . '</textarea>';
+                echo '<button type="button" class="button button-small copy-log-btn" data-log-id="' . esc_attr($log_id) . '" style="margin-top: 10px;">' . __('Copy to Clipboard', 'academy-lesson-manager') . '</button>';
+                echo '</div>';
+            }
+        }
+        echo '</div>';
+        echo '</div>';
+        
+        echo '</div>';
+        
+        // Enqueue admin script
+        wp_enqueue_script('alm-webhook-settings', ALM_PLUGIN_URL . 'assets/js/alm-webhook-settings.js', array('jquery'), ALM_VERSION, true);
+        wp_localize_script('alm-webhook-settings', 'almWebhookSettings', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('alm_webhook_settings'),
+            'restUrl' => rest_url('alm/v1/zoom-recording')
+        ));
+    }
+    
+    /**
+     * Save webhook settings
+     */
+    private function save_webhook_settings() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        $secret = isset($_POST['alm_zoom_webhook_secret']) ? sanitize_text_field($_POST['alm_zoom_webhook_secret']) : '';
+        $auto_migrate = isset($_POST['alm_zoom_webhook_auto_migrate']) ? true : false;
+        
+        update_option('alm_zoom_webhook_secret', $secret);
+        update_option('alm_zoom_webhook_auto_migrate', $auto_migrate);
+        
+        wp_redirect(add_query_arg(array(
+            'page' => 'academy-manager-settings',
+            'tab' => 'webhook',
+            'message' => 'webhook_settings_saved'
+        ), admin_url('admin.php')));
+        exit;
+    }
+    
+    /**
+     * Clear webhook logs
+     */
+    private function clear_webhook_logs() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        require_once ALM_PLUGIN_DIR . 'includes/class-zoom-webhook.php';
+        $webhook = new ALM_Zoom_Webhook();
+        $webhook->clear_debug_logs();
+        
+        wp_redirect(add_query_arg(array(
+            'page' => 'academy-manager-settings',
+            'tab' => 'webhook',
+            'message' => 'webhook_logs_cleared'
+        ), admin_url('admin.php')));
+        exit;
+    }
+    
+    /**
+     * Render AI Prompts tab
+     */
+    private function render_ai_prompts_tab() {
+        $default_prompt = 'Create a compelling lesson description based on the following transcript. Limit to 100 words or less. No emojis.';
+        $current_prompt = get_option('alm_ai_lesson_description_prompt', $default_prompt);
+        
+        echo '<form method="post" action="">';
+        echo '<h2>' . __('AI Prompts', 'academy-lesson-manager') . '</h2>';
+        echo '<p class="description">' . __('Configure AI prompts used throughout the Academy Manager. These prompts are used to generate content using OpenAI.', 'academy-lesson-manager') . '</p>';
+        
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="alm_ai_lesson_description_prompt">' . __('Lesson Description Prompt', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<textarea id="alm_ai_lesson_description_prompt" name="alm_ai_lesson_description_prompt" rows="5" cols="80" class="large-text">' . esc_textarea($current_prompt) . '</textarea>';
+        echo '<p class="description">' . __('This prompt is used when generating lesson descriptions from transcripts. The transcript text will be appended to this prompt.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '</tbody>';
+        echo '</table>';
+        
+        echo '<p class="submit">';
+        echo '<input type="submit" name="save_ai_prompts" class="button button-primary" value="' . __('Save Prompts', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        
+        wp_nonce_field('alm_save_ai_prompts', 'alm_ai_prompts_nonce');
+        echo '</form>';
+    }
+    
+    /**
+     * Save AI Prompts settings
+     */
+    private function save_ai_prompts() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        check_admin_referer('alm_save_ai_prompts', 'alm_ai_prompts_nonce');
+        
+        $prompt = isset($_POST['alm_ai_lesson_description_prompt']) ? sanitize_textarea_field($_POST['alm_ai_lesson_description_prompt']) : '';
+        
+        update_option('alm_ai_lesson_description_prompt', $prompt);
+        
+        wp_redirect(add_query_arg(array(
+            'page' => 'academy-manager-settings',
+            'tab' => 'ai-prompts',
+            'message' => 'settings_saved'
+        ), admin_url('admin.php')));
+        exit;
+    }
+    
+    /**
+     * Render Free Trial settings tab
+     */
+    private function render_free_trial_settings() {
+        $free_trial_lesson_ids = get_option('alm_free_trial_lesson_ids', array());
+        $starter_paid_lesson_ids = get_option('alm_starter_paid_lesson_ids', array());
+        
+        echo '<div class="alm-settings-section">';
+        echo '<h2>' . __('Starter Program Lesson Access', 'academy-lesson-manager') . '</h2>';
+        echo '<p class="description">' . __('Select lessons that should be accessible to Starter Program users. Free starter users see only Free lessons. Paid starter users see both Free and Paid lessons.', 'academy-lesson-manager') . '</p>';
+        
+        echo '<form method="post" action="" id="starter-program-form">';
+        
+        // FREE SECTION
+        echo '<div style="margin-bottom: 40px; padding-bottom: 30px; border-bottom: 2px solid #ddd;">';
+        echo '<h3 style="margin-top: 0;">' . __('Free Starter Lessons', 'academy-lesson-manager') . '</h3>';
+        echo '<p class="description">' . __('Lessons accessible to users with Academy Starter Free tags.', 'academy-lesson-manager') . '</p>';
+        
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="free_trial_lesson_search">' . __('Add Lesson', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<div id="free-trial-lesson-picker" style="position: relative;">';
+        echo '<input type="text" id="free_trial_lesson_search" class="regular-text" placeholder="' . __('Search for a lesson...', 'academy-lesson-manager') . '" autocomplete="off" style="width: 100%; max-width: 600px;" />';
+        echo '<div id="free-trial-lesson-results" style="display:none; position:absolute; background:#fff; border:1px solid #ccc; max-height:300px; overflow-y:auto; z-index:1000; width:100%; max-width:600px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>';
+        echo '</div>';
+        echo '<p class="description">' . __('Start typing to search for lessons. Click a lesson to add it to the Free Starter list.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row">' . __('Free Starter Lessons', 'academy-lesson-manager') . '</th>';
+        echo '<td>';
+        echo '<div id="free-trial-lessons-list">';
+        
+        if (!empty($free_trial_lesson_ids)) {
+            global $wpdb;
+            $database = new ALM_Database();
+            $lessons_table = $database->get_table_name('lessons');
+            
+            $placeholders = implode(',', array_fill(0, count($free_trial_lesson_ids), '%d'));
+            $lessons = $wpdb->get_results($wpdb->prepare(
+                "SELECT l.ID, l.lesson_title, l.post_id, c.collection_title 
+                 FROM {$lessons_table} l
+                 LEFT JOIN {$wpdb->prefix}alm_collections c ON l.collection_id = c.ID
+                 WHERE l.post_id IN ($placeholders)
+                 ORDER BY l.lesson_title ASC",
+                ...$free_trial_lesson_ids
+            ));
+            
+            echo '<ul id="free-trial-lessons-ul" style="list-style:none; padding:0; margin:10px 0;">';
+            foreach ($lessons as $lesson) {
+                $post_id = intval($lesson->post_id);
+                $collection_name = $lesson->collection_title ? $lesson->collection_title : 'No Collection';
+                echo '<li style="padding:8px; margin:5px 0; background:#f5f5f5; border-left:3px solid #0073aa;">';
+                echo '<span style="font-weight:600;">' . esc_html($lesson->lesson_title) . '</span>';
+                echo ' <span style="color:#666; font-size:12px;">(' . esc_html($collection_name) . ')</span>';
+                echo ' <input type="hidden" name="free_trial_lesson_ids[]" value="' . $post_id . '" />';
+                echo ' <button type="button" class="button-link remove-free-trial-lesson" data-post-id="' . $post_id . '" style="color:#a00; margin-left:10px;">' . __('Remove', 'academy-lesson-manager') . '</button>';
+                echo '</li>';
+            }
+            echo '</ul>';
+        } else {
+            echo '<p style="color:#666; font-style:italic;">' . __('No lessons added yet. Use the search above to add lessons.', 'academy-lesson-manager') . '</p>';
+            echo '<ul id="free-trial-lessons-ul" style="list-style:none; padding:0; margin:10px 0; display:none;"></ul>';
+        }
+        
+        echo '</div>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '</tbody>';
+        echo '</table>';
+        echo '</div>';
+        
+        // PAID SECTION
+        echo '<div style="margin-bottom: 40px;">';
+        echo '<h3 style="margin-top: 0;">' . __('Paid Starter Lessons', 'academy-lesson-manager') . '</h3>';
+        echo '<p class="description">' . __('Additional lessons accessible to users with Academy Starter Paid tags. Paid starter users also have access to all Free starter lessons.', 'academy-lesson-manager') . '</p>';
+        
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="starter_paid_lesson_search">' . __('Add Lesson', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<div id="starter-paid-lesson-picker" style="position: relative;">';
+        echo '<input type="text" id="starter_paid_lesson_search" class="regular-text" placeholder="' . __('Search for a lesson...', 'academy-lesson-manager') . '" autocomplete="off" style="width: 100%; max-width: 600px;" />';
+        echo '<div id="starter-paid-lesson-results" style="display:none; position:absolute; background:#fff; border:1px solid #ccc; max-height:300px; overflow-y:auto; z-index:1000; width:100%; max-width:600px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>';
+        echo '</div>';
+        echo '<p class="description">' . __('Start typing to search for lessons. Click a lesson to add it to the Paid Starter list.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row">' . __('Paid Starter Lessons', 'academy-lesson-manager') . '</th>';
+        echo '<td>';
+        echo '<div id="starter-paid-lessons-list">';
+        
+        if (!empty($starter_paid_lesson_ids)) {
+            global $wpdb;
+            $database = new ALM_Database();
+            $lessons_table = $database->get_table_name('lessons');
+            
+            $placeholders = implode(',', array_fill(0, count($starter_paid_lesson_ids), '%d'));
+            $lessons = $wpdb->get_results($wpdb->prepare(
+                "SELECT l.ID, l.lesson_title, l.post_id, c.collection_title 
+                 FROM {$lessons_table} l
+                 LEFT JOIN {$wpdb->prefix}alm_collections c ON l.collection_id = c.ID
+                 WHERE l.post_id IN ($placeholders)
+                 ORDER BY l.lesson_title ASC",
+                ...$starter_paid_lesson_ids
+            ));
+            
+            echo '<ul id="starter-paid-lessons-ul" style="list-style:none; padding:0; margin:10px 0;">';
+            foreach ($lessons as $lesson) {
+                $post_id = intval($lesson->post_id);
+                $collection_name = $lesson->collection_title ? $lesson->collection_title : 'No Collection';
+                echo '<li style="padding:8px; margin:5px 0; background:#f5f5f5; border-left:3px solid #28a745;">';
+                echo '<span style="font-weight:600;">' . esc_html($lesson->lesson_title) . '</span>';
+                echo ' <span style="color:#666; font-size:12px;">(' . esc_html($collection_name) . ')</span>';
+                echo ' <input type="hidden" name="starter_paid_lesson_ids[]" value="' . $post_id . '" />';
+                echo ' <button type="button" class="button-link remove-starter-paid-lesson" data-post-id="' . $post_id . '" style="color:#a00; margin-left:10px;">' . __('Remove', 'academy-lesson-manager') . '</button>';
+                echo '</li>';
+            }
+            echo '</ul>';
+        } else {
+            echo '<p style="color:#666; font-style:italic;">' . __('No lessons added yet. Use the search above to add lessons.', 'academy-lesson-manager') . '</p>';
+            echo '<ul id="starter-paid-lessons-ul" style="list-style:none; padding:0; margin:10px 0; display:none;"></ul>';
+        }
+        
+        echo '</div>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '</tbody>';
+        echo '</table>';
+        echo '</div>';
+        
+        echo '<p class="submit">';
+        echo '<input type="hidden" name="save_free_trial_lessons" value="1" />';
+        echo '<input type="submit" class="button-primary" value="' . __('Save Starter Program Lessons', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        echo '</form>';
+        echo '</div>';
+        
+        // Enqueue the JavaScript for the lesson pickers
+        $this->enqueue_free_trial_scripts();
+    }
+    
+    /**
+     * Render Starter Popup Marketing Settings
+     */
+    private function render_starter_popup_settings() {
+        // Handle form submission
+        if (isset($_POST['save_starter_popup_settings']) && check_admin_referer('alm_save_starter_popup', 'alm_starter_popup_nonce')) {
+            $this->save_starter_popup_settings();
+        }
+        
+        // Get current settings
+        $popup_enabled = get_option('alm_starter_popup_enabled', '0');
+        $popup_style = get_option('alm_starter_popup_style', 'modal'); // modal, banner, both
+        $popup_audience = get_option('alm_starter_popup_audience', 'all'); // all, logged_in, logged_out
+        $popup_days_before_repeat = get_option('alm_starter_popup_days_before_repeat', 7); // days
+        $popup_test_mode = get_option('alm_starter_popup_test_mode', '0');
+        $popup_debug_mode = get_option('alm_starter_popup_debug_mode', '0');
+        
+        // New fields
+        $popup_modal_headline = get_option('alm_starter_popup_modal_headline', '');
+        $popup_modal_headline_align = get_option('alm_starter_popup_modal_headline_align', 'center');
+        $popup_modal_content = stripslashes(get_option('alm_starter_popup_modal_content', ''));
+        $popup_modal_delay = get_option('alm_starter_popup_modal_delay', 10); // seconds
+        $popup_banner_headline = get_option('alm_starter_popup_banner_headline', '');
+        $popup_banner_content = stripslashes(get_option('alm_starter_popup_banner_content', ''));
+        $popup_banner_delay = get_option('alm_starter_popup_banner_delay', 10); // seconds
+        $popup_cta_text = get_option('alm_starter_popup_cta_text', 'Get Started');
+        $popup_button_color = get_option('alm_starter_popup_button_color', '#239B90');
+        $popup_button_url = get_option('alm_starter_popup_button_url', '/starter');
+        $popup_modal_animation = get_option('alm_starter_popup_modal_animation', 'fade'); // fade, slide
+        $popup_banner_animation = get_option('alm_starter_popup_banner_animation', 'slide'); // fade, slide
+        $popup_page_target = get_option('alm_starter_popup_page_target', 'any'); // any, specific
+        $popup_target_page_ids = get_option('alm_starter_popup_target_page_ids', array()); // array of page IDs
+        $popup_exclude_page_ids = get_option('alm_starter_popup_exclude_page_ids', array()); // array of page IDs to exclude
+        
+        // Backward compatibility: if old single page ID exists, convert to array
+        $old_page_id = get_option('alm_starter_popup_target_page_id', '0');
+        if ($old_page_id > 0 && empty($popup_target_page_ids)) {
+            $popup_target_page_ids = array($old_page_id);
+            update_option('alm_starter_popup_target_page_ids', $popup_target_page_ids);
+        }
+        
+        // Ensure arrays
+        if (!is_array($popup_target_page_ids)) {
+            $popup_target_page_ids = array();
+        }
+        if (!is_array($popup_exclude_page_ids)) {
+            $popup_exclude_page_ids = array();
+        }
+        
+        echo '<div class="alm-settings-section">';
+        echo '<h2>' . __('Starter Plan Marketing Popup', 'academy-lesson-manager') . '</h2>';
+        echo '<p class="description">' . __('Configure the marketing popup that promotes the Academy Starter program. Use the shortcode <code>[academy_starter_popup]</code> on your homepage or any page.', 'academy-lesson-manager') . '</p>';
+        
+        echo '<form method="post" action="">';
+        wp_nonce_field('alm_save_starter_popup', 'alm_starter_popup_nonce');
+        echo '<table class="form-table">';
+        echo '<tbody>';
+        
+        // Enable/Disable
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_enabled">' . __('Enable Popup', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<label><input type="checkbox" name="popup_enabled" value="1" ' . checked($popup_enabled, '1', false) . ' /> ' . __('Show the popup on pages where the shortcode is placed', 'academy-lesson-manager') . '</label>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Test Mode
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_test_mode">' . __('Test Mode', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<label><input type="checkbox" name="popup_test_mode" value="1" ' . checked($popup_test_mode, '1', false) . ' /> ' . __('Enable test mode - popup will always show regardless of localStorage settings', 'academy-lesson-manager') . '</label>';
+        echo '<p class="description">' . __('Use this to test the popup without clearing browser storage. The popup will appear every time the page loads when test mode is enabled.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Debug Mode
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_debug_mode">' . __('Debug Mode', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<label><input type="checkbox" name="popup_debug_mode" value="1" ' . checked($popup_debug_mode, '1', false) . ' /> ' . __('Enable debug mode - show console logs even when test mode is off', 'academy-lesson-manager') . '</label>';
+        echo '<p class="description">' . __('When enabled, detailed console logs will be shown in the browser console. Useful for debugging popup behavior without enabling test mode.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Popup Style
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_style">' . __('Popup Style', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select name="popup_style" id="popup_style">';
+        echo '<option value="modal" ' . selected($popup_style, 'modal', false) . '>Modal Overlay</option>';
+        echo '<option value="banner" ' . selected($popup_style, 'banner', false) . '>Bottom Banner</option>';
+        echo '<option value="both" ' . selected($popup_style, 'both', false) . '>Both (Modal + Banner)</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Choose how the popup appears: Modal overlay (centered), bottom banner, or both.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Audience
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_audience">' . __('Show To', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select name="popup_audience" id="popup_audience">';
+        echo '<option value="all" ' . selected($popup_audience, 'all', false) . '>Everyone</option>';
+        echo '<option value="logged_in" ' . selected($popup_audience, 'logged_in', false) . '>Logged In Users Only</option>';
+        echo '<option value="logged_out" ' . selected($popup_audience, 'logged_out', false) . '>Logged Out Users Only</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Choose who should see the popup.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Modal Delay
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_modal_delay">' . __('Modal Show After (seconds)', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="number" name="popup_modal_delay" id="popup_modal_delay" value="' . esc_attr($popup_modal_delay) . '" min="0" step="1" class="small-text" />';
+        echo '<p class="description">' . __('How many seconds to wait before showing the modal popup. Default: 10 seconds.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Banner Delay
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_banner_delay">' . __('Banner Show After (seconds)', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="number" name="popup_banner_delay" id="popup_banner_delay" value="' . esc_attr($popup_banner_delay) . '" min="0" step="1" class="small-text" />';
+        echo '<p class="description">' . __('How many seconds to wait before showing the banner popup. Default: 10 seconds.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Days Before Repeat
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_days_before_repeat">' . __('Days Before Showing Again', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="number" name="popup_days_before_repeat" id="popup_days_before_repeat" value="' . esc_attr($popup_days_before_repeat) . '" min="0" step="1" class="small-text" />';
+        echo '<p class="description">' . __('After a user closes the popup, how many days before they see it again. Uses localStorage.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Page Targeting - Show On
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_page_target">' . __('Show On', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select name="popup_page_target" id="popup_page_target">';
+        echo '<option value="any" ' . selected($popup_page_target, 'any', false) . '>Any Page</option>';
+        echo '<option value="specific" ' . selected($popup_page_target, 'specific', false) . '>Specific Pages</option>';
+        echo '</select>';
+        echo '<div id="popup_target_page_wrapper" style="margin-top: 10px; ' . ($popup_page_target === 'specific' ? '' : 'display: none;') . '">';
+        
+        // Get front page ID
+        $front_page_id = get_option('page_on_front', 0);
+        
+        // Build checkbox list for multiple page selection
+        $pages = get_pages(array('sort_column' => 'post_title'));
+        echo '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fff;">';
+        foreach ($pages as $page) {
+            $checked = in_array($page->ID, $popup_target_page_ids) ? 'checked="checked"' : '';
+            $front_page_indicator = ($page->ID == $front_page_id) ? ' <strong>(Front Page)</strong>' : '';
+            echo '<label style="display: block; margin-bottom: 5px;">';
+            echo '<input type="checkbox" name="popup_target_page_ids[]" value="' . esc_attr($page->ID) . '" ' . $checked . ' /> ';
+            echo esc_html($page->post_title) . $front_page_indicator;
+            echo '</label>';
+        }
+        echo '</div>';
+        echo '</div>';
+        echo '<p class="description">' . __('Choose whether to show the popup on any page or only on specific pages. Select multiple pages by checking the boxes.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Page Targeting - Hide On
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_exclude_pages">' . __('Hide On', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fff;">';
+        if (empty($pages)) {
+            echo '<p>' . __('No pages found.', 'academy-lesson-manager') . '</p>';
+        } else {
+            foreach ($pages as $page) {
+                $checked = in_array($page->ID, $popup_exclude_page_ids) ? 'checked="checked"' : '';
+                $front_page_indicator = ($page->ID == $front_page_id) ? ' <strong>(Front Page)</strong>' : '';
+                echo '<label style="display: block; margin-bottom: 5px;">';
+                echo '<input type="checkbox" name="popup_exclude_page_ids[]" value="' . esc_attr($page->ID) . '" ' . $checked . ' /> ';
+                echo esc_html($page->post_title) . $front_page_indicator;
+                echo '</label>';
+            }
+        }
+        echo '</div>';
+        echo '<p class="description">' . __('Select pages where the popup should NOT appear. This overrides the "Show On" setting.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Modal Headline
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_modal_headline">' . __('Modal Headline', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" name="popup_modal_headline" id="popup_modal_headline" value="' . esc_attr($popup_modal_headline) . '" class="regular-text" placeholder="Choose Your Academy Starter Program" />';
+        echo '<p class="description">' . __('Headline for the modal popup.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Modal Headline Alignment
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_modal_headline_align">' . __('Modal Headline Alignment', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select name="popup_modal_headline_align" id="popup_modal_headline_align">';
+        echo '<option value="left" ' . selected($popup_modal_headline_align, 'left', false) . '>Left</option>';
+        echo '<option value="center" ' . selected($popup_modal_headline_align, 'center', false) . '>Center</option>';
+        echo '<option value="right" ' . selected($popup_modal_headline_align, 'right', false) . '>Right</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Text alignment for the modal headline.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Modal Content
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_modal_content">' . __('Modal Content', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        wp_editor($popup_modal_content, 'popup_modal_content', array(
+            'textarea_name' => 'popup_modal_content',
+            'textarea_rows' => 10,
+            'media_buttons' => true,
+            'teeny' => false
+        ));
+        echo '<p class="description">' . __('Content for the modal popup. You can use HTML formatting.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Banner Headline
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_banner_headline">' . __('Banner Headline', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" name="popup_banner_headline" id="popup_banner_headline" value="' . esc_attr($popup_banner_headline) . '" class="regular-text" placeholder="Choose Your Academy Starter Program" />';
+        echo '<p class="description">' . __('Headline for the banner popup.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Banner Content
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_banner_content">' . __('Banner Content', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        wp_editor($popup_banner_content, 'popup_banner_content', array(
+            'textarea_name' => 'popup_banner_content',
+            'textarea_rows' => 10,
+            'media_buttons' => true,
+            'teeny' => false
+        ));
+        echo '<p class="description">' . __('Content for the banner popup. You can use HTML formatting.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // CTA Button Text
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_cta_text">' . __('Call to Action (Button Text)', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" name="popup_cta_text" id="popup_cta_text" value="' . esc_attr($popup_cta_text) . '" class="regular-text" placeholder="Get Started" />';
+        echo '<p class="description">' . __('Text displayed on the call-to-action button.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Button Color
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_button_color">' . __('Button Color', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" name="popup_button_color" id="popup_button_color" value="' . esc_attr($popup_button_color) . '" class="regular-text" style="width: 100px;" />';
+        echo '<input type="color" id="popup_button_color_picker" value="' . esc_attr($popup_button_color) . '" style="margin-left: 10px; vertical-align: middle; height: 35px; width: 50px;" />';
+        echo '<p class="description">' . __('Color for the call-to-action button. Click the color picker or enter a hex code.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Button URL
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_button_url">' . __('Button URL', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="text" name="popup_button_url" id="popup_button_url" value="' . esc_attr($popup_button_url) . '" class="regular-text" placeholder="/starter" />';
+        echo '<p class="description">' . __('URL where the button links to.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Modal Animation
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_modal_animation">' . __('Modal Animation', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select name="popup_modal_animation" id="popup_modal_animation">';
+        echo '<option value="fade" ' . selected($popup_modal_animation, 'fade', false) . '>Fade In</option>';
+        echo '<option value="slide" ' . selected($popup_modal_animation, 'slide', false) . '>Slide In</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Animation style for the modal popup.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Banner Animation
+        echo '<tr>';
+        echo '<th scope="row"><label for="popup_banner_animation">' . __('Banner Animation', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select name="popup_banner_animation" id="popup_banner_animation">';
+        echo '<option value="fade" ' . selected($popup_banner_animation, 'fade', false) . '>Fade In</option>';
+        echo '<option value="slide" ' . selected($popup_banner_animation, 'slide', false) . '>Slide In</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Animation style for the banner popup.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '</tbody>';
+        echo '</table>';
+        
+        echo '<p class="submit">';
+        echo '<input type="hidden" name="save_starter_popup_settings" value="1" />';
+        echo '<input type="submit" class="button-primary" value="' . __('Save Popup Settings', 'academy-lesson-manager') . '" />';
+        echo '</p>';
+        echo '</form>';
+        echo '</div>';
+        
+        // Add JavaScript for color picker and page targeting
+        ?>
+        <script>
+        jQuery(document).ready(function($) {
+            // Color picker sync
+            $('#popup_button_color_picker').on('change', function() {
+                $('#popup_button_color').val($(this).val());
+            });
+            $('#popup_button_color').on('input', function() {
+                $('#popup_button_color_picker').val($(this).val());
+            });
+            
+            // Page targeting toggle
+            $('#popup_page_target').on('change', function() {
+                if ($(this).val() === 'specific') {
+                    $('#popup_target_page_wrapper').show();
+                } else {
+                    $('#popup_target_page_wrapper').hide();
+                }
+            });
+        });
+        </script>
+        <?php
+    }
+    
+    /**
+     * Save Starter Popup Settings
+     */
+    private function save_starter_popup_settings() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        update_option('alm_starter_popup_enabled', isset($_POST['popup_enabled']) ? '1' : '0');
+        update_option('alm_starter_popup_style', sanitize_text_field($_POST['popup_style'] ?? 'modal'));
+        update_option('alm_starter_popup_audience', sanitize_text_field($_POST['popup_audience'] ?? 'all'));
+        // Handle days before repeat - allow 0 (show immediately) or any positive number
+        // Check if the value is explicitly set (even if 0) vs not set at all
+        if (isset($_POST['popup_days_before_repeat']) && $_POST['popup_days_before_repeat'] !== '') {
+            $days_repeat = absint($_POST['popup_days_before_repeat']);
+        } else {
+            $days_repeat = 7; // Default if not set
+        }
+        update_option('alm_starter_popup_days_before_repeat', $days_repeat);
+        
+        // Debug logging
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[Starter Popup] Saving days_before_repeat: ' . $days_repeat . ' (POST value: ' . ($_POST['popup_days_before_repeat'] ?? 'not set') . ')');
+        }
+        update_option('alm_starter_popup_test_mode', isset($_POST['popup_test_mode']) ? '1' : '0');
+        update_option('alm_starter_popup_debug_mode', isset($_POST['popup_debug_mode']) ? '1' : '0');
+        
+        // New fields
+        update_option('alm_starter_popup_modal_headline', sanitize_text_field($_POST['popup_modal_headline'] ?? ''));
+        update_option('alm_starter_popup_modal_headline_align', sanitize_text_field($_POST['popup_modal_headline_align'] ?? 'center'));
+        update_option('alm_starter_popup_modal_content', wp_kses_post($_POST['popup_modal_content'] ?? ''));
+        update_option('alm_starter_popup_modal_delay', absint($_POST['popup_modal_delay'] ?? 10));
+        update_option('alm_starter_popup_banner_headline', sanitize_text_field($_POST['popup_banner_headline'] ?? ''));
+        update_option('alm_starter_popup_banner_content', wp_kses_post($_POST['popup_banner_content'] ?? ''));
+        update_option('alm_starter_popup_banner_delay', absint($_POST['popup_banner_delay'] ?? 10));
+        update_option('alm_starter_popup_cta_text', sanitize_text_field($_POST['popup_cta_text'] ?? 'Get Started'));
+        update_option('alm_starter_popup_button_color', sanitize_hex_color($_POST['popup_button_color'] ?? '#239B90'));
+        update_option('alm_starter_popup_button_url', esc_url_raw($_POST['popup_button_url'] ?? '/starter'));
+        update_option('alm_starter_popup_modal_animation', sanitize_text_field($_POST['popup_modal_animation'] ?? 'fade'));
+        update_option('alm_starter_popup_banner_animation', sanitize_text_field($_POST['popup_banner_animation'] ?? 'slide'));
+        update_option('alm_starter_popup_page_target', sanitize_text_field($_POST['popup_page_target'] ?? 'any'));
+        
+        // Handle multiple target page IDs
+        $target_page_ids = array();
+        if (isset($_POST['popup_target_page_ids']) && is_array($_POST['popup_target_page_ids'])) {
+            $target_page_ids = array_map('absint', $_POST['popup_target_page_ids']);
+            $target_page_ids = array_filter($target_page_ids); // Remove zeros
+        }
+        update_option('alm_starter_popup_target_page_ids', $target_page_ids);
+        
+        // Handle exclude page IDs
+        $exclude_page_ids = array();
+        if (isset($_POST['popup_exclude_page_ids']) && is_array($_POST['popup_exclude_page_ids'])) {
+            $exclude_page_ids = array_map('absint', $_POST['popup_exclude_page_ids']);
+            $exclude_page_ids = array_filter($exclude_page_ids); // Remove zeros
+        }
+        update_option('alm_starter_popup_exclude_page_ids', $exclude_page_ids);
+        
+        // Increment cache version to bust WP Engine cache
+        $current_cache_version = get_option('alm_starter_popup_cache_version', '1');
+        update_option('alm_starter_popup_cache_version', (int)$current_cache_version + 1);
+        
+        wp_redirect(admin_url('admin.php?page=academy-manager-settings&tab=popup&message=popup_settings_saved'));
+        exit;
+    }
+    
+    /**
+     * Save free trial lesson IDs
+     */
+    private function save_free_trial_lessons() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        // Save free starter lessons
+        $free_lesson_ids = isset($_POST['free_trial_lesson_ids']) ? array_map('intval', $_POST['free_trial_lesson_ids']) : array();
+        $free_lesson_ids = array_filter($free_lesson_ids); // Remove empty values
+        $free_lesson_ids = array_unique($free_lesson_ids); // Remove duplicates
+        update_option('alm_free_trial_lesson_ids', $free_lesson_ids);
+        
+        // Save paid starter lessons
+        $paid_lesson_ids = isset($_POST['starter_paid_lesson_ids']) ? array_map('intval', $_POST['starter_paid_lesson_ids']) : array();
+        $paid_lesson_ids = array_filter($paid_lesson_ids); // Remove empty values
+        $paid_lesson_ids = array_unique($paid_lesson_ids); // Remove duplicates
+        update_option('alm_starter_paid_lesson_ids', $paid_lesson_ids);
+        
+        wp_redirect(admin_url('admin.php?page=academy-manager-settings&tab=free-trial&message=free_trial_saved'));
+        exit;
+    }
+    
+    /**
+     * Enqueue scripts for free trial lesson picker
+     */
+    private function enqueue_free_trial_scripts() {
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Helper function
+            function escapeHtml(text) {
+                var map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+            }
+            
+            // FREE STARTER LESSON PICKER
+            var freeSearchTimeout;
+            var $freeSearchInput = $('#free_trial_lesson_search');
+            var $freeResultsDiv = $('#free-trial-lesson-results');
+            var $freeLessonsList = $('#free-trial-lessons-ul');
+            
+            // Show/hide results dropdown
+            $freeSearchInput.on('focus', function() {
+                if ($(this).val().length >= 2) {
+                    $freeResultsDiv.show();
+                }
+            });
+            
+            $(document).on('click', function(e) {
+                if (!$(e.target).closest('#free-trial-lesson-picker').length) {
+                    $freeResultsDiv.hide();
+                }
+                if (!$(e.target).closest('#starter-paid-lesson-picker').length) {
+                    $('#starter-paid-lesson-results').hide();
+                }
+            });
+            
+            // Search for lessons (FREE)
+            $freeSearchInput.on('input', function() {
+                var query = $(this).val().trim();
+                
+                clearTimeout(freeSearchTimeout);
+                
+                if (query.length < 2) {
+                    $freeResultsDiv.hide().empty();
+                    return;
+                }
+                
+                freeSearchTimeout = setTimeout(function() {
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'alm_search_posts',
+                            nonce: '<?php echo wp_create_nonce('alm_search_posts'); ?>',
+                            query: query,
+                            search_type: 'lesson'
+                        },
+                        success: function(response) {
+                            if (response.success && response.data.length > 0) {
+                                var html = '<ul style="list-style:none; padding:0; margin:0;">';
+                                $.each(response.data, function(i, lesson) {
+                                    if (!lesson.is_collection && lesson.ID > 0) {
+                                        // Check if already added to free or paid
+                                        var alreadyAddedFree = $('input[name="free_trial_lesson_ids[]"][value="' + lesson.ID + '"]').length > 0;
+                                        var alreadyAddedPaid = $('input[name="starter_paid_lesson_ids[]"][value="' + lesson.ID + '"]').length > 0;
+                                        var alreadyAdded = alreadyAddedFree || alreadyAddedPaid;
+                                        var disabledClass = alreadyAdded ? ' style="opacity:0.5; cursor:not-allowed;"' : '';
+                                        var disabledText = alreadyAdded ? ' (Already added)' : '';
+                                        
+                                        html += '<li style="padding:8px; border-bottom:1px solid #eee; cursor:pointer;"' + 
+                                                (alreadyAdded ? '' : ' class="add-free-trial-lesson"') + 
+                                                ' data-post-id="' + lesson.ID + '"' +
+                                                ' data-title="' + escapeHtml(lesson.post_title) + '"' +
+                                                ' data-collection="' + escapeHtml(lesson.collection_title || 'No Collection') + '"' +
+                                                disabledClass + '>';
+                                        html += '<strong>' + escapeHtml(lesson.post_title) + '</strong>';
+                                        html += ' <span style="color:#666; font-size:11px;">(' + escapeHtml(lesson.collection_title || 'No Collection') + ')</span>';
+                                        html += disabledText;
+                                        html += '</li>';
+                                    }
+                                });
+                                html += '</ul>';
+                                $freeResultsDiv.html(html).show();
+                            } else {
+                                $freeResultsDiv.html('<ul style="list-style:none; padding:8px; margin:0;"><li style="color:#666;">No lessons found</li></ul>').show();
+                            }
+                        },
+                        error: function() {
+                            $freeResultsDiv.html('<ul style="list-style:none; padding:8px; margin:0;"><li style="color:#a00;">Error searching lessons</li></ul>').show();
+                        }
+                    });
+                }, 300);
+            });
+            
+            // Add lesson to FREE list
+            $(document).on('click', '.add-free-trial-lesson', function() {
+                var $item = $(this);
+                var postId = $item.data('post-id');
+                var title = $item.data('title');
+                var collection = $item.data('collection');
+                
+                // Check if already exists
+                if ($('input[name="free_trial_lesson_ids[]"][value="' + postId + '"]').length > 0) {
+                    return;
+                }
+                
+                // Show the list if hidden
+                $freeLessonsList.show().parent().find('p').hide();
+                
+                // Add to list
+                var $li = $('<li style="padding:8px; margin:5px 0; background:#f5f5f5; border-left:3px solid #0073aa;">' +
+                    '<span style="font-weight:600;">' + escapeHtml(title) + '</span> ' +
+                    '<span style="color:#666; font-size:12px;">(' + escapeHtml(collection) + ')</span> ' +
+                    '<input type="hidden" name="free_trial_lesson_ids[]" value="' + postId + '" /> ' +
+                    '<button type="button" class="button-link remove-free-trial-lesson" data-post-id="' + postId + '" style="color:#a00; margin-left:10px;">Remove</button>' +
+                    '</li>');
+                
+                $freeLessonsList.append($li);
+                
+                // Clear search
+                $freeSearchInput.val('').focus();
+                $freeResultsDiv.hide().empty();
+            });
+            
+            // Remove lesson from FREE list
+            $(document).on('click', '.remove-free-trial-lesson', function() {
+                $(this).closest('li').remove();
+                
+                // Hide list if empty
+                if ($freeLessonsList.find('li').length === 0) {
+                    $freeLessonsList.hide();
+                    $freeLessonsList.parent().find('p').show();
+                }
+            });
+            
+            // PAID STARTER LESSON PICKER
+            var paidSearchTimeout;
+            var $paidSearchInput = $('#starter_paid_lesson_search');
+            var $paidResultsDiv = $('#starter-paid-lesson-results');
+            var $paidLessonsList = $('#starter-paid-lessons-ul');
+            
+            // Show/hide results dropdown
+            $paidSearchInput.on('focus', function() {
+                if ($(this).val().length >= 2) {
+                    $paidResultsDiv.show();
+                }
+            });
+            
+            // Search for lessons (PAID)
+            $paidSearchInput.on('input', function() {
+                var query = $(this).val().trim();
+                
+                clearTimeout(paidSearchTimeout);
+                
+                if (query.length < 2) {
+                    $paidResultsDiv.hide().empty();
+                    return;
+                }
+                
+                paidSearchTimeout = setTimeout(function() {
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'alm_search_posts',
+                            nonce: '<?php echo wp_create_nonce('alm_search_posts'); ?>',
+                            query: query,
+                            search_type: 'lesson'
+                        },
+                        success: function(response) {
+                            if (response.success && response.data.length > 0) {
+                                var html = '<ul style="list-style:none; padding:0; margin:0;">';
+                                $.each(response.data, function(i, lesson) {
+                                    if (!lesson.is_collection && lesson.ID > 0) {
+                                        // Check if already added to free or paid
+                                        var alreadyAddedFree = $('input[name="free_trial_lesson_ids[]"][value="' + lesson.ID + '"]').length > 0;
+                                        var alreadyAddedPaid = $('input[name="starter_paid_lesson_ids[]"][value="' + lesson.ID + '"]').length > 0;
+                                        var alreadyAdded = alreadyAddedFree || alreadyAddedPaid;
+                                        var disabledClass = alreadyAdded ? ' style="opacity:0.5; cursor:not-allowed;"' : '';
+                                        var disabledText = alreadyAdded ? ' (Already added)' : '';
+                                        
+                                        html += '<li style="padding:8px; border-bottom:1px solid #eee; cursor:pointer;"' + 
+                                                (alreadyAdded ? '' : ' class="add-starter-paid-lesson"') + 
+                                                ' data-post-id="' + lesson.ID + '"' +
+                                                ' data-title="' + escapeHtml(lesson.post_title) + '"' +
+                                                ' data-collection="' + escapeHtml(lesson.collection_title || 'No Collection') + '"' +
+                                                disabledClass + '>';
+                                        html += '<strong>' + escapeHtml(lesson.post_title) + '</strong>';
+                                        html += ' <span style="color:#666; font-size:11px;">(' + escapeHtml(lesson.collection_title || 'No Collection') + ')</span>';
+                                        html += disabledText;
+                                        html += '</li>';
+                                    }
+                                });
+                                html += '</ul>';
+                                $paidResultsDiv.html(html).show();
+                            } else {
+                                $paidResultsDiv.html('<ul style="list-style:none; padding:8px; margin:0;"><li style="color:#666;">No lessons found</li></ul>').show();
+                            }
+                        },
+                        error: function() {
+                            $paidResultsDiv.html('<ul style="list-style:none; padding:8px; margin:0;"><li style="color:#a00;">Error searching lessons</li></ul>').show();
+                        }
+                    });
+                }, 300);
+            });
+            
+            // Add lesson to PAID list
+            $(document).on('click', '.add-starter-paid-lesson', function() {
+                var $item = $(this);
+                var postId = $item.data('post-id');
+                var title = $item.data('title');
+                var collection = $item.data('collection');
+                
+                // Check if already exists
+                if ($('input[name="starter_paid_lesson_ids[]"][value="' + postId + '"]').length > 0) {
+                    return;
+                }
+                
+                // Show the list if hidden
+                $paidLessonsList.show().parent().find('p').hide();
+                
+                // Add to list
+                var $li = $('<li style="padding:8px; margin:5px 0; background:#f5f5f5; border-left:3px solid #28a745;">' +
+                    '<span style="font-weight:600;">' + escapeHtml(title) + '</span> ' +
+                    '<span style="color:#666; font-size:12px;">(' + escapeHtml(collection) + ')</span> ' +
+                    '<input type="hidden" name="starter_paid_lesson_ids[]" value="' + postId + '" /> ' +
+                    '<button type="button" class="button-link remove-starter-paid-lesson" data-post-id="' + postId + '" style="color:#a00; margin-left:10px;">Remove</button>' +
+                    '</li>');
+                
+                $paidLessonsList.append($li);
+                
+                // Clear search
+                $paidSearchInput.val('').focus();
+                $paidResultsDiv.hide().empty();
+            });
+            
+            // Remove lesson from PAID list
+            $(document).on('click', '.remove-starter-paid-lesson', function() {
+                $(this).closest('li').remove();
+                
+                // Hide list if empty
+                if ($paidLessonsList.find('li').length === 0) {
+                    $paidLessonsList.hide();
+                    $paidLessonsList.parent().find('p').show();
+                }
+            });
+        });
+        </script>
+        <style>
+        #free-trial-lesson-picker, #starter-paid-lesson-picker {
+            position: relative;
+        }
+        #free-trial-lesson-results ul li:hover, #starter-paid-lesson-results ul li:hover {
+            background: #f0f0f0;
+        }
+        #free-trial-lessons-ul li:hover, #starter-paid-lessons-ul li:hover {
+            background: #e8e8e8 !important;
+        }
+        </style>
+        <?php
+    }
 }

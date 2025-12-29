@@ -81,6 +81,7 @@ class ALM_Admin_Notifications {
                     'publish_at' => sanitize_text_field(wp_unslash($_POST['notification_publish_at'] ?? current_time('mysql'))),
                     'is_active' => isset($_POST['notification_is_active']) ? 1 : 0,
                     'show_popup' => isset($_POST['notification_show_popup']) ? 1 : 0,
+                    'popup_stop_date' => !empty($_POST['notification_popup_stop_date']) ? sanitize_text_field(wp_unslash($_POST['notification_popup_stop_date'])) : null,
                     'category' => sanitize_key($_POST['notification_category'] ?? ALM_Notifications_Manager::DEFAULT_CATEGORY),
                 );
                 if (empty($data['category']) || !isset($category_palette[$data['category']])) {
@@ -279,8 +280,24 @@ class ALM_Admin_Notifications {
         $show_popup = isset($editing_notification['show_popup']) ? intval($editing_notification['show_popup']) : 0;
         echo '<tr>';
         echo '<th scope="row">' . esc_html__('Show Popup on Dashboard', 'academy-lesson-manager') . '</th>';
-        echo '<td><label><input type="checkbox" name="notification_show_popup" value="1" ' . checked(1, $show_popup, false) . ' /> ' . esc_html__('Show as popup on dashboard (once per user)', 'academy-lesson-manager') . '</label>';
+        echo '<td><label><input type="checkbox" name="notification_show_popup" value="1" id="notification_show_popup" ' . checked(1, $show_popup, false) . ' /> ' . esc_html__('Show as popup on dashboard (once per user)', 'academy-lesson-manager') . '</label>';
         echo '<p class="description">' . esc_html__('When enabled, this notification will appear as a popup on the dashboard for users who haven\'t seen it yet. Users can click the Notifications button to see all notifications.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Popup Stop Date field
+        $popup_stop_date = isset($editing_notification['popup_stop_date']) && !empty($editing_notification['popup_stop_date']) ? $editing_notification['popup_stop_date'] : '';
+        if (!empty($popup_stop_date)) {
+            $popup_stop_timestamp = strtotime($popup_stop_date);
+            $popup_stop_value = date('Y-m-d\TH:i', $popup_stop_timestamp);
+        } else {
+            $popup_stop_value = '';
+        }
+        echo '<tr id="popup_stop_date_row" style="' . ($show_popup ? '' : 'display: none;') . '">';
+        echo '<th scope="row"><label for="notification_popup_stop_date">' . esc_html__('Stop Showing Popup After', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="datetime-local" id="notification_popup_stop_date" name="notification_popup_stop_date" value="' . esc_attr($popup_stop_value) . '" />';
+        echo '<p class="description">' . esc_html__('Optional: Set a date after which this notification will no longer appear as a popup. It will still be visible in the notifications list.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
 
@@ -422,11 +439,20 @@ Return only the expanded text, no explanations or additional commentary.";
 
         echo '</div>';
         
-        // Add JavaScript for AI expansion
+        // Add JavaScript for AI expansion and popup stop date toggle
         ?>
         <script type="text/javascript">
         (function($) {
             $(document).ready(function() {
+                // Toggle popup stop date field visibility
+                $('#notification_show_popup').on('change', function() {
+                    if ($(this).is(':checked')) {
+                        $('#popup_stop_date_row').show();
+                    } else {
+                        $('#popup_stop_date_row').hide();
+                    }
+                });
+                
                 var $expandBtn = $('#alm-expand-notification-btn');
                 var $spinner = $('#alm-expand-notification-spinner');
                 
@@ -469,17 +495,35 @@ Return only the expanded text, no explanations or additional commentary.";
                         dataType: 'json',
                         success: function(response) {
                             if (response.expanded_text) {
-                                // Update the editor with expanded text
+                                var expandedText = response.expanded_text;
+                                var title = '';
+                                
+                                // Extract title from brackets at the start: [Title Here] description...
+                                var bracketMatch = expandedText.match(/^\[([^\]]+)\]\s*(.+)$/s);
+                                if (bracketMatch) {
+                                    title = bracketMatch[1].trim();
+                                    expandedText = bracketMatch[2].trim();
+                                } else if (response.expanded_title && response.expanded_title.trim() !== '') {
+                                    // Use title from response if provided
+                                    title = response.expanded_title.trim();
+                                }
+                                
+                                // Update the editor with expanded text (without brackets)
                                 if (editor && !editor.isHidden()) {
                                     // Visual editor is active
-                                    editor.setContent(response.expanded_text);
+                                    editor.setContent(expandedText);
                                 } else {
                                     // Text editor is active
-                                    $('#alm_notification_content').val(response.expanded_text);
+                                    $('#alm_notification_content').val(expandedText);
+                                }
+                                
+                                // Update title field if we found one
+                                if (title) {
+                                    $('#notification_title').val(title);
                                 }
                                 
                                 // Show success message
-                                alert('<?php echo esc_js(__('Notification text expanded successfully!', 'academy-lesson-manager')); ?>');
+                                alert('<?php echo esc_js(__('Notification expanded successfully!', 'academy-lesson-manager')); ?>');
                             } else {
                                 alert('<?php echo esc_js(__('No expanded text received from AI.', 'academy-lesson-manager')); ?>');
                             }

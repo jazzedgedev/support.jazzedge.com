@@ -66,6 +66,9 @@ class Chapter_Transcription {
         add_action('ct_process_transcription_queue', array($this, 'process_transcription_queue'));
         $this->ensure_queue_schedule();
         
+        // Initialize REST API
+        new CT_REST_API();
+        
         // Initialize admin
         if (is_admin()) {
             $this->init_admin();
@@ -80,6 +83,9 @@ class Chapter_Transcription {
         require_once CT_PLUGIN_DIR . 'includes/class-whisper-client.php';
         require_once CT_PLUGIN_DIR . 'includes/class-cost-logger.php';
         require_once CT_PLUGIN_DIR . 'includes/class-vtt-generator.php';
+        require_once CT_PLUGIN_DIR . 'includes/class-vtt-parser.php';
+        require_once CT_PLUGIN_DIR . 'includes/class-embeddings-generator.php';
+        require_once CT_PLUGIN_DIR . 'includes/class-rest-api.php';
     }
     
     /**
@@ -103,6 +109,19 @@ class Chapter_Transcription {
         add_action('wp_ajax_ct_download_and_transcribe', array($this, 'ajax_download_and_transcribe'));
         add_action('wp_ajax_ct_export_debug_log', array($this, 'ajax_export_debug_log'));
         add_action('wp_ajax_ct_bulk_download_and_transcribe', array($this, 'ajax_bulk_download_and_transcribe'));
+        add_action('wp_ajax_ct_clear_queue', array($this, 'ajax_clear_queue'));
+        add_action('wp_ajax_ct_process_queue', array($this, 'ajax_process_queue'));
+        add_action('wp_ajax_ct_oneoff_transcribe', array($this, 'ajax_oneoff_transcribe'));
+        add_action('wp_ajax_ct_import_vtt_segments', array($this, 'ajax_import_vtt_segments'));
+        add_action('wp_ajax_ct_get_vtt_import_status', array($this, 'ajax_get_vtt_import_status'));
+        add_action('wp_ajax_ct_stop_vtt_import', array($this, 'ajax_stop_vtt_import'));
+        add_action('wp_ajax_ct_generate_embeddings', array($this, 'ajax_generate_embeddings'));
+        add_action('wp_ajax_ct_get_embeddings_status', array($this, 'ajax_get_embeddings_status'));
+        add_action('wp_ajax_ct_stop_embeddings', array($this, 'ajax_stop_embeddings'));
+        add_action('wp_ajax_ct_retry_failed_embeddings', array($this, 'ajax_retry_failed_embeddings'));
+        add_action('wp_ajax_ct_migrate_embeddings', array($this, 'ajax_migrate_embeddings'));
+        add_action('wp_ajax_ct_get_migration_status', array($this, 'ajax_get_migration_status'));
+        add_action('wp_ajax_ct_stop_migration', array($this, 'ajax_stop_migration'));
         
         add_action('ct_process_bulk_download', array($this, 'process_bulk_download_cron'), 10, 3);
         add_action('ct_process_bulk_transcribe', array($this, 'process_bulk_transcribe_cron'), 10, 3);
@@ -112,7 +131,12 @@ class Chapter_Transcription {
      * Enqueue admin scripts
      */
     public function enqueue_admin_scripts($hook) {
-        if ($hook !== 'toplevel_page_chapter-transcription' && $hook !== 'transcription_page_chapter-transcription-chapters') {
+        if ($hook !== 'toplevel_page_chapter-transcription' 
+            && $hook !== 'transcription_page_chapter-transcription-chapters' 
+            && $hook !== 'transcription_page_chapter-transcription-oneoff' 
+            && $hook !== 'transcription_page_chapter-transcription-vtt-import'
+            && $hook !== 'transcription_page_chapter-transcription-embeddings'
+            && $hook !== 'transcription_page_chapter-transcription-migrate') {
             return;
         }
         
@@ -144,6 +168,170 @@ class Chapter_Transcription {
         // Only handle on our admin page
         if (!isset($_GET['page']) || $_GET['page'] !== 'chapter-transcription') {
             return;
+        }
+        
+        // Handle clear queue lock action
+        if (isset($_GET['action']) && $_GET['action'] === 'clear_queue_lock') {
+            if (!wp_verify_nonce($_GET['_wpnonce'], 'clear_queue_lock')) {
+                wp_die('Security check failed');
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            delete_transient('ct_queue_lock');
+            
+            $redirect_params = array(
+                'page' => 'chapter-transcription',
+                'lock_cleared' => '1',
+                'message' => urlencode('Queue lock cleared successfully.')
+            );
+            
+            if (isset($_GET['paged'])) {
+                $redirect_params['paged'] = intval($_GET['paged']);
+            }
+            
+            if (isset($_GET['filter_lesson']) && intval($_GET['filter_lesson']) > 0) {
+                $redirect_params['filter_lesson'] = intval($_GET['filter_lesson']);
+            }
+            
+            $redirect_url = add_query_arg($redirect_params, admin_url('admin.php'));
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        // Handle clear stuck jobs action
+        if (isset($_GET['action']) && $_GET['action'] === 'clear_stuck_jobs') {
+            if (!wp_verify_nonce($_GET['_wpnonce'], 'clear_stuck_jobs')) {
+                wp_die('Security check failed');
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            // Clear stuck jobs (15 minutes timeout)
+            $result = $this->clear_stuck_jobs(15 * MINUTE_IN_SECONDS);
+            
+            $redirect_params = array(
+                'page' => 'chapter-transcription',
+                'stuck_cleared' => '1',
+                'message' => urlencode(sprintf('Cleared %d stuck job(s).', $result['cleared']))
+            );
+            
+            if (isset($_GET['paged'])) {
+                $redirect_params['paged'] = intval($_GET['paged']);
+            }
+            
+            if (isset($_GET['filter_lesson']) && intval($_GET['filter_lesson']) > 0) {
+                $redirect_params['filter_lesson'] = intval($_GET['filter_lesson']);
+            }
+            
+            $redirect_url = add_query_arg($redirect_params, admin_url('admin.php'));
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        // Handle reschedule cron action
+        if (isset($_GET['action']) && $_GET['action'] === 'reschedule_cron') {
+            if (!wp_verify_nonce($_GET['_wpnonce'], 'reschedule_cron')) {
+                wp_die('Security check failed');
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            // Clear existing and reschedule
+            wp_clear_scheduled_hook('ct_process_transcription_queue');
+            wp_schedule_event(time() + 60, 'ct_queue_minute', 'ct_process_transcription_queue');
+            
+            $redirect_params = array(
+                'page' => 'chapter-transcription',
+                'cron_rescheduled' => '1',
+                'message' => urlencode('Cron job rescheduled successfully.')
+            );
+            
+            if (isset($_GET['paged'])) {
+                $redirect_params['paged'] = intval($_GET['paged']);
+            }
+            
+            if (isset($_GET['filter_lesson']) && intval($_GET['filter_lesson']) > 0) {
+                $redirect_params['filter_lesson'] = intval($_GET['filter_lesson']);
+            }
+            
+            $redirect_url = add_query_arg($redirect_params, admin_url('admin.php'));
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        // Handle process queue action (no chapter_id needed)
+        if (isset($_GET['action']) && $_GET['action'] === 'process_queue') {
+            if (!wp_verify_nonce($_GET['_wpnonce'], 'process_transcription_queue')) {
+                wp_die('Security check failed');
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            // Clear lock first in case it's stuck
+            delete_transient('ct_queue_lock');
+            
+            // Manually trigger queue processing
+            $this->process_transcription_queue();
+            
+            // Redirect back with message
+            $redirect_params = array(
+                'page' => 'chapter-transcription',
+                'queue_processed' => '1',
+                'message' => urlencode('Queue processed. Check Recent Queue Activity for results.')
+            );
+            
+            if (isset($_GET['paged'])) {
+                $redirect_params['paged'] = intval($_GET['paged']);
+            }
+            
+            if (isset($_GET['filter_lesson']) && intval($_GET['filter_lesson']) > 0) {
+                $redirect_params['filter_lesson'] = intval($_GET['filter_lesson']);
+            }
+            
+            $redirect_url = add_query_arg($redirect_params, admin_url('admin.php'));
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        // Handle clear queue action (no chapter_id needed)
+        if (isset($_GET['action']) && $_GET['action'] === 'clear_queue') {
+            if (!wp_verify_nonce($_GET['_wpnonce'], 'clear_transcription_queue')) {
+                wp_die('Security check failed');
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Insufficient permissions');
+            }
+            
+            $result = $this->clear_transcription_queue();
+            
+            // Redirect back with message
+            $redirect_params = array(
+                'page' => 'chapter-transcription',
+                'queue_cleared' => $result['success'] ? '1' : '0',
+                'message' => urlencode($result['message'])
+            );
+            
+            if (isset($_GET['paged'])) {
+                $redirect_params['paged'] = intval($_GET['paged']);
+            }
+            
+            if (isset($_GET['filter_lesson']) && intval($_GET['filter_lesson']) > 0) {
+                $redirect_params['filter_lesson'] = intval($_GET['filter_lesson']);
+            }
+            
+            $redirect_url = add_query_arg($redirect_params, admin_url('admin.php'));
+            wp_safe_redirect($redirect_url);
+            exit;
         }
         
         // Handle actions
@@ -237,6 +425,46 @@ class Chapter_Transcription {
             'chapter-transcription-chapters',
             array($this, 'admin_page_chapters')
         );
+        
+        // Add One-Off Transcription submenu
+        add_submenu_page(
+            'chapter-transcription',
+            'One-Off Transcription',
+            'One-Off Transcription',
+            'manage_options',
+            'chapter-transcription-oneoff',
+            array($this, 'admin_page_oneoff')
+        );
+        
+        // Add VTT Segments Import submenu
+        add_submenu_page(
+            'chapter-transcription',
+            'Import VTT Segments',
+            'Import VTT Segments',
+            'manage_options',
+            'chapter-transcription-vtt-import',
+            array($this, 'admin_page_vtt_import')
+        );
+        
+        // Add Generate Embeddings submenu
+        add_submenu_page(
+            'chapter-transcription',
+            'Generate Embeddings',
+            'Generate Embeddings',
+            'manage_options',
+            'chapter-transcription-embeddings',
+            array($this, 'admin_page_embeddings')
+        );
+        
+        // Add Migrate Embeddings submenu (after Generate Embeddings)
+        add_submenu_page(
+            'chapter-transcription',
+            'Migrate Embeddings',
+            'Migrate Embeddings',
+            'manage_options',
+            'chapter-transcription-migrate',
+            array($this, 'admin_page_migrate')
+        );
     }
     
     /**
@@ -260,6 +488,50 @@ class Chapter_Transcription {
                 echo '<div class="notice notice-success is-dismissible"><p>✓ ' . esc_html($message) . '</p></div>';
             } else {
                 echo '<div class="notice notice-error is-dismissible"><p>✗ ' . esc_html($message) . '</p></div>';
+            }
+        }
+        
+        // Show notice if queue was cleared
+        if (isset($_GET['queue_cleared'])) {
+            $message = isset($_GET['message']) ? urldecode($_GET['message']) : '';
+            if ($_GET['queue_cleared'] === '1') {
+                echo '<div class="notice notice-success is-dismissible"><p>✓ ' . esc_html($message) . '</p></div>';
+            } else {
+                echo '<div class="notice notice-error is-dismissible"><p>✗ ' . esc_html($message) . '</p></div>';
+            }
+        }
+        
+        // Show notice if queue was processed
+        if (isset($_GET['queue_processed'])) {
+            $message = isset($_GET['message']) ? urldecode($_GET['message']) : '';
+            if ($_GET['queue_processed'] === '1') {
+                echo '<div class="notice notice-success is-dismissible"><p>✓ ' . esc_html($message) . '</p></div>';
+            } else {
+                echo '<div class="notice notice-error is-dismissible"><p>✗ ' . esc_html($message) . '</p></div>';
+            }
+        }
+        
+        // Show notice if lock was cleared
+        if (isset($_GET['lock_cleared'])) {
+            $message = isset($_GET['message']) ? urldecode($_GET['message']) : '';
+            if ($_GET['lock_cleared'] === '1') {
+                echo '<div class="notice notice-success is-dismissible"><p>✓ ' . esc_html($message) . '</p></div>';
+            }
+        }
+        
+        // Show notice if cron was rescheduled
+        if (isset($_GET['cron_rescheduled'])) {
+            $message = isset($_GET['message']) ? urldecode($_GET['message']) : '';
+            if ($_GET['cron_rescheduled'] === '1') {
+                echo '<div class="notice notice-success is-dismissible"><p>✓ ' . esc_html($message) . '</p></div>';
+            }
+        }
+        
+        // Show notice if stuck jobs were cleared
+        if (isset($_GET['stuck_cleared'])) {
+            $message = isset($_GET['message']) ? urldecode($_GET['message']) : '';
+            if ($_GET['stuck_cleared'] === '1') {
+                echo '<div class="notice notice-success is-dismissible"><p>✓ ' . esc_html($message) . '</p></div>';
             }
         }
         
@@ -763,6 +1035,124 @@ class Chapter_Transcription {
             'message' => 'Cleared ' . $cleared_count . ' stuck transcription statuses',
             'count' => $cleared_count
         ));
+    }
+    
+    /**
+     * AJAX handler: Clear transcription queue
+     */
+    public function ajax_clear_queue() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        $result = $this->clear_transcription_queue();
+        
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+    
+    /**
+     * AJAX handler: Process transcription queue manually
+     */
+    public function ajax_process_queue() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        // Clear lock first in case it's stuck
+        delete_transient('ct_queue_lock');
+        
+        // Manually trigger queue processing
+        $this->process_transcription_queue();
+        
+        // Get updated queue stats
+        $queue_stats = $this->get_queue_stats();
+        
+        wp_send_json_success(array(
+            'message' => 'Queue processed successfully',
+            'queue_stats' => $queue_stats
+        ));
+    }
+    
+    /**
+     * Clear transcription queue - stops cron and resets all jobs
+     */
+    public function clear_transcription_queue() {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        $results = array(
+            'cron_cleared' => 0,
+            'lock_cleared' => false,
+            'jobs_deleted' => 0,
+            'jobs_reset' => 0, // Keep for backward compatibility
+            'transients_cleared' => 0
+        );
+        
+        // Step 1: Stop the cron job
+        $cleared = wp_clear_scheduled_hook('ct_process_transcription_queue');
+        $results['cron_cleared'] = $cleared;
+        
+        // Step 2: Clear the queue lock
+        delete_transient('ct_queue_lock');
+        $results['lock_cleared'] = true;
+        
+        // Step 3: Delete pending/processing jobs (clear them from queue)
+        $table_exists = $wpdb->get_var($wpdb->prepare(
+            "SHOW TABLES LIKE %s",
+            $this->queue_table
+        ));
+        
+        if ($table_exists === $this->queue_table) {
+            // Delete pending and processing jobs
+            $deleted_count = $wpdb->query("
+                DELETE FROM {$this->queue_table} 
+                WHERE status IN ('pending', 'processing')
+            ");
+            $results['jobs_deleted'] = $deleted_count;
+            $results['jobs_reset'] = $deleted_count; // Keep for backward compatibility in message
+        }
+        
+        // Step 4: Clear stuck transcription transients
+        $transient_keys = $wpdb->get_col(
+            "SELECT option_name FROM {$wpdb->options} 
+             WHERE option_name LIKE '_transient_ct_transcription_%' 
+             AND option_name NOT LIKE '_transient_timeout_%'"
+        );
+        
+        foreach ($transient_keys as $key) {
+            $transient_name = str_replace('_transient_', '', $key);
+            delete_transient($transient_name);
+            $results['transients_cleared']++;
+        }
+        
+        // Step 5: Clear last run timestamp
+        delete_transient('ct_queue_last_run');
+        
+        $message = sprintf(
+            'Queue cleared: %d cron job(s) stopped, %d job(s) deleted, %d transient(s) cleared',
+            $results['cron_cleared'],
+            $results['jobs_deleted'],
+            $results['transients_cleared']
+        );
+        
+        error_log('Transcription Queue: ' . $message);
+        
+        return array(
+            'success' => true,
+            'message' => $message,
+            'results' => $results
+        );
     }
     
     /**
@@ -1519,6 +1909,24 @@ class Chapter_Transcription {
             $vtt_file_for_db = basename($vtt_path);
         }
         
+        // Normalize segments for database storage
+        $normalized_segments = null;
+        if (!empty($segments) && is_array($segments)) {
+            $normalized_segments = array();
+            foreach ($segments as $segment) {
+                if (isset($segment['start'], $segment['end'], $segment['text'])) {
+                    $normalized_segments[] = array(
+                        'start' => floatval($segment['start']),
+                        'end' => floatval($segment['end']),
+                        'text' => trim($segment['text'])
+                    );
+                }
+            }
+            if (empty($normalized_segments)) {
+                $normalized_segments = null;
+            }
+        }
+        
         if ($async) {
             $this->update_transcription_status($chapter_id, 'processing', 'VTT file generated. Saving transcript to database...');
         }
@@ -1537,11 +1945,25 @@ class Chapter_Transcription {
                 $update_data['vtt_file'] = $vtt_file_for_db;
             }
             
+            // Add segments if available
+            if ($normalized_segments !== null) {
+                $update_data['vtt_segments'] = json_encode($normalized_segments);
+            }
+            
+            // Build format array based on what fields are present
+            $format_array = array('%d', '%s', '%s'); // chapter_id, content, updated_at
+            if ($vtt_file_for_db) {
+                $format_array[] = '%s'; // vtt_file
+            }
+            if ($normalized_segments !== null) {
+                $format_array[] = '%s'; // vtt_segments
+            }
+            
             $update_result = $wpdb->update(
                 $wpdb->prefix . 'alm_transcripts',
                 $update_data,
                 array('ID' => $existing_transcript),
-                $vtt_file_for_db ? array('%d', '%s', '%s', '%s') : array('%d', '%s', '%s'),
+                $format_array,
                 array('%d')
             );
             
@@ -1578,10 +2000,24 @@ class Chapter_Transcription {
                 $insert_data['vtt_file'] = $vtt_file_for_db;
             }
             
+            // Add segments if available
+            if ($normalized_segments !== null) {
+                $insert_data['vtt_segments'] = json_encode($normalized_segments);
+            }
+            
+            // Build format array based on what fields are present
+            $format_array = array('%d', '%d', '%s', '%s', '%s', '%s'); // lesson_id, chapter_id, source, content, created_at, updated_at
+            if ($vtt_file_for_db) {
+                $format_array[] = '%s'; // vtt_file
+            }
+            if ($normalized_segments !== null) {
+                $format_array[] = '%s'; // vtt_segments
+            }
+            
             $insert_result = $wpdb->insert(
                 $wpdb->prefix . 'alm_transcripts',
                 $insert_data,
-                $vtt_file_for_db ? array('%d', '%d', '%s', '%s', '%s', '%s', '%s') : array('%d', '%d', '%s', '%s', '%s', '%s')
+                $format_array
             );
             
             if ($insert_result === false) {
@@ -1607,11 +2043,25 @@ class Chapter_Transcription {
                             $update_data['vtt_file'] = $vtt_file_for_db;
                         }
                         
+                        // Add segments if available
+                        if ($normalized_segments !== null) {
+                            $update_data['vtt_segments'] = json_encode($normalized_segments);
+                        }
+                        
+                        // Build format array
+                        $format_array = array('%s', '%s'); // content, updated_at
+                        if ($vtt_file_for_db) {
+                            $format_array[] = '%s'; // vtt_file
+                        }
+                        if ($normalized_segments !== null) {
+                            $format_array[] = '%s'; // vtt_segments
+                        }
+                        
                         $wpdb->update(
                             $wpdb->prefix . 'alm_transcripts',
                             $update_data,
                             array('ID' => $existing),
-                            $vtt_file_for_db ? array('%s', '%s', '%s') : array('%s', '%s'),
+                            $format_array,
                             array('%d')
                         );
                         return array('success' => true, 'message' => 'Transcript saved successfully. VTT file generated.');
@@ -1817,6 +2267,9 @@ class Chapter_Transcription {
             return;
         }
         
+        // First, automatically clear stuck jobs (processing > 15 minutes)
+        $this->clear_stuck_jobs(15 * MINUTE_IN_SECONDS);
+        
         $this->lock_queue();
         $jobs_processed = 0;
         
@@ -1837,6 +2290,70 @@ class Chapter_Transcription {
         if ($this->queue_has_pending()) {
             $this->schedule_queue_runner(15);
         }
+    }
+    
+    /**
+     * Clear stuck jobs that have been processing for too long
+     * 
+     * @param int $timeout_seconds Maximum processing time in seconds (default 15 minutes)
+     * @return array Results with count of cleared jobs
+     */
+    private function clear_stuck_jobs($timeout_seconds = 900) {
+        global $wpdb;
+        
+        if (!$this->queue_table) {
+            $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
+        }
+        
+        // Find jobs that have been processing for longer than the timeout
+        $stuck_jobs = $wpdb->get_results($wpdb->prepare("
+            SELECT ID, chapter_id, job_type, started_at, attempts
+            FROM {$this->queue_table}
+            WHERE status = 'processing'
+            AND started_at < DATE_SUB(NOW(), INTERVAL %d SECOND)
+        ", $timeout_seconds));
+        
+        if (empty($stuck_jobs)) {
+            return array('cleared' => 0, 'jobs' => array());
+        }
+        
+        $cleared_count = 0;
+        $cleared_job_ids = array();
+        
+        foreach ($stuck_jobs as $job) {
+            // Mark job as failed
+            $updated = $wpdb->update(
+                $this->queue_table,
+                array(
+                    'status' => 'failed',
+                    'completed_at' => current_time('mysql'),
+                    'message' => sprintf('Job timed out after %d minutes. Automatically marked as failed.', round($timeout_seconds / 60))
+                ),
+                array('ID' => $job->ID),
+                array('%s', '%s', '%s'),
+                array('%d')
+            );
+            
+            if ($updated) {
+                $cleared_count++;
+                $cleared_job_ids[] = $job->ID;
+                
+                // Also clear any stuck transcription transients for this chapter
+                delete_transient('ct_transcription_' . $job->chapter_id);
+                
+                error_log(sprintf(
+                    'Transcription Queue: Auto-cleared stuck job #%d (Chapter %d) after %d minutes',
+                    $job->ID,
+                    $job->chapter_id,
+                    round($timeout_seconds / 60)
+                ));
+            }
+        }
+        
+        return array(
+            'cleared' => $cleared_count,
+            'jobs' => $cleared_job_ids
+        );
     }
     
     /**
@@ -1966,15 +2483,29 @@ class Chapter_Transcription {
             $this->queue_table = $wpdb->prefix . 'alm_transcription_jobs';
         }
         
+        // Get lock transient timeout to calculate age
+        $lock_timeout = get_option('_transient_timeout_ct_queue_lock');
+        $lock_set_time = null;
+        $lock_age = null;
+        if ($lock_timeout) {
+            // Lock is set for 2 minutes (120 seconds), so set time = timeout - 120
+            $lock_set_time = $lock_timeout - 120;
+            $lock_age = time() - $lock_set_time;
+        }
+        
         $stats = array(
             'pending' => 0,
             'processing' => 0,
             'completed_24h' => 0,
             'failed_24h' => 0,
             'locked' => $this->is_queue_locked(),
+            'lock_age' => $lock_age,
+            'lock_set_time' => $lock_set_time,
             'next_run' => wp_next_scheduled('ct_process_transcription_queue'),
             'last_run' => get_transient('ct_queue_last_run'),
-            'recent_jobs' => array()
+            'recent_jobs' => array(),
+            'current_processing_jobs' => array(),
+            'stuck_jobs' => array()
         );
         
         if ($this->queue_table && $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $this->queue_table)) === $this->queue_table) {
@@ -1983,10 +2514,39 @@ class Chapter_Transcription {
             $stats['completed_24h'] = intval($wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'completed' AND completed_at >= (NOW() - INTERVAL 24 HOUR)"));
             $stats['failed_24h'] = intval($wpdb->get_var("SELECT COUNT(*) FROM {$this->queue_table} WHERE status = 'failed' AND completed_at >= (NOW() - INTERVAL 24 HOUR)"));
             $stats['recent_jobs'] = $wpdb->get_results("
-                SELECT ID, chapter_id, job_type, status, message, created_at, started_at, completed_at
+                SELECT ID, chapter_id, job_type, status, message, created_at, started_at, completed_at, attempts
                 FROM {$this->queue_table}
+                WHERE status IN ('pending', 'processing', 'completed', 'failed')
                 ORDER BY ID DESC
                 LIMIT 5
+            ");
+            
+            // Get currently processing jobs with details
+            $stats['current_processing_jobs'] = $wpdb->get_results("
+                SELECT ID, chapter_id, job_type, status, message, created_at, started_at, attempts,
+                       TIMESTAMPDIFF(SECOND, started_at, NOW()) as processing_seconds
+                FROM {$this->queue_table}
+                WHERE status = 'processing'
+                ORDER BY started_at ASC
+            ");
+            
+            // Find stuck jobs (processing for more than 5 minutes)
+            $stats['stuck_jobs'] = $wpdb->get_results("
+                SELECT ID, chapter_id, job_type, status, message, created_at, started_at, attempts,
+                       TIMESTAMPDIFF(SECOND, started_at, NOW()) as processing_seconds
+                FROM {$this->queue_table}
+                WHERE status = 'processing'
+                AND started_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                ORDER BY started_at ASC
+            ");
+            
+            // Get all pending jobs
+            $stats['all_pending_jobs'] = $wpdb->get_results("
+                SELECT ID, chapter_id, job_type, status, message, created_at, priority, attempts
+                FROM {$this->queue_table}
+                WHERE status = 'pending'
+                ORDER BY priority DESC, ID ASC
+                LIMIT 20
             ");
         }
         
@@ -2109,6 +2669,25 @@ class Chapter_Transcription {
             $vtt_file_for_db = basename($vtt_path);
         }
         
+        // Normalize segments for database storage
+        $segments = isset($transcription_result['segments']) ? $transcription_result['segments'] : null;
+        $normalized_segments = null;
+        if (!empty($segments) && is_array($segments)) {
+            $normalized_segments = array();
+            foreach ($segments as $segment) {
+                if (isset($segment['start'], $segment['end'], $segment['text'])) {
+                    $normalized_segments[] = array(
+                        'start' => floatval($segment['start']),
+                        'end' => floatval($segment['end']),
+                        'text' => trim($segment['text'])
+                    );
+                }
+            }
+            if (empty($normalized_segments)) {
+                $normalized_segments = null;
+            }
+        }
+        
         // Step 4: Save to database
         if ($existing_transcript) {
             // Update existing transcript - also update chapter_id in case it was 0 or wrong
@@ -2123,11 +2702,25 @@ class Chapter_Transcription {
                 $update_data['vtt_file'] = $vtt_file_for_db;
             }
             
+            // Add segments if available
+            if ($normalized_segments !== null) {
+                $update_data['vtt_segments'] = json_encode($normalized_segments);
+            }
+            
+            // Build format array
+            $format_array = array('%d', '%s', '%s'); // chapter_id, content, updated_at
+            if ($vtt_file_for_db) {
+                $format_array[] = '%s'; // vtt_file
+            }
+            if ($normalized_segments !== null) {
+                $format_array[] = '%s'; // vtt_segments
+            }
+            
             $update_result = $wpdb->update(
                 $wpdb->prefix . 'alm_transcripts',
                 $update_data,
                 array('ID' => $existing_transcript),
-                $vtt_file_for_db ? array('%d', '%s', '%s', '%s') : array('%d', '%s', '%s'),
+                $format_array,
                 array('%d')
             );
             
@@ -2153,10 +2746,24 @@ class Chapter_Transcription {
                 $insert_data['vtt_file'] = $vtt_file_for_db;
             }
             
+            // Add segments if available
+            if ($normalized_segments !== null) {
+                $insert_data['vtt_segments'] = json_encode($normalized_segments);
+            }
+            
+            // Build format array
+            $format_array = array('%d', '%d', '%s', '%s', '%s', '%s'); // lesson_id, chapter_id, source, content, created_at, updated_at
+            if ($vtt_file_for_db) {
+                $format_array[] = '%s'; // vtt_file
+            }
+            if ($normalized_segments !== null) {
+                $format_array[] = '%s'; // vtt_segments
+            }
+            
             $insert_result = $wpdb->insert(
                 $wpdb->prefix . 'alm_transcripts',
                 $insert_data,
-                $vtt_file_for_db ? array('%d', '%d', '%s', '%s', '%s', '%s', '%s') : array('%d', '%d', '%s', '%s', '%s', '%s')
+                $format_array
             );
             
             if ($insert_result === false) {
@@ -2337,6 +2944,879 @@ class Chapter_Transcription {
             'results' => $results,
             'success_count' => $success_count,
             'error_count' => $error_count
+        ));
+    }
+    
+    /**
+     * Admin page for one-off transcription
+     */
+    public function admin_page_oneoff() {
+        global $wpdb;
+        
+        // Get all lessons for dropdown
+        $lessons = $wpdb->get_results("
+            SELECT ID, lesson_title
+            FROM {$wpdb->prefix}alm_lessons
+            ORDER BY lesson_title ASC
+        ");
+        
+        // Include template
+        include plugin_dir_path(__FILE__) . 'templates/oneoff-page.php';
+    }
+    
+    /**
+     * AJAX handler for one-off transcription
+     */
+    public function ajax_oneoff_transcribe() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        // Get form data
+        $bunny_url = isset($_POST['bunny_url']) ? esc_url_raw($_POST['bunny_url']) : '';
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        $chapter_title = isset($_POST['chapter_title']) ? sanitize_text_field($_POST['chapter_title']) : '';
+        $menu_order = isset($_POST['menu_order']) ? intval($_POST['menu_order']) : 0;
+        $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
+        $free = isset($_POST['free']) ? sanitize_text_field($_POST['free']) : 'n';
+        
+        // Validate required fields
+        if (empty($bunny_url)) {
+            wp_send_json_error('Bunny URL is required');
+        }
+        
+        if (empty($lesson_id)) {
+            wp_send_json_error('Lesson ID is required');
+        }
+        
+        if (empty($chapter_title)) {
+            wp_send_json_error('Chapter title is required');
+        }
+        
+        // Validate URL is m3u8
+        if (strpos($bunny_url, '.m3u8') === false) {
+            wp_send_json_error('URL must be an m3u8 playlist URL');
+        }
+        
+        // Verify lesson exists
+        global $wpdb;
+        $lesson = $wpdb->get_row($wpdb->prepare("
+            SELECT ID, lesson_title
+            FROM {$wpdb->prefix}alm_lessons
+            WHERE ID = %d
+        ", $lesson_id));
+        
+        if (!$lesson) {
+            wp_send_json_error('Lesson not found');
+        }
+        
+        // Generate slug from chapter title
+        $slug = sanitize_title($chapter_title);
+        
+        // Create chapter record
+        $chapter_data = array(
+            'lesson_id' => $lesson_id,
+            'chapter_title' => $chapter_title,
+            'menu_order' => $menu_order,
+            'bunny_url' => $bunny_url,
+            'duration' => $duration,
+            'free' => $free,
+            'slug' => $slug,
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql')
+        );
+        
+        $result = $wpdb->insert($wpdb->prefix . 'alm_chapters', $chapter_data);
+        
+        if (!$result) {
+            wp_send_json_error('Failed to create chapter record: ' . $wpdb->last_error);
+        }
+        
+        $chapter_id = $wpdb->insert_id;
+        
+        // Enqueue transcription job
+        $this->update_transcription_status($chapter_id, 'queued', 'Queued for download & transcription');
+        $enqueue = $this->enqueue_transcription_job($chapter_id, 'download_transcribe');
+        
+        if (!$enqueue['success']) {
+            wp_send_json_error('Failed to enqueue transcription job: ' . $enqueue['message']);
+        }
+        
+        wp_send_json_success(array(
+            'message' => 'Chapter created and transcription queued successfully',
+            'chapter_id' => $chapter_id,
+            'queue_position' => $this->get_queue_position_for_chapter($chapter_id)
+        ));
+    }
+    
+    /**
+     * VTT Segments Import admin page
+     */
+    public function admin_page_vtt_import() {
+        global $wpdb;
+        
+        $transcripts_table = $wpdb->prefix . 'alm_transcripts';
+        
+        // Get statistics
+        $total_with_vtt = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$transcripts_table} 
+             WHERE vtt_file IS NOT NULL AND vtt_file != ''"
+        );
+        
+        $total_with_segments = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$transcripts_table} 
+             WHERE vtt_segments IS NOT NULL AND vtt_segments != ''"
+        );
+        
+        $total_needs_import = $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$transcripts_table} 
+             WHERE vtt_file IS NOT NULL 
+             AND vtt_file != '' 
+             AND (vtt_segments IS NULL OR vtt_segments = '')"
+        );
+        
+        // Check if import is in progress
+        $import_status = get_transient('ct_vtt_import_status');
+        $is_importing = ($import_status && isset($import_status['in_progress']) && $import_status['in_progress']);
+        
+        include CT_PLUGIN_DIR . 'templates/vtt-import-page.php';
+    }
+    
+    /**
+     * AJAX: Start VTT segments import
+     */
+    public function ajax_import_vtt_segments() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        global $wpdb;
+        $transcripts_table = $wpdb->prefix . 'alm_transcripts';
+        
+        // Get batch of transcripts to process (50 at a time)
+        $batch_size = 50;
+        $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+        
+        // Only check if import was stopped if we're continuing (offset > 0)
+        // For new imports (offset = 0), proceed regardless
+        if ($offset > 0) {
+            $import_status = get_transient('ct_vtt_import_status');
+            if (!$import_status || !isset($import_status['in_progress']) || !$import_status['in_progress']) {
+                wp_send_json_success(array(
+                    'complete' => true,
+                    'stopped' => true,
+                    'message' => 'Import was stopped'
+                ));
+                return;
+            }
+        }
+        
+        $transcripts = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID, chapter_id, vtt_file 
+             FROM {$transcripts_table} 
+             WHERE vtt_file IS NOT NULL 
+             AND vtt_file != '' 
+             AND (vtt_segments IS NULL OR vtt_segments = '')
+             ORDER BY ID
+             LIMIT %d OFFSET %d",
+            $batch_size,
+            $offset
+        ));
+        
+        if (empty($transcripts)) {
+            // No more to process
+            delete_transient('ct_vtt_import_status');
+            wp_send_json_success(array(
+                'complete' => true,
+                'message' => 'Import complete!'
+            ));
+            return;
+        }
+        
+        $upload_dir = wp_upload_dir();
+        $parser = new Transcription_VTT_Parser();
+        
+        // Check multiple possible VTT file locations
+        $possible_dirs = array(
+            $upload_dir['basedir'] . '/alm_transcriptions',  // wp-content/uploads/alm_transcriptions
+            ABSPATH . 'alm_transcripts',                      // WordPress root/alm_transcripts
+            ABSPATH . 'alm_transcriptions',                   // WordPress root/alm_transcriptions (alternative)
+        );
+        
+        $processed = 0;
+        $success = 0;
+        $failed = 0;
+        $errors = array();
+        
+        foreach ($transcripts as $transcript) {
+            // Try to find the VTT file in any of the possible locations
+            $vtt_path = null;
+            $found_location = null;
+            
+            foreach ($possible_dirs as $dir) {
+                $test_path = $dir . '/' . $transcript->vtt_file;
+                if (file_exists($test_path)) {
+                    $vtt_path = $test_path;
+                    $found_location = $dir;
+                    break;
+                }
+            }
+            
+            if (!$vtt_path || !file_exists($vtt_path)) {
+                $failed++;
+                $errors[] = "Chapter {$transcript->chapter_id}: VTT file not found (tried: " . implode(', ', $possible_dirs) . ")";
+                continue;
+            }
+            
+            $segments = $parser->parse_vtt_file($vtt_path);
+            
+            if ($segments === false || empty($segments)) {
+                $failed++;
+                $errors[] = "Chapter {$transcript->chapter_id}: Failed to parse VTT";
+                continue;
+            }
+            
+            // Save segments as JSON
+            $segments_json = json_encode($segments);
+            $result = $wpdb->update(
+                $transcripts_table,
+                array('vtt_segments' => $segments_json),
+                array('ID' => $transcript->ID),
+                array('%s'),
+                array('%d')
+            );
+            
+            if ($result !== false) {
+                $success++;
+            } else {
+                $failed++;
+                $errors[] = "Chapter {$transcript->chapter_id}: Database update failed";
+            }
+            
+            $processed++;
+        }
+        
+        // Update status
+        $status = array(
+            'in_progress' => true,
+            'offset' => $offset + $batch_size,
+            'processed' => $processed,
+            'success' => $success,
+            'failed' => $failed,
+            'errors' => array_slice($errors, 0, 10) // Limit errors shown
+        );
+        set_transient('ct_vtt_import_status', $status, 3600);
+        
+        wp_send_json_success(array(
+            'processed' => $processed,
+            'success' => $success,
+            'failed' => $failed,
+            'offset' => $offset + $batch_size,
+            'errors' => $errors,
+            'complete' => false
+        ));
+    }
+    
+    /**
+     * AJAX: Get VTT import status
+     */
+    public function ajax_get_vtt_import_status() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $status = get_transient('ct_vtt_import_status');
+        
+        if (!$status) {
+            wp_send_json_success(array('in_progress' => false));
+            return;
+        }
+        
+        wp_send_json_success($status);
+    }
+    
+    /**
+     * AJAX: Stop VTT import (clear transient)
+     */
+    public function ajax_stop_vtt_import() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        delete_transient('ct_vtt_import_status');
+        
+        wp_send_json_success(array('message' => 'Import stopped. Transient cleared.'));
+    }
+    
+    /**
+     * Generate Embeddings admin page
+     */
+    public function admin_page_embeddings() {
+        $generator = new Transcription_Embeddings_Generator();
+        $stats = $generator->get_statistics();
+        
+        // Check if generation is in progress
+        $gen_status = get_transient('ct_embeddings_generation_status');
+        $is_generating = ($gen_status && isset($gen_status['in_progress']) && $gen_status['in_progress']);
+        
+        include CT_PLUGIN_DIR . 'templates/embeddings-page.php';
+    }
+    
+    /**
+     * AJAX: Generate embeddings for transcripts
+     */
+    public function ajax_generate_embeddings() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        global $wpdb;
+        $transcripts_table = $wpdb->prefix . 'alm_transcripts';
+        $embeddings_table = $wpdb->prefix . 'alm_transcript_embeddings';
+        
+        // Get batch of transcripts to process (5 at a time - slower due to API calls)
+        $batch_size = 5;
+        $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+        
+        // Only check if generation was stopped if we're continuing (offset > 0)
+        if ($offset > 0) {
+            $gen_status = get_transient('ct_embeddings_generation_status');
+            if (!$gen_status || !isset($gen_status['in_progress']) || !$gen_status['in_progress']) {
+                wp_send_json_success(array(
+                    'complete' => true,
+                    'stopped' => true,
+                    'message' => 'Generation was stopped'
+                ));
+                return;
+            }
+        }
+        
+        // Get transcripts that have segments but no embeddings
+        $transcripts = $wpdb->get_results($wpdb->prepare(
+            "SELECT t.ID, t.chapter_id 
+             FROM {$transcripts_table} t
+             WHERE t.vtt_segments IS NOT NULL 
+             AND t.vtt_segments != ''
+             AND NOT EXISTS (
+                 SELECT 1 FROM {$embeddings_table} e 
+                 WHERE e.transcript_id = t.ID
+             )
+             ORDER BY t.ID
+             LIMIT %d OFFSET %d",
+            $batch_size,
+            $offset
+        ));
+        
+        if (empty($transcripts)) {
+            // No more to process
+            delete_transient('ct_embeddings_generation_status');
+            wp_send_json_success(array(
+                'complete' => true,
+                'message' => 'All embeddings generated!'
+            ));
+            return;
+        }
+        
+        $generator = new Transcription_Embeddings_Generator();
+        
+        $processed = 0;
+        $success = 0;
+        $failed = 0;
+        $total_embeddings = 0;
+        $errors = array();
+        $current_transcript = null;
+        $current_segment_progress = null;
+        
+        // Process one transcript at a time with progress updates
+        foreach ($transcripts as $transcript_index => $transcript) {
+            $current_transcript = array(
+                'id' => $transcript->ID,
+                'chapter_id' => $transcript->chapter_id,
+                'index' => $transcript_index + 1,
+                'total_in_batch' => count($transcripts)
+            );
+            
+            // Update status: starting transcript
+            $status = array(
+                'in_progress' => true,
+                'offset' => $offset,
+                'processed' => $processed,
+                'success' => $success,
+                'failed' => $failed,
+                'total_embeddings' => $total_embeddings,
+                'current_transcript' => $current_transcript,
+                'current_segment' => null,
+                'last_update' => current_time('mysql'),
+                'timestamp' => time(),
+                'errors' => array_slice($errors, 0, 10)
+            );
+            set_transient('ct_embeddings_generation_status', $status, 3600);
+            
+            // Progress callback for detailed updates
+            $progress_callback = function($segment_index, $total_segments, $status_message) use ($transcript, $offset, $processed, $success, $failed, $total_embeddings, $errors) {
+                $current_status = array(
+                    'in_progress' => true,
+                    'offset' => $offset,
+                    'processed' => $processed,
+                    'success' => $success,
+                    'failed' => $failed,
+                    'total_embeddings' => $total_embeddings,
+                    'current_transcript' => array(
+                        'id' => $transcript->ID,
+                        'chapter_id' => $transcript->chapter_id
+                    ),
+                    'current_segment' => array(
+                        'index' => $segment_index,
+                        'total' => $total_segments,
+                        'status' => $status_message,
+                        'percent' => $total_segments > 0 ? round(($segment_index / $total_segments) * 100) : 0
+                    ),
+                    'last_update' => current_time('mysql'),
+                    'timestamp' => time(),
+                    'errors' => array_slice($errors, 0, 10)
+                );
+                set_transient('ct_embeddings_generation_status', $current_status, 3600);
+            };
+            
+            $result = $generator->generate_embeddings_for_transcript($transcript->ID, $progress_callback);
+            
+            if (isset($result['skipped']) && $result['skipped']) {
+                $processed++;
+                continue; // Skip if already has embeddings
+            }
+            
+            if ($result['success']) {
+                $success++;
+                $total_embeddings += $result['success_count'];
+            } else {
+                $failed++;
+                $errors[] = "Chapter {$transcript->chapter_id}: " . ($result['message'] ?? 'Unknown error');
+            }
+            
+            $processed++;
+            
+            // Update status after each transcript
+            $status = array(
+                'in_progress' => true,
+                'offset' => $offset,
+                'processed' => $processed,
+                'success' => $success,
+                'failed' => $failed,
+                'total_embeddings' => $total_embeddings,
+                'current_transcript' => null,
+                'current_segment' => null,
+                'last_update' => current_time('mysql'),
+                'timestamp' => time(),
+                'errors' => array_slice($errors, 0, 10)
+            );
+            set_transient('ct_embeddings_generation_status', $status, 3600);
+        }
+        
+        // Final status update
+        $status = array(
+            'in_progress' => true,
+            'offset' => $offset + $batch_size,
+            'processed' => $processed,
+            'success' => $success,
+            'failed' => $failed,
+            'total_embeddings' => $total_embeddings,
+            'current_transcript' => null,
+            'current_segment' => null,
+            'last_update' => current_time('mysql'),
+            'timestamp' => time(),
+            'errors' => array_slice($errors, 0, 10)
+        );
+        set_transient('ct_embeddings_generation_status', $status, 3600);
+        
+        wp_send_json_success(array(
+            'processed' => $processed,
+            'success' => $success,
+            'failed' => $failed,
+            'total_embeddings' => $total_embeddings,
+            'offset' => $offset + $batch_size,
+            'errors' => $errors,
+            'complete' => false
+        ));
+    }
+    
+    /**
+     * AJAX: Get embeddings generation status
+     */
+    public function ajax_get_embeddings_status() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $status = get_transient('ct_embeddings_generation_status');
+        
+        if (!$status) {
+            wp_send_json_success(array('in_progress' => false));
+            return;
+        }
+        
+        wp_send_json_success($status);
+    }
+    
+    /**
+     * AJAX: Stop embeddings generation
+     */
+    public function ajax_stop_embeddings() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        delete_transient('ct_embeddings_generation_status');
+        
+        wp_send_json_success(array('message' => 'Generation stopped. Transient cleared.'));
+    }
+    
+    /**
+     * AJAX: Retry failed embeddings for transcripts with partial embeddings
+     */
+    public function ajax_retry_failed_embeddings() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        global $wpdb;
+        $transcripts_table = $wpdb->prefix . 'alm_transcripts';
+        $embeddings_table = $wpdb->prefix . 'alm_transcript_embeddings';
+        
+        // Get transcripts with partial embeddings (some segments missing)
+        $transcripts = $wpdb->get_results(
+            "SELECT t.ID, t.chapter_id,
+                    JSON_LENGTH(t.vtt_segments) as total_segments,
+                    (SELECT COUNT(*) FROM {$embeddings_table} e WHERE e.transcript_id = t.ID) as existing_embeddings
+             FROM {$transcripts_table} t
+             WHERE t.vtt_segments IS NOT NULL 
+             AND t.vtt_segments != ''
+             AND EXISTS (SELECT 1 FROM {$embeddings_table} e WHERE e.transcript_id = t.ID)
+             AND (SELECT COUNT(*) FROM {$embeddings_table} e2 WHERE e2.transcript_id = t.ID) < JSON_LENGTH(t.vtt_segments)
+             ORDER BY t.ID
+             LIMIT 10"
+        );
+        
+        if (empty($transcripts)) {
+            wp_send_json_success(array(
+                'complete' => true,
+                'message' => 'No transcripts with failed segments found'
+            ));
+            return;
+        }
+        
+        $generator = new Transcription_Embeddings_Generator();
+        
+        $processed = 0;
+        $success = 0;
+        $failed = 0;
+        $total_embeddings = 0;
+        $errors = array();
+        
+        foreach ($transcripts as $transcript) {
+            $result = $generator->retry_failed_segments($transcript->ID);
+            
+            if ($result['success']) {
+                $success++;
+                $total_embeddings += $result['success_count'];
+            } else {
+                $failed++;
+                $errors[] = "Chapter {$transcript->chapter_id}: " . ($result['message'] ?? 'Unknown error');
+            }
+            
+            $processed++;
+        }
+        
+        wp_send_json_success(array(
+            'processed' => $processed,
+            'success' => $success,
+            'failed' => $failed,
+            'total_embeddings' => $total_embeddings,
+            'errors' => array_slice($errors, 0, 10),
+            'complete' => false
+        ));
+    }
+    
+    /**
+     * Admin page for migrating embeddings
+     */
+    public function admin_page_migrate() {
+        include CT_PLUGIN_DIR . 'templates/migrate-page.php';
+    }
+    
+    /**
+     * AJAX: Start migration process
+     */
+    public function ajax_migrate_embeddings() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $dest_url = isset($_POST['dest_url']) ? sanitize_text_field($_POST['dest_url']) : '';
+        $dest_user = isset($_POST['dest_user']) ? sanitize_text_field($_POST['dest_user']) : '';
+        $dest_pass = isset($_POST['dest_pass']) ? sanitize_text_field($_POST['dest_pass']) : '';
+        $batch_size = isset($_POST['batch_size']) ? absint($_POST['batch_size']) : 100;
+        $overwrite = isset($_POST['overwrite']) ? (bool) $_POST['overwrite'] : false;
+        
+        if (empty($dest_url) || empty($dest_user) || empty($dest_pass)) {
+            wp_send_json_error(array('message' => 'Destination URL, username, and password are required'));
+            return;
+        }
+        
+        // Initialize migration status
+        $migration_status = array(
+            'in_progress' => true,
+            'started_at' => current_time('mysql'),
+            'dest_url' => $dest_url,
+            'batch_size' => $batch_size,
+            'overwrite' => $overwrite,
+            'offset' => 0,
+            'total_transferred' => 0,
+            'total_inserted' => 0,
+            'total_updated' => 0,
+            'total_skipped' => 0,
+            'errors' => array()
+        );
+        
+        set_transient('ct_migration_status', $migration_status, 3600);
+        
+        // Store credentials securely (encrypted in transient)
+        set_transient('ct_migration_auth', array(
+            'user' => $dest_user,
+            'pass' => $dest_pass
+        ), 3600);
+        
+        wp_send_json_success(array(
+            'message' => 'Migration started',
+            'status' => $migration_status
+        ));
+    }
+    
+    /**
+     * AJAX: Get migration status and process next batch
+     */
+    public function ajax_get_migration_status() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $status = get_transient('ct_migration_status');
+        $auth = get_transient('ct_migration_auth');
+        
+        if (!$status || !$status['in_progress']) {
+            wp_send_json_success(array(
+                'complete' => true,
+                'message' => 'Migration not in progress'
+            ));
+            return;
+        }
+        
+        // Check if migration was stopped
+        if (isset($status['stopped']) && $status['stopped']) {
+            wp_send_json_success(array(
+                'complete' => true,
+                'stopped' => true,
+                'message' => 'Migration was stopped',
+                'status' => $status
+            ));
+            return;
+        }
+        
+        // Process one batch
+        $result = $this->process_migration_batch($status, $auth);
+        
+        if (is_wp_error($result)) {
+            $status['in_progress'] = false;
+            $status['error'] = $result->get_error_message();
+            set_transient('ct_migration_status', $status, 3600);
+            wp_send_json_error(array(
+                'message' => $result->get_error_message(),
+                'status' => $status
+            ));
+            return;
+        }
+        
+        // Update status
+        $status['offset'] = $result['next_offset'];
+        $status['total_transferred'] += $result['batch_count'];
+        $status['total_inserted'] += $result['inserted'];
+        $status['total_updated'] += $result['updated'];
+        $status['total_skipped'] += $result['skipped'];
+        
+        if (!empty($result['errors'])) {
+            $status['errors'] = array_merge($status['errors'], $result['errors']);
+        }
+        
+        if ($result['complete']) {
+            $status['in_progress'] = false;
+            $status['completed_at'] = current_time('mysql');
+        }
+        
+        set_transient('ct_migration_status', $status, 3600);
+        
+        wp_send_json_success(array(
+            'status' => $status,
+            'complete' => $result['complete'],
+            'batch_result' => $result
+        ));
+    }
+    
+    /**
+     * Process one batch of migration
+     */
+    private function process_migration_batch($status, $auth) {
+        global $wpdb;
+        
+        // Check if migration was stopped
+        $current_status = get_transient('ct_migration_status');
+        if ($current_status && isset($current_status['stopped']) && $current_status['stopped']) {
+            return array(
+                'complete' => true,
+                'stopped' => true,
+                'batch_count' => 0,
+                'inserted' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+                'next_offset' => $status['offset']
+            );
+        }
+        
+        $embeddings_table = $wpdb->prefix . 'alm_transcript_embeddings';
+        $source_url = home_url('/wp-json/chapter-transcription/v1');
+        $dest_url = rtrim($status['dest_url'], '/') . '/wp-json/academy-ai-assistant/v1';
+        
+        // Get batch from local database
+        $query = "SELECT 
+                    transcript_id,
+                    segment_index,
+                    embedding,
+                    segment_text,
+                    start_time,
+                    end_time,
+                    created_at
+                  FROM {$embeddings_table}
+                  ORDER BY transcript_id, segment_index
+                  LIMIT %d OFFSET %d";
+        
+        $embeddings = $wpdb->get_results($wpdb->prepare($query, $status['batch_size'], $status['offset']), ARRAY_A);
+        
+        if (empty($embeddings)) {
+            return array(
+                'complete' => true,
+                'batch_count' => 0,
+                'inserted' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+                'next_offset' => $status['offset']
+            );
+        }
+        
+        // Send to destination
+        $import_url = $dest_url . '/embeddings/import';
+        $response = wp_remote_post($import_url, array(
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Basic ' . base64_encode($auth['user'] . ':' . $auth['pass'])
+            ),
+            'body' => json_encode(array(
+                'embeddings' => $embeddings,
+                'overwrite' => $status['overwrite']
+            )),
+            'timeout' => 300
+        ));
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if ($response_code !== 200) {
+            return new WP_Error(
+                'import_failed',
+                'Failed to import batch: ' . (isset($response_body['message']) ? $response_body['message'] : 'Unknown error')
+            );
+        }
+        
+        $summary = isset($response_body['summary']) ? $response_body['summary'] : array();
+        
+        // Check if there are more records
+        $total_count = $wpdb->get_var("SELECT COUNT(*) FROM {$embeddings_table}");
+        $has_more = ($status['offset'] + count($embeddings)) < $total_count;
+        
+        return array(
+            'complete' => !$has_more,
+            'batch_count' => count($embeddings),
+            'inserted' => isset($summary['inserted']) ? $summary['inserted'] : 0,
+            'updated' => isset($summary['updated']) ? $summary['updated'] : 0,
+            'skipped' => isset($summary['skipped']) ? $summary['skipped'] : 0,
+            'errors' => isset($response_body['errors']) ? $response_body['errors'] : array(),
+            'next_offset' => $status['offset'] + count($embeddings),
+            'total_count' => $total_count,
+            'table_used' => isset($response_body['table_used']) ? $response_body['table_used'] : null,
+            'table_count_after' => isset($response_body['table_count_after']) ? $response_body['table_count_after'] : null
+        );
+    }
+    
+    /**
+     * AJAX: Stop migration process
+     */
+    public function ajax_stop_migration() {
+        check_ajax_referer('ct_transcription_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $status = get_transient('ct_migration_status');
+        
+        if (!$status || !$status['in_progress']) {
+            wp_send_json_success(array(
+                'message' => 'Migration is not in progress'
+            ));
+            return;
+        }
+        
+        // Mark as stopped
+        $status['in_progress'] = false;
+        $status['stopped'] = true;
+        $status['stopped_at'] = current_time('mysql');
+        
+        set_transient('ct_migration_status', $status, 3600);
+        
+        wp_send_json_success(array(
+            'message' => 'Migration stopped. Current batch will complete, then migration will halt.',
+            'status' => $status
         ));
     }
 }

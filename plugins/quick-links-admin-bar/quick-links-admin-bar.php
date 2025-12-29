@@ -109,6 +109,8 @@ class QuickLinksAdminBar {
     public function admin_enqueue_scripts($hook) {
         if (strpos($hook, 'quick-links-admin-bar') !== false) {
             wp_enqueue_style('qlab-admin', QLAB_PLUGIN_URL . 'assets/css/admin.css', array(), QLAB_VERSION);
+            // Enqueue jQuery UI Sortable for drag and drop
+            wp_enqueue_script('jquery-ui-sortable');
         }
     }
     
@@ -200,7 +202,7 @@ class QuickLinksAdminBar {
                                     <div class="quick-link-content">
                                         <div class="quick-link-display">
                                             <div class="quick-link-title">
-                                                <?php echo esc_html($link['title']); ?>
+                                                <?php echo esc_html(stripslashes($link['title'])); ?>
                                                 <?php if (!empty($link['new_window'])): ?>
                                                     <span class="new-window-indicator" title="Opens in new window">🔗</span>
                                                 <?php endif; ?>
@@ -209,13 +211,13 @@ class QuickLinksAdminBar {
                                                 <a href="<?php echo esc_url($link['url']); ?>" 
                                                    <?php echo (!empty($link['new_window'])) ? 'target="_blank"' : ''; ?> 
                                                    class="quick-link-url">
-                                                    <?php echo esc_html($link['url']); ?>
+                                                    <?php echo esc_html(stripslashes($link['url'])); ?>
                                                 </a>
                                             </div>
                                         </div>
                                         <div class="quick-link-edit" style="display: none;">
-                                            <input type="text" class="edit-title" value="<?php echo esc_attr($link['title']); ?>" placeholder="Title">
-                                            <input type="url" class="edit-url" value="<?php echo esc_attr($link['url']); ?>" placeholder="URL">
+                                            <input type="text" class="edit-title" value="<?php echo esc_attr(stripslashes($link['title'])); ?>" placeholder="Title">
+                                            <input type="url" class="edit-url" value="<?php echo esc_attr(stripslashes($link['url'])); ?>" placeholder="URL">
                                             <label class="edit-new-window">
                                                 <input type="checkbox" class="edit-new-window-checkbox" <?php echo (!empty($link['new_window'])) ? 'checked' : ''; ?>>
                                                 Open in new window
@@ -279,6 +281,14 @@ class QuickLinksAdminBar {
         .quick-link-item.ui-sortable-helper {
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
             transform: rotate(2deg);
+        }
+        
+        .quick-link-placeholder {
+            height: 70px;
+            border: 2px dashed #f04e23;
+            background: #fff5f3;
+            border-radius: 8px;
+            margin: 15px 0;
         }
         
         .quick-link-handle {
@@ -549,40 +559,44 @@ class QuickLinksAdminBar {
                 });
             });
             
-            // Initialize sortable
-            if (typeof jQuery !== 'undefined' && jQuery.ui && jQuery.ui.sortable) {
-                jQuery('#quick-links-list').sortable({
-                    handle: '.quick-link-handle',
-                    placeholder: 'quick-link-placeholder',
-                    update: function(event, ui) {
-                        const order = [];
-                        jQuery('#quick-links-list .quick-link-item').each(function() {
-                            order.push(jQuery(this).attr('data-index'));
-                        });
-                        
-                        const formData = new FormData();
-                        formData.append('action', 'qlab_reorder_quick_links');
-                        formData.append('order', JSON.stringify(order));
-                        formData.append('nonce', '<?php echo wp_create_nonce('qlab_nonce'); ?>');
-                        
-                        fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
-                            method: 'POST',
-                            body: formData
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                showMessage('Order updated successfully!', 'success');
-                            } else {
-                                showMessage('Error updating order: ' + (data.data || 'Unknown error'), 'error');
-                            }
-                        })
-                        .catch(error => {
-                            showMessage('Network error. Please try again.', 'error');
-                        });
-                    }
-                });
-            }
+            // Initialize sortable - use jQuery ready to ensure jQuery UI is loaded
+            jQuery(document).ready(function($) {
+                if ($.ui && $.ui.sortable) {
+                    $('#quick-links-list').sortable({
+                        handle: '.quick-link-handle',
+                        placeholder: 'quick-link-placeholder',
+                        update: function(event, ui) {
+                            const order = [];
+                            $('#quick-links-list .quick-link-item').each(function() {
+                                order.push($(this).attr('data-index'));
+                            });
+                            
+                            const formData = new FormData();
+                            formData.append('action', 'qlab_reorder_quick_links');
+                            formData.append('order', JSON.stringify(order));
+                            formData.append('nonce', '<?php echo wp_create_nonce('qlab_nonce'); ?>');
+                            
+                            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    showMessage('Order updated successfully!', 'success');
+                                } else {
+                                    showMessage('Error updating order: ' + (data.data || 'Unknown error'), 'error');
+                                }
+                            })
+                            .catch(error => {
+                                showMessage('Network error. Please try again.', 'error');
+                            });
+                        }
+                    });
+                } else {
+                    console.error('jQuery UI Sortable is not available');
+                }
+            });
             
             function showMessage(message, type) {
                 const existing = document.querySelector('.success-message, .error-message');
@@ -634,7 +648,7 @@ class QuickLinksAdminBar {
         
         // Add individual links
         foreach ($quick_links as $index => $link) {
-            $title = $link['title'];
+            $title = stripslashes($link['title']);
             if (!empty($link['new_window'])) {
                 $title .= ' 🔗';
             }
@@ -666,8 +680,8 @@ class QuickLinksAdminBar {
             wp_send_json_error('Access denied');
         }
 
-        $title = sanitize_text_field($_POST['link_title']);
-        $url = esc_url_raw($_POST['link_url']);
+        $title = sanitize_text_field(stripslashes($_POST['link_title']));
+        $url = esc_url_raw(stripslashes($_POST['link_url']));
         $new_window = isset($_POST['link_new_window']) && $_POST['link_new_window'] === '1';
         
         if (empty($title) || empty($url)) {
@@ -726,8 +740,8 @@ class QuickLinksAdminBar {
         }
 
         $index = intval($_POST['index']);
-        $title = sanitize_text_field($_POST['title']);
-        $url = esc_url_raw($_POST['url']);
+        $title = sanitize_text_field(stripslashes($_POST['title']));
+        $url = esc_url_raw(stripslashes($_POST['url']));
         $new_window = isset($_POST['new_window']) && $_POST['new_window'] === '1';
         
         if (empty($title) || empty($url)) {

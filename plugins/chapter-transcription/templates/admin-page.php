@@ -37,7 +37,23 @@ if (!defined('ABSPATH')) {
     
     <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px;">
         <div style="flex: 1 1 280px; background: #fff; border: 1px solid #ccd0d4; border-radius: 6px; padding: 15px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
-            <h2 style="margin-top: 0; font-size: 16px;">Queue Overview</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h2 style="margin-top: 0; font-size: 16px;">Queue Overview</h2>
+                <div style="display: flex; gap: 8px;">
+                    <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('action' => 'process_queue', 'page' => 'chapter-transcription'), admin_url('admin.php')), 'process_transcription_queue')); ?>" 
+                       class="button button-primary" 
+                       style="font-size: 12px; padding: 4px 8px;"
+                       title="Manually process the next job in the queue">
+                        Process Queue Now
+                    </a>
+                    <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('action' => 'clear_queue', 'page' => 'chapter-transcription'), admin_url('admin.php')), 'clear_transcription_queue')); ?>" 
+                       class="button button-secondary" 
+                       style="font-size: 12px; padding: 4px 8px;"
+                       onclick="return confirm('Are you sure you want to stop and clear all transcription jobs? This will DELETE all pending and processing jobs from the queue.');">
+                        Clear Queue
+                    </a>
+                </div>
+            </div>
             <ul style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.6;">
                 <li><strong>Pending:</strong> <?php echo isset($queue['pending']) ? intval($queue['pending']) : 0; ?></li>
                 <li><strong>Processing:</strong> <?php echo isset($queue['processing']) ? intval($queue['processing']) : 0; ?></li>
@@ -88,6 +104,249 @@ if (!defined('ABSPATH')) {
             <?php else: ?>
                 <p style="margin: 0; color: #555;">No recent jobs found.</p>
             <?php endif; ?>
+        </div>
+    </div>
+    
+    <?php
+    // Queue Debug Information
+    $current_jobs = isset($queue['current_processing_jobs']) ? $queue['current_processing_jobs'] : array();
+    $stuck_jobs = isset($queue['stuck_jobs']) ? $queue['stuck_jobs'] : array();
+    $all_pending = isset($queue['all_pending_jobs']) ? $queue['all_pending_jobs'] : array();
+    $lock_age = isset($queue['lock_age']) ? $queue['lock_age'] : null;
+    $lock_set_time = isset($queue['lock_set_time']) ? $queue['lock_set_time'] : null;
+    $is_locked = !empty($queue['locked']);
+    $next_run = isset($queue['next_run']) ? $queue['next_run'] : null;
+    $last_run = isset($queue['last_run']) ? $queue['last_run'] : null;
+    $time_until_next = $next_run ? ($next_run - time()) : null;
+    ?>
+    
+    <div style="background: #f0f6fc; padding: 15px; border: 1px solid #2271b1; border-radius: 5px; margin-bottom: 20px;">
+        <h2 style="margin-top: 0; font-size: 18px; color: #2271b1;">🔍 Queue Diagnostics</h2>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <!-- Queue Lock Status -->
+            <div style="background: #fff; padding: 12px; border-radius: 5px; border-left: 4px solid <?php echo $is_locked ? '#dc3232' : '#46b450'; ?>;">
+                <strong style="display: block; margin-bottom: 8px;">Queue Lock Status</strong>
+                <?php if ($is_locked): ?>
+                    <div style="color: #dc3232; font-weight: 600;">🔒 LOCKED</div>
+                    <?php if ($lock_age !== null): ?>
+                        <div style="font-size: 12px; margin-top: 4px;">
+                            Locked for: <?php echo $lock_age > 60 ? round($lock_age / 60, 1) . ' minutes' : $lock_age . ' seconds'; ?>
+                            <?php if ($lock_age > 120): ?>
+                                <span style="color: #dc3232; font-weight: 600;">⚠️ STUCK (should expire after 2 min)</span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($lock_set_time): ?>
+                            <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                                Set at: <?php echo date_i18n('g:i:s a', $lock_set_time); ?>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <div style="color: #46b450; font-weight: 600;">✅ UNLOCKED</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">Queue can process jobs</div>
+                <?php endif; ?>
+            </div>
+            
+            <!-- Cron Status -->
+            <div style="background: #fff; padding: 12px; border-radius: 5px; border-left: 4px solid <?php echo $next_run ? '#2271b1' : '#dc3232'; ?>;">
+                <strong style="display: block; margin-bottom: 8px;">Cron Job Status</strong>
+                <?php if ($next_run): ?>
+                    <div style="color: #2271b1; font-weight: 600;">✅ Scheduled</div>
+                    <div style="font-size: 12px; margin-top: 4px;">
+                        Next run: <?php echo date_i18n('M j, g:i:s a', $next_run); ?>
+                        <?php if ($time_until_next !== null): ?>
+                            <br><small style="color: #666;">(in <?php echo $time_until_next > 60 ? round($time_until_next / 60, 1) . ' minutes' : $time_until_next . ' seconds'; ?>)</small>
+                        <?php endif; ?>
+                    </div>
+                <?php else: ?>
+                    <div style="color: #dc3232; font-weight: 600;">❌ Not Scheduled</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">Queue processor is not running</div>
+                <?php endif; ?>
+                <?php if ($last_run): ?>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                        Last run: <?php echo date_i18n('M j, g:i:s a', $last_run); ?>
+                        (<?php echo human_time_diff($last_run, time()); ?> ago)
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Currently Processing Jobs -->
+        <?php if (!empty($current_jobs)): ?>
+            <div style="background: #fff; padding: 12px; border-radius: 5px; margin-bottom: 15px;">
+                <h3 style="margin-top: 0; font-size: 16px;">Currently Processing Jobs (<?php echo count($current_jobs); ?>)</h3>
+                <table class="widefat striped" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Chapter ID</th>
+                            <th>Type</th>
+                            <th>Started</th>
+                            <th>Processing Time</th>
+                            <th>Attempts</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($current_jobs as $job): 
+                            $processing_seconds = isset($job->processing_seconds) ? intval($job->processing_seconds) : 0;
+                            $is_stuck = $processing_seconds > 300; // 5 minutes
+                        ?>
+                            <tr style="<?php echo $is_stuck ? 'background: #fff3cd;' : ''; ?>">
+                                <td>#<?php echo intval($job->ID); ?></td>
+                                <td><?php echo intval($job->chapter_id); ?></td>
+                                <td><?php echo esc_html(ucwords(str_replace('_', ' ', $job->job_type))); ?></td>
+                                <td><?php echo $job->started_at ? date_i18n('g:i:s a', strtotime($job->started_at)) : 'N/A'; ?></td>
+                                <td>
+                                    <?php 
+                                    if ($processing_seconds > 3600) {
+                                        echo round($processing_seconds / 3600, 1) . ' hours';
+                                    } elseif ($processing_seconds > 60) {
+                                        echo round($processing_seconds / 60, 1) . ' minutes';
+                                    } else {
+                                        echo $processing_seconds . ' seconds';
+                                    }
+                                    ?>
+                                    <?php if ($is_stuck): ?>
+                                        <span style="color: #dc3232; font-weight: 600;">⚠️ STUCK</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?php echo intval($job->attempts); ?></td>
+                                <td>
+                                    <?php if (!empty($job->message)): ?>
+                                        <small><?php echo esc_html($job->message); ?></small>
+                                    <?php else: ?>
+                                        <small style="color: #666;">No message</small>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+        
+        <!-- Stuck Jobs -->
+        <?php if (!empty($stuck_jobs)): ?>
+            <div style="background: #fff3cd; padding: 12px; border-radius: 5px; border-left: 4px solid #dc3232; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div>
+                        <h3 style="margin-top: 0; font-size: 16px; color: #dc3232;">⚠️ Stuck Jobs (Processing > 5 minutes) - <?php echo count($stuck_jobs); ?></h3>
+                        <p style="margin: 5px 0; font-size: 13px;">These jobs have been processing for more than 5 minutes and may be stuck. Jobs processing for more than 15 minutes will be automatically marked as failed.</p>
+                    </div>
+                    <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('action' => 'clear_stuck_jobs', 'page' => 'chapter-transcription'), admin_url('admin.php')), 'clear_stuck_jobs')); ?>" 
+                       class="button button-secondary" 
+                       style="background: #dc3232; color: #fff; border-color: #dc3232;"
+                       onclick="return confirm('This will mark all jobs processing for more than 15 minutes as failed. Continue?');">
+                        Clear Stuck Jobs Now
+                    </a>
+                </div>
+                <table class="widefat striped" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Chapter ID</th>
+                            <th>Processing Time</th>
+                            <th>Attempts</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($stuck_jobs as $job): 
+                            $processing_seconds = isset($job->processing_seconds) ? intval($job->processing_seconds) : 0;
+                        ?>
+                            <tr>
+                                <td>#<?php echo intval($job->ID); ?></td>
+                                <td><?php echo intval($job->chapter_id); ?></td>
+                                <td>
+                                    <?php 
+                                    if ($processing_seconds > 3600) {
+                                        echo round($processing_seconds / 3600, 1) . ' hours';
+                                    } else {
+                                        echo round($processing_seconds / 60, 1) . ' minutes';
+                                    }
+                                    ?>
+                                </td>
+                                <td><?php echo intval($job->attempts); ?></td>
+                                <td>
+                                    <?php if (!empty($job->message)): ?>
+                                        <small><?php echo esc_html($job->message); ?></small>
+                                    <?php else: ?>
+                                        <small style="color: #666;">No message</small>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+        
+        <!-- Pending Jobs -->
+        <?php if (!empty($all_pending)): ?>
+            <div style="background: #fff; padding: 12px; border-radius: 5px; margin-bottom: 15px;">
+                <h3 style="margin-top: 0; font-size: 16px;">Pending Jobs (<?php echo count($all_pending); ?>)</h3>
+                <table class="widefat striped" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Chapter ID</th>
+                            <th>Type</th>
+                            <th>Priority</th>
+                            <th>Created</th>
+                            <th>Attempts</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($all_pending as $job): ?>
+                            <tr>
+                                <td>#<?php echo intval($job->ID); ?></td>
+                                <td><?php echo intval($job->chapter_id); ?></td>
+                                <td><?php echo esc_html(ucwords(str_replace('_', ' ', $job->job_type))); ?></td>
+                                <td><?php echo intval($job->priority); ?></td>
+                                <td><?php echo $job->created_at ? date_i18n('M j, g:i a', strtotime($job->created_at)) : 'N/A'; ?></td>
+                                <td><?php echo intval($job->attempts); ?></td>
+                                <td>
+                                    <?php if (!empty($job->message)): ?>
+                                        <small><?php echo esc_html($job->message); ?></small>
+                                    <?php else: ?>
+                                        <small style="color: #666;">Queued</small>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+        
+        <!-- Diagnostic Actions -->
+        <div style="background: #fff; padding: 12px; border-radius: 5px;">
+            <h3 style="margin-top: 0; font-size: 16px;">Quick Actions</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <?php if ($is_locked): ?>
+                    <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('action' => 'clear_queue_lock', 'page' => 'chapter-transcription'), admin_url('admin.php')), 'clear_queue_lock')); ?>" 
+                       class="button button-secondary">
+                        Clear Queue Lock
+                    </a>
+                <?php endif; ?>
+                <?php if (!$next_run): ?>
+                    <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('action' => 'reschedule_cron', 'page' => 'chapter-transcription'), admin_url('admin.php')), 'reschedule_cron')); ?>" 
+                       class="button button-secondary">
+                        Reschedule Cron Job
+                    </a>
+                <?php endif; ?>
+                <?php if (!empty($stuck_jobs)): ?>
+                    <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('action' => 'clear_stuck_jobs', 'page' => 'chapter-transcription'), admin_url('admin.php')), 'clear_stuck_jobs')); ?>" 
+                       class="button button-secondary"
+                       style="background: #dc3232; color: #fff; border-color: #dc3232;"
+                       onclick="return confirm('This will mark all jobs processing for more than 15 minutes as failed. Continue?');">
+                        Clear Stuck Jobs (15+ min)
+                    </a>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     

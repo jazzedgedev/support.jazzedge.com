@@ -30,6 +30,73 @@ class JPH_Frontend {
         add_shortcode('jph_notifications', array($this, 'render_notifications_feed'));
         add_shortcode('jph_timezone_settings', array($this, 'render_timezone_settings'));
         add_shortcode('jph_fix_streak', array($this, 'render_fix_streak'));
+        
+        // AJAX handler for loading AI Assistant
+        add_action('wp_ajax_jph_load_ai_assistant', array($this, 'ajax_load_ai_assistant'));
+    }
+    
+    /**
+     * AJAX handler to load AI Assistant shortcode content
+     */
+    public function ajax_load_ai_assistant() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'jph_ai_assistant')) {
+            wp_send_json_error(array('message' => 'Security check failed.'));
+            return;
+        }
+        
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => 'You must be logged in to access the AI Assistant.'));
+            return;
+        }
+        
+        // Check if shortcode exists
+        if (!shortcode_exists('academy_ai_assistant')) {
+            wp_send_json_error(array('message' => 'AI Assistant shortcode not found. Please ensure the Academy AI Assistant plugin is active.'));
+            return;
+        }
+        
+        // Manually trigger asset enqueuing for AJAX context
+        // Use the filter to tell the AI Assistant plugin to enqueue assets
+        add_filter('aaa_should_enqueue_assets', '__return_true');
+        
+        // Render the shortcode with show_close_button enabled for modal context
+        ob_start();
+        $shortcode_output = do_shortcode('[academy_ai_assistant location="plan-modal" show_close_button="true"]');
+        echo $shortcode_output;
+        $content = ob_get_clean();
+        
+        // Get enqueued scripts and styles to include in response
+        global $wp_scripts, $wp_styles;
+        $scripts_output = '';
+        $styles_output = '';
+        
+        // Capture script tags
+        if (isset($wp_scripts->queue) && !empty($wp_scripts->queue)) {
+            ob_start();
+            wp_print_scripts(array('aaa-assistant-js'));
+            $scripts_output = ob_get_clean();
+        }
+        
+        // Capture style tags
+        if (isset($wp_styles->queue) && !empty($wp_styles->queue)) {
+            ob_start();
+            wp_print_styles(array('aaa-assistant-css'));
+            $styles_output = ob_get_clean();
+        }
+        
+        // Combine content with assets
+        $full_content = $styles_output . $scripts_output . $content;
+        
+        error_log('AI Assistant AJAX - Full content length: ' . strlen($full_content));
+        
+        if (empty($content) || trim($content) === '') {
+            wp_send_json_error(array('message' => 'Failed to load AI Assistant content. The shortcode returned empty output.'));
+            return;
+        }
+        
+        // Send the content directly (wp_send_json_success will wrap it)
+        wp_send_json_success($full_content);
     }
     
     /**
@@ -956,7 +1023,41 @@ class JPH_Frontend {
             $user_id
         ), ARRAY_A);
         
+        // Normalize URLs - convert /lesson/{id} to proper permalinks
+        foreach ($favorites as &$favorite) {
+            if (!empty($favorite['url']) && preg_match('#^/lesson/(\d+)/?$#', $favorite['url'], $matches)) {
+                $lesson_id = intval($matches[1]);
+                $permalink = $this->get_lesson_permalink_from_id($lesson_id);
+                if ($permalink) {
+                    $favorite['url'] = $permalink;
+                }
+            }
+        }
+        unset($favorite); // Break reference
+        
         return $favorites ?: array();
+    }
+    
+    /**
+     * Get lesson permalink from lesson ID
+     */
+    private function get_lesson_permalink_from_id($lesson_id) {
+        global $wpdb;
+        
+        $lessons_table = $wpdb->prefix . 'alm_lessons';
+        $post_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT post_id FROM {$lessons_table} WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if ($post_id) {
+            $permalink = get_permalink($post_id);
+            if ($permalink) {
+                return $permalink;
+            }
+        }
+        
+        return null;
     }
 
     /**
@@ -989,6 +1090,665 @@ class JPH_Frontend {
         ), ARRAY_A);
         
         return $banner ?: null;
+    }
+    
+    /**
+     * Get roadmap data for a membership level
+     * 
+     * @param int $membership_level Membership level (1=Essentials, 2=Studio, 3=Premier)
+     * @return array|null Roadmap data or null if invalid level
+     */
+    private function get_roadmap_data($membership_level) {
+        $roadmaps = array(
+            1 => array( // Essentials
+                'title' => 'Your Essentials Learning Path',
+                'description' => 'Follow this step-by-step guide to make the most of your Essentials membership',
+                'stages' => array(
+                    array(
+                        'number' => 1,
+                        'title' => 'Foundation',
+                        'steps' => array(
+                            array(
+                                'text' => 'Complete 30-Day Piano Playbook™',
+                                'url' => home_url('/course/30-day-piano-playbook/'),
+                                'description' => 'Build your piano foundation step-by-step with a proven starter plan'
+                            ),
+                            array(
+                                'text' => 'Jazzedge Practice Curriculum™',
+                                'url' => '#jpc',
+                                'description' => 'Follow the structured practice curriculum to build your skills systematically'
+                            ),
+                            array(
+                                'text' => 'Get Graded on Your JPC Milestones',
+                                'url' => '#jpc',
+                                'description' => 'Submit your milestone videos for personalized feedback from a live teacher! <a href="https://jazzedge.academy/docs/submitting-jpc-milestones/" target="_blank">Learn how to submit milestones</a>'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 2,
+                        'title' => 'Structured Learning',
+                        'steps' => array(
+                            array(
+                                'text' => 'Quick Tips',
+                                'url' => 'https://jazzedge.academy/course/quick-tips/',
+                                'description' => 'Short, focused lessons to accelerate your learning'
+                            ),
+                            array(
+                                'text' => 'Explore Academy Blueprints',
+                                'url' => 'https://jazzedge.academy/course/blueprints/',
+                                'description' => 'Follow clear, structured guides to learn chords, rhythms, and improvisation basics'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 3,
+                        'title' => 'Build Your Library',
+                        'steps' => array(
+                            array(
+                                'text' => 'Select your first Studio lesson',
+                                'url' => home_url('/my-library'),
+                                'description' => 'Choose any 1 Studio lesson per month to add to your library'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 4,
+                        'title' => 'Learn from Others',
+                        'steps' => array(
+                            array(
+                                'text' => 'Watch Coaching Replays',
+                                'url' => 'https://jazzedge.academy/course/coaching-with-willie-replays/',
+                                'description' => 'Access recordings of coaching sessions to learn from expert guidance'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 5,
+                        'title' => 'Community',
+                        'steps' => array(
+                            array(
+                                'text' => 'Join Monthly Community Q&A Call',
+                                'url' => home_url('/events/'),
+                                'description' => 'Ask questions, get tips, and stay inspired with other students'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 6,
+                        'title' => 'Community Area',
+                        'steps' => array(
+                            array(
+                                'text' => 'Visit the Community Area',
+                                'url' => 'https://jazzedge.academy/community',
+                                'description' => 'Connect with other students, share your progress, and get support'
+                            ),
+                            array(
+                                'text' => 'Post your playing',
+                                'url' => 'https://jazzedge.academy/community/space/postyourperformances/home',
+                                'description' => 'Share your progress with the community! <a href="https://jazzedge.academy/docs/uploading-to-youtube/" target="_blank">Learn how to upload to YouTube</a>'
+                            )
+                        )
+                    )
+                )
+            ),
+            2 => array( // Studio
+                'title' => 'Your Studio Learning Path',
+                'description' => 'Maximize your Studio membership with this guided learning journey',
+                'stages' => array(
+                    array(
+                        'number' => 1,
+                        'title' => 'Foundation',
+                        'steps' => array(
+                            array(
+                                'text' => 'Complete 30-Day Piano Playbook™',
+                                'url' => home_url('/course/30-day-piano-playbook/'),
+                                'description' => 'Build your piano foundation step-by-step with a proven starter plan'
+                            ),
+                            array(
+                                'text' => 'Jazzedge Practice Curriculum™',
+                                'url' => '#jpc',
+                                'description' => 'Follow the structured practice curriculum to build your skills systematically'
+                            ),
+                            array(
+                                'text' => 'Get Graded on Your JPC Milestones',
+                                'url' => '#jpc',
+                                'description' => 'Submit your milestone videos for personalized feedback from a live teacher! <a href="https://jazzedge.academy/docs/submitting-jpc-milestones/" target="_blank">Learn how to submit milestones</a>'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 2,
+                        'title' => 'Explore Collections',
+                        'steps' => array(
+                            array(
+                                'text' => 'Browse Studio Collections',
+                                'url' => home_url('/collections/'),
+                                'description' => 'Discover intermediate to advanced courses organized by topic and style'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 3,
+                        'title' => 'Advanced Learning',
+                        'steps' => array(
+                            array(
+                                'text' => 'Explore Academy Blueprints',
+                                'url' => 'https://jazzedge.academy/course/blueprints/',
+                                'description' => 'Master chords, rhythms, and improvisation techniques'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 4,
+                        'title' => 'Coaching',
+                        'steps' => array(
+                            array(
+                                'text' => 'Watch Coaching Replays',
+                                'url' => 'https://jazzedge.academy/course/coaching-with-willie-replays/',
+                                'description' => 'Review recordings of all coaching sessions'
+                            ),
+                            array(
+                                'text' => 'Upgrade to Premier to join live coaching',
+                                'url' => home_url('/join/'),
+                                'description' => 'Get access to live coaching sessions with personalized feedback'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 5,
+                        'title' => 'Mastery',
+                        'steps' => array(
+                            array(
+                                'text' => 'Super Simple Standards™ Part 1',
+                                'url' => 'https://jazzedge.academy/course/super-simple-standards-part-1/',
+                                'description' => 'Learn to create beautiful, simple arrangements for jazz standards using chord shells'
+                            ),
+                            array(
+                                'text' => 'Standards by the Dozen™',
+                                'url' => 'https://jazzedge.academy/course/standards-by-the-dozen/',
+                                'description' => 'Master a dozen essential jazz standards with step-by-step guidance'
+                            ),
+                            array(
+                                'text' => 'The Confident Improviser™ LIVE - Beginner',
+                                'url' => 'https://jazzedge.academy/course/the-confident-improviser-live-beginner/',
+                                'description' => 'Build confidence in improvisation with live beginner training'
+                            ),
+                            array(
+                                'text' => 'Blues Artists',
+                                'url' => 'https://jazzedge.academy/course/blues-artists/',
+                                'description' => 'Learn from the masters and explore the styles of legendary blues artists'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 6,
+                        'title' => 'Community Area',
+                        'steps' => array(
+                            array(
+                                'text' => 'Visit the Community Area',
+                                'url' => 'https://jazzedge.academy/community',
+                                'description' => 'Connect with other students, share your progress, and get support'
+                            ),
+                            array(
+                                'text' => 'Post your playing',
+                                'url' => 'https://jazzedge.academy/community/space/postyourperformances/home',
+                                'description' => 'Share your progress with the community! <a href="https://jazzedge.academy/docs/uploading-to-youtube/" target="_blank">Learn how to upload to YouTube</a>'
+                            )
+                        )
+                    )
+                )
+            ),
+            3 => array( // Premier
+                'title' => 'Your Premier Learning Path',
+                'description' => 'Your complete guide to mastering piano with full Premier access',
+                'stages' => array(
+                    array(
+                        'number' => 1,
+                        'title' => 'Foundation',
+                        'steps' => array(
+                            array(
+                                'text' => 'Complete 30-Day Piano Playbook™',
+                                'url' => home_url('/course/30-day-piano-playbook/'),
+                                'description' => 'Build your piano foundation step-by-step with a proven starter plan'
+                            ),
+                            array(
+                                'text' => 'Jazzedge Practice Curriculum™',
+                                'url' => '#jpc',
+                                'description' => 'Follow the structured practice curriculum to build your skills systematically'
+                            ),
+                            array(
+                                'text' => 'Get Graded on Your JPC Milestones',
+                                'url' => '#jpc',
+                                'description' => 'Submit your milestone videos for personalized feedback from a live teacher! <a href="https://jazzedge.academy/docs/submitting-jpc-milestones/" target="_blank">Learn how to submit milestones</a>'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 2,
+                        'title' => 'Full Access',
+                        'steps' => array(
+                            array(
+                                'text' => 'Explore All Collections',
+                                'url' => home_url('/collections/'),
+                                'description' => 'Access every collection across Essentials, Studio, and Premier levels'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 3,
+                        'title' => 'Advanced Learning',
+                        'steps' => array(
+                            array(
+                                'text' => 'Explore Academy Blueprints',
+                                'url' => 'https://jazzedge.academy/course/blueprints/',
+                                'description' => 'Master chords, rhythms, and advanced improvisation techniques'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 4,
+                        'title' => 'Coaching',
+                        'steps' => array(
+                            array(
+                                'text' => 'Attend a Coaching Session',
+                                'url' => '#events',
+                                'description' => 'Get personalized feedback in live sessions'
+                            ),
+                            array(
+                                'text' => 'Watch All Coaching Replays',
+                                'url' => 'https://jazzedge.academy/course/coaching-with-willie-replays/',
+                                'description' => 'Review recordings of all coaching sessions'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 5,
+                        'title' => 'Mastery',
+                        'steps' => array(
+                            array(
+                                'text' => 'Super Simple Standards™',
+                                'url' => 'https://jazzedge.academy/course/super-simple-standards-part-1/',
+                                'description' => 'Learn to play jazz and pop/rock standards using simplified chord shells (Part 1)'
+                            ),
+                            array(
+                                'text' => 'Super Simple Standards™ Part 2',
+                                'url' => 'https://jazzedge.academy/course/super-simple-standards-part-2/',
+                                'description' => 'Continue building your standards repertoire with Part 2'
+                            ),
+                            array(
+                                'text' => 'The Confident Improviser™ LIVE - Beginner',
+                                'url' => 'https://jazzedge.academy/course/the-confident-improviser-live-beginner/',
+                                'description' => 'Build confidence in improvisation with live beginner training'
+                            ),
+                            array(
+                                'text' => 'The Confident Improviser™ LIVE - Advanced',
+                                'url' => 'https://jazzedge.academy/course/the-confident-improviser-live-advanced/',
+                                'description' => 'Take your improvisation to the next level with advanced live training'
+                            ),
+                            array(
+                                'text' => 'Paul\'s Chord Play',
+                                'url' => 'https://jazzedge.academy/course/chord-play/',
+                                'description' => 'Learn to get the most music out of even the simplest chord progressions'
+                            ),
+                            array(
+                                'text' => 'Advanced Jazz Piano Arranging',
+                                'url' => 'https://jazzedge.academy/course/advanced-jazz-piano-arranging/',
+                                'description' => 'Master advanced arranging techniques for jazz piano (style specific)'
+                            ),
+                            array(
+                                'text' => 'Blues Piano 101',
+                                'url' => 'https://jazzedge.academy/course/blues-piano-101/',
+                                'description' => 'Deep dive into blues piano techniques and styles (style specific)'
+                            )
+                        )
+                    ),
+                    array(
+                        'number' => 6,
+                        'title' => 'Community Area',
+                        'steps' => array(
+                            array(
+                                'text' => 'Visit the Community Area',
+                                'url' => 'https://jazzedge.academy/community',
+                                'description' => 'Connect with other students, share your progress, and get support'
+                            ),
+                            array(
+                                'text' => 'Post your playing',
+                                'url' => 'https://jazzedge.academy/community/space/postyourperformances/home',
+                                'description' => 'Share your progress with the community! <a href="https://jazzedge.academy/docs/uploading-to-youtube/" target="_blank">Learn how to upload to YouTube</a>'
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        
+        return isset($roadmaps[$membership_level]) ? $roadmaps[$membership_level] : null;
+    }
+    
+    /**
+     * Get roadmap step completion status for current user
+     * 
+     * @param int $membership_level Membership level
+     * @return array Completion status array keyed by step identifier
+     */
+    private function get_roadmap_completion_status($membership_level) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return array();
+        }
+        
+        $completion_meta = get_user_meta($user_id, 'jph_roadmap_completion_' . $membership_level, true);
+        
+        if (empty($completion_meta)) {
+            return array();
+        }
+        
+        $completion = json_decode($completion_meta, true);
+        return is_array($completion) ? $completion : array();
+    }
+    
+    /**
+     * Generate step identifier for completion tracking
+     * 
+     * @param int $stage_number Stage number
+     * @param string $step_text Step text
+     * @return string Step identifier
+     */
+    private function get_step_identifier($stage_number, $step_text) {
+        return 'stage_' . $stage_number . '_' . md5($step_text);
+    }
+    
+    /**
+     * Render membership roadmap section
+     * 
+     * @param int $membership_level Membership level (1=Essentials, 2=Studio, 3=Premier)
+     * @return string HTML output
+     */
+    private function render_membership_roadmap($membership_level) {
+        $roadmap_data = $this->get_roadmap_data($membership_level);
+        
+        if (!$roadmap_data) {
+            return '';
+        }
+        
+        $user_id = get_current_user_id();
+        $completion_status = $this->get_roadmap_completion_status($membership_level);
+        
+        $membership_names = array(
+            1 => 'Essentials',
+            2 => 'Studio',
+            3 => 'Premier'
+        );
+        
+        $membership_name = isset($membership_names[$membership_level]) ? $membership_names[$membership_level] : '';
+        $storage_key = 'jph_roadmap_collapsed_' . $membership_level;
+        $roadmap_id = 'jph-roadmap-' . $membership_level;
+        
+        ob_start();
+        ?>
+        <div class="jph-membership-roadmap" id="<?php echo esc_attr($roadmap_id); ?>" data-membership-level="<?php echo esc_attr($membership_level); ?>">
+            <div class="jph-roadmap-header">
+                <div class="jph-roadmap-header-content">
+                    <h3 class="jph-roadmap-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-roadmap-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                        <?php echo esc_html($roadmap_data['title']); ?>
+                    </h3>
+                    <p class="jph-roadmap-description"><?php echo esc_html($roadmap_data['description']); ?></p>
+                </div>
+                <button type="button" class="jph-roadmap-toggle" aria-label="Toggle roadmap" aria-expanded="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-roadmap-chevron">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                    </svg>
+                </button>
+            </div>
+            <div class="jph-roadmap-content">
+                <div class="jph-roadmap-stages">
+                    <?php foreach ($roadmap_data['stages'] as $stage): ?>
+                        <div class="jph-roadmap-stage">
+                            <div class="jph-stage-header">
+                                <div class="jph-stage-number"><?php echo esc_html($stage['number']); ?></div>
+                                <h4 class="jph-stage-title"><?php echo esc_html($stage['title']); ?></h4>
+                            </div>
+                            <div class="jph-stage-steps">
+                                <?php foreach ($stage['steps'] as $step): 
+                                    $step_id = $this->get_step_identifier($stage['number'], $step['text']);
+                                    $is_completed = isset($completion_status[$step_id]) && $completion_status[$step_id] === true;
+                                    $step_class = $is_completed ? 'jph-step-completed' : '';
+                                ?>
+                                    <div class="jph-stage-step <?php echo esc_attr($step_class); ?>" data-step-id="<?php echo esc_attr($step_id); ?>">
+                                        <div class="jph-step-content">
+                                            <label class="jph-step-checkbox-label">
+                                                <input type="checkbox" class="jph-step-checkbox" data-step-id="<?php echo esc_attr($step_id); ?>" data-membership-level="<?php echo esc_attr($membership_level); ?>" <?php checked($is_completed, true); ?>>
+                                                <span class="jph-step-checkmark">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="jph-checkmark-icon">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                                    </svg>
+                                                </span>
+                                            </label>
+                                            <div class="jph-step-main">
+                                                <?php if (!empty($step['url'])): ?>
+                                                    <a href="<?php echo esc_url($step['url']); ?>" class="jph-step-link">
+                                                        <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-step-arrow">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                                        </svg>
+                                                    </a>
+                                                <?php else: ?>
+                                                    <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($step['description'])): ?>
+                                                    <p class="jph-step-description"><?php echo wp_kses_post($step['description']); ?></p>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+        (function() {
+            const roadmap = document.getElementById('<?php echo esc_js($roadmap_id); ?>');
+            if (!roadmap) return;
+            
+            const header = roadmap.querySelector('.jph-roadmap-header');
+            const toggleBtn = roadmap.querySelector('.jph-roadmap-toggle');
+            const content = roadmap.querySelector('.jph-roadmap-content');
+            const chevron = roadmap.querySelector('.jph-roadmap-chevron');
+            const storageKey = '<?php echo esc_js($storage_key); ?>';
+            const membershipLevel = <?php echo esc_js($membership_level); ?>;
+            
+            // Load saved state
+            const savedState = localStorage.getItem(storageKey);
+            const isCollapsed = savedState === 'true';
+            
+            if (isCollapsed) {
+                content.style.display = 'none';
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                chevron.style.transform = 'rotate(180deg)';
+            }
+            
+            // Toggle function
+            function toggleRoadmap() {
+                const isCurrentlyCollapsed = content.style.display === 'none';
+                
+                if (isCurrentlyCollapsed) {
+                    content.style.display = 'block';
+                    toggleBtn.setAttribute('aria-expanded', 'true');
+                    chevron.style.transform = 'rotate(0deg)';
+                    localStorage.setItem(storageKey, 'false');
+                } else {
+                    content.style.display = 'none';
+                    toggleBtn.setAttribute('aria-expanded', 'false');
+                    chevron.style.transform = 'rotate(180deg)';
+                    localStorage.setItem(storageKey, 'true');
+                }
+            }
+            
+            // Toggle functionality - header click
+            if (header) {
+                header.addEventListener('click', function(e) {
+                    // Don't toggle if clicking directly on the button (it will handle its own click)
+                    if (e.target.closest('.jph-roadmap-toggle')) {
+                        return;
+                    }
+                    toggleRoadmap();
+                });
+            }
+            
+            // Toggle functionality - button click
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation(); // Prevent header click from also firing
+                toggleRoadmap();
+            });
+            
+            // Step completion tracking
+            roadmap.querySelectorAll('.jph-step-checkbox').forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const stepId = this.dataset.stepId;
+                    const isCompleted = this.checked;
+                    const stepElement = this.closest('.jph-stage-step');
+                    
+                    // Update visual state immediately
+                    if (isCompleted) {
+                        stepElement.classList.add('jph-step-completed');
+                    } else {
+                        stepElement.classList.remove('jph-step-completed');
+                    }
+                    
+                    // Save via AJAX
+                    jQuery.ajax({
+                        url: '<?php echo esc_url(rest_url('aph/v1/roadmap/step-completion')); ?>',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            membership_level: membershipLevel,
+                            step_id: stepId,
+                            completed: isCompleted
+                        }),
+                        beforeSend: function(xhr) {
+                            xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                        },
+                        success: function(response) {
+                            if (!response.success) {
+                                // Revert on error
+                                checkbox.checked = !isCompleted;
+                                if (isCompleted) {
+                                    stepElement.classList.remove('jph-step-completed');
+                                } else {
+                                    stepElement.classList.add('jph-step-completed');
+                                }
+                            }
+                        },
+                        error: function() {
+                            // Revert on error
+                            checkbox.checked = !isCompleted;
+                            if (isCompleted) {
+                                stepElement.classList.remove('jph-step-completed');
+                            } else {
+                                stepElement.classList.add('jph-step-completed');
+                            }
+                        }
+                    });
+                });
+            });
+            
+            // Handle #jpc anchor links - open technique tab and scroll to JPC section
+            roadmap.querySelectorAll('a[href="#jpc"]').forEach(function(link) {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Open the technique tab
+                    const techniqueTab = document.querySelector('.jph-tab-btn[data-tab="technique"]');
+                    if (techniqueTab) {
+                        techniqueTab.click();
+                        
+                        // Wait for tab to open, then scroll to JPC section
+                        setTimeout(function() {
+                            const jpcSection = document.querySelector('.jpc-current-focus');
+                            if (jpcSection) {
+                                jpcSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }, 300);
+                    }
+                });
+            });
+            
+            // Handle #events anchor links - open events tab
+            roadmap.querySelectorAll('a[href="#events"]').forEach(function(link) {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Open the events tab
+                    const eventsTab = document.querySelector('.jph-tab-btn[data-tab="events"]');
+                    if (eventsTab) {
+                        eventsTab.click();
+                        
+                        // Wait for tab to open, then scroll to top of events section
+                        setTimeout(function() {
+                            const eventsSection = document.querySelector('#events-tab');
+                            if (eventsSection) {
+                                eventsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }, 300);
+                    }
+                });
+            });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+    
+    /**
+     * Check if current user can access PLAN tab (test users only)
+     */
+    private function user_can_access_plan_tab() {
+        $user_id = get_current_user_id();
+        
+        
+        if (!$user_id || $user_id === 0) {
+            error_log('PLAN Tab Check - No user ID, returning false');
+            return false;
+        }
+        
+        // Check if enabled for all users (production mode)
+        $enable_for_all = get_option('aaa_enable_for_all', false);
+        error_log('PLAN Tab Check - Enable for all: ' . ($enable_for_all ? 'true' : 'false'));
+        
+        if ($enable_for_all) {
+            error_log('PLAN Tab Check - Enabled for all, returning true');
+            return true;
+        }
+        
+        // Check if user is in test whitelist
+        $test_user_ids = get_option('aaa_test_user_ids', '');
+        error_log('PLAN Tab Check - Test user IDs option: ' . $test_user_ids);
+        
+        if (empty($test_user_ids)) {
+            error_log('PLAN Tab Check - No test user IDs set, returning false');
+            return false;
+        }
+        
+        // Parse comma-separated user IDs
+        $whitelist = array_map('trim', explode(',', $test_user_ids));
+        $whitelist = array_map('absint', $whitelist); // Sanitize
+        $whitelist = array_filter($whitelist); // Remove empty values
+        
+        error_log('PLAN Tab Check - Parsed whitelist: ' . print_r($whitelist, true));
+        error_log('PLAN Tab Check - User ID in whitelist: ' . (in_array($user_id, $whitelist, true) ? 'true' : 'false'));
+        
+        $result = in_array($user_id, $whitelist, true);
+        error_log('PLAN Tab Check - Final result: ' . ($result ? 'true' : 'false'));
+        
+        return $result;
     }
     
     /**
@@ -1078,8 +1838,186 @@ class JPH_Frontend {
             </div>';
         }
         
+        // Get current user ID
+        $user_id = get_current_user_id();
+        
         // Check if user has active membership
         if (function_exists('je_return_active_member') && je_return_active_member() !== 'true') {
+            // Check if user has credit log purchases
+            global $wpdb;
+            $credit_log_count = 0;
+            $has_credit_purchases = false;
+            
+            if ($user_id) {
+                $credit_log_count = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM academy_user_credit_log WHERE user_id = %d",
+                    $user_id
+                ));
+                $has_credit_purchases = $credit_log_count > 0;
+            }
+            
+            // Check if user has any membership-related Keap tags configured in ALM settings
+            $has_dashboard_access_via_tag = false;
+            if ($user_id) {
+                $keap_tags = get_option('alm_keap_tags', array());
+                $all_allowed_tag_ids = array();
+                
+                // Collect all tag IDs from all membership groups
+                foreach (array('starter_free', 'starter_paid', 'essentials', 'studio', 'premier') as $tag_key) {
+                    if (!empty($keap_tags[$tag_key])) {
+                        $tag_ids = array_map('intval', array_filter(explode(',', $keap_tags[$tag_key])));
+                        $all_allowed_tag_ids = array_merge($all_allowed_tag_ids, $tag_ids);
+                    }
+                }
+                
+                // Remove duplicates and check if user has any of these tags
+                $all_allowed_tag_ids = array_unique(array_filter($all_allowed_tag_ids));
+                if (!empty($all_allowed_tag_ids) && function_exists('memb_hasAnyTags')) {
+                    $has_dashboard_access_via_tag = memb_hasAnyTags($all_allowed_tag_ids) === true;
+                }
+            }
+            
+            // If user has any membership tag, allow dashboard access (bypass "Membership Required" message)
+            if ($has_dashboard_access_via_tag) {
+                // Continue to render dashboard - don't show "Membership Required" message
+                // This will allow the function to continue past this if block
+            }
+            
+            // Check if debug mode is enabled
+            $is_debug = isset($_GET['debug']) && $_GET['debug'] == '1';
+            $debug_info = '';
+            
+            if ($is_debug) {
+                // Gather membership debug information
+                $user = wp_get_current_user();
+                // Ensure user_id is set (should already be set at top of function, but ensure it here too)
+                if (empty($user_id)) {
+                    $user_id = $user ? $user->ID : get_current_user_id();
+                }
+                $user_email = $user ? $user->user_email : 'N/A';
+                
+                $active_member = function_exists('je_return_active_member') ? je_return_active_member() : 'N/A';
+                $membership_level = function_exists('je_return_membership_level') ? je_return_membership_level('nicename') : 'N/A';
+                $membership_level_product = function_exists('je_return_membership_level') ? je_return_membership_level('product') : 'N/A';
+                $membership_expired = function_exists('je_return_membership_expired') ? je_return_membership_expired() : 'N/A';
+                $has_blocking_tags = function_exists('je_has_blocking_tags') ? (je_has_blocking_tags() ? 'Yes' : 'No') : 'N/A';
+                
+                // Check payment failed tag
+                $payment_failed = do_shortcode('[memb_has_any_tag tagid=7772]');
+                $payment_failed_status = ($payment_failed === 'Yes') ? 'Yes' : 'No';
+                
+                // Check all membership tags from ALM settings
+                $keap_tags = get_option('alm_keap_tags', array());
+                $tag_groups = array(
+                    'starter_free' => 'Academy Starter Free Tags',
+                    'starter_paid' => 'Academy Starter Paid Tags',
+                    'essentials' => 'Essentials Tags',
+                    'studio' => 'Studio Tags',
+                    'premier' => 'Premier Tags'
+                );
+                
+                $tag_debug_info = array();
+                foreach ($tag_groups as $tag_key => $tag_label) {
+                    $tag_ids_str = !empty($keap_tags[$tag_key]) ? $keap_tags[$tag_key] : '';
+                    $tag_ids = !empty($tag_ids_str) ? array_map('intval', array_filter(explode(',', $tag_ids_str))) : array();
+                    $has_tag = false;
+                    $tag_status = 'Not configured';
+                
+                    if (!empty($tag_ids) && function_exists('memb_hasAnyTags')) {
+                        $has_tag = memb_hasAnyTags($tag_ids) === true;
+                        $tag_status = $has_tag ? 'Yes (Tag IDs: ' . esc_html($tag_ids_str) . ')' : 'No (Tag IDs: ' . esc_html($tag_ids_str) . ')';
+                    } elseif (!empty($tag_ids_str)) {
+                        $tag_status = 'Configured but check failed (Tag IDs: ' . esc_html($tag_ids_str) . ')';
+                    }
+                    
+                    $tag_debug_info[$tag_key] = array(
+                        'label' => $tag_label,
+                        'status' => $tag_status,
+                        'has_tag' => $has_tag
+                    );
+                }
+                
+                // Check all possible memberships
+                $memberships = [
+                    'ACADEMY_PREMIER', 'ACADEMY_STUDIO', 'JA_MONTHLY_CLASSES_ONLY', 'JA_MONTHLY_LSN_ONLY',
+                    'JA_LESSONS_90DAYS', 'ACADEMY_SONG', 'ACADEMY_ACADEMY', 'ACADEMY_ACADEMY_1YR',
+                    'ACADEMY_ACADEMY_NC', 'JA_MONTHLY_LSN_CLASSES', 'JA_MONTHLY_LSN_COACHING', 'JA_MONTHLY_STUDIO', 'JA_YEAR_STUDIO',
+                    'JA_MONTHLY_PREMIER', 'JA_MONTHLY_PREMIER_DMP', 'JA_YEAR_LSN_CLASSES', 'JA_YEAR_LSN_COACHING',
+                    'JA_YEAR_LSN_ONLY', 'JA_YEAR_CLASSES_ONLY', 'JA_YEAR_PREMIER', 'JA_MONTHLY_STUDIO_DMP', 'JA_MONTHLY_ESSENTIALS', 'JA_YEAR_ESSENTIALS'
+                ];
+                
+                $active_memberships = [];
+                if (function_exists('memb_hasMembership')) {
+                    foreach ($memberships as $membership) {
+                        if (memb_hasMembership($membership) === true) {
+                            $active_memberships[] = $membership;
+                        }
+                    }
+                }
+                
+                $debug_info = '<div style="background: #f8f9fa; border: 2px solid #0073aa; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: left; max-width: 800px; margin-left: auto; margin-right: auto;">
+                    <h4 style="color: #0073aa; margin-top: 0; margin-bottom: 15px;">🔍 Membership Debug Information</h4>
+                    <table style="width: 100%; border-collapse: collapse; font-family: monospace; font-size: 13px;">
+                        <tr style="background: #e9ecef;">
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold; width: 40%;">User ID</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6;">' . esc_html($user_id) . '</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">User Email</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6;">' . esc_html($user_email) . '</td>
+                        </tr>
+                        <tr style="background: #e9ecef;">
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">je_return_active_member()</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; color: ' . ($active_member === 'true' ? '#28a745' : '#dc3545') . '; font-weight: bold;">' . esc_html($active_member) . '</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">je_return_membership_level()</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6;">' . esc_html($membership_level) . ' (' . esc_html($membership_level_product) . ')</td>
+                        </tr>
+                        <tr style="background: #e9ecef;">
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">je_return_membership_expired()</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; color: ' . ($membership_expired === 'true' ? '#dc3545' : '#28a745') . '; font-weight: bold;">' . esc_html($membership_expired) . '</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">je_has_blocking_tags()</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; color: ' . ($has_blocking_tags === 'Yes' ? '#dc3545' : '#28a745') . '; font-weight: bold;">' . esc_html($has_blocking_tags) . '</td>
+                        </tr>
+                        <tr style="background: #e9ecef;">
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Payment Failed (Tag 7772)</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; color: ' . ($payment_failed_status === 'Yes' ? '#dc3545' : '#28a745') . '; font-weight: bold;">' . esc_html($payment_failed_status) . '</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Dashboard Access via Tags</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; color: ' . ($has_dashboard_access_via_tag ? '#28a745' : '#6c757d') . '; font-weight: bold;">' . ($has_dashboard_access_via_tag ? 'Yes' : 'No') . '</td>
+                        </tr>';
+                
+                // Add rows for each tag group
+                foreach ($tag_groups as $tag_key => $tag_label) {
+                    $tag_info = $tag_debug_info[$tag_key];
+                    $row_bg = (array_search($tag_key, array_keys($tag_groups)) % 2 == 0) ? 'background: #e9ecef;' : '';
+                    $tag_color = $tag_info['has_tag'] ? '#28a745' : ($tag_info['status'] === 'Not configured' ? '#6c757d' : '#dc3545');
+                    $debug_info .= '
+                        <tr style="' . $row_bg . '">
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">' . esc_html($tag_info['label']) . '</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6; color: ' . $tag_color . '; font-weight: bold;">' . esc_html($tag_info['status']) . '</td>
+                        </tr>';
+                }
+                
+                $debug_info .= '
+                        <tr style="background: #e9ecef;">
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Active Memberships</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6;">' . (empty($active_memberships) ? '<span style="color: #dc3545;">None found</span>' : '<ul style="margin: 0; padding-left: 20px;">' . implode('', array_map(function($m) { return '<li>' . esc_html($m) . '</li>'; }, $active_memberships)) . '</ul>') . '</td>
+                        </tr>
+                        <tr style="background: #e9ecef;">
+                            <td style="padding: 8px; border: 1px solid #dee2e6; font-weight: bold;">Credit Log Count</td>
+                            <td style="padding: 8px; border: 1px solid #dee2e6;">' . esc_html($credit_log_count) . '</td>
+                        </tr>
+                    </table>
+                </div>';
+            }
+            
+            // Only show "Membership Required" if user doesn't have credit purchases AND doesn't have any membership tags
+            if (!$has_dashboard_access_via_tag) {
             return '<style>
                 .jph-membership-required {
                     text-align: center;
@@ -1128,6 +2066,14 @@ class JPH_Frontend {
                     font-weight: 400;
                 }
                 
+                .membership-notice .button-container {
+                    display: flex;
+                    justify-content: center;
+                    gap: 16px;
+                    margin-top: 24px;
+                    flex-wrap: wrap;
+                }
+                
                 .membership-notice a {
                     display: inline-block;
                     background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
@@ -1139,7 +2085,16 @@ class JPH_Frontend {
                     font-size: 16px;
                     transition: all 0.3s ease;
                     box-shadow: 0 4px 12px rgba(0, 115, 170, 0.3);
-                    margin-top: 8px;
+                }
+                
+                .membership-notice a.credit-log-link {
+                    background: linear-gradient(135deg, #239B90 0%, #1a7a70 100%);
+                    box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+                }
+                
+                .membership-notice a.credit-log-link:hover {
+                    background: linear-gradient(135deg, #1a7a70 0%, #135a52 100%);
+                    box-shadow: 0 6px 20px rgba(35, 155, 144, 0.4);
                 }
                 
                 .membership-notice a:hover {
@@ -1155,14 +2110,24 @@ class JPH_Frontend {
             <div class="jph-membership-required">
                 <div class="membership-notice">
                     <h3>Membership Required</h3>
-                    <p>You need an active JazzEdge Academy membership to access the Practice Hub dashboard.</p>
-                    <p>Please contact us to activate your membership:</p>
-                    <a href="mailto:support@jazzedge.com">Contact Support</a>
+                    <p>You need an active JazzEdge Academy membership to access the Practice Hub dashboard.</p>' .
+                    ($has_credit_purchases 
+                        ? ''
+                        : ''
+                    ) . '
+                    <div class="button-container">
+                        ' . ($has_credit_purchases ? '<a href="/credit-log" class="credit-log-link">View Your Purchased Lessons</a>' : '') . '
+                        <a href="/support">Contact Support</a>
+                    </div>
                 </div>
-            </div>';
+            </div>' . $debug_info;
+            }
         }
         
         $user_id = get_current_user_id();
+        $can_access_plan = $this->user_can_access_plan_tab();
+        
+        
         $notifications_page_url = apply_filters('jph_notifications_page_url', home_url('/notifications/'));
         $unread_notifications = 0;
         $notifications_category_palette = array();
@@ -1207,8 +2172,17 @@ class JPH_Frontend {
         }
         $notification_indicator_style_attr = $notification_indicator_style ? ' style="' . esc_attr($notification_indicator_style) . '"' : '';
         
-        // Automatically add user to all community spaces on first load
-        $this->auto_add_user_to_spaces($user_id);
+        // Automatically add user to all community spaces on first load (skip free members)
+        // Check if user is a free member
+        $is_free_member = false;
+        if (function_exists('je_return_membership_level')) {
+            $membership_level = je_return_membership_level('nicename');
+            $is_free_member = ($membership_level === 'Free');
+        }
+        
+        if (!$is_free_member) {
+            $this->auto_add_user_to_spaces($user_id);
+        }
         
         // Get user's practice items
         $practice_items = $this->database->get_user_practice_items($user_id);
@@ -1237,6 +2211,7 @@ class JPH_Frontend {
         $dashboard_prefs_json = get_user_meta($user_id, 'aph_dashboard_preferences', true);
         $dashboard_prefs = array(
             'stats' => true,
+            'roadmap' => true,
             'search_section' => true,
             'repertoire_section' => true,
             'tab_shield' => true,
@@ -1411,8 +2386,17 @@ class JPH_Frontend {
                         </button>
                     </div>
                     <div class="header-actions">
+                        <!-- Fix Stats Button -->
+                        <button id="jph-fix-stats-btn" type="button" class="jph-btn jph-btn-secondary jph-fix-stats-btn" aria-label="Recalculate your stats (streak and level) from practice history" data-microtip-position="bottom" role="tooltip">
+                            <span class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                            </span>
+                            Fix Stats
+                        </button>
                         <!-- Leaderboard Button -->
-                        <button id="jph-leaderboard-btn" type="button" class="jph-btn jph-btn-secondary jph-leaderboard-btn" onclick="openLeaderboard()">
+                        <button id="jph-leaderboard-btn" type="button" class="jph-btn jph-btn-secondary jph-leaderboard-btn" onclick="openLeaderboard()" aria-label="View Leaderboard" data-microtip-position="bottom" role="tooltip">
                             <span class="btn-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
@@ -1421,7 +2405,7 @@ class JPH_Frontend {
                             Leaderboard
                         </button>
                         <!-- Notifications Button -->
-                        <button id="jph-notifications-btn" type="button" class="jph-btn jph-btn-secondary jph-notifications-btn" data-unread-count="<?php echo intval($unread_notifications); ?>" onclick="window.location.href='<?php echo esc_url($notifications_page_url); ?>';">
+                        <button id="jph-notifications-btn" type="button" class="jph-btn jph-btn-secondary jph-notifications-btn" data-unread-count="<?php echo intval($unread_notifications); ?>" onclick="window.location.href='<?php echo esc_url($notifications_page_url); ?>';" aria-label="View Notifications<?php echo $unread_notifications ? ' (' . intval($unread_notifications) . ' new)' : ''; ?>" data-microtip-position="bottom" role="tooltip">
                             <span class="btn-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 18.75a2.25 2.25 0 1 1-4.5 0m9-6.75V9a6.75 6.75 0 1 0-13.5 0v3c0 1.146-.43 2.25-1.2 3.09a.75.75 0 0 0 .564 1.26h16.272a.75.75 0 0 0 .564-1.26 5.374 5.374 0 0 1-1.2-3.09Z" />
@@ -1439,14 +2423,14 @@ class JPH_Frontend {
                             <?php endif; ?>
                         </button>
                         <!-- Settings Button -->
-                        <button id="jph-dashboard-settings-btn" type="button" class="jph-btn jph-btn-secondary jph-dashboard-settings-btn">
+                        <!-- REVERT NOTE: Original had "Settings" text after the icon. To revert, add: Settings (after </span>) -->
+                        <button id="jph-dashboard-settings-btn" type="button" class="jph-btn jph-btn-secondary jph-dashboard-settings-btn" aria-label="Dashboard Settings" data-microtip-position="bottom" role="tooltip">
                             <span class="btn-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                             </span>
-                            Settings
                         </button>
                     </div>
                 </div>
@@ -1489,6 +2473,301 @@ class JPH_Frontend {
                         <span class="stat-label">GEMS</span>
                     </div>
                 </div>
+                <?php endif; ?>
+                
+                <!-- Membership Roadmap Section (Only for Essentials, Studio, and Premier) -->
+                <?php 
+                global $user_membership_level_num;
+                if (!empty($user_membership_level_num) && in_array($user_membership_level_num, array(1, 2, 3)) && ($dashboard_prefs['roadmap'] ?? true)): 
+                    echo $this->render_membership_roadmap($user_membership_level_num);
+                endif; ?>
+                
+                <!-- Academy Starter Program Section (Only for membership level 0 - Free Trial) -->
+                <?php 
+                $is_starter_student = (empty($user_membership_level_num) || $user_membership_level_num == 0);
+                if ($is_starter_student): 
+                    $starter_roadmap_id = 'jph-starter-roadmap';
+                    $starter_storage_key = 'jph_starter_roadmap_collapsed';
+                    $starter_completion_status = $this->get_roadmap_completion_status(0); // Use 0 for starter students
+                ?>
+                <div class="jph-membership-roadmap" id="<?php echo esc_attr($starter_roadmap_id); ?>" data-membership-level="0">
+                    <div class="jph-roadmap-header">
+                        <div class="jph-roadmap-header-content">
+                            <h3 class="jph-roadmap-title">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="jph-roadmap-icon">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                </svg>
+                                90-Day Academy Starter Program
+                            </h3>
+                            <p class="jph-roadmap-description">Your step-by-step path to building essential piano skills</p>
+                        </div>
+                        <button type="button" class="jph-roadmap-toggle" aria-label="Toggle roadmap" aria-expanded="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-roadmap-chevron">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="jph-roadmap-content">
+                        <div class="jph-roadmap-stages">
+                            <div class="jph-roadmap-stage">
+                                <div class="jph-stage-header">
+                                    <div class="jph-stage-number">1</div>
+                                    <h4 class="jph-stage-title">Build Your Foundation</h4>
+                                </div>
+                                <div class="jph-stage-steps">
+                                    <?php 
+                                    $phase1_steps = array(
+                                        array(
+                                            'text' => 'Complete Phase 1: Days 1-30',
+                                            'url' => home_url('/academy-starter-plan'),
+                                            'description' => 'Learn rhythm, technique, reading, and your first tune. Add simple improvisation so you can create music from day one.'
+                                        )
+                                    );
+                                    foreach ($phase1_steps as $step):
+                                        $step_id = $this->get_step_identifier(1, $step['text']);
+                                        $is_completed = isset($starter_completion_status[$step_id]) && $starter_completion_status[$step_id] === true;
+                                        $step_class = $is_completed ? 'jph-step-completed' : '';
+                                    ?>
+                                        <div class="jph-stage-step <?php echo esc_attr($step_class); ?>" data-step-id="<?php echo esc_attr($step_id); ?>">
+                                            <div class="jph-step-content">
+                                                <label class="jph-step-checkbox-label">
+                                                    <input type="checkbox" class="jph-step-checkbox" data-step-id="<?php echo esc_attr($step_id); ?>" data-membership-level="0" <?php checked($is_completed, true); ?>>
+                                                    <span class="jph-step-checkmark">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="jph-checkmark-icon">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                                        </svg>
+                                                    </span>
+                                                </label>
+                                                <div class="jph-step-main">
+                                                    <?php if (!empty($step['url'])): ?>
+                                                        <a href="<?php echo esc_url($step['url']); ?>" class="jph-step-link">
+                                                            <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-step-arrow">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                                            </svg>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($step['description'])): ?>
+                                                        <p class="jph-step-description"><?php echo esc_html($step['description']); ?></p>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                            <div class="jph-roadmap-stage">
+                                <div class="jph-stage-header">
+                                    <div class="jph-stage-number">2</div>
+                                    <h4 class="jph-stage-title">Develop Style & Groove</h4>
+                                </div>
+                                <div class="jph-stage-steps">
+                                    <?php 
+                                    $phase2_steps = array(
+                                        array(
+                                            'text' => 'Complete Phase 2: Days 31-60',
+                                            'url' => home_url('/academy-starter-plan'),
+                                            'description' => 'Explore blues and rock techniques—shuffle, stride, walking bass, and rock accompaniment patterns. Expand your harmony with triads, inversions, and chord shells.'
+                                        )
+                                    );
+                                    foreach ($phase2_steps as $step):
+                                        $step_id = $this->get_step_identifier(2, $step['text']);
+                                        $is_completed = isset($starter_completion_status[$step_id]) && $starter_completion_status[$step_id] === true;
+                                        $step_class = $is_completed ? 'jph-step-completed' : '';
+                                    ?>
+                                        <div class="jph-stage-step <?php echo esc_attr($step_class); ?>" data-step-id="<?php echo esc_attr($step_id); ?>">
+                                            <div class="jph-step-content">
+                                                <label class="jph-step-checkbox-label">
+                                                    <input type="checkbox" class="jph-step-checkbox" data-step-id="<?php echo esc_attr($step_id); ?>" data-membership-level="0" <?php checked($is_completed, true); ?>>
+                                                    <span class="jph-step-checkmark">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="jph-checkmark-icon">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                                        </svg>
+                                                    </span>
+                                                </label>
+                                                <div class="jph-step-main">
+                                                    <?php if (!empty($step['url'])): ?>
+                                                        <a href="<?php echo esc_url($step['url']); ?>" class="jph-step-link">
+                                                            <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-step-arrow">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                                            </svg>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($step['description'])): ?>
+                                                        <p class="jph-step-description"><?php echo esc_html($step['description']); ?></p>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                            <div class="jph-roadmap-stage">
+                                <div class="jph-stage-header">
+                                    <div class="jph-stage-number">3</div>
+                                    <h4 class="jph-stage-title">Play Standards with Confidence</h4>
+                                </div>
+                                <div class="jph-stage-steps">
+                                    <?php 
+                                    $phase3_steps = array(
+                                        array(
+                                            'text' => 'Complete Phase 3: Days 61-90',
+                                            'url' => home_url('/academy-starter-plan'),
+                                            'description' => 'Learn how to play jazz standards using simple chord shells. Add fills, create your own style, and discover how to expand your playing beyond this course.'
+                                        )
+                                    );
+                                    foreach ($phase3_steps as $step):
+                                        $step_id = $this->get_step_identifier(3, $step['text']);
+                                        $is_completed = isset($starter_completion_status[$step_id]) && $starter_completion_status[$step_id] === true;
+                                        $step_class = $is_completed ? 'jph-step-completed' : '';
+                                    ?>
+                                        <div class="jph-stage-step <?php echo esc_attr($step_class); ?>" data-step-id="<?php echo esc_attr($step_id); ?>">
+                                            <div class="jph-step-content">
+                                                <label class="jph-step-checkbox-label">
+                                                    <input type="checkbox" class="jph-step-checkbox" data-step-id="<?php echo esc_attr($step_id); ?>" data-membership-level="0" <?php checked($is_completed, true); ?>>
+                                                    <span class="jph-step-checkmark">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="jph-checkmark-icon">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                                        </svg>
+                                                    </span>
+                                                </label>
+                                                <div class="jph-step-main">
+                                                    <?php if (!empty($step['url'])): ?>
+                                                        <a href="<?php echo esc_url($step['url']); ?>" class="jph-step-link">
+                                                            <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-step-arrow">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                                            </svg>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <span class="jph-step-text"><?php echo esc_html($step['text']); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($step['description'])): ?>
+                                                        <p class="jph-step-description"><?php echo esc_html($step['description']); ?></p>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        
+        <script>
+        (function() {
+            const roadmap = document.getElementById('<?php echo esc_js($starter_roadmap_id); ?>');
+            if (!roadmap) return;
+            
+            const header = roadmap.querySelector('.jph-roadmap-header');
+            const toggleBtn = roadmap.querySelector('.jph-roadmap-toggle');
+            const content = roadmap.querySelector('.jph-roadmap-content');
+            const chevron = roadmap.querySelector('.jph-roadmap-chevron');
+            const storageKey = '<?php echo esc_js($starter_storage_key); ?>';
+            const membershipLevel = 0;
+            
+            // Load saved state
+            const savedState = localStorage.getItem(storageKey);
+            const isCollapsed = savedState === 'true';
+            
+            if (isCollapsed) {
+                content.style.display = 'none';
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                chevron.style.transform = 'rotate(180deg)';
+            }
+            
+            // Toggle function
+            function toggleRoadmap() {
+                const isCurrentlyCollapsed = content.style.display === 'none';
+                
+                if (isCurrentlyCollapsed) {
+                    content.style.display = 'block';
+                    toggleBtn.setAttribute('aria-expanded', 'true');
+                    chevron.style.transform = 'rotate(0deg)';
+                    localStorage.setItem(storageKey, 'false');
+                } else {
+                    content.style.display = 'none';
+                    toggleBtn.setAttribute('aria-expanded', 'false');
+                    chevron.style.transform = 'rotate(180deg)';
+                    localStorage.setItem(storageKey, 'true');
+                }
+            }
+            
+            // Toggle functionality - header click
+            if (header) {
+                header.addEventListener('click', function(e) {
+                    // Don't toggle if clicking directly on the button (it will handle its own click)
+                    if (e.target.closest('.jph-roadmap-toggle')) {
+                        return;
+                    }
+                    toggleRoadmap();
+                });
+            }
+            
+            // Toggle functionality - button click
+            toggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation(); // Prevent header click from also firing
+                toggleRoadmap();
+            });
+            
+            // Step completion tracking
+            roadmap.querySelectorAll('.jph-step-checkbox').forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const stepId = this.dataset.stepId;
+                    const isCompleted = this.checked;
+                    const stepElement = this.closest('.jph-stage-step');
+                    
+                    // Update visual state immediately
+                    if (isCompleted) {
+                        stepElement.classList.add('jph-step-completed');
+                    } else {
+                        stepElement.classList.remove('jph-step-completed');
+                    }
+                    
+                    // Save via AJAX
+                    jQuery.ajax({
+                        url: '<?php echo esc_url(rest_url('aph/v1/roadmap/step-completion')); ?>',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            membership_level: membershipLevel,
+                            step_id: stepId,
+                            completed: isCompleted
+                        }),
+                        beforeSend: function(xhr) {
+                            xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                        },
+                        success: function(response) {
+                            if (!response.success) {
+                                // Revert on error
+                                checkbox.checked = !isCompleted;
+                                if (isCompleted) {
+                                    stepElement.classList.remove('jph-step-completed');
+                                } else {
+                                    stepElement.classList.add('jph-step-completed');
+                                }
+                            }
+                        },
+                        error: function() {
+                            // Revert on error
+                            checkbox.checked = !isCompleted;
+                            if (isCompleted) {
+                                stepElement.classList.remove('jph-step-completed');
+                            } else {
+                                stepElement.classList.add('jph-step-completed');
+                            }
+                        }
+                    });
+                });
+            });
+        })();
+        </script>
                 <?php endif; ?>
                 
                 <!-- Search Section - Professional 2-Column Layout -->
@@ -1646,7 +2925,7 @@ class JPH_Frontend {
                                 unset($items);
                                 
                                 echo '<div class="favorites-dropdown-wrapper">';
-                                echo '<select id="jph-favorites-dropdown" class="standard-dropdown">';
+                                echo '<select id="jph-favorites-dropdown" class="standard-dropdown" onchange="if(this.value) window.location.href = this.value; this.value = \'\';">';
                                 echo '<option value="">Select a favorite…</option>';
                                 echo '<option value="' . esc_url(home_url('/my-favorites')) . '" data-view-all="true">📋 View all favorites</option>';
                                 
@@ -1681,6 +2960,126 @@ class JPH_Frontend {
                                 
                                 echo '</select>';
                                 echo '</div>';
+                            }
+                            
+                            // Free Trial Lessons Dropdown (for free users only)
+                            global $user_membership_level_num;
+                            // Show only for free users (membership level 0 or not set)
+                            $is_free_user = (empty($user_membership_level_num) || $user_membership_level_num == 0);
+                            
+                            if ($is_free_user) {
+                                $free_trial_lesson_ids = get_option('alm_free_trial_lesson_ids', array());
+                                $paid_starter_lesson_ids = get_option('alm_starter_paid_lesson_ids', array());
+                                
+                                // Check if user has paid starter tag
+                                $has_paid_starter_tag = false;
+                                if (function_exists('memb_hasAnyTags')) {
+                                    $keap_tags = get_option('alm_keap_tags', array());
+                                    if (!empty($keap_tags['starter_paid'])) {
+                                        $paid_tag_ids = array_map('intval', array_filter(explode(',', $keap_tags['starter_paid'])));
+                                        if (!empty($paid_tag_ids)) {
+                                            $has_paid_starter_tag = memb_hasAnyTags($paid_tag_ids) === true;
+                                        }
+                                    }
+                                }
+                                
+                                // Show dropdown if there are free lessons OR paid lessons (show paid even without paid tag for upgrade path)
+                                if (!empty($free_trial_lesson_ids) || !empty($paid_starter_lesson_ids)) {
+                                    global $wpdb;
+                                    $database = new ALM_Database();
+                                    $lessons_table = $database->get_table_name('lessons');
+                                    
+                                    $all_lessons = array();
+                                    
+                                    // Fetch free starter lessons
+                                    if (!empty($free_trial_lesson_ids)) {
+                                    $placeholders = implode(',', array_fill(0, count($free_trial_lesson_ids), '%d'));
+                                    $free_trial_lessons = $wpdb->get_results($wpdb->prepare(
+                                        "SELECT l.ID, l.lesson_title, l.post_id, l.slug 
+                                         FROM {$lessons_table} l
+                                         WHERE l.post_id IN ($placeholders)
+                                         ORDER BY l.lesson_title ASC",
+                                        ...$free_trial_lesson_ids
+                                    ));
+                                    if (!empty($free_trial_lessons)) {
+                                            $all_lessons['free'] = $free_trial_lessons;
+                                        }
+                                    }
+                                    
+                                    // Fetch paid starter lessons (always show for upgrade path)
+                                    if (!empty($paid_starter_lesson_ids)) {
+                                        $placeholders = implode(',', array_fill(0, count($paid_starter_lesson_ids), '%d'));
+                                        $paid_starter_lessons = $wpdb->get_results($wpdb->prepare(
+                                            "SELECT l.ID, l.lesson_title, l.post_id, l.slug 
+                                             FROM {$lessons_table} l
+                                             WHERE l.post_id IN ($placeholders)
+                                             ORDER BY l.lesson_title ASC",
+                                            ...$paid_starter_lesson_ids
+                                        ));
+                                        if (!empty($paid_starter_lessons)) {
+                                            $all_lessons['paid'] = $paid_starter_lessons;
+                                        }
+                                    }
+                                    
+                                    if (!empty($all_lessons)) {
+                                        echo '<div class="favorites-dropdown-wrapper">';
+                                        echo '<select id="jph-free-trial-dropdown" class="standard-dropdown">';
+                                        echo '<option value="">Select an Academy Starter lesson…</option>';
+                                        
+                                        // Free Starter Lessons
+                                        if (!empty($all_lessons['free'])) {
+                                            echo '<optgroup label="Academy Starter Lessons">';
+                                            foreach ($all_lessons['free'] as $lesson) {
+                                                $post_id = intval($lesson->post_id);
+                                                $lesson_title = esc_html(stripslashes($lesson->lesson_title));
+                                                
+                                                // Get the actual permalink for the lesson
+                                                if ($post_id > 0) {
+                                                    $lesson_url = get_permalink($post_id);
+                                                    if (!$lesson_url) {
+                                                        // Fallback if permalink not found
+                                                        continue;
+                                                    }
+                                                } else {
+                                                    // Skip lessons without post_id
+                                                    continue;
+                                                }
+                                                
+                                                $lesson_url = esc_url($lesson_url);
+                                                echo '<option value="' . $lesson_url . '" title="' . $lesson_title . '">' . $lesson_title . '</option>';
+                                            }
+                                            echo '</optgroup>';
+                                        }
+                                        
+                                        // Paid Starter Lessons (always show for upgrade path, regardless of paid tag)
+                                        if (!empty($all_lessons['paid'])) {
+                                            echo '<optgroup label="Academy Starter Paid Lessons">';
+                                            foreach ($all_lessons['paid'] as $lesson) {
+                                                $post_id = intval($lesson->post_id);
+                                                $lesson_title = esc_html(stripslashes($lesson->lesson_title));
+                                                
+                                                // Get the actual permalink for the lesson
+                                                if ($post_id > 0) {
+                                                    $lesson_url = get_permalink($post_id);
+                                                    if (!$lesson_url) {
+                                                        // Fallback if permalink not found
+                                                        continue;
+                                                    }
+                                                } else {
+                                                    // Skip lessons without post_id
+                                                    continue;
+                                                }
+                                                
+                                                $lesson_url = esc_url($lesson_url);
+                                                echo '<option value="' . $lesson_url . '" title="' . $lesson_title . '">' . $lesson_title . '</option>';
+                                            }
+                                            echo '</optgroup>';
+                                        }
+                                        
+                                        echo '</select>';
+                                        echo '</div>';
+                                    }
+                                }
                             }
                             
                             // Essentials Library Dropdown (for Essentials members only)
@@ -1782,6 +3181,20 @@ class JPH_Frontend {
                                 
                                 echo '</select>';
                                 echo '</div>';
+                                
+                                // AI Assistant Button - only show to whitelisted users
+                                if ($can_access_plan) {
+                                    echo '<div class="jph-ai-assistant-button-wrapper" style="margin-top: 15px;">';
+                                    echo '<button type="button" id="jph-plan-ai-assistant-btn" class="jph-plan-ai-assistant-btn">';
+                                    echo '<span class="jph-ai-icon">';
+                                    echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">';
+                                    echo '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />';
+                                    echo '</svg>';
+                                    echo '</span>';
+                                    echo '<span class="jph-ai-text">Open Jazzedge AI</span>';
+                                    echo '</button>';
+                                    echo '</div>';
+                                }
                             }
                             ?>
                         </div>
@@ -1821,10 +3234,82 @@ class JPH_Frontend {
             </div>
                 <?php endif; ?>
             
+            <!-- Credit Purchases Section -->
+            <?php
+            // Check if user has credit purchases or unused credits
+            global $wpdb;
+            $user_id = get_current_user_id();
+            $credit_log_count = 0;
+            $unused_credits_total = 0;
+            $has_credit_purchases = false;
+            $has_unused_credits = false;
+            
+            if ($user_id) {
+                // Get credit log count (purchased lessons)
+                $credit_log_count = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM academy_user_credit_log WHERE user_id = %d",
+                    $user_id
+                ));
+                $has_credit_purchases = $credit_log_count > 0;
+                
+                // Get unused credits (rental + download + class)
+                $credits_row = $wpdb->get_row($wpdb->prepare(
+                    "SELECT rental_credits, download_credits, class_credits FROM academy_user_credits WHERE user_id = %d",
+                    $user_id
+                ));
+                
+                if ($credits_row) {
+                    $unused_credits_total = intval($credits_row->rental_credits) + 
+                                           intval($credits_row->download_credits) + 
+                                           intval($credits_row->class_credits);
+                    $has_unused_credits = $unused_credits_total > 0;
+                }
+            }
+            
+            // Show section if user has credit purchases OR unused credits
+            if ($has_credit_purchases || $has_unused_credits):
+            ?>
+            <div class="jph-credit-purchases-section">
+                <div class="credit-purchases-content">
+                    <div class="credit-purchases-info">
+                        <h3 class="credit-purchases-title">Your Credit Purchases</h3>
+                        <div class="credit-purchases-details">
+                            <?php if ($has_credit_purchases): ?>
+                            <p class="credit-purchases-count">
+                                You have <strong><?php echo esc_html($credit_log_count); ?></strong> purchased lesson<?php echo $credit_log_count !== 1 ? 's' : ''; ?> from our previous credit system.
+                            </p>
+                            <?php endif; ?>
+                            <?php if ($has_unused_credits): ?>
+                            <p class="credit-purchases-unused">
+                                You have <strong><?php echo esc_html($unused_credits_total); ?></strong> unused credit<?php echo $unused_credits_total !== 1 ? 's' : ''; ?> available.
+                            </p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="credit-purchases-action">
+                        <a href="/credit-log" class="credit-purchases-button">
+                            View Your Purchased Lessons
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="20" height="20" style="margin-left: 8px; vertical-align: middle;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <!-- Tabbed Navigation -->
             <div class="jph-tabs-container">
                 <div class="jph-tabs-nav">
-                    <button class="jph-tab-btn active" data-tab="practice-items">
+                    <button class="jph-tab-btn active" data-tab="plan">
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                            </svg>
+                        </span>
+                        <span class="tab-title">Plan</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="practice-items">
                         <span class="tab-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
@@ -1856,16 +3341,6 @@ class JPH_Frontend {
                         </span>
                         <span class="tab-title">Community</span>
                     </button>
-                    <?php if ($dashboard_prefs['tab_shield'] ?? true): ?>
-                    <button class="jph-tab-btn" data-tab="shield-protection">
-                        <span class="tab-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                            </svg>
-                        </span>
-                        <span class="tab-title">Shield</span>
-                    </button>
-                    <?php endif; ?>
                     <?php if ($dashboard_prefs['tab_badges'] ?? true): ?>
                     <button class="jph-tab-btn" data-tab="badges">
                         <span class="tab-icon">
@@ -1891,8 +3366,250 @@ class JPH_Frontend {
                 <!-- Tab Content -->
                 <div class="jph-tabs-content">
                     
+                    <!-- Plan Tab -->
+                    <div class="jph-tab-pane active" id="plan-tab">
+                        <?php if ($can_access_plan): ?>
+                            <?php
+                            // Get user's plan data
+                            $user_plan = $this->database->get_user_plan($user_id);
+                            $sessions_this_week = $this->database->get_weekly_session_count($user_id);
+                            
+                            // Auto-select first practice item if no focus selected
+                            $weekly_focus_item_id = $user_plan ? $user_plan['weekly_focus_item_id'] : null;
+                            if (!$weekly_focus_item_id && !empty($practice_items)) {
+                                $weekly_focus_item_id = $practice_items[0]['id'];
+                            }
+                            
+                            // Get weekly focus item name
+                            $weekly_focus_item_name = '';
+                            if ($weekly_focus_item_id) {
+                                foreach ($practice_items as $item) {
+                                    if ($item['id'] == $weekly_focus_item_id) {
+                                        $weekly_focus_item_name = $item['name'];
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            ?>
+                            
+                            <!-- Print Transformation Sheet Button -->
+                            <div class="jph-plan-print-wrapper">
+                                <button type="button" id="jph-print-transformation-sheet" class="jph-btn jph-btn-secondary jph-print-btn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0c-.376.023-.75.05-1.124.08C2.994 15.288 2.25 16.568 2.25 18c0 1.512.744 2.792 1.876 3.645.21.155.456.283.73.373M12 18.75V21m-3.75-2.25h7.5M15.75 8.25v-3.375c0-.621-.504-1.125-1.125-1.125h-3.75c-.621 0-1.125.504-1.125 1.125V8.25m3.75 0v.75m0 0h3.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125H12.75m-7.5 0H6a2.25 2.25 0 002.25-2.25V15.75c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125H9.75m-3.75 0v-6.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125v6.375m-6-9V8.25c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125H6.375c-.621 0-1.125-.504-1.125-1.125z" />
+                                    </svg>
+                                    Print Transformation Sheet
+                                </button>
+                            </div>
+                            
+                            <!-- Transformation Sheet Print Content (hidden until print) -->
+                            <div id="jph-transformation-sheet-print" class="jph-transformation-sheet-print">
+                                <div class="transformation-sheet-header">
+                                    <h1>Academy Transformation Sheet</h1>
+                                    <p class="transformation-sheet-date">Date: <span id="transformation-sheet-date-value"><?php echo date_i18n('F j, Y'); ?></span></p>
+                                </div>
+                                
+                                <div class="transformation-sheet-section">
+                                    <h2>Your 90-Day Piano Goal</h2>
+                                    <div class="transformation-sheet-content" id="transformation-sheet-goal">
+                                        <?php 
+                                        $goal_text = $user_plan ? ($user_plan['goal_90_day'] ?? '') : '';
+                                        echo $goal_text ? esc_html($goal_text) : 'No goal set yet';
+                                        ?>
+                                    </div>
+                                </div>
+                                
+                                <div class="transformation-sheet-section">
+                                    <h2>Your Transformation Vision</h2>
+                                    <div class="transformation-sheet-content" id="transformation-sheet-vision">
+                                        <?php 
+                                        $transformation_text = $user_plan ? ($user_plan['transformation'] ?? '') : '';
+                                        echo $transformation_text ? esc_html($transformation_text) : 'No transformation vision set yet';
+                                        ?>
+                                    </div>
+                                </div>
+                                
+                                <div class="transformation-sheet-section" id="transformation-sheet-focus-section" style="<?php echo $weekly_focus_item_name ? '' : 'display: none;'; ?>">
+                                    <h2>This Week's Focus</h2>
+                                    <div class="transformation-sheet-content" id="transformation-sheet-focus">
+                                        <?php echo $weekly_focus_item_name ? esc_html($weekly_focus_item_name) : ''; ?>
+                                    </div>
+                                </div>
+                                
+                                <div class="transformation-sheet-footer">
+                                    <p>JazzEdge Academy - Your Journey to Musical Excellence</p>
+                                </div>
+                            </div>
+                            
+                            
+                            <!-- AI Assistant Full-Screen Modal -->
+                            <div id="jph-ai-assistant-modal" class="jph-ai-assistant-modal" style="display: none;">
+                                <div class="jph-ai-modal-window">
+                                    <div class="jph-ai-modal-header">
+                                        <h2>🎹 Jazzedge AI Assistant</h2>
+                                        <button type="button" class="jph-ai-modal-close" id="jph-ai-assistant-close" title="Close">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="24" height="24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div class="jph-ai-modal-body" id="jph-ai-assistant-content">
+                                        <div class="jph-ai-loading">
+                                            <div class="jph-ai-spinner"></div>
+                                            <p>Loading AI Assistant...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Goal and Community Section -->
+                            <div class="jph-plan-goal-community-wrapper">
+                                <!-- Goal Snapshot -->
+                                <div class="jph-plan-section jph-plan-goal">
+                                    <h3>
+                                        Your 90-Day Piano Goal
+                                        <span class="jph-plan-microtip" aria-label="Set a specific, achievable goal for the next 90 days. This helps you stay focused and track your progress. Examples: 'Learn to play 3 jazz standards', 'Master the blues scale in all keys', or 'Complete the beginner improvisation course'. Your changes save automatically when you click away." data-microtip-position="top" data-microtip-size="large" role="tooltip">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                            </svg>
+                                        </span>
+                                    </h3>
+                                    <textarea id="jph-plan-goal" 
+                                              class="jph-plan-goal-input" 
+                                              placeholder="What do you want to achieve in 90 days?"
+                                              rows="3"
+                                              maxlength="250"><?php echo esc_textarea($user_plan ? ($user_plan['goal_90_day'] ?? '') : ''); ?></textarea>
+                                    <div class="jph-plan-goal-footer">
+                                        <div class="jph-plan-save-status" id="jph-plan-goal-status"></div>
+                                        <div class="jph-plan-goal-counter">
+                                            <span id="jph-plan-goal-char-count">0</span>/250
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Community Practice Lounge -->
+                                <div class="jph-plan-section jph-plan-community">
+                                    <h3>🎥 Share Your Progress</h3>
+                                    <p class="jph-plan-community-text">Join the Practice Lounge community and share your practice videos! Get feedback, connect with other students, and celebrate your progress together.</p>
+                                    <a href="https://jazzedge.academy/community/space/practicelounge/home" target="_blank" rel="noopener" class="jph-plan-community-link">
+                                        Visit Practice Lounge →
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- This Week's Focus -->
+                            <div class="jph-plan-section jph-plan-focus">
+                                <h3>
+                                    This Week's Focus
+                                    <span class="jph-plan-microtip" aria-label="Select one practice item to focus on this week. Choose from your active practice items. Once selected, click the 'Practice' button to log a practice session for this item. You can change your focus anytime - it saves automatically when you make a selection." data-microtip-position="top" data-microtip-size="large" role="tooltip">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                        </svg>
+                                    </span>
+                                </h3>
+                                <div class="jph-plan-focus-wrapper">
+                                    <select id="jph-plan-focus" class="jph-plan-focus-select">
+                                        <option value="">-- Select a practice item --</option>
+                                        <?php foreach ($practice_items as $item): ?>
+                                            <option value="<?php echo esc_attr($item['id']); ?>" <?php selected($weekly_focus_item_id, $item['id']); ?>>
+                                                <?php echo esc_html($item['name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" id="jph-plan-practice-btn" class="jph-plan-practice-btn">Practice</button>
+                                </div>
+                                <div class="jph-plan-save-status" id="jph-plan-focus-status"></div>
+                                <p class="jph-plan-subtext">Chosen from your active practice items</p>
+                            </div>
+                            
+                            <!-- Transformation Vision -->
+                            <div class="jph-plan-section jph-plan-transformation">
+                                <h3>
+                                    🎯 Your Transformation Vision
+                                    <span class="jph-plan-microtip" aria-label="Describe your long-term vision for your piano journey. Think about where you want to be in 3 months, 6 months, and 1 year. This is your 'why' - the bigger picture that motivates you. Be specific and aspirational, but realistic. Your changes save automatically when you click away from the text area." data-microtip-position="top" data-microtip-size="large" role="tooltip">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                        </svg>
+                                    </span>
+                                </h3>
+                                <p class="jph-plan-transformation-intro">Visualize yourself in 3 months, 6 months, 1 year. What do you want to see? This should be a 'reach' but not unattainable. Think about the direction and forward momentum you want to create.</p>
+                                <textarea 
+                                       id="jph-plan-transformation" 
+                                       class="jph-plan-transformation-input" 
+                                       placeholder="Where do you want to be? What transformation do you want to see? (e.g., 'In 3 months, I want to play my favorite song smoothly. In 6 months, I want to improvise over chord changes. In 1 year, I want to perform at a local open mic.')"
+                                       rows="4"
+                                       maxlength="500"><?php echo esc_textarea($user_plan ? ($user_plan['transformation'] ?? '') : ''); ?></textarea>
+                                <div class="jph-plan-save-status" id="jph-plan-transformation-status"></div>
+                                <p class="jph-plan-subtext">💡 This is about direction and forward momentum - where are you heading?</p>
+                            </div>
+                            
+                            <!-- 7-Day Practice Summary -->
+                            <?php
+                            // Get practice stats for last 7 days
+                            global $wpdb;
+                            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+                            $seven_days_ago = date('Y-m-d H:i:s', strtotime('-7 days', current_time('timestamp')));
+                            
+                            $sessions_count = $wpdb->get_var($wpdb->prepare(
+                                "SELECT COUNT(*) FROM {$sessions_table} WHERE user_id = %d AND created_at >= %s",
+                                $user_id, $seven_days_ago
+                            ));
+                            
+                            $total_minutes = $wpdb->get_var($wpdb->prepare(
+                                "SELECT COALESCE(SUM(duration_minutes), 0) FROM {$sessions_table} WHERE user_id = %d AND created_at >= %s",
+                                $user_id, $seven_days_ago
+                            ));
+                            
+                            $total_minutes = intval($total_minutes);
+                            $sessions_count = intval($sessions_count);
+                            ?>
+                            <div class="jph-plan-section jph-plan-stats-summary">
+                                <h3>📊 Your Practice This Week</h3>
+                                <div class="jph-plan-stats-grid">
+                                    <div class="jph-plan-stat-item">
+                                        <div class="jph-plan-stat-value"><?php echo esc_html($sessions_count); ?></div>
+                                        <div class="jph-plan-stat-label">Session<?php echo $sessions_count !== 1 ? 's' : ''; ?></div>
+                                    </div>
+                                    <div class="jph-plan-stat-item">
+                                        <div class="jph-plan-stat-value"><?php echo esc_html($total_minutes); ?></div>
+                                        <div class="jph-plan-stat-label">Minute<?php echo $total_minutes !== 1 ? 's' : ''; ?></div>
+                                    </div>
+                                </div>
+                                <?php if ($sessions_count > 0): ?>
+                                    <p class="jph-plan-stats-message">
+                                        <?php
+                                        if ($sessions_count >= 5) {
+                                            echo "🎉 Great job! You're building a strong practice habit!";
+                                        } elseif ($sessions_count >= 3) {
+                                            echo "👍 Keep it up! You're making progress!";
+                                        } else {
+                                            echo "💪 Every session counts! Keep practicing!";
+                                        }
+                                        ?>
+                                    </p>
+                                <?php else: ?>
+                                    <p class="jph-plan-stats-message">🚀 Ready to start? Select your focus above and click Practice!</p>
+                                <?php endif; ?>
+                                <button type="button" id="jph-plan-view-analytics-btn" class="jph-plan-view-analytics-btn">
+                                    View Full Analytics →
+                                </button>
+                            </div>
+                            
+                        <?php else: ?>
+                            <div class="jph-coming-soon" id="jph-coming-soon-debug">
+                                <div class="coming-soon-icon">🚀</div>
+                                <h2>Something Amazing is Coming!</h2>
+                                <p class="coming-soon-subtitle">We're building something special just for you</p>
+                                <div class="coming-soon-cta">
+                                    <p class="excitement-text">✨ Get ready to take your practice to the next level! ✨</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    
                     <!-- Practice Items Tab -->
-                    <div class="jph-tab-pane active" id="practice-items-tab">
+                    <div class="jph-tab-pane" id="practice-items-tab">
                         <!-- Practice Items Section -->
                         <div class="jph-practice-items">
                             <div class="practice-items-header">
@@ -1920,9 +3637,11 @@ class JPH_Frontend {
                                         // Format the date for display
                                         $practice_date_display = '';
                                         if ($last_practice_date) {
-                                            $db_timestamp = strtotime($last_practice_date . ' UTC');
-                                            $current_utc_timestamp = current_time('timestamp', true);
-                                            $time_ago = human_time_diff($db_timestamp, $current_utc_timestamp);
+                                            // Convert MySQL datetime to Unix timestamp respecting WordPress timezone
+                                            $db_timestamp = mysql2date('U', $last_practice_date, false);
+                                            // Get current time in WordPress timezone (not UTC)
+                                            $current_timestamp = current_time('timestamp');
+                                            $time_ago = human_time_diff($db_timestamp, $current_timestamp);
                                             
                                             // Shorten time units for better space usage
                                             $time_ago = str_replace('hours', 'hrs', $time_ago);
@@ -2351,6 +4070,25 @@ class JPH_Frontend {
                                                     } elseif (!empty($event_teacher)) {
                                                         $teacher_names_for_filter = strtolower($event_teacher);
                                                     }
+                                                    
+                                                    // Get teacher picture for this event
+                                                    $teacher_picture_url = '';
+                                                    $teacher_name_for_tooltip = '';
+                                                    if (!empty($event_teacher)) {
+                                                        global $wpdb;
+                                                        $teacher_name_for_tooltip = $event_teacher;
+                                                        $teacher = $wpdb->get_row($wpdb->prepare(
+                                                            "SELECT * FROM {$wpdb->prefix}alm_teachers WHERE teacher_name = %s",
+                                                            $event_teacher
+                                                        ));
+                                                        
+                                                        if ($teacher && !empty($teacher->picture_id) && $teacher->picture_id > 0) {
+                                                            $picture_url = wp_get_attachment_image_url($teacher->picture_id, 'thumbnail');
+                                                            if ($picture_url) {
+                                                                $teacher_picture_url = $picture_url;
+                                                            }
+                                                        }
+                                                    }
                                                     ?>
                                                     <div class="event-item" data-event-id="<?php echo esc_attr($pid); ?>" data-event-date="<?php echo esc_attr(wp_date('Y-m-d', $it['ts'], $user_timezone)); ?>" data-event-teacher="<?php echo esc_attr($teacher_names_for_filter); ?>" data-event-types="<?php echo esc_attr(implode(',', array_map('strtolower', $event_types))); ?>" data-event-membership="<?php echo esc_attr(implode(',', array_map('strtolower', $membership_levels))); ?>">
                                                     <div class="event-date">
@@ -2407,12 +4145,6 @@ class JPH_Frontend {
                                                         <?php endif; ?>
                                                         
                                                         <div class="event-meta">
-                                                            <?php if (!empty($event_teacher)): ?>
-                                                                <div class="event-teacher">
-                                                                    <span class="teacher-pill"><?php echo esc_html($event_teacher); ?></span>
-                                                                </div>
-                                                            <?php endif; ?>
-                                                            
                                                             <?php if (!empty($event_types)): ?>
                                                                 <div class="event-types">
                                                                     <?php foreach ($event_types as $type): ?>
@@ -2430,10 +4162,18 @@ class JPH_Frontend {
                                                             <?php endif; ?>
                                                         </div>
                                                     </div>
-                                                    </div>
-                                                    <?php
-                                                }
-                                                ?>
+                                                    <?php if (!empty($event_teacher) && !empty($teacher_picture_url)): ?>
+                                                        <div class="event-teacher">
+                                                            <div class="event-teacher-image">
+                                                                <img src="<?php echo esc_url($teacher_picture_url); ?>" alt="<?php echo esc_attr($teacher_name_for_tooltip ?: 'Teacher'); ?>" />
+                                                            </div>
+                                                            <span><?php echo esc_html($event_teacher); ?></span>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php
+                                            }
+                                            ?>
                                             </div>
                                             
                                             <!-- Calendar View -->
@@ -2484,6 +4224,14 @@ class JPH_Frontend {
                         <!-- JPC Current Focus Section -->
                         <div class="jpc-current-focus">
                             <?php
+                            // Check membership status - we need to check if they're a FREE member specifically
+                            // (not just active member, since free tag users are now considered "active")
+                            $is_free_member = false;
+                            if (function_exists('je_return_membership_level')) {
+                                $membership_level = je_return_membership_level('nicename');
+                                $is_free_member = ($membership_level === 'Free');
+                            }
+                            
                             // Get current JPC assignment
                                 if ($user_id > 0 && class_exists('JPH_JPC_Handler')) {
                                     $current_assignment = null;
@@ -2508,6 +4256,12 @@ class JPH_Frontend {
                                     $focus_order = $current_assignment['focus_order'];
                                     $key_name = $current_assignment['key_sig_name'];
                                     
+                                    // Check if this focus is restricted for free members (anything above 1.10)
+                                    $focus_restricted = false;
+                                    if ($is_free_member && (float)$focus_order > 1.10) {
+                                        $focus_restricted = true;
+                                    }
+                                    
                                     // Convert key names to proper musical symbols
                                     $key_name = str_replace(array('B flat', 'E flat', 'A flat', 'D flat', 'F sharp'), array('B♭', 'E♭', 'A♭', 'D♭', 'F♯'), $key_name);
                                     $tempo = $current_assignment['tempo'];
@@ -2529,13 +4283,20 @@ class JPH_Frontend {
                                     }
                                     ?>
                                     <!-- 2-Column Layout: Focus Details Left, Video Right -->
-                                    <div class="jpc-main-layout">
+                                    <div class="jpc-main-layout<?php echo $focus_restricted ? ' jpc-focus-restricted' : ''; ?>">
                                         <!-- Left Column: Focus Details -->
                                         <div class="jpc-focus-column">
+                                            <?php if ($focus_restricted): ?>
+                                                <div class="jpc-upgrade-message" style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: center;">
+                                                    <p style="margin: 0; font-weight: 600; color: #92400e;">
+                                                        🔒 Upgrade for full access to FOCUS <?php echo esc_html($focus_order); ?> and higher
+                                                    </p>
+                                                </div>
+                                            <?php endif; ?>
                                             <div class="jpc-focus-header">
                                                 <h3>FOCUS: <?php echo esc_html($focus_order); ?></h3>
                                             </div>
-                                            <div class="jpc-focus-details">
+                                            <div class="jpc-focus-details<?php echo $focus_restricted ? ' jpc-disabled' : ''; ?>">
                                                 <p><strong>KEY OF:</strong> <?php echo esc_html($key_name); ?></p>
                                                 <p><strong>SUGGESTED TEMPO:</strong> <?php echo esc_html($tempo); ?> BPM 
                                                     <span class="tempo-info-icon" aria-label="Tempo is only a suggestion. Focus on playing steady and accurately - you can go slower if needed!" data-microtip-position="top" role="tooltip">
@@ -2579,14 +4340,23 @@ class JPH_Frontend {
                                                 
                                                 <!-- Mark Complete Button -->
                                                 <div class="jpc-actions">
-                                                    <button class="jph-btn-primary jpc-mark-complete" 
-                                                            data-step-id="<?php echo esc_attr($step_id); ?>" 
-                                                            data-curriculum-id="<?php echo esc_attr($curriculum_id); ?>">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                                                        </svg>
-                                                        Mark Complete
-                                                    </button>
+                                                    <?php if ($focus_restricted): ?>
+                                                        <button class="jph-btn-primary jpc-mark-complete" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                                            </svg>
+                                                            Locked - Upgrade Required
+                                                        </button>
+                                                    <?php else: ?>
+                                                        <button class="jph-btn-primary jpc-mark-complete" 
+                                                                data-step-id="<?php echo esc_attr($step_id); ?>" 
+                                                                data-curriculum-id="<?php echo esc_attr($curriculum_id); ?>">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.623 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                                            </svg>
+                                                            Mark Complete
+                                                        </button>
+                                                    <?php endif; ?>
                                                     
             <!-- Fix Progress Link -->
             <div class="jpc-fix-progress">
@@ -2600,6 +4370,11 @@ class JPH_Frontend {
                    role="tooltip">
                     Fix my progress
                 </a>
+                <span class="jpc-link-separator">&bull;</span>
+                <a href="#" class="jpc-help-link" 
+                   aria-label="Watch a video tutorial about using JPC">
+                    Help with JPC
+                </a>
             </div>
             
                                                 </div>
@@ -2608,14 +4383,40 @@ class JPH_Frontend {
                                         
                                         <!-- Right Column: Video -->
                                         <div class="jpc-video-column">
-                                            <div class="jpc-video-container">
-                                                <?php
-                                                if (function_exists('do_shortcode')) {
-                                                    echo do_shortcode("[fvplayer src='https://vimeo.com/{$vimeo_id}']");
-                                                } else {
-                                                    echo '<p>Video player not available. <a href="/jpc" target="_blank">View on JPC page</a></p>';
-                                                }
-                                                ?>
+                                            <div class="jpc-video-container<?php echo $focus_restricted ? ' jpc-disabled' : ''; ?>">
+                                                <?php if ($focus_restricted): ?>
+                                                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 40px; text-align: center;">
+                                                        <div style="margin-bottom: 20px;">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#f59e0b" width="64" height="64" style="margin: 0 auto;">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                                            </svg>
+                                                        </div>
+                                                        <h3 style="margin: 0 0 15px 0; color: #92400e; font-size: 24px; font-weight: 700;">Unlock Full JPC Access</h3>
+                                                        <p style="margin: 0 0 20px 0; color: #78350f; font-size: 16px; line-height: 1.6;">
+                                                            The Jazz Piano Course (JPC) is our comprehensive curriculum that takes you from fundamentals to advanced jazz piano. As a member, you'll get:
+                                                        </p>
+                                                        <ul style="text-align: left; margin: 0 0 25px 0; padding-left: 30px; color: #78350f; font-size: 15px; line-height: 1.8;">
+                                                            <li><strong>Step-by-step video instruction</strong> for each focus and key</li>
+                                                            <li><strong>Real teacher feedback</strong> on your milestone submissions</li>
+                                                            <li><strong>Personalized guidance</strong> to help you progress</li>
+                                                            <li><strong>Complete curriculum</strong> from FOCUS 1.10 through advanced levels</li>
+                                                        </ul>
+                                                        <a href="/join" class="jph-btn-primary" style="display: inline-flex; align-items: center; justify-content: center; padding: 14px 32px; font-size: 18px; font-weight: 600; text-decoration: none; border-radius: 8px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); transition: all 0.3s ease; vertical-align: middle;">
+                                                            Upgrade Now
+                                                        </a>
+                                                        <p style="margin: 15px 0 0 0; color: #92400e; font-size: 13px;">
+                                                            Questions? <a href="/support" style="color: #d97706; text-decoration: underline;">Contact Support</a>
+                                                        </p>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <?php
+                                                    if (function_exists('do_shortcode')) {
+                                                        echo do_shortcode("[fvplayer src='https://vimeo.com/{$vimeo_id}']");
+                                                    } else {
+                                                        echo '<p>Video player not available. <a href="/jpc" target="_blank">View on JPC page</a></p>';
+                                                    }
+                                                    ?>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -2679,6 +4480,12 @@ class JPH_Frontend {
                                                         }
                                                         $is_current_focus = ($cur_id == $curriculum_id);
                                                         
+                                                        // Check if this focus is restricted for free members (anything above 1.10)
+                                                        $focus_restricted = false;
+                                                        if ($is_free_member && (float)$focus_order > 1.10) {
+                                                            $focus_restricted = true;
+                                                        }
+                                                        
                                                         // Check if user has started this focus (has any progress)
                                                         $has_started = false;
                                                         for ($i = 1; $i <= 12; $i++) {
@@ -2688,10 +4495,23 @@ class JPH_Frontend {
                                                             }
                                                         }
                                                         
-                                                        echo '<tr' . ($is_current_focus ? ' class="current-focus"' : '') . '>';
-                                                        echo '<td class="focus-id">' . $focus_order . '</td>';
+                                                        $row_classes = array();
+                                                        if ($is_current_focus) {
+                                                            $row_classes[] = 'current-focus';
+                                                        }
+                                                        if ($focus_restricted) {
+                                                            $row_classes[] = 'jpc-focus-restricted-row';
+                                                        }
+                                                        
+                                                        echo '<tr' . (!empty($row_classes) ? ' class="' . implode(' ', $row_classes) . '"' : '') . '>';
+                                                        echo '<td class="focus-id">' . $focus_order . ($focus_restricted ? ' 🔒' : '') . '</td>';
                                                         echo '<td class="focus-content">';
-                                                        echo '<div class="focus-title">' . $focus_title . '</div>';
+                                                        if ($focus_restricted) {
+                                                            echo '<div class="focus-title" style="opacity: 0.5; color: #6b7280;">' . $focus_title . '</div>';
+                                                            echo '<div style="margin-top: 5px; font-size: 12px; color: #f59e0b; font-weight: 600;">Upgrade for full access</div>';
+                                                        } else {
+                                                            echo '<div class="focus-title">' . $focus_title . '</div>';
+                                                        }
                                                         
                                                         // Only show resource download links if user has started this focus
                                                         if ($has_started && !empty($resource_pdf)) {
@@ -2767,8 +4587,15 @@ class JPH_Frontend {
                                                             $key_name = $key_order[$i - 1];
                                                             $status_class = $is_completed ? 'completed' : 'incomplete';
                                                             
-                                                            echo '<td class="center">';
-                                                            if ($is_completed) {
+                                                            echo '<td class="center"' . ($focus_restricted ? ' style="opacity: 0.5;"' : '') . '>';
+                                                            if ($focus_restricted) {
+                                                                // Show locked icon for restricted focuses
+                                                                echo '<span title="' . $key_name . ' - Upgrade required">';
+                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#9ca3af" width="16" height="16" class="play-icon">';
+                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />';
+                                                                echo '</svg>';
+                                                                echo '</span>';
+                                                            } elseif ($is_completed) {
                                                                 // Get the step_id for this completed key to create video link
                                                                 $step_id_for_key = $cur_progress['step_' . $i];
                                                                 echo '<span class="play-link jpc-video-modal-trigger" 
@@ -2795,41 +4622,45 @@ class JPH_Frontend {
                                                         
                                                         // Add "Get Graded" column if all 12 keys completed
                                                         if ($completed_keys_count === 12) {
-                                                            echo '<td class="center">';
+                                                            echo '<td class="center"' . ($focus_restricted ? ' style="opacity: 0.5;"' : '') . '>';
                                                             
-                                                            // Check if this focus has been graded
-                                                            $submission = $wpdb->get_row($wpdb->prepare(
-                                                                "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
-                                                                 WHERE user_id = %d AND curriculum_id = %d",
-                                                                $user_id, $cur_id
-                                                            ));
-                                                            
-                                                            if ($submission && !empty($submission->grade)) {
-                                                                // Already graded - show dash
+                                                            if ($focus_restricted) {
                                                                 echo '-';
-                                                            } elseif ($submission && empty($submission->grade)) {
-                                                                // Submitted but not graded yet - show "Waiting..." button
-                                                                echo '<span class="waiting-btn">';
-                                                                echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">';
-                                                                echo '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />';
-                                                                echo '</svg> Waiting...';
-                                                                echo '</span>';
                                                             } else {
-                                                                // Not submitted yet - show "Get Graded" link (modal trigger)
-                                                                echo '<a href="#" class="get-graded-btn jpc-submission-modal-trigger" 
-                                                                        data-curriculum-id="' . $cur_id . '" 
-                                                                        data-focus-title="' . esc_attr($focus_title) . '">';
+                                                                // Check if this focus has been graded
+                                                                $submission = $wpdb->get_row($wpdb->prepare(
+                                                                    "SELECT * FROM {$wpdb->prefix}jph_jpc_milestone_submissions 
+                                                                     WHERE user_id = %d AND curriculum_id = %d",
+                                                                    $user_id, $cur_id
+                                                                ));
+                                                                
+                                                                if ($submission && !empty($submission->grade)) {
+                                                                    // Already graded - show dash
+                                                                    echo '-';
+                                                                } elseif ($submission && empty($submission->grade)) {
+                                                                    // Submitted but not graded yet - show "Waiting..." button
+                                                                    echo '<span class="waiting-btn">';
+                                                                    echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">';
+                                                                    echo '<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />';
+                                                                    echo '</svg> Waiting...';
+                                                                    echo '</span>';
+                                                                } else {
+                                                                    // Not submitted yet - show "Get Graded" link (modal trigger)
+                                                                    echo '<a href="#" class="get-graded-btn jpc-submission-modal-trigger" 
+                                                                            data-curriculum-id="' . $cur_id . '" 
+                                                                            data-focus-title="' . esc_attr($focus_title) . '">';
                                                                 echo '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">';
                                                                 echo '<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />';
                                                                 echo '<path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />';
                                                                 echo '</svg> Get Graded';
                                                                 echo '</a>';
+                                                                }
                                                             }
                                                             
                                                             echo '</td>';
                                                         } else {
                                                             // Not all keys completed - show dash
-                                                            echo '<td class="center">-</td>';
+                                                            echo '<td class="center"' . ($focus_restricted ? ' style="opacity: 0.5;"' : '') . '>-</td>';
                                                         }
                                                         echo '</tr>';
                                                         }
@@ -2859,6 +4690,30 @@ class JPH_Frontend {
                                                 <div class="jpc-modal-info">
                                                     <p><strong>Focus:</strong> <span id="jpc-modal-focus"></span></p>
                                                     <p><strong>Key:</strong> <span id="jpc-modal-key"></span></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- JPC Help Video Modal -->
+                                    <div id="jpc-help-modal" class="jpc-modal" style="display: none;">
+                                        <div class="jpc-modal-overlay"></div>
+                                        <div class="jpc-modal-content">
+                                            <div class="jpc-modal-header">
+                                                <h3>Help with JPC</h3>
+                                                <button type="button" class="jpc-modal-close" aria-label="Close modal">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <div class="jpc-modal-body">
+                                                <div id="jpc-help-video-container">
+                                                    <iframe src="https://player.vimeo.com/video/1145644391" 
+                                                            frameborder="0" 
+                                                            allow="autoplay; fullscreen; picture-in-picture" 
+                                                            allowfullscreen>
+                                                    </iframe>
                                                 </div>
                                             </div>
                                         </div>
@@ -2942,6 +4797,13 @@ class JPH_Frontend {
                             
                             <div class="community-content">
                                 <?php
+                                // Check if user is a free member
+                                $is_free_member_community = false;
+                                if (function_exists('je_return_membership_level')) {
+                                    $membership_level_community = je_return_membership_level('nicename');
+                                    $is_free_member_community = ($membership_level_community === 'Free');
+                                }
+                                
                                 // Get current user profile data using Fluent Community ProfileHelper
                                 $current_user_id = get_current_user_id();
                                 $profile = null;
@@ -2986,6 +4848,34 @@ class JPH_Frontend {
                                 
                                 <!-- User Profile Section -->
                                 <div class="user-profile-section">
+                                    <?php if ($is_free_member_community): ?>
+                                        <!-- Upgrade Message for Free Members -->
+                                        <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 40px; text-align: center; margin-bottom: 30px;">
+                                            <div style="margin-bottom: 20px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="64" height="64" style="margin: 0 auto; color: #f59e0b;">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zM7.5 21a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                                                </svg>
+                                            </div>
+                                            <h3 style="margin: 0 0 15px 0; color: #92400e; font-size: 28px; font-weight: 700;">Join Our Amazing Community</h3>
+                                            <p style="margin: 0 0 25px 0; color: #78350f; font-size: 18px; line-height: 1.7;">
+                                                Connect with thousands of jazz musicians from around the world! Our community is a vibrant space where you can:
+                                            </p>
+                                            <ul style="text-align: left; margin: 0 auto 30px auto; padding-left: 30px; color: #78350f; font-size: 16px; line-height: 2; max-width: 600px;">
+                                                <li><strong>Share your progress</strong> and get encouragement from fellow musicians</li>
+                                                <li><strong>Ask questions</strong> and learn from experienced players</li>
+                                                <li><strong>Watch video performances</strong> from community members</li>
+                                                <li><strong>Join specialized spaces</strong> for different skill levels and interests</li>
+                                                <li><strong>Get feedback</strong> on your playing from peers and teachers</li>
+                                                <li><strong>Participate in challenges</strong> and community events</li>
+                                            </ul>
+                                            <a href="/join" class="jph-btn-primary" style="display: inline-flex; align-items: center; justify-content: center; padding: 16px 40px; font-size: 20px; font-weight: 600; text-decoration: none; border-radius: 8px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); transition: all 0.3s ease; vertical-align: middle;">
+                                                Upgrade to Join Community
+                                            </a>
+                                            <p style="margin: 20px 0 0 0; color: #92400e; font-size: 14px;">
+                                                Questions? <a href="/support" style="color: #d97706; text-decoration: underline;">Contact Support</a>
+                                            </p>
+                                        </div>
+                                    <?php else: ?>
                                     <div class="profile-header">
                                         <div class="profile-avatar">
                                             <?php echo get_avatar($current_user_id, 80, '', $user_display_name, array('class' => 'profile-avatar-img')); ?>
@@ -3010,9 +4900,10 @@ class JPH_Frontend {
                                             </div>
                                         </div>
                                     </div>
+                                    <?php endif; ?>
                                     
                                     <!-- Profile Details -->
-                                    <?php if ($profile): ?>
+                                    <?php if (!$is_free_member_community && $profile): ?>
                                         <div class="profile-details">
                                             <div class="detail-grid">
                                                 <?php if (!empty($profileSpaces)): ?>
@@ -3050,7 +4941,7 @@ class JPH_Frontend {
                                                 <?php endif; ?>
                                             </div>
                                         </div>
-                                    <?php else: ?>
+                                    <?php elseif (!$is_free_member_community): ?>
                                         <div class="profile-setup-prompt">
                                             <h5>Complete Your Community Profile</h5>
                                             <p>Set up your community profile to connect with other musicians and access exclusive features.</p>
@@ -3059,7 +4950,8 @@ class JPH_Frontend {
                                     <?php endif; ?>
                                 </div>
                                 
-                                <!-- Profile Completion Encouragements -->
+                                <!-- Profile Completion Encouragements (hidden for free members) -->
+                                <?php if (!$is_free_member_community): ?>
                                 <div class="profile-encouragements">
                                     <?php if (!$has_recent_activity): ?>
                                         <div class="encouragement-card encouragement-activity">
@@ -3082,6 +4974,7 @@ class JPH_Frontend {
                                         </div>
                                     <?php endif; ?>
                                 </div>
+                                <?php endif; ?>
                                 
                                 <!-- Recent Community Videos Section -->
                                 <?php
@@ -3104,12 +4997,14 @@ class JPH_Frontend {
                                     <div class="recent-posts-section">
                                         <div class="recent-posts-header">
                                             <h5>Recent Community Videos</h5>
-                                            <a href="https://jazzedge.academy/community/" target="_blank" class="jph-btn jph-btn-secondary view-all-posts-btn">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                                                </svg>
-                                                View All Posts
-                                            </a>
+                                            <?php if (!$is_free_member_community): ?>
+                                                <a href="https://jazzedge.academy/community/" target="_blank" class="jph-btn jph-btn-secondary view-all-posts-btn">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                                    </svg>
+                                                    View All Posts
+                                                </a>
+                                            <?php endif; ?>
                                         </div>
                                         <div class="posts-list">
                                             <?php foreach ($recent_posts as $post): ?>
@@ -3208,15 +5103,17 @@ class JPH_Frontend {
                                                             </div>
                                                         <?php endif; ?>
                                                         
-                                                        <!-- Community Link -->
-                                                        <div class="post-community-link">
-                                                            <a href="https://jazzedge.academy/community/" target="_blank" class="community-link">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                                                                </svg>
-                                                                View All Posts
-                                                            </a>
-                                                        </div>
+                                                        <!-- Community Link (hidden for free members) -->
+                                                        <?php if (!$is_free_member_community): ?>
+                                                            <div class="post-community-link">
+                                                                <a href="https://jazzedge.academy/community/" target="_blank" class="community-link">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                                                    </svg>
+                                                                    View All Posts
+                                                                </a>
+                                                            </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                     
                                                     <div class="post-footer">
@@ -3265,8 +5162,9 @@ class JPH_Frontend {
                     </div>
                     
                     <!-- Shield Protection Tab -->
-                    <div class="jph-tab-pane" id="shield-protection-tab">
-                        <!-- Shield Protection Section -->
+                    <!-- Badges Tab -->
+                    <div class="jph-tab-pane" id="badges-tab">
+                        <!-- Shield Protection Section - Moved to top of Badges tab -->
                         <div class="jph-shield-protection">
                             
                             <!-- Shield Stats and Actions -->
@@ -3342,13 +5240,11 @@ class JPH_Frontend {
                                         Repair 7 Days (175 💎)
                                     </button>
                                 </div>
+                                <input type="hidden" id="repair-nonce" value="<?php echo wp_create_nonce('wp_rest'); ?>">
                             </div>
                             <?php endif; ?>
                         </div>
-                    </div>
-                    
-                    <!-- Badges Tab -->
-                    <div class="jph-tab-pane" id="badges-tab">
+                        
                         <!-- Badges Section -->
                         <div class="jph-badges-section">
                             
@@ -3751,22 +5647,6 @@ class JPH_Frontend {
                 </div>
             </div>
             
-            
-            <!-- Debug Information (for logged in users) -->
-            <?php if (current_user_can('manage_options')): ?>
-            <div class="jph-debug-section">
-                <h2>🔍 Debug Information</h2>
-                <div class="jph-debug-content">
-                    <p><strong>User ID:</strong> <?php echo $user_id; ?></p>
-                    <p><strong>Is Admin:</strong> <?php echo current_user_can('manage_options') ? 'Yes' : 'No'; ?></p>
-                    <div class="jph-debug-actions">
-                        <button id="view-all-data-btn" class="jph-btn jph-btn-secondary">All Table Data</button>
-                        <button id="view-user-stats-btn" class="jph-btn jph-btn-secondary">User Stats</button>
-                        <button id="view-user-badges-btn" class="jph-btn jph-btn-secondary">User Badges</button>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
         </div>
         
         <!-- Welcome Modal for First-Time Users -->
@@ -3951,11 +5831,14 @@ class JPH_Frontend {
                     <!-- Improvement Section -->
                     <div class="form-group">
                         <label>Did you notice improvement?</label>
-                        <div class="improvement-toggle">
-                            <input type="checkbox" name="improvement_detected" value="1" id="improvement-toggle">
-                            <label for="improvement-toggle" class="toggle-slider">
-                                <span class="toggle-slider-text">No</span>
-                                <span class="toggle-slider-text">Yes</span>
+                        <div class="improvement-radio-group" style="display: flex; gap: 20px; margin-top: 10px;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="radio" name="improvement_detected" value="1" style="margin-right: 8px;">
+                                <span>Yes</span>
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="radio" name="improvement_detected" value="0" checked style="margin-right: 8px;">
+                                <span>No</span>
                             </label>
                         </div>
                     </div>
@@ -4266,6 +6149,15 @@ class JPH_Frontend {
                             </div>
                             <div class="settings-checkbox-item">
                                 <label>
+                                    <input type="checkbox" id="setting-roadmap" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Learning Path Roadmap</strong>
+                                        <span class="checkbox-description">Your membership-level specific learning guide</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="settings-checkbox-item">
+                                <label>
                                     <input type="checkbox" id="setting-search-section" checked>
                                     <span class="checkbox-text">
                                         <strong>Search Section</strong>
@@ -4308,6 +6200,23 @@ class JPH_Frontend {
                                         <span class="checkbox-description">Detailed practice analytics and charts</span>
                                     </span>
                                 </label>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section" style="margin-top: 30px; padding-top: 30px; border-top: 1px solid #e5e7eb;">
+                            <h3>Color Palette</h3>
+                            <p style="margin-bottom: 15px; color: #6b7280; font-size: 14px;">Choose a color palette to customize the header background and button colors.</p>
+                            <div class="settings-select-item">
+                                <label for="setting-color-palette" style="display: block; margin-bottom: 8px; font-weight: 600;">Color Palette:</label>
+                                <select id="setting-color-palette" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white;">
+                                    <option value="default">Default (Teal/Blue)</option>
+                                    <option value="green">Green</option>
+                                    <option value="blue">Blue</option>
+                                    <option value="purple">Purple</option>
+                                    <option value="red">Red</option>
+                                    <option value="orange">Orange</option>
+                                    <option value="indigo">Indigo</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -5007,9 +6916,21 @@ class JPH_Frontend {
         .jph-student-dashboard.jph-theme-dark .jph-hero-section,
         .jph-student-dashboard.jph-theme-dark .jph-stats,
         .jph-student-dashboard.jph-theme-dark .jph-search-section,
+        .jph-student-dashboard.jph-theme-dark .jph-credit-purchases-section,
         .jph-student-dashboard.jph-theme-dark .jph-tabs-content {
             background-color: #2d2d2d;
             color: #e5e5e5;
+        }
+        
+        .jph-student-dashboard.jph-theme-dark .credit-purchases-title,
+        .jph-student-dashboard.jph-theme-dark .credit-purchases-count strong,
+        .jph-student-dashboard.jph-theme-dark .credit-purchases-unused strong {
+            color: #e5e5e5;
+        }
+        
+        .jph-student-dashboard.jph-theme-dark .credit-purchases-count,
+        .jph-student-dashboard.jph-theme-dark .credit-purchases-unused {
+            color: #b0b0b0;
         }
         
         .jph-student-dashboard.jph-theme-dark .jph-card,
@@ -5105,7 +7026,11 @@ class JPH_Frontend {
             cursor: pointer;
             transition: all 0.2s ease;
             text-decoration: none;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            vertical-align: middle;
         }
 
         .jph-btn-primary {
@@ -5213,6 +7138,21 @@ class JPH_Frontend {
             position: relative;
             padding-right: 36px;
         }
+        
+        /* Icon-only settings button - REVERT NOTE: Remove this CSS block to revert to full button with text */
+        .jph-dashboard-settings-btn {
+            min-width: auto !important;
+            max-width: none !important;
+            width: 44px;
+            height: 44px;
+            padding: 0 !important;
+            justify-content: center;
+            border-radius: 8px;
+        }
+        
+        .jph-dashboard-settings-btn .btn-icon {
+            margin: 0;
+        }
 
         .jph-notifications-btn .notification-indicator {
             position: absolute;
@@ -5242,6 +7182,166 @@ class JPH_Frontend {
         }
         
         /* ============================================
+           Starter Program Section
+           ============================================ */
+        
+        .jph-starter-program-section {
+            background: linear-gradient(135deg, #2E9B8F 0%, #1a7a70 100%);
+            border-radius: 16px;
+            padding: 40px 32px;
+            margin: 30px 0 20px 0;
+            box-shadow: 0 8px 30px rgba(46, 155, 143, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .jph-starter-program-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.05"><path d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/></g></g></svg>');
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        .starter-program-header {
+            text-align: center;
+            margin-bottom: 32px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .starter-program-title {
+            color: white;
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0 0 12px 0;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            letter-spacing: -0.02em;
+        }
+        
+        .starter-program-subtitle {
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 16px;
+            margin: 0;
+            font-weight: 400;
+        }
+        
+        .starter-program-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .starter-program-phases {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .starter-phase-card {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .starter-phase-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .phase-number {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .starter-phase-card h4 {
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+        }
+        
+        .phase-days {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0 0 12px 0;
+        }
+        
+        .phase-description {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
+        }
+        
+        .starter-program-cta {
+            text-align: center;
+        }
+        
+        .starter-program-button {
+            display: inline-block;
+            background: white;
+            color: #2E9B8F;
+            font-size: 16px;
+            font-weight: 700;
+            padding: 14px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+            box-shadow: 0 4px 15px rgba(46, 155, 143, 0.25);
+        }
+        
+        .starter-program-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(46, 155, 143, 0.35);
+            background: #f8f9fa;
+            color: #1a7a70;
+        }
+        
+        @media (max-width: 768px) {
+            .jph-starter-program-section {
+                padding: 32px 24px;
+            }
+            
+            .starter-program-title {
+                font-size: 24px;
+            }
+            
+            .starter-program-subtitle {
+                font-size: 14px;
+            }
+            
+            .starter-program-phases {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .starter-phase-card {
+                padding: 20px;
+            }
+        }
+        
+        /* ============================================
            Search Section - Professional 2-Column Layout
            ============================================ */
         
@@ -5257,6 +7357,104 @@ class JPH_Frontend {
             max-width: 100%;
             box-sizing: border-box;
             overflow: hidden;
+        }
+        
+        /* Credit Purchases Section */
+        .jph-credit-purchases-section {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin: 20px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .credit-purchases-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+        }
+        
+        .credit-purchases-info {
+            flex: 1;
+        }
+        
+        .credit-purchases-title {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: #004555;
+        }
+        
+        .credit-purchases-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .credit-purchases-count,
+        .credit-purchases-unused {
+            margin: 0;
+            font-size: 16px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        
+        .credit-purchases-count strong,
+        .credit-purchases-unused strong {
+            color: #004555;
+            font-weight: 600;
+        }
+        
+        .credit-purchases-action {
+            flex-shrink: 0;
+        }
+        
+        .credit-purchases-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 12px 24px;
+            background: #239B90;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            border: 2px solid #239B90;
+        }
+        
+        .credit-purchases-button:hover {
+            background: #1d7f75;
+            border-color: #1d7f75;
+            color: #ffffff !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+        }
+        
+        .credit-purchases-button:active {
+            transform: translateY(0);
+        }
+        
+        /* Responsive: Stack on mobile */
+        @media (max-width: 768px) {
+            .credit-purchases-content {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .credit-purchases-action {
+                width: 100%;
+            }
+            
+            .credit-purchases-button {
+                width: 100%;
+                justify-content: center;
+            }
         }
         
         /* Updates Section */
@@ -5946,6 +8144,389 @@ class JPH_Frontend {
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 25px;
             margin-bottom: 40px;
+        }
+        
+        .jph-fix-stats-btn {
+            min-width: 120px;
+            max-width: 140px;
+            justify-content: center;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Membership Roadmap Styles */
+        .jph-membership-roadmap {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 2px solid #e5e7eb;
+            border-radius: 16px;
+            margin: 30px 0 40px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-membership-roadmap:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+        
+        .jph-roadmap-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 32px;
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border-bottom: 2px solid #e5e7eb;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .jph-roadmap-header:hover {
+            background: linear-gradient(135deg, #f1f5f9 0%, #f8fafc 100%);
+        }
+        
+        .jph-roadmap-header-content {
+            flex: 1;
+        }
+        
+        .jph-roadmap-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            line-height: 1.3;
+        }
+        
+        .jph-roadmap-icon {
+            width: 28px;
+            height: 28px;
+            color: #239B90;
+            flex-shrink: 0;
+        }
+        
+        .jph-roadmap-description {
+            margin: 0;
+            font-size: 15px;
+            color: #6b7280;
+            line-height: 1.5;
+            font-weight: 400;
+        }
+        
+        .jph-roadmap-toggle {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: #6b7280;
+            transition: all 0.2s ease;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .jph-roadmap-toggle:hover {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .jph-roadmap-chevron {
+            width: 24px;
+            height: 24px;
+            transition: transform 0.3s ease;
+        }
+        
+        .jph-roadmap-content {
+            padding: 32px;
+        }
+        
+        .jph-roadmap-stages {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+        
+        .jph-roadmap-stage {
+            position: relative;
+            padding-left: 60px;
+        }
+        
+        .jph-roadmap-stage::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: -32px;
+            width: 2px;
+            background: linear-gradient(to bottom, #239B90, #e5e7eb);
+        }
+        
+        .jph-roadmap-stage:last-child::before {
+            display: none;
+        }
+        
+        .jph-stage-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .jph-stage-number {
+            position: absolute;
+            left: 0;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #239B90 0%, #1a7a6f 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+            flex-shrink: 0;
+        }
+        
+        .jph-stage-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+            line-height: 1.3;
+        }
+        
+        .jph-stage-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .jph-stage-step {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 16px 20px;
+            transition: all 0.2s ease;
+        }
+        
+        .jph-stage-step:hover {
+            border-color: #239B90;
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.1);
+            transform: translateX(4px);
+        }
+        
+        .jph-step-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-decoration: none;
+            color: #1f2937;
+            gap: 12px;
+        }
+        
+        .jph-step-link:hover {
+            color: #239B90;
+        }
+        
+        .jph-step-text {
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.5;
+            flex: 1;
+        }
+        
+        .jph-step-arrow {
+            width: 20px;
+            height: 20px;
+            color: #239B90;
+            flex-shrink: 0;
+            transition: transform 0.2s ease;
+        }
+        
+        .jph-step-link:hover .jph-step-arrow {
+            transform: translateX(4px);
+        }
+        
+        .jph-step-description {
+            margin: 8px 0 0 0;
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+        
+        /* Step Completion Checkbox */
+        .jph-step-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        
+        .jph-step-checkbox-label {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        
+        .jph-step-checkbox {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+        
+        .jph-step-checkmark {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .jph-step-checkbox-label:hover .jph-step-checkmark {
+            border-color: #239B90;
+            background: #f0fdfa;
+        }
+        
+        .jph-step-checkbox:checked ~ .jph-step-checkmark {
+            background: linear-gradient(135deg, #239B90 0%, #1a7a6f 100%);
+            border-color: #239B90;
+        }
+        
+        .jph-checkmark-icon {
+            width: 16px;
+            height: 16px;
+            color: white;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.2s ease;
+        }
+        
+        .jph-step-checkbox:checked ~ .jph-step-checkmark .jph-checkmark-icon {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .jph-step-main {
+            flex: 1;
+        }
+        
+        /* Completed Step Styling */
+        .jph-stage-step.jph-step-completed {
+            background: linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%);
+            border-color: #239B90;
+        }
+        
+        .jph-stage-step.jph-step-completed .jph-step-text {
+            color: #1a7a6f;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+        
+        .jph-stage-step.jph-step-completed .jph-step-description {
+            color: #6b7280;
+            opacity: 0.8;
+        }
+        
+        .jph-stage-step.jph-step-completed .jph-step-link {
+            color: #1a7a6f;
+        }
+        
+        .jph-stage-step.jph-step-completed:hover {
+            border-color: #1a7a6f;
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.15);
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .jph-tutorial-btn,
+            .jph-leaderboard-btn,
+            .jph-stats-help-btn,
+            .jph-fix-stats-btn {
+                flex: 1 !important;
+                min-width: 120px !important;
+                font-size: 13px !important;
+                padding: 10px 12px !important;
+            }
+            
+            .jph-membership-roadmap {
+                margin: 20px 0 30px 0;
+            }
+            
+            .jph-roadmap-header {
+                padding: 20px 24px;
+            }
+            
+            .jph-roadmap-title {
+                font-size: 20px;
+            }
+            
+            .jph-roadmap-icon {
+                width: 24px;
+                height: 24px;
+            }
+            
+            .jph-roadmap-description {
+                font-size: 14px;
+            }
+            
+            .jph-roadmap-content {
+                padding: 24px 20px;
+            }
+            
+            .jph-roadmap-stages {
+                gap: 24px;
+            }
+            
+            .jph-roadmap-stage {
+                padding-left: 50px;
+            }
+            
+            .jph-stage-number {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+            
+            .jph-stage-title {
+                font-size: 18px;
+            }
+            
+            .jph-stage-step {
+                padding: 14px 16px;
+            }
+            
+            .jph-step-text {
+                font-size: 15px;
+            }
+            
+            .jph-step-content {
+                gap: 12px;
+            }
+            
+            .jph-step-checkmark {
+                width: 22px;
+                height: 22px;
+            }
+            
+            .jph-checkmark-icon {
+                width: 14px;
+                height: 14px;
+            }
         }
         
         .stat {
@@ -7350,7 +9931,8 @@ class JPH_Frontend {
             
             .jph-tutorial-btn,
             .jph-leaderboard-btn,
-            .jph-stats-help-btn {
+            .jph-stats-help-btn,
+            .jph-fix-stats-btn {
                 flex: 1 !important;
                 min-width: 120px !important;
                 font-size: 13px !important;
@@ -8149,21 +10731,39 @@ class JPH_Frontend {
 
         .event-teacher {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             color: #6b7280;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
+            min-width: 120px;
+            text-align: center;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 8px;
         }
-
-        .teacher-pill {
-            display: inline-block;
-            padding: 4px 10px;
-            background: #e0e7ff;
-            color: #3730a3;
-            border-radius: 12px;
-            font-size: 0.75rem;
+        
+        .event-teacher-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid #e9ecef;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .event-teacher-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .event-teacher span {
             font-weight: 600;
-            text-transform: capitalize;
+            color: #374151;
+            font-size: 0.85rem;
         }
 
         .event-types {
@@ -9315,91 +11915,26 @@ class JPH_Frontend {
             min-height: 60px;
         }
         
-        /* Improvement Toggle */
-        .improvement-toggle {
+        /* Improvement Radio Buttons */
+        .improvement-radio-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        
+        .improvement-radio-group label {
             display: flex;
             align-items: center;
-            gap: 10px;
-        }
-        
-        .toggle-slider {
-            position: relative;
-            display: inline-block;
-            width: 140px;
-            height: 44px;
-            background: linear-gradient(135deg, #e9ecef 0%, #f1f3f4 100%);
-            border-radius: 22px;
             cursor: pointer;
-            transition: all 0.4s ease;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-            border: 2px solid #dee2e6;
+            font-weight: 500;
+            font-size: 15px;
         }
         
-        .toggle-slider:before {
-            content: '';
-            position: absolute;
-            top: 4px;
-            left: 4px;
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-            border-radius: 50%;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 3px 8px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1);
-        }
-        
-        .toggle-slider-text {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 13px;
-            font-weight: 600;
-            color: #6c757d;
-            transition: color 0.3s ease;
-        }
-        
-        .toggle-slider-text:first-child {
-            left: 16px;
-        }
-        
-        .toggle-slider-text:last-child {
-            right: 16px;
-        }
-        
-        #improvement-toggle {
-            display: none;
-        }
-        
-        #improvement-toggle:checked + .toggle-slider {
-            background: linear-gradient(135deg, #239B90 0%, #1e8279 100%);
-            border-color: #239B90;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1), 0 0 0 3px rgba(35, 155, 144, 0.1);
-        }
-        
-        #improvement-toggle:checked + .toggle-slider:before {
-            transform: translateX(96px);
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-        
-        #improvement-toggle:checked + .toggle-slider .toggle-slider-text:last-child {
-            color: white;
-        }
-        
-        #improvement-toggle + .toggle-slider .toggle-slider-text:first-child {
-            color: white;
-        }
-        
-        #improvement-toggle:checked + .toggle-slider:before {
-            transform: translateX(80px);
-        }
-        
-        #improvement-toggle:checked + .toggle-slider .toggle-slider-text:first-child {
-            color: white;
-        }
-        
-        #improvement-toggle:checked + .toggle-slider .toggle-slider-text:last-child {
-            color: white;
+        .improvement-radio-group input[type="radio"] {
+            margin-right: 8px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
         }
         
         /* Compact Log Button */
@@ -9565,6 +12100,17 @@ class JPH_Frontend {
             transition: all 0.3s ease;
             position: relative;
             cursor: move;
+            touch-action: pan-y; /* Allow vertical scrolling but enable custom touch handling */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        .jph-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+            z-index: 1000;
+            touch-action: none; /* Disable all touch actions while dragging */
         }
         
         .jph-item:hover {
@@ -9573,11 +12119,6 @@ class JPH_Frontend {
             border-color: #004555;
         }
         
-        .jph-item.dragging {
-            opacity: 0.5;
-            transform: rotate(5deg);
-            z-index: 1000;
-        }
         
         .jph-item.drag-over {
             border-color: #004555;
@@ -9591,6 +12132,10 @@ class JPH_Frontend {
             cursor: grab;
             opacity: 0.6;
             transition: opacity 0.3s ease;
+            touch-action: none; /* Prevent default touch behaviors on drag handle */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
         
         .drag-handle:hover {
@@ -9863,7 +12408,8 @@ class JPH_Frontend {
             text-align: center;
         }
         
-        .jpc-fix-progress-link {
+        .jpc-fix-progress-link,
+        .jpc-help-link {
             color: #6b7280;
             font-size: 12px;
             text-decoration: none;
@@ -9871,9 +12417,16 @@ class JPH_Frontend {
             transition: color 0.2s ease;
         }
         
-        .jpc-fix-progress-link:hover {
+        .jpc-fix-progress-link:hover,
+        .jpc-help-link:hover {
             color: #374151;
             text-decoration: underline;
+        }
+        
+        .jpc-link-separator {
+            color: #6b7280;
+            font-size: 12px;
+            margin: 0 8px;
         }
         
         /* Notification styling */
@@ -10049,6 +12602,56 @@ class JPH_Frontend {
         .jpc-sticky-header th {
             background: #f8f9fa !important;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Restricted Focus Styles for Free Members */
+        .jpc-focus-restricted .jpc-focus-column {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        .jpc-focus-restricted .jpc-focus-column .jpc-disabled {
+            opacity: 0.5;
+            filter: grayscale(50%);
+        }
+        
+        /* Keep upgrade message area fully visible and interactive */
+        .jpc-focus-restricted .jpc-video-column {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        
+        .jpc-focus-restricted .jpc-video-container.jpc-disabled {
+            opacity: 1 !important;
+            filter: none !important;
+        }
+        
+        .jpc-focus-restricted-row {
+            opacity: 0.5;
+            background-color: #f9fafb !important;
+        }
+        
+        .jpc-focus-restricted-row td {
+            color: #9ca3af !important;
+        }
+        
+        .jpc-focus-restricted-row .focus-title {
+            opacity: 0.5;
+        }
+        
+        .jpc-upgrade-message {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         /* Key column headers - make them more prominent */
@@ -10345,6 +12948,25 @@ class JPH_Frontend {
             left: 0;
             width: 100%;
             height: 100%;
+        }
+        
+        #jpc-help-video-container {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #jpc-help-video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
         }
         
         /* JPC Submission Modal Styles */
@@ -12192,6 +14814,761 @@ class JPH_Frontend {
             }
         }
         
+        /* Coming Soon Section */
+        .jph-coming-soon {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fffe 100%);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 69, 85, 0.1);
+            border: 2px solid #e8f5f4;
+            margin: 20px 0;
+        }
+        
+        .coming-soon-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+        
+        .jph-coming-soon h2 {
+            font-size: 2.5em;
+            color: #004555;
+            margin: 0 0 10px 0;
+            font-weight: 700;
+        }
+        
+        .coming-soon-subtitle {
+            font-size: 1.3em;
+            color: #666;
+            margin: 0 0 40px 0;
+        }
+        
+        .coming-soon-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+        
+        .feature-item {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 5px 20px rgba(0, 69, 85, 0.08);
+            border: 2px solid #e8f5f4;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 69, 85, 0.15);
+            border-color: #239B90;
+        }
+        
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .feature-item h3 {
+            font-size: 1.3em;
+            color: #004555;
+            margin: 0 0 10px 0;
+            font-weight: 600;
+        }
+        
+        .feature-item p {
+            color: #666;
+            margin: 0;
+            line-height: 1.6;
+        }
+        
+        .coming-soon-cta {
+            margin-top: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border-radius: 16px;
+            border: 2px solid #f39c12;
+        }
+        
+        .excitement-text {
+            font-size: 1.4em;
+            color: #d35400;
+            margin: 0;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(211, 84, 0, 0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .jph-coming-soon {
+                padding: 40px 20px;
+            }
+            
+            .jph-coming-soon h2 {
+                font-size: 2em;
+            }
+            
+            .coming-soon-subtitle {
+                font-size: 1.1em;
+            }
+            
+            .coming-soon-features {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .excitement-text {
+                font-size: 1.2em;
+            }
+        }
+        
+        /* PLAN Tab Content Styles */
+        .jph-plan-ai-assistant-header {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        .jph-ai-assistant-button-wrapper {
+            width: 100%;
+        }
+        
+        .jph-plan-ai-assistant-btn {
+            background: #f04e23;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 2px 8px rgba(240, 78, 35, 0.3);
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .jph-plan-ai-assistant-btn:hover {
+            background: #e0451f;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.4);
+        }
+        
+        .jph-plan-ai-assistant-btn:active {
+            transform: translateY(0);
+            background: #d63e1a;
+        }
+        
+        .jph-ai-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .jph-ai-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .jph-ai-text {
+            font-size: 16px;
+        }
+        
+        /* AI Assistant Full-Screen Modal */
+        .jph-ai-assistant-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 999999;
+            background: white;
+        }
+        
+        .jph-ai-modal-window {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .jph-ai-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+        
+        .jph-ai-modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .jph-ai-modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            position: relative;
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        
+        .jph-ai-modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+        
+        .jph-ai-modal-close svg {
+            pointer-events: none;
+        }
+        
+        .jph-ai-modal-body {
+            flex: 1;
+            overflow: auto;
+            padding: 0;
+            position: relative;
+            min-height: 0;
+        }
+        
+        .jph-ai-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 300px;
+            color: #666;
+        }
+        
+        .jph-ai-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .jph-ai-modal-body .aaa-chat-wrapper {
+            height: calc(100vh - 120px);
+            max-height: calc(100vh - 120px);
+            min-height: 600px;
+            margin: 0;
+        }
+        
+        .jph-plan-goal-community-wrapper {
+            display: flex;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .jph-plan-section {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 69, 85, 0.08);
+        }
+        
+        .jph-plan-goal-community-wrapper .jph-plan-section {
+            margin-bottom: 0;
+        }
+        
+        .jph-plan-print-wrapper {
+            margin-bottom: 30px;
+            text-align: right;
+        }
+        
+        .jph-print-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: #239B90;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-print-btn:hover {
+            background: #1a7a70;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+        }
+        
+        .jph-print-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .jph-transformation-sheet-print {
+            display: none;
+        }
+        
+        @media print {
+            /* Hide everything on the page */
+            body * {
+                visibility: hidden;
+            }
+            
+            /* Show only the print sheet and its contents */
+            #jph-transformation-sheet-print,
+            #jph-transformation-sheet-print * {
+                visibility: visible !important;
+            }
+            
+            /* Show only the print sheet */
+            #jph-transformation-sheet-print {
+                display: block !important;
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: auto;
+                min-height: 100vh;
+                padding: 40px;
+                background: white;
+                margin: 0;
+                z-index: 999999;
+            }
+            
+            html, body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: auto;
+            }
+            
+            .transformation-sheet-header {
+                text-align: center;
+                margin-bottom: 40px;
+                padding-bottom: 20px;
+                border-bottom: 3px solid #239B90;
+            }
+            
+            .transformation-sheet-header h1 {
+                font-size: 32px;
+                color: #239B90;
+                margin: 0 0 10px 0;
+                font-weight: 700;
+            }
+            
+            .transformation-sheet-date {
+                font-size: 14px;
+                color: #64748b;
+                margin: 0;
+            }
+            
+            .transformation-sheet-section {
+                margin-bottom: 40px;
+                page-break-inside: avoid;
+            }
+            
+            .transformation-sheet-section h2 {
+                font-size: 20px;
+                color: #0f172a;
+                margin: 0 0 15px 0;
+                font-weight: 600;
+                border-bottom: 2px solid #e2e8f0;
+                padding-bottom: 8px;
+            }
+            
+            .transformation-sheet-content {
+                font-size: 16px;
+                line-height: 1.8;
+                color: #0f172a;
+                min-height: 60px;
+                padding: 15px;
+                background: #f8fafc;
+                border-radius: 8px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            
+            .transformation-sheet-content em {
+                color: #94a3b8;
+                font-style: italic;
+            }
+            
+            .transformation-sheet-footer {
+                margin-top: 60px;
+                padding-top: 20px;
+                border-top: 2px solid #e2e8f0;
+                text-align: center;
+            }
+            
+            .transformation-sheet-footer p {
+                font-size: 12px;
+                color: #64748b;
+                margin: 0;
+            }
+        }
+        
+        .jph-plan-goal {
+            flex: 0 0 60%;
+        }
+        
+        .jph-plan-community {
+            flex: 0 0 calc(40% - 25px);
+        }
+        
+        .jph-plan-section h3 {
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #2A3940;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .jph-plan-microtip {
+            color: #239B90;
+            cursor: help;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(35, 155, 144, 0.1);
+            font-style: normal;
+            flex-shrink: 0;
+        }
+        
+        .jph-plan-microtip svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+        }
+        
+        .jph-plan-microtip:hover {
+            opacity: 1;
+            background: rgba(35, 155, 144, 0.2);
+        }
+        
+        /* Customize microtip tooltips for plan section */
+        .jph-plan-section {
+            --microtip-transition-duration: 0.2s;
+            --microtip-transition-delay: 0.3s;
+            --microtip-transition-easing: ease-out;
+            --microtip-font-size: 14px;
+            --microtip-font-weight: 400;
+            --microtip-text-transform: none;
+        }
+        
+        /* Improve tooltip readability with better wrapping */
+        .jph-plan-section [role="tooltip"]::before,
+        .jph-plan-section [role="tooltip"]::after {
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            word-break: break-word !important;
+            text-align: left !important;
+            line-height: 1.5 !important;
+            padding: 10px 14px !important;
+        }
+        
+        .jph-plan-transformation-intro {
+            margin: 0 0 15px 0;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+            font-style: italic;
+        }
+        
+        .jph-plan-transformation-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            resize: vertical;
+            min-height: 100px;
+            line-height: 1.6;
+        }
+        
+        .jph-plan-transformation-input:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-goal-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            resize: vertical;
+            min-height: 60px;
+            line-height: 1.5;
+        }
+        
+        .jph-plan-goal-input:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-goal-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+        
+        .jph-plan-goal-counter {
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .jph-plan-goal-counter.warning {
+            color: #f59e0b;
+        }
+        
+        .jph-plan-goal-counter.danger {
+            color: #ef4444;
+        }
+        
+        .jph-plan-focus-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .jph-plan-focus-select {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-plan-focus-select:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-practice-btn {
+            background-color: #f04e23;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        
+        .jph-plan-practice-btn:hover {
+            background-color: #d43e1a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(240, 78, 35, 0.3);
+        }
+        
+        .jph-plan-practice-btn:active {
+            transform: translateY(0);
+        }
+        
+        .jph-plan-subtext {
+            margin: 10px 0 0 0;
+            font-size: 13px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .jph-plan-stats-summary {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #e8f5f4;
+        }
+        
+        .jph-plan-stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .jph-plan-stat-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .jph-plan-stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #239B90;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+        
+        .jph-plan-stat-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .jph-plan-stats-message {
+            margin: 15px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            font-size: 15px;
+            color: #2A3940;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .jph-plan-view-analytics-btn {
+            width: 100%;
+            background: #239B90;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        
+        .jph-plan-view-analytics-btn:hover {
+            background: #1d7a70;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+        }
+        
+        .jph-plan-view-analytics-btn:active {
+            transform: translateY(0);
+        }
+        
+        .jph-plan-community-text {
+            margin: 0 0 20px 0;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .jph-plan-community-link {
+            display: inline-block;
+            background: #239B90;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-align: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .jph-plan-community-link:hover {
+            background: #1d7a70;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+            color: white;
+            text-decoration: none;
+        }
+        
+        .jph-plan-community-link:active {
+            transform: translateY(0);
+        }
+        
+        @media (max-width: 768px) {
+            .jph-plan-goal-community-wrapper {
+                flex-direction: column;
+            }
+            
+            .jph-plan-goal,
+            .jph-plan-community {
+                flex: 1 1 100%;
+            }
+        }
+        
+        .jph-plan-save-status {
+            margin-top: 8px;
+            font-size: 13px;
+            min-height: 20px;
+            display: none;
+        }
+        
+        .jph-save-saving {
+            color: #666;
+            font-style: italic;
+        }
+        
+        .jph-save-saved {
+            color: #239B90;
+            font-weight: 500;
+        }
+        
+        .jph-save-error {
+            color: #dc3545;
+            font-weight: 500;
+        }
+        
         /* Responsive Tab Design */
         @media (max-width: 1024px) {
             .jph-tab-btn {
@@ -12481,6 +15858,70 @@ class JPH_Frontend {
         <script>
         jQuery(document).ready(function($) {
             
+            // Print Transformation Sheet
+            $('#jph-print-transformation-sheet').on('click', function() {
+                // Update the print content with current values
+                var goalText = $('#jph-plan-goal').val().trim() || 'No goal set yet';
+                var transformationText = $('#jph-plan-transformation').val().trim() || 'No transformation vision set yet';
+                var focusText = $('#jph-plan-focus option:selected').text();
+                var currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                
+                // Build the print HTML
+                var printContent = '<!DOCTYPE html><html><head><title>Academy Transformation Sheet</title><style>';
+                printContent += 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 40px; color: #0f172a; }';
+                printContent += '.transformation-sheet-header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #239B90; }';
+                printContent += '.transformation-sheet-header h1 { font-size: 32px; color: #239B90; margin: 0 0 10px 0; font-weight: 700; }';
+                printContent += '.transformation-sheet-date { font-size: 14px; color: #64748b; margin: 0; }';
+                printContent += '.transformation-sheet-section { margin-bottom: 40px; page-break-inside: avoid; }';
+                printContent += '.transformation-sheet-section h2 { font-size: 20px; color: #0f172a; margin: 0 0 15px 0; font-weight: 600; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }';
+                printContent += '.transformation-sheet-content { font-size: 16px; line-height: 1.8; color: #0f172a; min-height: 60px; padding: 15px; background: #f8fafc; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }';
+                printContent += '.transformation-sheet-footer { margin-top: 60px; padding-top: 20px; border-top: 2px solid #e2e8f0; text-align: center; }';
+                printContent += '.transformation-sheet-footer p { font-size: 12px; color: #64748b; margin: 0; }';
+                printContent += '@media print { @page { margin: 0.5in; } }';
+                printContent += '</style></head><body>';
+                
+                printContent += '<div class="transformation-sheet-header">';
+                printContent += '<h1>Academy Transformation Sheet</h1>';
+                printContent += '<p class="transformation-sheet-date">Date: ' + currentDate + '</p>';
+                printContent += '</div>';
+                
+                printContent += '<div class="transformation-sheet-section">';
+                printContent += '<h2>Your 90-Day Piano Goal</h2>';
+                printContent += '<div class="transformation-sheet-content">' + $('<div>').text(goalText).html() + '</div>';
+                printContent += '</div>';
+                
+                printContent += '<div class="transformation-sheet-section">';
+                printContent += '<h2>Your Transformation Vision</h2>';
+                printContent += '<div class="transformation-sheet-content">' + $('<div>').text(transformationText).html() + '</div>';
+                printContent += '</div>';
+                
+                if (focusText && focusText !== '-- Select a practice item --' && focusText.trim() !== '') {
+                    printContent += '<div class="transformation-sheet-section">';
+                    printContent += '<h2>This Week\'s Focus</h2>';
+                    printContent += '<div class="transformation-sheet-content">' + $('<div>').text(focusText).html() + '</div>';
+                    printContent += '</div>';
+                }
+                
+                printContent += '<div class="transformation-sheet-footer">';
+                printContent += '<p>JazzEdge Academy - Your Journey to Musical Excellence</p>';
+                printContent += '</div>';
+                
+                printContent += '</body></html>';
+                
+                // Open print window
+                var printWindow = window.open('', '_blank', 'width=800,height=600');
+                printWindow.document.write(printContent);
+                printWindow.document.close();
+                
+                // Wait for content to load, then print
+                printWindow.onload = function() {
+                    setTimeout(function() {
+                        printWindow.print();
+                        printWindow.close();
+                    }, 250);
+                };
+            });
+            
             // Toggle new improvement pill UI. Set false to revert to simple text.
             const useImprovementPills = true;
 
@@ -12505,6 +15946,351 @@ class JPH_Frontend {
             // Initialize tab functionality
             initTabs();
             
+            <?php if ($can_access_plan): ?>
+            // Initialize PLAN Tab
+            function initPlanTab() {
+                
+                // Auto-save transformation on blur
+                var transformationSaveTimeout;
+                $('#jph-plan-transformation').on('blur', function() {
+                    clearTimeout(transformationSaveTimeout);
+                    transformationSaveTimeout = setTimeout(function() {
+                        savePlanTransformation();
+                    }, 500);
+                });
+                
+                // Update character counter
+                function updateGoalCounter() {
+                    var textarea = $('#jph-plan-goal');
+                    var counter = $('#jph-plan-goal-char-count');
+                    var count = textarea.val().length;
+                    var maxLength = parseInt(textarea.attr('maxlength')) || 250;
+                    
+                    counter.text(count);
+                    
+                    // Update counter styling based on character count
+                    var counterEl = counter.parent();
+                    counterEl.removeClass('warning danger');
+                    if (count >= maxLength * 0.9) {
+                        counterEl.addClass('danger');
+                    } else if (count >= maxLength * 0.75) {
+                        counterEl.addClass('warning');
+                    }
+                }
+                
+                // Initialize counter on page load
+                updateGoalCounter();
+                
+                // Auto-save goal on blur/input
+                var goalSaveTimeout;
+                $('#jph-plan-goal').on('blur input', function(e) {
+                    updateGoalCounter();
+                    clearTimeout(goalSaveTimeout);
+                    goalSaveTimeout = setTimeout(function() {
+                        savePlanGoal();
+                    }, 500);
+                });
+                
+                // Auto-save focus on change
+                $('#jph-plan-focus').on('change', function() {
+                    savePlanFocus();
+                });
+                
+                // Practice button - navigate to practice tab
+                $('#jph-plan-practice-btn').on('click', function(e) {
+                    e.preventDefault();
+                    // Switch to practice-items tab
+                    $('.jph-tab-btn').removeClass('active');
+                    $('.jph-tab-pane').removeClass('active');
+                    $('.jph-tab-btn[data-tab="practice-items"]').addClass('active');
+                    $('#practice-items-tab').addClass('active');
+                    
+                    // Scroll to top
+                    $('html, body').animate({
+                        scrollTop: $('.jph-tabs-content').offset().top - 100
+                    }, 500);
+                });
+                
+                // View Analytics button - navigate to analytics tab
+                $('#jph-plan-view-analytics-btn').on('click', function(e) {
+                    e.preventDefault();
+                    // Switch to analytics tab
+                    $('.jph-tab-btn').removeClass('active');
+                    $('.jph-tab-pane').removeClass('active');
+                    $('.jph-tab-btn[data-tab="analytics"]').addClass('active');
+                    $('#analytics-tab').addClass('active');
+                    
+                    // Scroll to top
+                    $('html, body').animate({
+                        scrollTop: $('.jph-tabs-content').offset().top - 100
+                    }, 500);
+                });
+                
+                // AI Assistant Modal
+                var aiAssistantLoaded = false;
+                
+                $('#jph-plan-ai-assistant-btn').on('click', function(e) {
+                    e.preventDefault();
+                    var $modal = $('#jph-ai-assistant-modal');
+                    var $content = $('#jph-ai-assistant-content');
+                    
+                    // Show modal
+                    $modal.fadeIn(300);
+                    $('body').css('overflow', 'hidden');
+                    
+                    // Load shortcode content if not already loaded
+                    if (!aiAssistantLoaded) {
+                        $.ajax({
+                            url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                            method: 'POST',
+                            data: {
+                                action: 'jph_load_ai_assistant',
+                                nonce: '<?php echo wp_create_nonce('jph_ai_assistant'); ?>'
+                            },
+                            success: function(response) {
+                                
+                                // Handle response.data - it might be a string or an object with a data property
+                                var content = response.data;
+                                if (typeof content === 'object' && content !== null && content.data) {
+                                    content = content.data; // Handle nested structure {data: {data: "..."}}
+                                }
+                                
+                                
+                                if (response.success && content && typeof content === 'string' && content.trim() !== '') {
+                                    $content.html(content);
+                                    aiAssistantLoaded = true;
+                                    
+                                    // Force re-initialization of AI Assistant scripts
+                                    if (typeof jQuery !== 'undefined') {
+                                        jQuery(document).trigger('aaa-assistant-loaded');
+                                        
+                                        // Try to reinitialize if the assistant object exists
+                                        setTimeout(function() {
+                                            if (typeof window.aaaAssistant !== 'undefined' && typeof window.aaaAssistant.init === 'function') {
+                                                window.aaaAssistant.init();
+                                            }
+                                        }, 100);
+                                    }
+                                } else {
+                                    var errorMsg = 'Unknown error';
+                                    if (response.data && typeof response.data === 'object' && response.data.message) {
+                                        errorMsg = response.data.message;
+                                    } else if (!content || (typeof content === 'string' && content.trim() === '')) {
+                                        errorMsg = 'Shortcode returned empty content. Please check if the Academy AI Assistant plugin is active.';
+                                    }
+                                    $content.html('<div class="jph-ai-loading"><p style="color: #dc3545;">Error loading AI Assistant: ' + errorMsg + '</p></div>');
+                                }
+                            },
+                            error: function(xhr, status, error) {
+                                var errorMsg = 'Please refresh the page and try again.';
+                                if (xhr.responseText) {
+                                    try {
+                                        var errorResponse = JSON.parse(xhr.responseText);
+                                        if (errorResponse.data && errorResponse.data.message) {
+                                            errorMsg = errorResponse.data.message;
+                                        }
+                                    } catch(e) {
+                                        // Not JSON, use default message
+                                    }
+                                }
+                                $content.html('<div class="jph-ai-loading"><p style="color: #dc3545;">Error loading AI Assistant: ' + errorMsg + '</p><p style="font-size: 12px; color: #666;">Status: ' + status + ', Error: ' + error + '</p></div>');
+                            }
+                        });
+                    }
+                });
+                
+                // Close modal
+                $('#jph-ai-assistant-close').on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $('#jph-ai-assistant-modal').fadeOut(300);
+                    $('body').css('overflow', '');
+                });
+                
+                // Close on Escape key
+                $(document).on('keydown', function(e) {
+                    if (e.key === 'Escape' && $('#jph-ai-assistant-modal').is(':visible')) {
+                        $('#jph-ai-assistant-modal').fadeOut(300);
+                        $('body').css('overflow', '');
+                    }
+                });
+                
+                // Load plan data on page load if plan tab is active
+                if ($('#plan-tab').hasClass('active')) {
+                    loadPlanData();
+                }
+                
+                // Also load when switching to plan tab
+                $(document).on('click', '.jph-tab-btn[data-tab="plan"]', function() {
+                    setTimeout(function() {
+                        loadPlanData();
+                    }, 100);
+                });
+            }
+            
+            // Load plan data from API
+            function loadPlanData() {
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.plan) {
+                            var plan = response.plan;
+                            
+                            // Update transformation
+                            if (plan.transformation !== undefined) {
+                                $('#jph-plan-transformation').val(plan.transformation || '');
+                            }
+                            
+                            // Update goal
+                            if (plan.goal_90_day !== undefined) {
+                                $('#jph-plan-goal').val(plan.goal_90_day || '');
+                            }
+                            
+                            // Update focus
+                            if (plan.weekly_focus_item_id) {
+                                $('#jph-plan-focus').val(plan.weekly_focus_item_id);
+                            }
+                            
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                    }
+                });
+            }
+            
+            // Show save status
+            function showSaveStatus(statusId, status) {
+                var $status = $('#' + statusId);
+                if (!$status.length) return;
+                
+                if (status === 'saving') {
+                    $status.html('<span class="jph-save-saving">💾 Saving...</span>').show();
+                } else if (status === 'saved') {
+                    $status.html('<span class="jph-save-saved">✅ Saved</span>').show();
+                    setTimeout(function() {
+                        $status.fadeOut(1000);
+                    }, 2000);
+                } else if (status === 'error') {
+                    $status.html('<span class="jph-save-error">❌ Error saving</span>').show();
+                }
+            }
+            
+            // Save plan transformation
+            function savePlanTransformation() {
+                var transformation = $('#jph-plan-transformation').val();
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan/transformation'); ?>',
+                    method: 'PUT',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: JSON.stringify({ transformation: transformation }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.success) {
+                            showSaveStatus('jph-plan-transformation-status', 'saved');
+                        } else {
+                            showSaveStatus('jph-plan-transformation-status', 'error');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showSaveStatus('jph-plan-transformation-status', 'error');
+                    }
+                });
+            }
+            
+            // Save plan goal
+            function savePlanGoal() {
+                var goal = $('#jph-plan-goal').val();
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan/goal'); ?>',
+                    method: 'PUT',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: JSON.stringify({ goal: goal }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.success) {
+                            showSaveStatus('jph-plan-goal-status', 'saved');
+                        } else {
+                            showSaveStatus('jph-plan-goal-status', 'error');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showSaveStatus('jph-plan-goal-status', 'error');
+                    }
+                });
+            }
+            
+            // Save plan focus
+            function savePlanFocus() {
+                var itemId = $('#jph-plan-focus').val();
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan/focus'); ?>',
+                    method: 'PUT',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: JSON.stringify({ item_id: itemId ? parseInt(itemId) : 0 }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.success) {
+                            showSaveStatus('jph-plan-focus-status', 'saved');
+                        } else {
+                            showSaveStatus('jph-plan-focus-status', 'error');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showSaveStatus('jph-plan-focus-status', 'error');
+                    }
+                });
+            }
+            
+            
+            // Initialize PLAN tab
+            initPlanTab();
+            <?php endif; ?>
+            
+            // Handle #jpc anchor on page load
+            if (window.location.hash === '#jpc') {
+                const techniqueTab = $('.jph-tab-btn[data-tab="technique"]');
+                if (techniqueTab.length) {
+                    techniqueTab.click();
+                    setTimeout(function() {
+                        const jpcSection = $('.jpc-current-focus');
+                        if (jpcSection.length) {
+                            $('html, body').animate({
+                                scrollTop: jpcSection.offset().top - 100
+                            }, 500);
+                        }
+                    }, 300);
+                }
+            }
+            
+            // Handle #events anchor on page load
+            if (window.location.hash === '#events') {
+                const eventsTab = $('.jph-tab-btn[data-tab="events"]');
+                if (eventsTab.length) {
+                    eventsTab.click();
+                    setTimeout(function() {
+                        const eventsSection = $('#events-tab');
+                        if (eventsSection.length) {
+                            $('html, body').animate({
+                                scrollTop: eventsSection.offset().top - 100
+                            }, 500);
+                        }
+                    }, 300);
+                }
+            }
+            
             // Initialize events functionality
             initEventsViewToggle();
             
@@ -12514,6 +16300,12 @@ class JPH_Frontend {
             
             // Initialize notification popup
             initNotificationPopup();
+            
+            // Initialize fix stats button
+            initFixStatsButton();
+            
+            // Initialize repair streak buttons
+            initRepairStreakButtons();
             
             // Handle last lesson card click - make entire card clickable
             $('.last-lesson-card').on('click', function(e) {
@@ -12534,6 +16326,18 @@ class JPH_Frontend {
                     const isViewAll = selectedOption.data('view-all');
                     
                     // Navigate to selected favorite in same window
+                    window.location.href = url;
+                    
+                    // Reset dropdown
+                    $(this).val('');
+                }
+            });
+            
+            // Handle free trial lessons dropdown - open in current window
+            $('#jph-free-trial-dropdown').on('change', function() {
+                const url = $(this).val();
+                if (url) {
+                    // Navigate to selected lesson in same window
                     window.location.href = url;
                     
                     // Reset dropdown
@@ -12768,7 +16572,6 @@ class JPH_Frontend {
                             }
                         },
                         error: function(xhr, status, error) {
-                            console.error('Error loading chart data:', error);
                         }
                     });
                 });
@@ -12905,6 +16708,7 @@ class JPH_Frontend {
                         if (response.success && response.preferences) {
                             const prefs = response.preferences;
                             $('#setting-stats').prop('checked', prefs.stats !== false);
+                            $('#setting-roadmap').prop('checked', prefs.roadmap !== false);
                             $('#setting-search-section').prop('checked', prefs.search_section !== false);
                             $('#setting-repertoire-section').prop('checked', prefs.repertoire_section !== false);
                             $('#setting-tab-shield').prop('checked', prefs.tab_shield !== false);
@@ -12916,16 +16720,22 @@ class JPH_Frontend {
                             $('#setting-bg-color').val(prefs.bg_color || '#ffffff');
                             $('#setting-accent-color').val(prefs.accent_color || '#004555');
                             $('#setting-theme').val(prefs.theme || 'default');
+                            $('#setting-color-palette').val(prefs.color_palette || 'default');
                             
                             // Apply theme if theme preset is selected
                             if (prefs.theme && prefs.theme !== 'default') {
                                 applyThemePreset(prefs.theme);
                             }
+                            
+                            // Apply color palette
+                            if (prefs.color_palette) {
+                                applyColorPalette(prefs.color_palette);
+                            }
                         }
                     },
                     error: function() {
                         // Default to all checked if load fails
-                        $('#setting-stats, #setting-search-section, #setting-tab-shield, #setting-tab-badges, #setting-tab-analytics').prop('checked', true);
+                        $('#setting-stats, #setting-roadmap, #setting-search-section, #setting-tab-shield, #setting-tab-badges, #setting-tab-analytics').prop('checked', true);
                     }
                 });
             }
@@ -12943,6 +16753,9 @@ class JPH_Frontend {
                             const prefs = response.preferences;
                             updateDashboardVisibility(prefs);
                             applyDashboardTheme(prefs);
+                            if (prefs.color_palette) {
+                                applyColorPalette(prefs.color_palette);
+                            }
                         }
                     }
                 });
@@ -13031,10 +16844,141 @@ class JPH_Frontend {
                 });
             }
             
+            // Initialize fix stats button
+            function initFixStatsButton() {
+                const btn = $('#jph-fix-stats-btn');
+                if (!btn.length) return;
+                
+                btn.on('click', function(e) {
+                    e.preventDefault();
+                    
+                    if (!confirm('Recalculate your stats (streak and level) from practice history? This will update your current streak and level values.')) {
+                        return;
+                    }
+                    
+                    const $btn = $(this);
+                    const originalHtml = $btn.html();
+                    $btn.prop('disabled', true);
+                    $btn.html('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="animation: spin 1s linear infinite;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>');
+                    
+                    $.ajax({
+                        url: '<?php echo esc_url(rest_url('aph/v1/students/' . $user_id . '/fix-stats')); ?>',
+                        method: 'POST',
+                        beforeSend: function(xhr) {
+                            xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Show success message briefly, then refresh page
+                                showMessage('✓ Stats recalculated successfully! Refreshing page...', 'success');
+                                
+                                // Refresh page after a short delay to show the message
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 1000);
+                            } else {
+                                showMessage('Error: ' + (response.message || 'Failed to recalculate stats'), 'error');
+                                $btn.prop('disabled', false);
+                                $btn.html(originalHtml);
+                            }
+                        },
+                        error: function(xhr) {
+                            const errorMsg = xhr.responseJSON && xhr.responseJSON.message 
+                                ? xhr.responseJSON.message 
+                                : 'Failed to recalculate stats. Please try again.';
+                            showMessage('Error: ' + errorMsg, 'error');
+                        },
+                        complete: function() {
+                            $btn.prop('disabled', false);
+                            $btn.html(originalHtml);
+                        }
+                    });
+                });
+            }
+            
+            // Initialize repair streak buttons
+            function initRepairStreakButtons() {
+                $(document).on('click', '[id^="repair-"]', function() {
+                    const $button = $(this);
+                    const days = $button.data('days');
+                    const cost = $button.data('cost');
+                    const nonce = $('#repair-nonce').val();
+                    
+                    if (!nonce) {
+                        showMessage('Error: Security token not found. Please refresh the page.', 'error');
+                        return;
+                    }
+                    
+                    if (!confirm(`Repair ${days} day(s) of streak for ${cost} gems?`)) {
+                        return;
+                    }
+                    
+                    const originalHtml = $button.html();
+                    $button.prop('disabled', true);
+                    $button.html('Processing...');
+                    
+                    $.ajax({
+                        url: '<?php echo esc_url(rest_url('aph/v1/repair-streak')); ?>',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            days_to_repair: days
+                        }),
+                        beforeSend: function(xhr) {
+                            xhr.setRequestHeader('X-WP-Nonce', nonce);
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Update UI
+                                $('.stat-value:contains("STREAK")').each(function() {
+                                    const $stat = $(this);
+                                    const text = $stat.text();
+                                    if (text.includes('STREAK')) {
+                                        $stat.text('STREAK ' + response.new_streak);
+                                    }
+                                });
+                                
+                                $('.stat-value:contains("GEMS")').each(function() {
+                                    const $stat = $(this);
+                                    const text = $stat.text();
+                                    if (text.includes('GEMS')) {
+                                        $stat.text('GEMS ' + response.new_gem_balance);
+                                    }
+                                });
+                                
+                                // Hide recovery section
+                                $('.jph-streak-recovery').hide();
+                                
+                                // Show success message
+                                showMessage(response.message || 'Streak repaired successfully!', 'success');
+                                
+                                // Reload page to update all stats
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 2000);
+                            } else {
+                                showMessage('Error: ' + (response.message || 'Failed to repair streak'), 'error');
+                                $button.prop('disabled', false);
+                                $button.html(originalHtml);
+                            }
+                        },
+                        error: function(xhr) {
+                            const errorMsg = xhr.responseJSON && xhr.responseJSON.message 
+                                ? xhr.responseJSON.message 
+                                : 'Network error. Please try again.';
+                            showMessage('Error: ' + errorMsg, 'error');
+                            $button.prop('disabled', false);
+                            $button.html(originalHtml);
+                        }
+                    });
+                });
+            }
+            
             // Save dashboard preferences
             function saveDashboardPreferences() {
                 const preferences = {
                     stats: $('#setting-stats').is(':checked'),
+                    roadmap: $('#setting-roadmap').is(':checked'),
                     search_section: $('#setting-search-section').is(':checked'),
                     repertoire_section: $('#setting-repertoire-section').is(':checked'),
                     tab_shield: $('#setting-tab-shield').is(':checked'),
@@ -13043,7 +16987,8 @@ class JPH_Frontend {
                     dark_mode: $('#setting-dark-mode').is(':checked'),
                     bg_color: $('#setting-bg-color').val(),
                     accent_color: $('#setting-accent-color').val(),
-                    theme: $('#setting-theme').val()
+                    theme: $('#setting-theme').val(),
+                    color_palette: $('#setting-color-palette').val()
                 };
                 
                 $.ajax({
@@ -13061,6 +17006,11 @@ class JPH_Frontend {
                             
                             // Apply theme immediately
                             applyDashboardTheme(preferences);
+                            
+                            // Apply color palette immediately
+                            if (preferences.color_palette) {
+                                applyColorPalette(preferences.color_palette);
+                            }
                             
                             // Show success message
                             showMessage('Dashboard settings saved successfully!', 'success');
@@ -13132,6 +17082,116 @@ class JPH_Frontend {
                 }
             });
             
+            // Apply color palette to header and buttons
+            function applyColorPalette(palette) {
+                const palettes = {
+                    default: {
+                        headerBg: 'linear-gradient(135deg, #004555 0%, #002A34 100%)',
+                        buttonPrimary: '#F04E23',
+                        buttonPrimaryHover: '#e0451f',
+                        buttonSecondary: '#459E90',
+                        buttonSecondaryHover: '#3a8a7c'
+                    },
+                    green: {
+                        headerBg: 'linear-gradient(135deg, #166534 0%, #0f4a1f 100%)',
+                        buttonPrimary: '#22c55e',
+                        buttonPrimaryHover: '#16a34a',
+                        buttonSecondary: '#15803d',
+                        buttonSecondaryHover: '#166534'
+                    },
+                    blue: {
+                        headerBg: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
+                        buttonPrimary: '#3b82f6',
+                        buttonPrimaryHover: '#2563eb',
+                        buttonSecondary: '#1d4ed8',
+                        buttonSecondaryHover: '#1e40af'
+                    },
+                    purple: {
+                        headerBg: 'linear-gradient(135deg, #6b21a8 0%, #581c87 100%)',
+                        buttonPrimary: '#a855f7',
+                        buttonPrimaryHover: '#9333ea',
+                        buttonSecondary: '#7e22ce',
+                        buttonSecondaryHover: '#6b21a8'
+                    },
+                    red: {
+                        headerBg: 'linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%)',
+                        buttonPrimary: '#ef4444',
+                        buttonPrimaryHover: '#dc2626',
+                        buttonSecondary: '#b91c1c',
+                        buttonSecondaryHover: '#991b1b'
+                    },
+                    orange: {
+                        headerBg: 'linear-gradient(135deg, #c2410c 0%, #9a3412 100%)',
+                        buttonPrimary: '#f97316',
+                        buttonPrimaryHover: '#ea580c',
+                        buttonSecondary: '#d97706',
+                        buttonSecondaryHover: '#c2410c'
+                    },
+                    indigo: {
+                        headerBg: 'linear-gradient(135deg, #4338ca 0%, #3730a3 100%)',
+                        buttonPrimary: '#6366f1',
+                        buttonPrimaryHover: '#4f46e5',
+                        buttonSecondary: '#4f46e5',
+                        buttonSecondaryHover: '#4338ca'
+                    }
+                };
+                
+                if (palettes[palette]) {
+                    const colors = palettes[palette];
+                    const dashboard = $('.jph-student-dashboard');
+                    
+                    // Set CSS variables on dashboard for easy access
+                    dashboard.css({
+                        '--jph-header-bg': colors.headerBg,
+                        '--jph-btn-primary': colors.buttonPrimary,
+                        '--jph-btn-primary-hover': colors.buttonPrimaryHover,
+                        '--jph-btn-secondary': colors.buttonSecondary,
+                        '--jph-btn-secondary-hover': colors.buttonSecondaryHover
+                    });
+                    
+                    // Apply to header
+                    $('.jph-header').css({
+                        'background': colors.headerBg
+                    });
+                    
+                    // Apply to primary buttons
+                    $('.jph-btn-primary').css({
+                        'background': colors.buttonPrimary + ' !important'
+                    });
+                    
+                    // Apply to secondary buttons
+                    $('.jph-btn-secondary').css({
+                        'background': colors.buttonSecondary + ' !important'
+                    });
+                    
+                    // Add hover handlers for buttons
+                    $('.jph-btn-primary').off('mouseenter.colorpalette mouseleave.colorpalette')
+                        .on('mouseenter.colorpalette', function() {
+                            $(this).css('background', colors.buttonPrimaryHover + ' !important');
+                        })
+                        .on('mouseleave.colorpalette', function() {
+                            $(this).css('background', colors.buttonPrimary + ' !important');
+                        });
+                    
+                    $('.jph-btn-secondary').off('mouseenter.colorpalette mouseleave.colorpalette')
+                        .on('mouseenter.colorpalette', function() {
+                            $(this).css('background', colors.buttonSecondaryHover + ' !important');
+                        })
+                        .on('mouseleave.colorpalette', function() {
+                            $(this).css('background', colors.buttonSecondary + ' !important');
+                        });
+                    
+                    // Store palette for reference
+                    dashboard.data('color-palette', palette);
+                }
+            }
+            
+            // Color palette selector change handler
+            $('#setting-color-palette').on('change', function() {
+                const palette = $(this).val();
+                applyColorPalette(palette);
+            });
+            
             // Update dashboard visibility based on preferences
             function updateDashboardVisibility(preferences) {
                 // Update stats section
@@ -13141,6 +17201,13 @@ class JPH_Frontend {
                     $('.jph-stats').hide();
                 }
                 
+                // Update roadmap section
+                if (preferences.roadmap !== false) {
+                    $('.jph-membership-roadmap').show();
+                } else {
+                    $('.jph-membership-roadmap').hide();
+                }
+                
                 // Update search section
                 if (preferences.search_section) {
                     $('.jph-search-section').show();
@@ -13148,25 +17215,15 @@ class JPH_Frontend {
                     $('.jph-search-section').hide();
                 }
                 
-                // Update repertoire section
-                if (preferences.repertoire_section) {
+                // Update repertoire section (default to true if undefined)
+                if (preferences.repertoire_section !== false) {
                     $('.jph-repertoire-section').show();
                 } else {
                     $('.jph-repertoire-section').hide();
                 }
                 
-                // Update tab buttons
-                if (preferences.tab_shield) {
-                    $('.jph-tab-btn[data-tab="shield-protection"]').show();
-                } else {
-                    $('.jph-tab-btn[data-tab="shield-protection"]').hide();
-                    // Hide tab content if active
-                    $('#shield-protection-tab').removeClass('active').hide();
-                    // If this tab is active, switch to practice-items
-                    if ($('.jph-tab-btn[data-tab="shield-protection"]').hasClass('active')) {
-                        $('.jph-tab-btn[data-tab="practice-items"]').click();
-                    }
-                }
+                // Shield tab removed - functionality moved to Badges tab
+                // No need to update shield tab visibility as it no longer exists
                 
                 if (preferences.tab_badges) {
                     $('.jph-tab-btn[data-tab="badges"]').show();
@@ -13397,7 +17454,6 @@ class JPH_Frontend {
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('Export AJAX error:', xhr, status, error);
                         let errorMsg = error;
                         if (xhr.responseJSON && xhr.responseJSON.message) {
                             errorMsg = xhr.responseJSON.message;
@@ -13428,9 +17484,7 @@ class JPH_Frontend {
                         offset: currentSessions
                     },
                     success: function(response) {
-                        console.log('Load More: Response received:', response);
                         if (response.success && response.sessions && response.sessions.length > 0) {
-                            console.log('Load More: Adding', response.sessions.length, 'new sessions');
                             // Append new sessions to existing list
                             let html = '';
                             response.sessions.forEach(session => {
@@ -13583,11 +17637,9 @@ class JPH_Frontend {
                     },
                     success: function(response) {
                         if (response.success) {
-                            console.log('Beta disclaimer marked as shown on server');
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('Failed to mark disclaimer as shown on server:', error);
                     }
                 });
             }
@@ -13651,7 +17703,6 @@ class JPH_Frontend {
                             $typeSelect.append('<option value="' + type.replace(/"/g, '&quot;') + '">' + type + '</option>');
                         });
                     } catch (e) {
-                        console.error('Error parsing filter options:', e);
                     }
                 }
                 
@@ -13977,7 +18028,6 @@ class JPH_Frontend {
                         renderCalendarView(month, year);
                     });
                 } catch (e) {
-                    console.error('Error rendering calendar:', e);
                     $container.html('<div class="no-events-content"><p>Error loading calendar view.</p></div>');
                 }
             }
@@ -14170,11 +18220,9 @@ class JPH_Frontend {
                         if (response.success && response.data) {
                             displayAnalytics(response.data);
                         } else {
-                            console.error('Analytics API error:', response);
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('Analytics loading error:', error);
                     }
                 });
             }
@@ -14294,7 +18342,6 @@ class JPH_Frontend {
             
             // Generate AI analysis on demand
             function generateAIAnalysis() {
-                console.log('Generating AI analysis...');
                 
                 // Show loading state
                 $('#ai-analysis-text').html(`
@@ -14315,21 +18362,17 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
-                        console.log('AI Analysis response:', response);
                         if (response.success && response.data) {
                             displayAIAnalysis(response.data, false);
                             // Update button to allow regeneration
                             $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 16.338l10.125-3.75m0 0l3.75 3.75m-3.75-3.75l-3.75 3.75" /></svg></span> Regenerate Analysis');
                         } else {
-                            console.error('AI Analysis API error:', response);
                             displayAIAnalysisError('API Error: ' + (response.message || 'Unknown error'));
                             // Reset button
                             $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" /></svg></span> Generate AI Analysis');
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('AI Analysis loading error:', error);
-                        console.error('XHR response:', xhr.responseText);
                         displayAIAnalysisError('Connection Error: ' + error + ' (Status: ' + xhr.status + ')');
                         // Reset button
                         $('#ai-generate-btn').prop('disabled', false).html('<span class="generate-icon">✨</span> Generate AI Analysis');
@@ -14614,7 +18657,6 @@ class JPH_Frontend {
                             }
                         },
                         error: function(xhr, status, error) {
-                            console.error('AJAX Error:', xhr, status, error);
                             var errorMessage = 'Error adding practice item';
                             try {
                                 var response = JSON.parse(xhr.responseText);
@@ -14675,7 +18717,6 @@ class JPH_Frontend {
                             }
                         },
                         error: function(xhr, status, error) {
-                            console.error('Update Error:', xhr, status, error);
                             var errorMessage = 'Error updating practice item';
                             try {
                                 var response = JSON.parse(xhr.responseText);
@@ -14717,7 +18758,6 @@ class JPH_Frontend {
                                 }
                             },
                             error: function(xhr, status, error) {
-                                console.error('Delete Error:', xhr, status, error);
                                 var errorMessage = 'Error deleting practice item';
                                 try {
                                     var response = JSON.parse(xhr.responseText);
@@ -14965,11 +19005,10 @@ class JPH_Frontend {
                         practice_item_id: $('#log-item-id').val(),
                         duration_minutes: $('input[name="duration_minutes"]').val(),
                         sentiment_score: $('input[name="sentiment_score"]').val(),
-                        improvement_detected: $('input[name="improvement_detected"]').is(':checked'),
+                        improvement_detected: $('input[name="improvement_detected"]:checked').val() === '1',
                         notes: $('textarea[name="notes"]').val()
                     };
                     
-                    console.log('Log form data:', formData);
                     
                     $.ajax({
                         url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',
@@ -15014,7 +19053,6 @@ class JPH_Frontend {
                             }
                         },
                         error: function(xhr, status, error) {
-                            console.error('Log Error:', xhr, status, error);
                             var errorMessage = 'Error logging practice session';
                             try {
                                 var response = JSON.parse(xhr.responseText);
@@ -15039,15 +19077,11 @@ class JPH_Frontend {
                 // Shield accordion toggle
                 jQuery(document).on('click', '.shield-accordion-header', function(e) {
                     e.preventDefault();
-                    console.log('Shield accordion clicked');
                     
                     const content = jQuery('#shield-accordion-content');
                     const header = jQuery(this);
                     const icon = header.find('.shield-toggle-icon');
                     
-                    console.log('Content found:', content.length);
-                    console.log('Header found:', header.length);
-                    console.log('Icon found:', icon.length);
                     
                     if (content.is(':visible')) {
                         content.slideUp(300);
@@ -15068,7 +19102,6 @@ class JPH_Frontend {
                     
                     // Prevent multiple rapid clicks
                     if ($btn.hasClass('processing')) {
-                        console.log('Purchase already in progress, ignoring click');
                         return;
                     }
                     
@@ -15076,8 +19109,6 @@ class JPH_Frontend {
                     const shieldCountText = jQuery('#shield-count').text();
                     const currentShieldCount = parseInt(shieldCountText) || 0;
                     
-                    console.log('Current shield count from display:', currentShieldCount);
-                    console.log('Button data:', { cost, nonce });
                     
                     // Prevent purchase if already at max shields
                     if (currentShieldCount >= 3) {
@@ -15111,28 +19142,23 @@ class JPH_Frontend {
                                 jQuery('#shield-count, #shield-count-modal').text(response.data.new_shield_count);
                                 
                                 // Update gem balance in all displays
-                                console.log('Updating gem balance to:', response.data.new_gem_balance);
                                 
                                 // Update main dashboard gems stat (target only the gems stat specifically)
                                 const gemsStatElement = jQuery('.stat-gems');
                                 if (gemsStatElement.length > 0) {
-                                    console.log('Found gems stat element with class');
                                     // Update only the text content, not the SVG
                                     gemsStatElement.contents().filter(function() {
                                         return this.nodeType === 3; // Text node
                                     }).each(function() {
                                         if (this.textContent.trim() !== '') {
-                                            console.log('Updating gem balance from', this.textContent.trim(), 'to', response.data.new_gem_balance);
                                             this.textContent = response.data.new_gem_balance;
                                         }
                                     });
                                 } else {
-                                    console.log('Gems stat element not found');
                                 }
                                 
                                 // Update gems widget
                                 const gemsWidget = jQuery('.jph-gems-amount');
-                                console.log('Found gems widget element:', gemsWidget.length);
                                 gemsWidget.text(response.data.new_gem_balance);
                                 
                                 // Update button state if at max shields
@@ -15152,9 +19178,6 @@ class JPH_Frontend {
                             // Reset button state
                             $btn.removeClass('processing').prop('disabled', false).text('Purchase Shield (50 💎)');
                             
-                            console.error('JPH: Purchase Shield error:', error);
-                            console.error('JPH: XHR response:', xhr.responseText);
-                            console.error('JPH: Status:', status);
                             
                             // Try to parse the error response
                             let errorMessage = 'Network error. Please try again.';
@@ -15307,7 +19330,6 @@ class JPH_Frontend {
                         // Use WordPress display name as fallback
                         $('#jph-display-name-input').val(wpDisplayName);
                         $('#jph-hide-from-leaderboard').prop('checked', false);
-                        console.log('Failed to load custom display name, using WordPress name');
                     }
                 });
             }
@@ -15493,13 +19515,34 @@ class JPH_Frontend {
             }
             
             // Initialize drag and drop for practice items
+            // Store touch drag state in window scope so document handler can access it
+            if (typeof window.jphDragState === 'undefined') {
+                window.jphDragState = {
+                    draggedElement: null,
+                    touchStartY: 0,
+                    touchStartX: 0,
+                    isTouchDragging: false,
+                    touchOffsetY: 0,
+                    touchOffsetX: 0,
+                    touchEndHandlerAttached: false
+                };
+            }
+            
             function initDragAndDrop() {
                 let draggedElement = null;
+                let touchStartY = 0;
+                let touchStartX = 0;
+                let isTouchDragging = false;
+                let touchOffsetY = 0;
+                let touchOffsetX = 0;
+                
+                // Sync with window state for touch events
+                const dragState = window.jphDragState;
                 
                 // Remove any existing drag classes first
                 $('.sortable-practice-item').removeClass('dragging drag-over');
                 
-                // Make practice items draggable
+                // Make practice items draggable (mouse events)
                 $('.sortable-practice-item').on('dragstart', function(e) {
                     draggedElement = this;
                     $(this).addClass('dragging');
@@ -15512,7 +19555,7 @@ class JPH_Frontend {
                     draggedElement = null;
                 });
                 
-                // Handle drop zones
+                // Handle drop zones (mouse events)
                 $('.sortable-practice-item, .sortable-empty-slot').on('dragover', function(e) {
                     e.preventDefault();
                     e.originalEvent.dataTransfer.dropEffect = 'move';
@@ -15553,6 +19596,184 @@ class JPH_Frontend {
                     
                     draggedElement = null;
                 });
+                
+                // Touch event handlers for iPad and mobile devices
+                // Use native addEventListener with proper options for iOS support
+                
+                $('.sortable-practice-item').each(function() {
+                    const itemElement = this;
+                    const $item = $(itemElement);
+                    
+                    // Touch start handler - allow starting from anywhere on the item or drag handle
+                    itemElement.addEventListener('touchstart', function(e) {
+                        // Don't start dragging if touching an interactive element (but allow drag handle)
+                        const target = e.target;
+                        const isDragHandle = target.closest('.drag-handle');
+                        
+                        if (!isDragHandle) {
+                            // If not on drag handle, check if it's an interactive element
+                            if (target.tagName === 'BUTTON' || 
+                                target.tagName === 'A' || 
+                                target.tagName === 'INPUT' || 
+                                target.closest('button, a, input, .item-actions, .item-controls')) {
+                                return;
+                            }
+                        }
+                        
+                        const touch = e.touches[0];
+                        if (!touch) return;
+                        
+                        // Store in window state for touch events
+                        dragState.touchStartY = touch.clientY;
+                        dragState.touchStartX = touch.clientX;
+                        dragState.draggedElement = itemElement;
+                        dragState.isTouchDragging = false;
+                        
+                        // Store initial position
+                        const rect = itemElement.getBoundingClientRect();
+                        dragState.touchOffsetY = touch.clientY - rect.top;
+                        dragState.touchOffsetX = touch.clientX - rect.left;
+                    }, { passive: true });
+                    
+                    // Touch move handler
+                    itemElement.addEventListener('touchmove', function(e) {
+                        if (!dragState.draggedElement || dragState.draggedElement !== itemElement) return;
+                        
+                        const touch = e.touches[0];
+                        if (!touch) return;
+                        
+                        const deltaY = Math.abs(touch.clientY - dragState.touchStartY);
+                        const deltaX = Math.abs(touch.clientX - dragState.touchStartX);
+                        
+                        // Start dragging if moved more than 10px
+                        if (!dragState.isTouchDragging && (deltaY > 10 || deltaX > 10)) {
+                            dragState.isTouchDragging = true;
+                            $(dragState.draggedElement).addClass('dragging');
+                            e.preventDefault(); // Prevent scrolling
+                        }
+                        
+                        if (dragState.isTouchDragging) {
+                            e.preventDefault(); // Prevent scrolling while dragging
+                            e.stopPropagation();
+                            
+                            // Remove drag-over from all elements
+                            $('.sortable-practice-item, .sortable-empty-slot').removeClass('drag-over');
+                            
+                            // Find element under touch point using position-based detection (more reliable on iOS)
+                            let elementBelow = null;
+                            const touchY = touch.clientY;
+                            const touchX = touch.clientX;
+                            
+                            // Try elementFromPoint first
+                            try {
+                                const originalDisplay = dragState.draggedElement.style.display;
+                                dragState.draggedElement.style.display = 'none';
+                                elementBelow = document.elementFromPoint(touchX, touchY);
+                                dragState.draggedElement.style.display = originalDisplay;
+                            } catch (err) {
+                                elementBelow = document.elementFromPoint(touchX, touchY);
+                            }
+                            
+                            // Fallback: find by position if elementFromPoint fails
+                            if (!elementBelow || !elementBelow.closest('.sortable-practice-item, .sortable-empty-slot')) {
+                                $('.sortable-practice-item, .sortable-empty-slot').each(function() {
+                                    const $item = $(this);
+                                    if (this === dragState.draggedElement) return;
+                                    
+                                    const rect = this.getBoundingClientRect();
+                                    if (touchY >= rect.top && touchY <= rect.bottom && 
+                                        touchX >= rect.left && touchX <= rect.right) {
+                                        elementBelow = this;
+                                        return false; // Break loop
+                                    }
+                                });
+                            }
+                            
+                            if (elementBelow) {
+                                const $targetItem = $(elementBelow).closest('.sortable-practice-item, .sortable-empty-slot');
+                                if ($targetItem.length && $targetItem[0] !== dragState.draggedElement) {
+                                    $targetItem.addClass('drag-over');
+                                }
+                            }
+                        }
+                    }, { passive: false });
+                    
+                    // Touch cancel handler
+                    itemElement.addEventListener('touchcancel', function(e) {
+                        $('.sortable-practice-item, .sortable-empty-slot').removeClass('dragging drag-over');
+                        dragState.draggedElement = null;
+                        dragState.isTouchDragging = false;
+                    }, { passive: true });
+                });
+                
+                // Single document-level touchend handler (only attach once)
+                if (!dragState.touchEndHandlerAttached) {
+                    document.addEventListener('touchend', function(e) {
+                        const state = window.jphDragState;
+                        if (!state.isTouchDragging || !state.draggedElement) {
+                            return;
+                        }
+                        
+                        const touch = e.changedTouches[0];
+                        if (!touch) return;
+                        
+                        // Find element under touch point using position-based detection
+                        let elementBelow = null;
+                        const touchY = touch.clientY;
+                        const touchX = touch.clientX;
+                        
+                        // Try elementFromPoint first
+                        try {
+                            const originalDisplay = state.draggedElement.style.display;
+                            state.draggedElement.style.display = 'none';
+                            elementBelow = document.elementFromPoint(touchX, touchY);
+                            state.draggedElement.style.display = originalDisplay;
+                        } catch (err) {
+                            elementBelow = document.elementFromPoint(touchX, touchY);
+                        }
+                        
+                        // Fallback: find by position if elementFromPoint fails
+                        if (!elementBelow || !elementBelow.closest('.sortable-practice-item, .sortable-empty-slot')) {
+                            $('.sortable-practice-item, .sortable-empty-slot').each(function() {
+                                if (this === state.draggedElement) return;
+                                
+                                const rect = this.getBoundingClientRect();
+                                if (touchY >= rect.top && touchY <= rect.bottom && 
+                                    touchX >= rect.left && touchX <= rect.right) {
+                                    elementBelow = this;
+                                    return false; // Break loop
+                                }
+                            });
+                        }
+                        
+                        const $targetItem = elementBelow ? $(elementBelow).closest('.sortable-practice-item, .sortable-empty-slot') : $();
+                        
+                        // Remove all drag classes
+                        $('.sortable-practice-item, .sortable-empty-slot').removeClass('dragging drag-over');
+                        
+                        if ($targetItem.length && $targetItem[0] !== state.draggedElement) {
+                            // Swap the elements
+                            const draggedHTML = state.draggedElement.outerHTML;
+                            const targetHTML = $targetItem[0].outerHTML;
+                            
+                            $(state.draggedElement).replaceWith(targetHTML);
+                            $targetItem.replaceWith(draggedHTML);
+                            
+                            // Re-initialize drag and drop for new elements
+                            setTimeout(function() {
+                                initDragAndDrop();
+                            }, 100);
+                            
+                            // Update order in database
+                            updatePracticeItemOrder();
+                        }
+                        
+                        state.draggedElement = null;
+                        state.isTouchDragging = false;
+                    }, { passive: true });
+                    
+                    dragState.touchEndHandlerAttached = true;
+                }
             }
             
             // Update practice item order
@@ -15576,11 +19797,9 @@ class JPH_Frontend {
                     },
                     success: function(response) {
                         if (!response.success) {
-                            console.error('Failed to update practice item order');
                         }
                     },
                     error: function() {
-                        console.error('Error updating practice item order');
                     }
                 });
             }
@@ -15640,7 +19859,6 @@ class JPH_Frontend {
                     method: 'POST',
                     beforeSend: function(xhr, settings) {
                         xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
-                        console.log('Sending JPC completion request:', settings.data);
                     },
                     data: {
                         step_id: stepId,
@@ -15680,9 +19898,6 @@ class JPH_Frontend {
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('JPC completion error:', error);
-                        console.error('XHR response:', xhr.responseText);
-                        console.error('Status:', xhr.status);
                         
                         let errorMessage = 'An error occurred while processing your request';
                         if (xhr.responseText) {
@@ -16154,11 +20369,9 @@ class JPH_Frontend {
                     },
                     success: function(response) {
                         if (!response.success) {
-                            console.error('Failed to update order:', response);
                         }
                     },
                     error: function() {
-                        console.error('Error updating repertoire order');
                     }
                 });
             }
@@ -16474,6 +20687,77 @@ class JPH_Frontend {
             $total_xp = $user_stats['total_xp'] ?? 0;
             $display_name = $user_stats['display_name'] ?? null;
             
+            // Get membership information
+            $user = wp_get_current_user();
+            $user_email = $user ? $user->user_email : 'N/A';
+            $active_member = function_exists('je_return_active_member') ? je_return_active_member() : 'N/A';
+            $membership_level = function_exists('je_return_membership_level') ? je_return_membership_level('nicename') : 'N/A';
+            $membership_level_product = function_exists('je_return_membership_level') ? je_return_membership_level('product') : 'N/A';
+            $membership_expired = function_exists('je_return_membership_expired') ? je_return_membership_expired() : 'N/A';
+            $has_blocking_tags = function_exists('je_has_blocking_tags') ? (je_has_blocking_tags() ? 'Yes' : 'No') : 'N/A';
+            
+            // Check payment failed tag
+            $payment_failed = do_shortcode('[memb_has_any_tag tagid=7772]');
+            $payment_failed_status = ($payment_failed === 'Yes') ? 'Yes' : 'No';
+            
+            // Check all membership tags from ALM settings
+            $keap_tags = get_option('alm_keap_tags', array());
+            $tag_groups = array(
+                'starter_free' => 'Academy Starter Free Tags',
+                'starter_paid' => 'Academy Starter Paid Tags',
+                'essentials' => 'Essentials Tags',
+                'studio' => 'Studio Tags',
+                'premier' => 'Premier Tags'
+            );
+            
+            $tag_debug_info = array();
+            $all_allowed_tag_ids = array();
+            foreach ($tag_groups as $tag_key => $tag_label) {
+                $tag_ids_str = !empty($keap_tags[$tag_key]) ? $keap_tags[$tag_key] : '';
+                $tag_ids = !empty($tag_ids_str) ? array_map('intval', array_filter(explode(',', $tag_ids_str))) : array();
+                $has_tag = false;
+                $tag_status = 'Not configured';
+            
+                if (!empty($tag_ids) && function_exists('memb_hasAnyTags')) {
+                    $has_tag = memb_hasAnyTags($tag_ids) === true;
+                    $tag_status = $has_tag ? 'Yes (Tag IDs: ' . esc_html($tag_ids_str) . ')' : 'No (Tag IDs: ' . esc_html($tag_ids_str) . ')';
+                    $all_allowed_tag_ids = array_merge($all_allowed_tag_ids, $tag_ids);
+                } elseif (!empty($tag_ids_str)) {
+                    $tag_status = 'Configured but check failed (Tag IDs: ' . esc_html($tag_ids_str) . ')';
+                }
+                
+                $tag_debug_info[$tag_key] = array(
+                    'label' => $tag_label,
+                    'status' => $tag_status,
+                    'has_tag' => $has_tag
+                );
+            }
+            
+            // Check if user has dashboard access via any tag
+            $all_allowed_tag_ids = array_unique(array_filter($all_allowed_tag_ids));
+            $has_dashboard_access_via_tag = false;
+            if (!empty($all_allowed_tag_ids) && function_exists('memb_hasAnyTags')) {
+                $has_dashboard_access_via_tag = memb_hasAnyTags($all_allowed_tag_ids) === true;
+            }
+            
+            // Check all possible memberships
+            $memberships = [
+                'ACADEMY_PREMIER', 'ACADEMY_STUDIO', 'JA_MONTHLY_CLASSES_ONLY', 'JA_MONTHLY_LSN_ONLY',
+                'JA_LESSONS_90DAYS', 'ACADEMY_SONG', 'ACADEMY_ACADEMY', 'ACADEMY_ACADEMY_1YR',
+                'ACADEMY_ACADEMY_NC', 'JA_MONTHLY_LSN_CLASSES', 'JA_MONTHLY_LSN_COACHING', 'JA_MONTHLY_STUDIO', 'JA_YEAR_STUDIO',
+                'JA_MONTHLY_PREMIER', 'JA_MONTHLY_PREMIER_DMP', 'JA_YEAR_LSN_CLASSES', 'JA_YEAR_LSN_COACHING',
+                'JA_YEAR_LSN_ONLY', 'JA_YEAR_CLASSES_ONLY', 'JA_YEAR_PREMIER', 'JA_MONTHLY_STUDIO_DMP', 'JA_MONTHLY_ESSENTIALS', 'JA_YEAR_ESSENTIALS'
+            ];
+            
+            $active_memberships = [];
+            if (function_exists('memb_hasMembership')) {
+                foreach ($memberships as $membership) {
+                    if (memb_hasMembership($membership) === true) {
+                        $active_memberships[] = $membership;
+                    }
+                }
+            }
+            
             // Check if user appears in leaderboard query
             global $wpdb;
             $stats_table = $wpdb->prefix . 'jph_user_stats';
@@ -16491,7 +20775,7 @@ class JPH_Frontend {
             
             // Get cache status
             if (class_exists('JPH_Cache')) {
-                $cache = new JPH_Cache();
+                $cache = JPH_Cache::get_instance();
                 $cached_leaderboard = $cache->get_cached_leaderboard('total_xp', 'desc', 50, 0);
                 $cache_status = $cached_leaderboard !== false ? 'Cached' : 'Not cached';
             } else {
@@ -16500,63 +20784,158 @@ class JPH_Frontend {
                 $cache_status = 'Cache class not available';
             }
         ?>
-        <div style="margin-top: 40px; padding: 20px; background: #f3f4f6; border: 2px solid #d1d5db; border-radius: 8px; font-family: monospace; font-size: 12px;">
-            <h3 style="margin-top: 0; color: #1f2937;">🔍 Leaderboard Debug Info</h3>
-            <div style="background: white; padding: 15px; border-radius: 4px; margin-top: 10px;">
-                <strong>Current User Info:</strong>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                    <li>User ID: <code><?php echo esc_html($user_id); ?></code></li>
-                    <li>Display Name: <code><?php echo esc_html($display_name ?: 'Not set'); ?></code></li>
-                    <li>Total XP: <code><?php echo esc_html($total_xp); ?></code></li>
-                    <li>show_on_leaderboard (DB): <code><?php echo esc_html($show_on_leaderboard !== null ? ($show_on_leaderboard ? '1 (SHOW)' : '0 (HIDE)') : 'NULL'); ?></code></li>
-                </ul>
+        <div style="margin-top: 40px; padding: 0; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #0073aa 0%, #005a87 100%); padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; color: #ffffff; font-size: 18px; font-weight: 600;">🔍 Debug Information</h3>
+                <button id="copy-debug-info" onclick="copyDebugInfo()" style="background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); color: #ffffff; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s;">
+                    📋 Copy Debug Info
+                </button>
+            </div>
+            <div id="debug-info-content" style="padding: 24px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 24px;">
+                    <div style="background: #f9fafb; padding: 16px; border-radius: 8px; border-left: 4px solid #0073aa;">
+                        <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">User ID</div>
+                        <div style="font-size: 16px; font-weight: 600; color: #1f2937;"><?php echo esc_html($user_id); ?></div>
+                    </div>
+                    <div style="background: #f9fafb; padding: 16px; border-radius: 8px; border-left: 4px solid #0073aa;">
+                        <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Email</div>
+                        <div style="font-size: 14px; color: #1f2937; word-break: break-all;"><?php echo esc_html($user_email); ?></div>
+                    </div>
+                    <div style="background: #f9fafb; padding: 16px; border-radius: 8px; border-left: 4px solid #0073aa;">
+                        <div style="font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Total XP</div>
+                        <div style="font-size: 16px; font-weight: 600; color: #1f2937;"><?php echo esc_html($total_xp); ?></div>
+                    </div>
+                </div>
                 
-                <strong>Leaderboard Query Check:</strong>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                    <?php if ($in_leaderboard): ?>
-                        <li style="color: #dc2626;">❌ <strong>USER IS IN LEADERBOARD QUERY</strong></li>
-                        <li>Leaderboard Name: <code><?php echo esc_html($in_leaderboard['leaderboard_name']); ?></code></li>
-                        <li>show_on_leaderboard in query: <code><?php echo esc_html($in_leaderboard['show_on_leaderboard']); ?></code></li>
-                        <li>total_xp in query: <code><?php echo esc_html($in_leaderboard['total_xp']); ?></code></li>
-                    <?php else: ?>
-                        <li style="color: #16a34a;">✅ User is NOT in leaderboard query (correctly hidden)</li>
-                    <?php endif; ?>
-                </ul>
+                <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 16px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Membership Status</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Active Member</div>
+                            <div style="font-size: 14px; font-weight: 600; color: <?php echo ($active_member === 'true' ? '#16a34a' : '#dc2626'); ?>;"><?php echo esc_html($active_member); ?></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Membership Level</div>
+                            <div style="font-size: 14px; font-weight: 600; color: #1f2937;"><?php echo esc_html($membership_level); ?></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Dashboard Access via Tags</div>
+                            <div style="font-size: 14px; font-weight: 600; color: <?php echo ($has_dashboard_access_via_tag ? '#16a34a' : '#6b7280'); ?>;"><?php echo $has_dashboard_access_via_tag ? 'Yes ✅' : 'No'; ?></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Blocking Tags</div>
+                            <div style="font-size: 14px; font-weight: 600; color: <?php echo ($has_blocking_tags === 'Yes' ? '#dc2626' : '#16a34a'); ?>;"><?php echo esc_html($has_blocking_tags); ?></div>
+                        </div>
+                    </div>
+                </div>
                 
-                <strong>Cache Status:</strong>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                    <li>Status: <code><?php echo esc_html($cache_status); ?></code></li>
-                    <?php if ($cached_leaderboard !== false): ?>
-                        <li>Cached entries: <code><?php echo count($cached_leaderboard); ?></code></li>
-                        <?php 
-                        $user_in_cache = false;
-                        foreach ($cached_leaderboard as $entry) {
-                            if ($entry['user_id'] == $user_id) {
-                                $user_in_cache = true;
-                                break;
-                            }
-                        }
+                <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 16px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Keap Tags</h4>
+                    <div style="display: grid; gap: 10px;">
+                        <?php foreach ($tag_groups as $tag_key => $tag_label): 
+                            $tag_info = $tag_debug_info[$tag_key];
+                            $tag_color = $tag_info['has_tag'] ? '#16a34a' : ($tag_info['status'] === 'Not configured' ? '#6b7280' : '#dc2626');
                         ?>
-                        <li>User in cached data: <code><?php echo $user_in_cache ? 'YES ❌' : 'NO ✅'; ?></code></li>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #ffffff; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div>
+                                <div style="font-size: 13px; font-weight: 500; color: #1f2937; margin-bottom: 4px;"><?php echo esc_html($tag_info['label']); ?></div>
+                                <div style="font-size: 12px; color: #6b7280;"><?php echo esc_html($tag_info['status']); ?></div>
+                            </div>
+                            <div style="font-size: 18px; color: <?php echo $tag_color; ?>;">
+                                <?php echo $tag_info['has_tag'] ? '✅' : ($tag_info['status'] === 'Not configured' ? '⚪' : '❌'); ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                
+                <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 16px 0; color: #1f2937; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Leaderboard Status</h4>
+                    <div style="display: grid; gap: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #ffffff; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div>
+                                <div style="font-size: 13px; font-weight: 500; color: #1f2937; margin-bottom: 4px;">In Leaderboard Query</div>
+                                <div style="font-size: 12px; color: #6b7280;">
+                    <?php if ($in_leaderboard): ?>
+                                        Name: <?php echo esc_html($in_leaderboard['leaderboard_name']); ?> | XP: <?php echo esc_html($in_leaderboard['total_xp']); ?>
+                    <?php else: ?>
+                                        User is correctly hidden
                     <?php endif; ?>
-                </ul>
+                                </div>
+                            </div>
+                            <div style="font-size: 18px; color: <?php echo $in_leaderboard ? '#dc2626' : '#16a34a'; ?>;">
+                                <?php echo $in_leaderboard ? '❌' : '✅'; ?>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #ffffff; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div>
+                                <div style="font-size: 13px; font-weight: 500; color: #1f2937; margin-bottom: 4px;">Cache Status</div>
+                                <div style="font-size: 12px; color: #6b7280;"><?php echo esc_html($cache_status); ?></div>
+                            </div>
+                            <div style="font-size: 18px; color: <?php echo ($cache_status === 'Cached' ? '#16a34a' : '#6b7280'); ?>;">
+                                <?php echo ($cache_status === 'Cached' ? '✅' : '⚪'); ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
-                <strong>Raw Database Query:</strong>
-                <pre style="background: #1f2937; color: #10b981; padding: 10px; border-radius: 4px; overflow-x: auto; margin: 10px 0; font-size: 11px;">SELECT s.user_id, s.show_on_leaderboard, s.total_xp, s.display_name,
-       COALESCE(s.display_name, u.display_name, u.user_login) as leaderboard_name
-FROM <?php echo $stats_table; ?> s
-INNER JOIN <?php echo $users_table; ?> u ON s.user_id = u.ID
-WHERE s.show_on_leaderboard = 1 
-  AND s.total_xp > 0
-  AND s.user_id = <?php echo $user_id; ?></pre>
-                
-                <strong>Actions:</strong>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                    <li><a href="?debug=1&clear_cache=1" style="color: #3b82f6;">Clear Leaderboard Cache</a></li>
-                    <li><a href="?debug=1" style="color: #3b82f6;">Refresh Debug Info</a></li>
-                </ul>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <a href="?debug=1&clear_cache=1" style="background: #dc2626; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Clear Cache</a>
+                    <a href="?debug=1" style="background: #0073aa; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#005a87'" onmouseout="this.style.background='#0073aa'">Refresh</a>
             </div>
         </div>
+        </div>
+        
+        <script>
+        function copyDebugInfo() {
+            const content = document.getElementById('debug-info-content');
+            const text = content.innerText || content.textContent;
+            
+            // Create a more readable text version
+            const debugText = `Debug Information
+User ID: <?php echo esc_js($user_id); ?>
+Email: <?php echo esc_js($user_email); ?>
+Display Name: <?php echo esc_js($display_name ?: 'Not set'); ?>
+Total XP: <?php echo esc_js($total_xp); ?>
+
+Membership Status:
+- Active Member: <?php echo esc_js($active_member); ?>
+- Membership Level: <?php echo esc_js($membership_level); ?> (<?php echo esc_js($membership_level_product); ?>)
+- Dashboard Access via Tags: <?php echo $has_dashboard_access_via_tag ? 'Yes' : 'No'; ?>
+- Blocking Tags: <?php echo esc_js($has_blocking_tags); ?>
+- Payment Failed: <?php echo esc_js($payment_failed_status); ?>
+
+Keap Tags:
+<?php foreach ($tag_groups as $tag_key => $tag_label): 
+    $tag_info = $tag_debug_info[$tag_key];
+    echo '- ' . esc_js($tag_info['label']) . ': ' . esc_js($tag_info['status']) . "\n";
+endforeach; ?>
+
+Leaderboard Status:
+- In Query: <?php echo $in_leaderboard ? 'Yes' : 'No (correctly hidden)'; ?>
+<?php if ($in_leaderboard): ?>
+- Leaderboard Name: <?php echo esc_js($in_leaderboard['leaderboard_name']); ?>
+- Total XP: <?php echo esc_js($in_leaderboard['total_xp']); ?>
+<?php endif; ?>
+- Cache Status: <?php echo esc_js($cache_status); ?>
+`;
+            
+            navigator.clipboard.writeText(debugText).then(function() {
+                const btn = document.getElementById('copy-debug-info');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '✓ Copied!';
+                btn.style.background = 'rgba(34, 197, 94, 0.3)';
+                btn.style.borderColor = 'rgba(34, 197, 94, 0.5)';
+                setTimeout(function() {
+                    btn.innerHTML = originalText;
+                    btn.style.background = 'rgba(255, 255, 255, 0.2)';
+                    btn.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                }, 2000);
+            }).catch(function(err) {
+                alert('Failed to copy: ' + err);
+            });
+        }
+        </script>
         <?php 
             // Handle cache clear
             if (isset($_GET['clear_cache']) && $_GET['clear_cache'] == '1' && $cache) {
@@ -17136,7 +21515,6 @@ WHERE s.show_on_leaderboard = 1
                         setTimeout(initLeaderboard, 100);
                     } else {
                         // jQuery failed to load - show error
-                        console.error('jQuery failed to load after ' + maxRetries + ' retries');
                         document.getElementById('jph-leaderboard-error').style.display = 'block';
                         document.getElementById('jph-leaderboard-loading').style.display = 'none';
                     }
@@ -17254,7 +21632,6 @@ WHERE s.show_on_leaderboard = 1
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('Leaderboard AJAX error:', status, error, xhr);
                         showError('Failed to load leaderboard. Please check console for details.');
                     },
                     complete: function() {
@@ -17885,7 +22262,7 @@ WHERE s.show_on_leaderboard = 1
                             <div class="jph-practice-item-meta">
                                 <span class="jph-item-difficulty"><?php echo esc_html(ucfirst($item['difficulty'])); ?></span>
                                 <?php if ($item['last_practiced']): ?>
-                                    <span class="jph-item-last-practiced">Last: <?php echo esc_html(date('M j', strtotime($item['last_practiced']))); ?></span>
+                                    <span class="jph-item-last-practiced">Last: <?php echo esc_html(mysql2date('M j', $item['last_practiced'], false)); ?></span>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -20370,7 +24747,6 @@ WHERE s.show_on_leaderboard = 1
                     }
                 })
                 .catch(error => {
-                    console.error('Error fixing streak:', error);
                     statusEl.className = 'jph-fix-streak-status is-error';
                     statusEl.textContent = 'Error fixing streak. Please try again.';
                 })

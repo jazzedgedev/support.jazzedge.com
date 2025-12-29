@@ -1,3 +1,42 @@
+<div class="premier-upsell" style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); border-radius: 12px; padding: 30px; margin-bottom: 30px; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+    <div style="flex: 1; min-width: 250px;">
+      <h3 style="margin: 0 0 15px 0; color: #fff; font-size: 24px; font-weight: bold;">Upgrade to Premier Monthly</h3>
+      <p style="margin: 0 0 20px 0; font-size: 18px; line-height: 1.6; color: #ecf0f1;">
+        <strong style="color: #f39c12;">For only $16 more per month</strong>, get everything in Studio plus:
+      </p>
+      <ul style="margin: 0 0 20px 0; padding-left: 25px; list-style: none; color: #ecf0f1; line-height: 1.8;">
+        <li style="margin-bottom: 10px; position: relative; padding-left: 25px;">
+          <span style="position: absolute; left: 0; color: #f39c12; font-weight: bold;">✓</span>
+          <strong>Live Coaching Every Week with Willie:</strong> Get personalized guidance and feedback in real-time
+        </li>
+        <li style="margin-bottom: 10px; position: relative; padding-left: 25px;">
+          <span style="position: absolute; left: 0; color: #f39c12; font-weight: bold;">✓</span>
+          <strong>Paul's Premier Class:</strong> Exclusive access to advanced training sessions
+        </li>
+        <li style="margin-bottom: 10px; position: relative; padding-left: 25px;">
+          <span style="position: absolute; left: 0; color: #f39c12; font-weight: bold;">✓</span>
+          <strong>Access to a Supportive Premier Community:</strong> Connect with like-minded students and get the support you need
+        </li>
+        <li style="margin-bottom: 10px; position: relative; padding-left: 25px;">
+          <span style="position: absolute; left: 0; color: #f39c12; font-weight: bold;">✓</span>
+          <strong>340+ More Lessons:</strong> Get hours of extra content with exclusive Premier-only lessons
+        </li>
+        <li style="margin-bottom: 10px; position: relative; padding-left: 25px;">
+          <span style="position: absolute; left: 0; color: #f39c12; font-weight: bold;">✓</span>
+          <strong>The Most Advanced AI Tools on the Site:</strong> Access cutting-edge AI-powered learning tools available only to Premier members
+        </li>
+      </ul>
+    </div>
+    <div style="flex: 0 0 auto; text-align: center;">
+      <a href="https://ft217.infusionsoft.com/app/orderForms/premier-monthly" target="_blank" style="display: inline-block; background: #f39c12; color: #fff; padding: 15px 35px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 18px; transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(243, 156, 18, 0.3);">
+        Upgrade to Premier →
+      </a>
+      <p style="margin: 10px 0 0 0; font-size: 14px; color: #bdc3c7;">Only $16/month more</p>
+    </div>
+  </div>
+</div>
+
 <div id="essentialsContainer">
   <div class="essentials-left">
     <h3>Included with Studio:</h3>

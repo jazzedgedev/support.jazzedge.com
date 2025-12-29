@@ -43,6 +43,8 @@ function pww_downloads_activate() {
         first_download_date datetime DEFAULT NULL,
         last_download_date datetime DEFAULT NULL,
         order_id bigint(20) unsigned DEFAULT NULL,
+        download_link text DEFAULT NULL,
+        link_created_at datetime DEFAULT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         UNIQUE KEY user_product (user_id, product_id),
@@ -51,6 +53,16 @@ function pww_downloads_activate() {
     ) $charset_collate;";
     
     dbDelta($sql);
+    
+    // Add download_link column if it doesn't exist (for existing installations)
+    $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $table LIKE 'download_link'");
+    if (empty($column_exists)) {
+        $wpdb->query("ALTER TABLE $table ADD COLUMN download_link text DEFAULT NULL AFTER order_id");
+    }
+    $link_created_exists = $wpdb->get_results("SHOW COLUMNS FROM $table LIKE 'link_created_at'");
+    if (empty($link_created_exists)) {
+        $wpdb->query("ALTER TABLE $table ADD COLUMN link_created_at datetime DEFAULT NULL AFTER download_link");
+    }
     
     // Download history table (for individual download entries)
     $table = $wpdb->prefix . 'pww_download_history';
@@ -113,6 +125,16 @@ function pww_downloads_log($message, $data = null) {
     }
     $log_entry .= "\n" . str_repeat('-', 80) . "\n";
     file_put_contents($log_file, $log_entry, FILE_APPEND);
+}
+
+// Generate download link for user/product
+function pww_downloads_generate_link($user_id, $product_id) {
+    $secret = get_option('pww_downloads_webhook_secret', '');
+    $token_data = base64_encode(json_encode(array('user_id' => $user_id, 'product_id' => $product_id, 'time' => time())));
+    $signature = hash_hmac('sha256', $token_data, $secret);
+    $token = $token_data . '.' . $signature;
+    $download_url = rest_url('pww-downloads/v1/download/' . urlencode($token));
+    return $download_url;
 }
 
 // Webhook handler
@@ -192,6 +214,9 @@ function pww_downloads_handle_webhook($request) {
         
         if (empty($urls)) continue;
         
+        // Generate download link
+        $download_link = pww_downloads_generate_link($user->ID, $product_id);
+        
         // Update download log
         $exists = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM $logs_table WHERE user_id = %d AND product_id = %d",
@@ -202,7 +227,9 @@ function pww_downloads_handle_webhook($request) {
         if ($exists) {
             $wpdb->update($logs_table, array(
                 'download_count' => $wpdb->get_var($wpdb->prepare("SELECT download_count FROM $logs_table WHERE user_id = %d AND product_id = %d", $user->ID, $product_id)) + 1,
-                'last_download_date' => $now
+                'last_download_date' => $now,
+                'download_link' => $download_link,
+                'link_created_at' => $now
             ), array('user_id' => $user->ID, 'product_id' => $product_id));
         } else {
             $wpdb->insert($logs_table, array(
@@ -211,7 +238,9 @@ function pww_downloads_handle_webhook($request) {
                 'download_count' => 1,
                 'first_download_date' => $now,
                 'last_download_date' => $now,
-                'order_id' => $order['id'] ?? null
+                'order_id' => $order['id'] ?? null,
+                'download_link' => $download_link,
+                'link_created_at' => $now
             ));
         }
         
@@ -232,11 +261,14 @@ function pww_downloads_handle_webhook($request) {
     $message .= "Your download links are ready:\n\n";
     
     foreach ($products as $product) {
-        // Create token for each product
-        $token_data = base64_encode(json_encode(array('user_id' => $user->ID, 'product_id' => $product['product_id'], 'time' => time())));
-        $signature = hash_hmac('sha256', $token_data, $secret);
-        $token = $token_data . '.' . $signature;
-        $download_url = rest_url('pww-downloads/v1/download/' . urlencode($token));
+        // Get the stored download link from the database
+        $stored_link = $wpdb->get_var($wpdb->prepare(
+            "SELECT download_link FROM $logs_table WHERE user_id = %d AND product_id = %d",
+            $user->ID, $product['product_id']
+        ));
+        
+        // Use stored link if available, otherwise generate new one
+        $download_url = $stored_link ? $stored_link : pww_downloads_generate_link($user->ID, $product['product_id']);
         
         $message .= $product['title'] . ":\n";
         $message .= $download_url . "\n\n";
@@ -301,10 +333,32 @@ function pww_downloads_handle_download($request) {
     $user_id = intval($data['user_id']);
     $product_id = intval($data['product_id']);
     
-    // Check token age (24 hours)
-    if (isset($data['time']) && (time() - $data['time']) > DAY_IN_SECONDS) {
-        pww_downloads_log_download($user_id, $product_id, '', false, 'Token expired');
+    // Define tables
+    $logs_table = $wpdb->prefix . 'pww_download_logs';
+    $urls_table = $wpdb->prefix . 'pww_product_urls';
+    
+    // Check token age (24 hours) - but allow if it's within a reasonable grace period (7 days)
+    // This gives users more time while still maintaining some security
+    $token_age = isset($data['time']) ? (time() - $data['time']) : 0;
+    if ($token_age > (7 * DAY_IN_SECONDS)) {
+        pww_downloads_log_download($user_id, $product_id, '', false, 'Token expired (over 7 days old)');
         wp_die('Download link has expired. Please use the link from your email or contact support.');
+    }
+    
+    // If token is between 24 hours and 7 days, generate a new link and update the database
+    if ($token_age > DAY_IN_SECONDS) {
+        // Generate a fresh link and store it
+        $new_link = pww_downloads_generate_link($user_id, $product_id);
+        $wpdb->update(
+            $logs_table,
+            array(
+                'download_link' => $new_link,
+                'link_created_at' => current_time('mysql')
+            ),
+            array('user_id' => $user_id, 'product_id' => $product_id),
+            array('%s', '%s'),
+            array('%d', '%d')
+        );
     }
     
     // Verify user exists (but don't require them to be logged in)
@@ -315,7 +369,6 @@ function pww_downloads_handle_download($request) {
     }
     
     // Check download limits
-    $logs_table = $wpdb->prefix . 'pww_download_logs';
     $urls_table = $wpdb->prefix . 'pww_product_urls';
     
     $max_downloads = get_option('pww_downloads_max_downloads', 3);
@@ -418,6 +471,28 @@ add_action('admin_enqueue_scripts', function($hook) {
 // Admin page
 function pww_downloads_admin_page() {
     global $wpdb;
+    
+    // Ensure download_link columns exist in download_logs table
+    $logs_table = $wpdb->prefix . 'pww_download_logs';
+    
+    // Check if table exists first
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$logs_table'") == $logs_table;
+    if ($table_exists) {
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $logs_table LIKE 'download_link'");
+        if (empty($column_exists)) {
+            $result = $wpdb->query("ALTER TABLE $logs_table ADD COLUMN download_link text DEFAULT NULL AFTER order_id");
+            if ($result === false && !empty($wpdb->last_error)) {
+                echo '<div class="notice notice-error"><p>Error adding download_link column: ' . esc_html($wpdb->last_error) . '</p></div>';
+            }
+        }
+        $link_created_exists = $wpdb->get_results("SHOW COLUMNS FROM $logs_table LIKE 'link_created_at'");
+        if (empty($link_created_exists)) {
+            $result = $wpdb->query("ALTER TABLE $logs_table ADD COLUMN link_created_at datetime DEFAULT NULL AFTER download_link");
+            if ($result === false && !empty($wpdb->last_error)) {
+                echo '<div class="notice notice-error"><p>Error adding link_created_at column: ' . esc_html($wpdb->last_error) . '</p></div>';
+            }
+        }
+    }
     
     // Show success message if URL was saved
     if (isset($_GET['url_saved']) && $_GET['url_saved'] == '1') {
@@ -568,6 +643,77 @@ function pww_downloads_admin_page() {
         echo '<div class="notice notice-success"><p>Download counts reset successfully!</p></div>';
     }
     
+    // Handle generate new download link
+    if (isset($_POST['generate_link']) && check_admin_referer('pww_generate_link')) {
+        $user_id = intval($_POST['user_id']);
+        $product_id = intval($_POST['product_id']);
+        
+        if ($user_id > 0 && $product_id > 0) {
+            $new_link = pww_downloads_generate_link($user_id, $product_id);
+            $logs_table = $wpdb->prefix . 'pww_download_logs';
+            
+            // Ensure columns exist
+            $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $logs_table LIKE 'download_link'");
+            if (empty($column_exists)) {
+                $wpdb->query("ALTER TABLE $logs_table ADD COLUMN download_link text DEFAULT NULL AFTER order_id");
+            }
+            $link_created_exists = $wpdb->get_results("SHOW COLUMNS FROM $logs_table LIKE 'link_created_at'");
+            if (empty($link_created_exists)) {
+                $wpdb->query("ALTER TABLE $logs_table ADD COLUMN link_created_at datetime DEFAULT NULL AFTER download_link");
+            }
+            
+            // Check if log entry exists
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $logs_table WHERE user_id = %d AND product_id = %d",
+                $user_id, $product_id
+            ));
+            
+            if ($exists) {
+                $result = $wpdb->update(
+                    $logs_table,
+                    array(
+                        'download_link' => $new_link,
+                        'link_created_at' => current_time('mysql')
+                    ),
+                    array('user_id' => $user_id, 'product_id' => $product_id),
+                    array('%s', '%s'),
+                    array('%d', '%d')
+                );
+            } else {
+                // Create new log entry if it doesn't exist
+                $result = $wpdb->insert($logs_table, array(
+                    'user_id' => $user_id,
+                    'product_id' => $product_id,
+                    'download_count' => 0,
+                    'download_link' => $new_link,
+                    'link_created_at' => current_time('mysql')
+                ), array('%d', '%d', '%d', '%s', '%s'));
+            }
+            
+            if ($result !== false) {
+                wp_redirect(admin_url('admin.php?page=pww-downloads&link_generated=1'));
+                exit;
+            } else {
+                echo '<div class="notice notice-error"><p>Error generating link: ' . $wpdb->last_error . '</p></div>';
+            }
+        }
+    }
+    
+    if (isset($_GET['link_generated'])) {
+        echo '<div class="notice notice-success"><p>New download link generated successfully!</p></div>';
+    }
+    
+    // Debug: Show if columns exist (only show if there's an issue)
+    if (isset($_GET['debug_columns'])) {
+        $logs_table = $wpdb->prefix . 'pww_download_logs';
+        $columns = $wpdb->get_results("SHOW COLUMNS FROM $logs_table");
+        echo '<div class="notice notice-info"><p><strong>Debug - Columns in pww_download_logs table:</p><ul>';
+        foreach ($columns as $col) {
+            echo '<li>' . esc_html($col->Field) . ' (' . esc_html($col->Type) . ')</li>';
+        }
+        echo '</ul></div>';
+    }
+    
     $products = get_posts(array('post_type' => 'fluent-products', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC'));
     $webhook_url = rest_url('pww-downloads/v1/webhook');
     $log_file = WP_CONTENT_DIR . '/pww-downloads-log.txt';
@@ -692,9 +838,8 @@ function pww_downloads_admin_page() {
              FROM $logs_table l
              LEFT JOIN {$wpdb->users} u ON l.user_id = u.ID 
              LEFT JOIN {$wpdb->posts} p ON l.product_id = p.ID 
-             WHERE l.download_count > 0
-             ORDER BY l.last_download_date DESC 
-             LIMIT 50"
+             ORDER BY l.last_download_date DESC, l.created_at DESC 
+             LIMIT 100"
         );
         ?>
         <div style="background: #fff; border: 1px solid #ccd0d4; padding: 15px; margin: 20px 0;">
@@ -710,11 +855,16 @@ function pww_downloads_admin_page() {
                             <th>Downloads</th>
                             <th>First Download</th>
                             <th>Last Download</th>
+                            <th>Download Link</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($download_counts as $count): ?>
+                        <?php foreach ($download_counts as $count): 
+                            // Get download link from the row data (already selected with l.*)
+                            $download_link = isset($count->download_link) ? $count->download_link : null;
+                            $link_created = isset($count->link_created_at) ? $count->link_created_at : null;
+                        ?>
                         <tr>
                             <td>
                                 <?php if ($count->user_email): ?>
@@ -740,18 +890,62 @@ function pww_downloads_admin_page() {
                             <td>
                                 <?php echo $count->last_download_date ? esc_html(date_i18n('Y-m-d H:i', strtotime($count->last_download_date))) : 'N/A'; ?>
                             </td>
+                            <td style="max-width: 400px;">
+                                <?php if ($download_link): ?>
+                                    <div style="word-break: break-all; font-size: 11px; line-height: 1.4;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                            <a href="<?php echo esc_url($download_link); ?>" target="_blank" style="text-decoration: none; color: #2271b1; flex: 1;">
+                                                <?php echo esc_html(substr($download_link, 0, 60)); ?>...
+                                            </a>
+                                            <button type="button" class="button button-small pww-copy-link" 
+                                                    data-link="<?php echo esc_attr($download_link); ?>" 
+                                                    style="min-width: 60px; font-size: 11px; padding: 2px 8px; height: 24px; line-height: 1;">
+                                                <span class="copy-text">Copy</span>
+                                            </button>
+                                        </div>
+                                        <?php if ($link_created): ?>
+                                            <small style="color: #666;">Created: <?php echo esc_html(date_i18n('Y-m-d H:i', strtotime($link_created))); ?></small>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <span style="color: #999; font-style: italic;">No link generated</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
+                                <form method="post" style="display: inline-block; margin-right: 5px;" onsubmit="return confirm('Generate a new download link for this user/product?');">
+                                    <?php wp_nonce_field('pww_generate_link'); ?>
+                                    <input type="hidden" name="user_id" value="<?php echo esc_attr($count->user_id); ?>" />
+                                    <input type="hidden" name="product_id" value="<?php echo esc_attr($count->product_id); ?>" />
+                                    <button type="submit" name="generate_link" class="button button-small">Generate Link</button>
+                                </form>
                                 <form method="post" style="display: inline;" onsubmit="return confirm('Reset download count for this product?');">
                                     <?php wp_nonce_field('pww_reset_downloads'); ?>
                                     <input type="hidden" name="user_id" value="<?php echo esc_attr($count->user_id); ?>" />
                                     <input type="hidden" name="product_id" value="<?php echo esc_attr($count->product_id); ?>" />
-                                    <button type="submit" name="reset_downloads" class="button button-small">Reset This Product</button>
+                                    <button type="submit" name="reset_downloads" class="button button-small">Reset</button>
                                 </form>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+                
+                <h3 style="margin-top: 30px;">Generate Link by User/Product</h3>
+                <p>Generate a new download link for a specific user and product:</p>
+                <form method="post" style="max-width: 500px; margin-bottom: 30px;">
+                    <?php wp_nonce_field('pww_generate_link'); ?>
+                    <p>
+                        <label for="generate_user_id"><strong>User ID:</strong></label><br>
+                        <input type="number" id="generate_user_id" name="user_id" class="regular-text" min="1" required />
+                    </p>
+                    <p>
+                        <label for="generate_product_id"><strong>Product ID:</strong></label><br>
+                        <input type="number" id="generate_product_id" name="product_id" class="regular-text" min="1" required />
+                    </p>
+                    <p>
+                        <button type="submit" name="generate_link" class="button button-primary">Generate New Download Link</button>
+                    </p>
+                </form>
                 
                 <h3 style="margin-top: 30px;">Bulk Reset by User</h3>
                 <p>Reset download counts for all products for a specific user:</p>
@@ -959,6 +1153,49 @@ function pww_downloads_admin_page() {
                 $('.pww-toggle-add-url[data-product-id="' + productId + '"]').show();
                 $('#pww-form-' + productId + ' input[name="bunny_url"]').val('');
             });
+            
+            // Copy link to clipboard
+            $('.pww-copy-link').on('click', function() {
+                var $button = $(this);
+                var link = $button.data('link');
+                var $copyText = $button.find('.copy-text');
+                var originalText = $copyText.text();
+                
+                // Use modern clipboard API if available
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(link).then(function() {
+                        $copyText.text('Copied!');
+                        setTimeout(function() {
+                            $copyText.text(originalText);
+                        }, 2000);
+                    }).catch(function(err) {
+                        // Fallback to old method
+                        pwwFallbackCopy(link, $button, $copyText, originalText);
+                    });
+                } else {
+                    // Fallback for older browsers
+                    pwwFallbackCopy(link, $button, $copyText, originalText);
+                }
+            });
+            
+            function pwwFallbackCopy(text, $button, $copyText, originalText) {
+                var textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    $copyText.text('Copied!');
+                    setTimeout(function() {
+                        $copyText.text(originalText);
+                    }, 2000);
+                } catch (err) {
+                    alert('Failed to copy link. Please copy manually: ' + text);
+                }
+                document.body.removeChild(textarea);
+            }
         });
         </script>
         
@@ -1038,6 +1275,28 @@ add_action('fluent_crm/after_init', function() {
             return $contentArr;
         }
         
+        // Get download links
+        $logs_table = $wpdb->prefix . 'pww_download_logs';
+        
+        // Ensure columns exist
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $logs_table LIKE 'download_link'");
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE $logs_table ADD COLUMN download_link text DEFAULT NULL AFTER order_id");
+        }
+        $link_created_exists = $wpdb->get_results("SHOW COLUMNS FROM $logs_table LIKE 'link_created_at'");
+        if (empty($link_created_exists)) {
+            $wpdb->query("ALTER TABLE $logs_table ADD COLUMN link_created_at datetime DEFAULT NULL AFTER download_link");
+        }
+        
+        $download_links = $wpdb->get_results($wpdb->prepare(
+            "SELECT l.*, p.post_title 
+             FROM $logs_table l 
+             LEFT JOIN {$wpdb->posts} p ON l.product_id = p.ID 
+             WHERE l.user_id = %d AND l.download_link IS NOT NULL AND l.download_link != ''
+             ORDER BY l.link_created_at DESC, l.created_at DESC",
+            $user->ID
+        ));
+        
         // Get download history
         $history_table = $wpdb->prefix . 'pww_download_history';
         $history = $wpdb->get_results($wpdb->prepare(
@@ -1052,13 +1311,54 @@ add_action('fluent_crm/after_init', function() {
         
         $contentArr['heading'] = 'Download History';
         
+        $html = '';
+        
+        // Show active download links
+        if (!empty($download_links)) {
+            $html .= '<div style="margin-bottom: 30px; padding: 15px; background: #f9f9f9; border-radius: 4px;">';
+            $html .= '<h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px;">Active Download Links</h3>';
+            $html .= '<table style="width: 100%; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #ddd;">';
+            $html .= '<thead>';
+            $html .= '<tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">';
+            $html .= '<th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Product</th>';
+            $html .= '<th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Download Link</th>';
+            $html .= '<th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Created</th>';
+            $html .= '<th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Downloads</th>';
+            $html .= '</tr>';
+            $html .= '</thead>';
+            $html .= '<tbody>';
+            
+            foreach ($download_links as $link) {
+                $product_name = $link->post_title ? esc_html($link->post_title) : 'Product ID: ' . $link->product_id;
+                $link_created = $link->link_created_at ? date_i18n('Y-m-d H:i', strtotime($link->link_created_at)) : 'N/A';
+                $download_count = $link->download_count . ' / ' . get_option('pww_downloads_max_downloads', 3);
+                
+                $html .= '<tr style="border-bottom: 1px solid #eee;">';
+                $html .= '<td style="padding: 10px;">' . $product_name . '</td>';
+                $html .= '<td style="padding: 10px;">';
+                $html .= '<div style="display: flex; align-items: center; gap: 8px;">';
+                $html .= '<a href="' . esc_url($link->download_link) . '" target="_blank" style="word-break: break-all; color: #2271b1; text-decoration: none; flex: 1;">' . esc_html(substr($link->download_link, 0, 60)) . '...</a>';
+                $html .= '<button type="button" class="pww-copy-link-btn" data-link="' . esc_attr($link->download_link) . '" style="padding: 4px 8px; font-size: 11px; cursor: pointer; background: #2271b1; color: white; border: none; border-radius: 3px; white-space: nowrap;">Copy</button>';
+                $html .= '</div>';
+                $html .= '</td>';
+                $html .= '<td style="padding: 10px;">' . esc_html($link_created) . '</td>';
+                $html .= '<td style="padding: 10px;">' . esc_html($download_count) . '</td>';
+                $html .= '</tr>';
+            }
+            
+            $html .= '</tbody>';
+            $html .= '</table>';
+            $html .= '</div>';
+        }
+        
         if (empty($history)) {
-            $contentArr['content_html'] = '<p>No download history found.</p>';
+            $contentArr['content_html'] = $html . '<p>No download history found.</p>';
             return $contentArr;
         }
         
-        // Build HTML table
-        $html = '<div style="overflow-x: auto;">';
+        // Build HTML table for history
+        $html .= '<h3 style="margin-top: 20px; margin-bottom: 15px; font-size: 16px;">Download History</h3>';
+        $html .= '<div style="overflow-x: auto;">';
         $html .= '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
         $html .= '<thead>';
         $html .= '<tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">';
@@ -1095,6 +1395,83 @@ add_action('fluent_crm/after_init', function() {
         // Add link to full admin page
         $admin_url = admin_url('admin.php?page=pww-downloads');
         $html .= '<p style="margin-top: 15px;"><a href="' . esc_url($admin_url) . '" target="_blank" style="text-decoration: none;">View Full Download History →</a></p>';
+        
+        // Add JavaScript for copy functionality using event delegation
+        $html .= '<script>
+        (function() {
+            function pwwCopyToClipboard(text, button) {
+                var originalText = button.textContent || button.innerText;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.textContent = "Copied!";
+                        button.innerText = "Copied!";
+                        button.style.background = "#46b450";
+                        setTimeout(function() {
+                            button.textContent = originalText;
+                            button.innerText = originalText;
+                            button.style.background = "#2271b1";
+                        }, 2000);
+                    }).catch(function(err) {
+                        pwwFallbackCopy(text, button, originalText);
+                    });
+                } else {
+                    pwwFallbackCopy(text, button, originalText);
+                }
+            }
+            function pwwFallbackCopy(text, button, originalText) {
+                var textarea = document.createElement("textarea");
+                textarea.value = text;
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                textarea.style.left = "-9999px";
+                document.body.appendChild(textarea);
+                textarea.select();
+                textarea.setSelectionRange(0, 99999); // For mobile devices
+                try {
+                    var successful = document.execCommand("copy");
+                    if (successful) {
+                        button.textContent = "Copied!";
+                        button.innerText = "Copied!";
+                        button.style.background = "#46b450";
+                        setTimeout(function() {
+                            button.textContent = originalText;
+                            button.innerText = originalText;
+                            button.style.background = "#2271b1";
+                        }, 2000);
+                    } else {
+                        alert("Failed to copy. Please copy manually: " + text);
+                    }
+                } catch (err) {
+                    alert("Failed to copy. Please copy manually: " + text);
+                }
+                document.body.removeChild(textarea);
+            }
+            
+            // Use event delegation to handle clicks
+            function initPwwCopyButtons() {
+                document.addEventListener("click", function(e) {
+                    if (e.target && e.target.classList && e.target.classList.contains("pww-copy-link-btn")) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var link = e.target.getAttribute("data-link");
+                        if (link) {
+                            pwwCopyToClipboard(link, e.target);
+                        }
+                    }
+                });
+            }
+            
+            // Initialize when DOM is ready
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", initPwwCopyButtons);
+            } else {
+                initPwwCopyButtons();
+            }
+            
+            // Also try to initialize after a short delay in case content is loaded dynamically
+            setTimeout(initPwwCopyButtons, 500);
+        })();
+        </script>';
         
         $contentArr['content_html'] = $html;
         

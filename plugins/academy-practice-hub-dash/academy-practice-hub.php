@@ -98,8 +98,10 @@ new JPH_REST_API();
 // Initialize Admin Pages
 new JPH_Admin_Pages();
 
-// Initialize JPC Migration Admin
-new JPH_JPC_Migration_Admin();
+// Initialize JPC Migration Admin (only if class exists)
+if (class_exists('JPH_JPC_Migration_Admin')) {
+    new JPH_JPC_Migration_Admin();
+}
 
 // Initialize Frontend (conditionally based on wire-through setting)
 if (!defined('APH_FRONTEND_SEPARATED')) {
@@ -207,6 +209,9 @@ function aph_add_jpc_modal_scripts() {
             const curriculumIdInput = $('#jpc-curriculum-id');
             const submitMilestoneBtn = $('#jpc-submit-milestone');
             
+            // JPC Help Modal functionality
+            const helpModal = $('#jpc-help-modal');
+            
             let currentStepData = null;
             let currentSubmissionData = null;
             
@@ -242,6 +247,18 @@ function aph_add_jpc_modal_scripts() {
                 loadVideo(stepId, curriculumId);
             });
             
+            // Open help modal when clicking "Help with JPC" link
+            $(document).on('click', '.jpc-help-link', function(e) {
+                e.preventDefault();
+                // Ensure video src is set (in case it was cleared when closing)
+                const iframe = $('#jpc-help-video-container iframe');
+                if (iframe.length && !iframe.attr('src')) {
+                    iframe.attr('src', 'https://player.vimeo.com/video/1145644391');
+                }
+                helpModal.show();
+                $('body').addClass('jpc-modal-open');
+            });
+            
             // Close modal
             $(document).on('click', '.jpc-modal-close', function(e) {
                 e.preventDefault();
@@ -249,6 +266,8 @@ function aph_add_jpc_modal_scripts() {
                     closeModal();
                 } else if (submissionModal.is(':visible')) {
                     closeSubmissionModal();
+                } else if (helpModal.is(':visible')) {
+                    closeHelpModal();
                 }
             });
             
@@ -258,6 +277,8 @@ function aph_add_jpc_modal_scripts() {
                         closeModal();
                     } else if (submissionModal.is(':visible')) {
                         closeSubmissionModal();
+                    } else if (helpModal.is(':visible')) {
+                        closeHelpModal();
                     }
                 }
             });
@@ -269,6 +290,8 @@ function aph_add_jpc_modal_scripts() {
                         closeModal();
                     } else if (submissionModal.is(':visible')) {
                         closeSubmissionModal();
+                    } else if (helpModal.is(':visible')) {
+                        closeHelpModal();
                     }
                 }
             });
@@ -384,6 +407,16 @@ function aph_add_jpc_modal_scripts() {
                 `);
                 
                 currentSubmissionData = null;
+            }
+            
+            function closeHelpModal() {
+                // Stop the video by clearing the src
+                const iframe = $('#jpc-help-video-container iframe');
+                if (iframe.length) {
+                    iframe.attr('src', '');
+                }
+                helpModal.hide();
+                $('body').removeClass('jpc-modal-open');
             }
             
             function loadVideo(stepId, curriculumId) {

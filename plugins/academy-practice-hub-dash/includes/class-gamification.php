@@ -131,21 +131,14 @@ class APH_Gamification {
     
     /**
      * Update streak
+     * Recalculates streak from all practice sessions to ensure accuracy
      * Uses timestamp-based calculations to handle timezones correctly
-     * Allows up to 36 hours between practice sessions before breaking streak
      */
     public function update_streak($user_id) {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'jph_user_stats';
         $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
-        
-        // Get current time in user's timezone
-        $user_timezone = self::get_user_timezone($user_id);
-        $now_timestamp = current_time('timestamp');
-        $now_datetime = new DateTime('@' . $now_timestamp);
-        $now_datetime->setTimezone($user_timezone);
-        $today = $now_datetime->format('Y-m-d');
         
         // Get user stats
         $stats = $wpdb->get_row($wpdb->prepare(
@@ -157,155 +150,148 @@ class APH_Gamification {
             return false;
         }
         
-        $current_streak = $stats->current_streak;
-        $longest_streak = $stats->longest_streak;
         $current_shields = $stats->streak_shield_count ?? 0;
-        $last_practice_date = $stats->last_practice_date;
         
-        // Get the most recent practice session timestamp for accurate time calculation
-        $last_session = $wpdb->get_row($wpdb->prepare(
-            "SELECT created_at FROM {$sessions_table} WHERE user_id = %d ORDER BY created_at DESC LIMIT 1",
+        // Get all practice sessions
+        $sessions = $wpdb->get_results($wpdb->prepare(
+            "SELECT created_at FROM {$sessions_table} 
+             WHERE user_id = %d 
+             ORDER BY created_at ASC",
             $user_id
         ));
         
-        if (!$last_session) {
-            // No practice sessions, can't update streak
+        if (empty($sessions)) {
+            // No practice sessions, reset streak to 0
+            $wpdb->update(
+                $table_name,
+                array(
+                    'current_streak' => 0,
+                    'last_practice_date' => null,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('user_id' => $user_id),
+                array('%d', '%s', '%s'),
+                array('%d')
+            );
+            return array('streak_updated' => false, 'current_streak' => 0);
+        }
+        
+        // Get user timezone
+        $user_timezone = self::get_user_timezone($user_id);
+        $wp_timezone = $user_timezone;
+        
+        // Get unique practice dates (calendar days) in user's timezone
+        $practice_dates = array();
+        foreach ($sessions as $session) {
+            // created_at is stored in WordPress timezone (via current_time('mysql'))
+            // Convert to user timezone and get date
+            $session_datetime = new DateTime($session->created_at, $wp_timezone);
+            $date = $session_datetime->format('Y-m-d');
+            if (!in_array($date, $practice_dates)) {
+                $practice_dates[] = $date;
+            }
+        }
+        
+        if (empty($practice_dates)) {
             return false;
         }
         
-        // Convert last practice timestamp to user timezone
-        // created_at is stored in WordPress timezone (via current_time('mysql')), but we treat it in the user's timezone
-        $last_practice_datetime = new DateTime($last_session->created_at, $user_timezone);
-        $last_practice_timestamp = $last_practice_datetime->getTimestamp();
+        // Sort dates ascending
+        sort($practice_dates);
         
-        // Calculate hours since last practice (3600 seconds = 1 hour)
-        $hours_since_practice = ($now_timestamp - $last_practice_timestamp) / 3600;
+        // Get current date in user's timezone
+        $now_timestamp = current_time('timestamp');
+        $now_datetime = new DateTime('@' . $now_timestamp);
+        $now_datetime->setTimezone($user_timezone);
+        $today = $now_datetime->format('Y-m-d');
         
-        // Get the date of last practice in WordPress timezone
-        $last_practice_date_str = $last_practice_datetime->format('Y-m-d');
-        
-        // Calculate yesterday's date in user timezone
+        // Calculate yesterday
         $yesterday_timestamp = $now_timestamp - DAY_IN_SECONDS;
         $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
         $yesterday_datetime->setTimezone($user_timezone);
         $yesterday = $yesterday_datetime->format('Y-m-d');
         
-        // Check if they actually practiced today (based on most recent session)
-        $practiced_today = ($last_practice_date_str === $today);
-        $practiced_yesterday = false;
+        // Calculate current streak (from most recent date backwards, counting consecutive calendar days)
+        $current_streak = 0;
+        $most_recent_date = end($practice_dates);
         
-        // Check if they practiced yesterday by looking at all sessions from yesterday
-        // Get all sessions and check dates in PHP to ensure timezone consistency
-        $all_sessions = $wpdb->get_results($wpdb->prepare(
-            "SELECT created_at FROM {$sessions_table} 
-             WHERE user_id = %d 
-             ORDER BY created_at DESC",
-            $user_id
-        ));
-        $practiced_yesterday = false;
-        foreach ($all_sessions as $session) {
-            $session_datetime = new DateTime($session->created_at, $user_timezone);
-            $session_date = $session_datetime->format('Y-m-d');
-            if ($session_date === $yesterday) {
-                $practiced_yesterday = true;
-                break;
-            }
-        }
-        
-        // Check if streak was already updated for today
-        // We use last_practice_date from database to track which day the streak was last credited for
-        if ($last_practice_date === $today && $practiced_today) {
-            // Already got credit for practicing today, no streak change needed
-            return array('streak_updated' => false, 'current_streak' => $current_streak);
-        }
-        
-        $shield_used = false;
-        $streak_continued = false;
-        
-        // Determine if streak should continue or break
-        // We increment streak based on calendar days (yesterday -> today = +1)
-        // But use 36-hour window to prevent breaking if they're slightly late
-        
-        if ($practiced_yesterday && $practiced_today && $last_practice_date !== $today) {
-            // Practiced both yesterday and today, and haven't gotten credit for today yet - continue streak
-            $new_streak = $current_streak + 1;
-            $streak_continued = true;
-        } elseif ($last_practice_date === $yesterday && $practiced_today) {
-            // Practiced yesterday (according to database), and practicing today - continue streak
-            $new_streak = $current_streak + 1;
-            $streak_continued = true;
-        } elseif ($last_practice_date === null) {
-            // First time practicing - start streak at 1
-            $new_streak = 1;
-            $streak_continued = true;
-        } elseif ($last_practice_date < $yesterday) {
-            // Last practice was more than 1 day ago
-            // Check if within 36 hours to continue streak, otherwise break it
-            if ($hours_since_practice <= 36) {
-                // Within 36 hour window - continue streak (they were slightly late)
-                $new_streak = $current_streak + 1;
-                $streak_continued = true;
-            } else {
-                // More than 36 hours - streak broken
-                if ($current_shields > 0) {
-                    // Use shield to maintain streak
-                    $new_streak = $current_streak + 1;
-                    $old_shield_count = $current_shields;
-                    $current_shields = $current_shields - 1;
-                    $shield_used = true;
-                    
-                    error_log(sprintf(
-                        'JPH Shield Used: User %d - Streak broken (last practice: %s, hours since: %.1f). Shield count: %d -> %d. Streak: %d -> %d',
-                        $user_id,
-                        $last_practice_date_str,
-                        $hours_since_practice,
-                        $old_shield_count,
-                        $current_shields,
-                        $current_streak,
-                        $new_streak
-                    ));
+        // Check if they have an active streak (practiced today or yesterday)
+        if ($most_recent_date === $today || $most_recent_date === $yesterday) {
+            $current_streak = 1;
+            $check_date = $most_recent_date;
+            
+            // Count backwards for consecutive calendar days
+            $date_index = array_search($most_recent_date, $practice_dates);
+            for ($i = $date_index - 1; $i >= 0; $i--) {
+                // Calculate expected previous date
+                $check_datetime = new DateTime($check_date, $wp_timezone);
+                $check_datetime->modify('-1 day');
+                $expected_date = $check_datetime->format('Y-m-d');
+                
+                if ($practice_dates[$i] === $expected_date) {
+                    // Consecutive day found
+                    $current_streak++;
+                    $check_date = $expected_date;
                 } else {
-                    // No shield available, streak is broken - reset to 0
-                    $new_streak = 0;
-                    
-                    error_log(sprintf(
-                        'JPH Streak Broken: User %d - No shield available. Last practice: %s, hours since: %.1f. Streak reset to 0',
-                        $user_id,
-                        $last_practice_date_str,
-                        $hours_since_practice
-                    ));
+                    // Gap found, streak broken
+                    break;
                 }
             }
-        } else {
-            // Edge case - last_practice_date is in the future (shouldn't happen)
-            $new_streak = $current_streak;
         }
         
-        // Update longest streak if needed
-        $new_longest_streak = max($longest_streak, $new_streak);
+        // Calculate longest streak (consecutive calendar days)
+        $longest_streak = 1;
+        $temp_streak = 1;
+        for ($i = 1; $i < count($practice_dates); $i++) {
+            $prev_date = $practice_dates[$i - 1];
+            $curr_date = $practice_dates[$i];
+            
+            // Check if dates are consecutive
+            $prev_datetime = new DateTime($prev_date, $wp_timezone);
+            $prev_datetime->modify('+1 day');
+            $expected_next_date = $prev_datetime->format('Y-m-d');
+            
+            if ($curr_date === $expected_next_date) {
+                // Consecutive day
+                $temp_streak++;
+            } else {
+                // Gap found, reset streak
+                $longest_streak = max($longest_streak, $temp_streak);
+                $temp_streak = 1;
+            }
+        }
+        $longest_streak = max($longest_streak, $temp_streak);
+        
+        // Determine if streak continued or was reset
+        $old_streak = intval($stats->current_streak);
+        $streak_continued = ($current_streak > 0 && ($current_streak >= $old_streak || $old_streak == 0));
+        $shield_used = false;
+        
+        // If streak was broken and user has shields, we could use one here
+        // But for now, we'll just recalculate accurately
+        // Shield logic can be added later if needed for the 36-hour grace period
         
         // Update database
         $wpdb->update(
             $table_name,
             array(
-                'current_streak' => $new_streak,
-                'longest_streak' => $new_longest_streak,
-                'last_practice_date' => $today,
-                'streak_shield_count' => $current_shields
+                'current_streak' => $current_streak,
+                'longest_streak' => $longest_streak,
+                'last_practice_date' => $most_recent_date,
+                'updated_at' => current_time('mysql')
             ),
             array('user_id' => $user_id),
-            array('%d', '%d', '%s', '%d'),
+            array('%d', '%d', '%s', '%s'),
             array('%d')
         );
         
         return array(
             'streak_updated' => true,
-            'current_streak' => $new_streak,
-            'longest_streak' => $new_longest_streak,
+            'current_streak' => $current_streak,
+            'longest_streak' => $longest_streak,
             'streak_continued' => $streak_continued,
             'shield_used' => $shield_used,
-            'shields_remaining' => $current_shields,
-            'hours_since_practice' => round($hours_since_practice, 1)
+            'shields_remaining' => $current_shields
         );
     }
     
@@ -519,6 +505,7 @@ class APH_Gamification {
             // Keep original event key for automation triggers, but add timestamp to title for uniqueness
             $event_key = $badge['fluentcrm_event_key'];
             $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+            $event_value = "Badge: {$badge['name']} - {$badge['description']}";
             
             // Use FluentCRM event tracking API
             if (function_exists('FluentCrmApi')) {
@@ -530,7 +517,7 @@ class APH_Gamification {
                             'event_key' => $event_key,
                             'title' => $unique_title,
                             'email' => $user_email,
-                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'value' => $event_value,
                             'provider' => 'academy_practice_hub'
                         ]);
                         
@@ -539,6 +526,8 @@ class APH_Gamification {
                                 'event_key' => $event_key,
                                 'user_email' => $user_email
                             ));
+                            // Ensure email is saved directly to database
+                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
                             return true;
                         }
                     }
@@ -549,7 +538,7 @@ class APH_Gamification {
                             'event_key' => $event_key,
                             'title' => $unique_title,
                             'email' => $user_email,
-                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'value' => $event_value,
                             'provider' => 'academy_practice_hub'
                         ]);
                         
@@ -558,6 +547,8 @@ class APH_Gamification {
                                 'event_key' => $event_key,
                                 'user_email' => $user_email
                             ));
+                            // Ensure email is saved directly to database
+                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
                             return true;
                         }
                     }
@@ -572,9 +563,12 @@ class APH_Gamification {
                 'event_key' => $event_key,
                 'title' => $unique_title,
                 'email' => $user_email,
-                'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                'value' => $event_value,
                 'provider' => 'academy_practice_hub'
             ], true);
+            
+            // Ensure email is saved directly to database
+            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
             
             $this->logger->info('FluentCRM Event triggered via fallback action hook', array(
                 'event_key' => $event_key,
@@ -584,6 +578,76 @@ class APH_Gamification {
             
         } catch (Exception $e) {
             $this->logger->error('FluentCRM Event error', array('error' => $e->getMessage()));
+            return false;
+        }
+    }
+    
+    /**
+     * Ensure event email is saved directly to fc_event_tracking table
+     * This ensures the email is always visible in the event logs
+     */
+    private function ensure_event_email_saved($event_key, $title, $value, $email) {
+        global $wpdb;
+        
+        try {
+            $table_name = $wpdb->prefix . 'fc_event_tracking';
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+            if (!$table_exists) {
+                $this->logger->debug('FluentCRM event tracking table does not exist', array('table' => $table_name));
+                return false;
+            }
+            
+            // Check if event was already inserted (within last 5 seconds to avoid duplicates)
+            $recent_event = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, email FROM {$table_name} 
+                WHERE event_key = %s 
+                AND title = %s 
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)
+                ORDER BY id DESC LIMIT 1",
+                $event_key,
+                $title
+            ));
+            
+            if ($recent_event) {
+                // Update email if it's missing or different
+                if (empty($recent_event->email) || $recent_event->email !== $email) {
+                    $wpdb->update(
+                        $table_name,
+                        array('email' => $email),
+                        array('id' => $recent_event->id),
+                        array('%s'),
+                        array('%d')
+                    );
+                    $this->logger->debug('Updated event email in database', array(
+                        'event_id' => $recent_event->id,
+                        'email' => $email
+                    ));
+                }
+            } else {
+                // Insert new event directly if it doesn't exist
+                $wpdb->insert(
+                    $table_name,
+                    array(
+                        'event_key' => $event_key,
+                        'title' => $title,
+                        'value' => $value,
+                        'email' => $email,
+                        'provider' => 'academy_practice_hub',
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%s', '%s', '%s', '%s', '%s', '%s')
+                );
+                $this->logger->debug('Inserted event directly into database', array(
+                    'event_key' => $event_key,
+                    'email' => $email
+                ));
+            }
+            
+            return true;
+        } catch (Exception $e) {
+            $this->logger->error('Error ensuring event email saved', array('error' => $e->getMessage()));
             return false;
         }
     }

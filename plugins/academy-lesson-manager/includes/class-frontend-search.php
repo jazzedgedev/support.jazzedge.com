@@ -14,7 +14,7 @@ class ALM_Frontend_Search {
         wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
         
         // Enqueue HLS.js for browsers that don't support HLS natively (Firefox, Chrome)
-        wp_enqueue_script('hls.js', 'https://cdn.jsdelivr.net/npm/hls.js@latest', array(), null, true);
+        wp_enqueue_script('hls.js', 'https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js', array(), '1.4.12', true);
         
         // Enqueue frontend search CSS
         wp_enqueue_style(
@@ -2617,6 +2617,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
       
+      // Add debug parameter if present in URL
+      var urlParams = new URLSearchParams(window.location.search);
+      var isDebugMode = urlParams.get('debug') === '1';
+      if (isDebugMode) {
+        url.searchParams.set('debug', '1');
+      }
+      
       results.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:60px 20px;color:#475467;">\
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#239B90" stroke-width="2" style="animation: spin 1s linear infinite;">\
           <circle cx="12" cy="12" r="10" opacity="0.25"/>\
@@ -2636,6 +2643,30 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!data || typeof data !== 'object') {
           throw new Error('Invalid response format');
         }
+        
+        // Display debug SQL if available
+        if (data._debug && isDebugMode) {
+          var debugContainer = document.getElementById('alm-debug-sql');
+          if (!debugContainer) {
+            debugContainer = document.createElement('div');
+            debugContainer.id = 'alm-debug-sql';
+            debugContainer.style.cssText = 'margin: 20px 0; padding: 15px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 12px;';
+            var searchContainer = document.querySelector('#alm-lesson-search');
+            if (searchContainer) {
+              searchContainer.insertBefore(debugContainer, searchContainer.firstChild);
+            }
+          }
+          
+          var debugHtml = '<div style="margin-bottom: 10px;"><strong style="color: #d63638;">Debug SQL Query:</strong></div>';
+          debugHtml += '<div style="margin-bottom: 15px;"><strong>Main SQL:</strong><pre style="background: #fff; padding: 10px; border: 1px solid #ccc; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;">' + escapeHtml(data._debug.sql || 'N/A') + '</pre></div>';
+          if (data._debug.count_sql) {
+            debugHtml += '<div style="margin-bottom: 15px;"><strong>Count SQL:</strong><pre style="background: #fff; padding: 10px; border: 1px solid #ccc; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;">' + escapeHtml(data._debug.count_sql) + '</pre></div>';
+          }
+          debugHtml += '<div style="margin-bottom: 10px;"><strong>Filters:</strong><pre style="background: #fff; padding: 10px; border: 1px solid #ccc; overflow-x: auto;">' + escapeHtml(JSON.stringify(data._debug.filters, null, 2)) + '</pre></div>';
+          debugHtml += '<div><strong>Results:</strong> ' + (data._debug.returned_results || 0) + ' returned, ' + (data._debug.total_results || 0) + ' total</div>';
+          debugContainer.innerHTML = debugHtml;
+        }
+        
         try {
           renderItems(data);
         } catch (renderError) {

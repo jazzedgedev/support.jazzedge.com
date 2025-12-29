@@ -27,6 +27,12 @@ class Katahdin_AI_Hub_Usage_Tracker {
      * Log a message
      */
     public function log($level, $message, $context = array()) {
+        // Check if logging is enabled
+        $logging_enabled = get_option('katahdin_ai_hub_enable_logging', 1);
+        if (!$logging_enabled) {
+            return;
+        }
+        
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'katahdin_ai_logs';

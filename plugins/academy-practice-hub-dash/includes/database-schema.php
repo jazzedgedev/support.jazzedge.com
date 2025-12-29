@@ -36,7 +36,8 @@ class APH_Database_Schema {
             'jpc_user_assignments' => self::get_jpc_user_assignments_schema(),
             'jpc_user_progress' => self::get_jpc_user_progress_schema(),
             'jpc_milestone_submissions' => self::get_jpc_milestone_submissions_schema(),
-            'repertoire' => self::get_repertoire_schema()
+            'repertoire' => self::get_repertoire_schema(),
+            'user_plans' => self::get_user_plans_schema()
         );
     }
     
@@ -1441,6 +1442,98 @@ class APH_Database_Schema {
                 'user_id' => array('user_id'),
                 'last_practiced' => array('last_practiced'),
                 'title' => array('title')
+            )
+        );
+    }
+    
+    /**
+     * User Plans Table Schema
+     * 
+     * Stores user's practice plan data:
+     * - 90-day goal
+     * - Weekly focus (one of their 6 practice items)
+     * - Practice steps (up to 5)
+     * - Session tracking
+     */
+    private static function get_user_plans_schema() {
+        return array(
+            'table_name' => 'jph_user_plans',
+            'columns' => array(
+                'id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'auto_increment' => true,
+                    'primary_key' => true,
+                    'description' => 'Unique plan record ID'
+                ),
+                'user_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'not_null' => true,
+                    'unique' => true,
+                    'description' => 'WordPress user ID (one plan per user)'
+                ),
+                'transformation' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'User\'s transformation vision (3 months, 6 months, 1 year)'
+                ),
+                'goal_90_day' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => '90-day piano goal'
+                ),
+                'weekly_focus_item_id' => array(
+                    'type' => 'BIGINT',
+                    'length' => 20,
+                    'unsigned' => true,
+                    'null' => true,
+                    'description' => 'ID of the active Practice Item for this week'
+                ),
+                'practice_steps' => array(
+                    'type' => 'TEXT',
+                    'null' => true,
+                    'description' => 'JSON array of up to 5 practice steps'
+                ),
+                'deadline' => array(
+                    'type' => 'DATE',
+                    'null' => true,
+                    'description' => 'Optional deadline for the current plan'
+                ),
+                'sessions_this_week' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 0,
+                    'description' => 'Count of practice sessions this week'
+                ),
+                'last_practiced_date' => array(
+                    'type' => 'DATETIME',
+                    'null' => true,
+                    'description' => 'Last time user marked as practiced'
+                ),
+                'week_start_date' => array(
+                    'type' => 'DATE',
+                    'null' => true,
+                    'description' => 'Start date of current week (for session counting)'
+                ),
+                'created_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP',
+                    'description' => 'When plan was created'
+                ),
+                'updated_at' => array(
+                    'type' => 'DATETIME',
+                    'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'description' => 'When plan was last updated'
+                )
+            ),
+            'indexes' => array(
+                'user_id' => array('user_id'),
+                'weekly_focus_item_id' => array('weekly_focus_item_id'),
+                'week_start_date' => array('week_start_date')
             )
         );
     }

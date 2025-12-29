@@ -33,7 +33,7 @@ class ALM_Admin_Membership_Pricing {
         $sanitized = array();
         
         // Sanitize each membership tier
-        $tiers = array('essentials', 'studio', 'premier');
+        $tiers = array('essentials', 'studio', 'premier', 'starter');
         
         foreach ($tiers as $tier) {
             if (isset($input[$tier])) {
@@ -107,6 +107,12 @@ class ALM_Admin_Membership_Pricing {
                 'order_form_monthly' => '',
                 'order_form_yearly' => 'https://ft217.infusionsoft.com/app/orderForms/ja_yearly_premier_retail',
             ),
+            'starter' => array(
+                'retail_monthly' => 0,
+                'retail_yearly' => 25,
+                'order_form_monthly' => '',
+                'order_form_yearly' => '',
+            ),
         );
         
         $settings = wp_parse_args($settings, $defaults);
@@ -125,6 +131,7 @@ class ALM_Admin_Membership_Pricing {
                         'essentials' => array('label' => 'Essentials', 'monthly' => false),
                         'studio' => array('label' => 'Studio', 'monthly' => true),
                         'premier' => array('label' => 'Premier', 'monthly' => false),
+                        'starter' => array('label' => 'Academy Starter', 'monthly' => false),
                     );
                     
                     foreach ($tiers as $tier_key => $tier_info):
@@ -147,7 +154,7 @@ class ALM_Admin_Membership_Pricing {
                                     </div>
                                     <?php endif; ?>
                                     <div class="je-pricing-input-row">
-                                        <label>Yearly:</label>
+                                        <label><?php echo ($tier_key === 'starter') ? 'Price:' : 'Yearly:'; ?></label>
                                         <span class="je-currency">$</span>
                                         <input type="number" step="0.01" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][retail_yearly]'); ?>" value="<?php echo esc_attr($tier_data['retail_yearly']); ?>" />
                                     </div>
@@ -167,7 +174,7 @@ class ALM_Admin_Membership_Pricing {
                                     </div>
                                     <?php endif; ?>
                                     <div class="je-pricing-input-row">
-                                        <label>Yearly Link:</label>
+                                        <label><?php echo ($tier_key === 'starter') ? 'Order Form Link:' : 'Yearly Link:'; ?></label>
                                         <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['order_form_yearly']); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="yearly" />
                                         <a href="<?php echo esc_url($tier_data['order_form_yearly'] ?: '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['order_form_yearly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['order_form_yearly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['order_form_yearly']) ? 'onclick="return false;"' : ''; ?>>
                                             <span class="dashicons dashicons-external"></span>
@@ -194,13 +201,14 @@ class ALM_Admin_Membership_Pricing {
                                     </div>
                                     <?php endif; ?>
                                     <div class="je-pricing-input-row">
-                                        <label>Yearly Sale:</label>
+                                        <label><?php echo ($tier_key === 'starter') ? 'Sale Price:' : 'Yearly Sale:'; ?></label>
                                         <span class="je-currency">$</span>
                                         <input type="number" step="0.01" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_yearly]'); ?>" value="<?php echo esc_attr($tier_data['sale_yearly'] ?? 0); ?>" />
                                     </div>
                                 </div>
                             </div>
                             
+                            <?php if ($tier_key !== 'starter'): ?>
                             <div class="je-pricing-field-group sale-pricing-row" style="<?php echo (empty($tier_data['sale_enabled'])) ? 'display: none;' : ''; ?>">
                                 <label class="je-pricing-label">Sale Dates</label>
                                 <?php
@@ -249,6 +257,7 @@ class ALM_Admin_Membership_Pricing {
                                     <?php endif; ?>
                                 </div>
                             </div>
+                            <?php endif; ?>
                             
                             <div class="je-pricing-field-group sale-pricing-row" style="<?php echo (empty($tier_data['sale_enabled'])) ? 'display: none;' : ''; ?>">
                                 <label class="je-pricing-label">Sale Order Form Links</label>
@@ -263,7 +272,7 @@ class ALM_Admin_Membership_Pricing {
                                     </div>
                                     <?php endif; ?>
                                     <div class="je-pricing-input-row">
-                                        <label>Yearly Sale Link:</label>
+                                        <label><?php echo ($tier_key === 'starter') ? 'Sale Order Form Link:' : 'Yearly Sale Link:'; ?></label>
                                         <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][sale_order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['sale_order_form_yearly'] ?? ''); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="sale_yearly" />
                                         <a href="<?php echo esc_url(!empty($tier_data['sale_order_form_yearly']) ? $tier_data['sale_order_form_yearly'] : '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['sale_order_form_yearly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['sale_order_form_yearly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['sale_order_form_yearly']) ? 'onclick="return false;"' : ''; ?>>
                                             <span class="dashicons dashicons-external"></span>
@@ -272,6 +281,7 @@ class ALM_Admin_Membership_Pricing {
                                 </div>
                             </div>
                             
+                            <?php if ($tier_key !== 'starter'): ?>
                             <div class="je-pricing-field-group">
                                 <label class="je-pricing-label">
                                     <input type="checkbox" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_enabled]'); ?>" value="1" <?php checked($tier_data['doorbuster_enabled'] ?? 0, 1); ?> />
@@ -283,7 +293,7 @@ class ALM_Admin_Membership_Pricing {
                                 <label class="je-pricing-label">Doorbuster Price</label>
                                 <div class="je-pricing-inputs">
                                     <div class="je-pricing-input-row">
-                                        <label>Yearly Doorbuster:</label>
+                                        <label><?php echo ($tier_key === 'starter') ? 'Doorbuster Price:' : 'Yearly Doorbuster:'; ?></label>
                                         <span class="je-currency">$</span>
                                         <input type="number" step="0.01" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_yearly]'); ?>" value="<?php echo esc_attr($tier_data['doorbuster_yearly'] ?? 0); ?>" />
                                     </div>
@@ -343,7 +353,7 @@ class ALM_Admin_Membership_Pricing {
                                 <label class="je-pricing-label">Doorbuster Order Form Link</label>
                                 <div class="je-pricing-inputs">
                                     <div class="je-pricing-input-row">
-                                        <label>Yearly Doorbuster Link:</label>
+                                        <label><?php echo ($tier_key === 'starter') ? 'Doorbuster Order Form Link:' : 'Yearly Doorbuster Link:'; ?></label>
                                         <input type="url" class="regular-text je-order-form-url" name="<?php echo esc_attr($this->option_name . '[' . $tier_key . '][doorbuster_order_form_yearly]'); ?>" value="<?php echo esc_attr($tier_data['doorbuster_order_form_yearly'] ?? ''); ?>" data-tier="<?php echo esc_attr($tier_key); ?>" data-type="doorbuster_yearly" />
                                         <a href="<?php echo esc_url(!empty($tier_data['doorbuster_order_form_yearly']) ? $tier_data['doorbuster_order_form_yearly'] : '#'); ?>" target="_blank" class="je-order-form-link <?php echo empty($tier_data['doorbuster_order_form_yearly']) ? 'je-order-form-link-empty' : ''; ?>" title="<?php echo empty($tier_data['doorbuster_order_form_yearly']) ? 'No URL set' : 'Open in new tab'; ?>" <?php echo empty($tier_data['doorbuster_order_form_yearly']) ? 'onclick="return false;"' : ''; ?>>
                                             <span class="dashicons dashicons-external"></span>
@@ -351,6 +361,7 @@ class ALM_Admin_Membership_Pricing {
                                     </div>
                                 </div>
                             </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -556,6 +567,12 @@ class ALM_Admin_Membership_Pricing {
             border-left: 3px solid #dc3232;
         }
         
+        @media (max-width: 1600px) {
+            .je-pricing-cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
         @media (max-width: 1400px) {
             .je-pricing-cards {
                 grid-template-columns: repeat(2, 1fr);
@@ -679,6 +696,15 @@ function je_get_membership_pricing($tier, $billing = 'yearly') {
     $sale_price = 0;
     $sale_order_form = '';
     if (!empty($tier_data['sale_enabled'])) {
+        // For starter program, ignore dates and use sale_enabled checkbox only
+        if ($tier === 'starter') {
+            $sale_active = true;
+            $sale_price_key = 'sale_' . $billing;
+            $sale_order_form_key = 'sale_order_form_' . $billing;
+            $sale_price = isset($tier_data[$sale_price_key]) ? floatval($tier_data[$sale_price_key]) : 0;
+            $sale_order_form = isset($tier_data[$sale_order_form_key]) ? $tier_data[$sale_order_form_key] : '';
+        } else {
+            // For other tiers, check dates
         $start_date = isset($tier_data['sale_start_date']) ? $tier_data['sale_start_date'] : '';
         $end_date = isset($tier_data['sale_end_date']) ? $tier_data['sale_end_date'] : '';
         
@@ -689,6 +715,7 @@ function je_get_membership_pricing($tier, $billing = 'yearly') {
                 $sale_order_form_key = 'sale_order_form_' . $billing;
                 $sale_price = isset($tier_data[$sale_price_key]) ? floatval($tier_data[$sale_price_key]) : 0;
                 $sale_order_form = isset($tier_data[$sale_order_form_key]) ? $tier_data[$sale_order_form_key] : '';
+                }
             }
         }
     }

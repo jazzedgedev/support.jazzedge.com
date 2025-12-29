@@ -34,6 +34,7 @@ class JPH_REST_API {
         add_action('wp_ajax_jpc_get_fvplayer', array($this, 'ajax_get_fvplayer'));
         add_action('wp_ajax_jpc_submit_milestone', array($this, 'ajax_submit_milestone'));
         add_action('wp_ajax_ai_cleanup_feedback', array($this, 'ajax_ai_cleanup_feedback'));
+        add_action('wp_ajax_jph_update_practice_item_order', array($this, 'ajax_update_practice_item_order'));
     }
     
     /**
@@ -117,6 +118,13 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // Roadmap step completion endpoint
+        register_rest_route('aph/v1', '/roadmap/step-completion', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_update_roadmap_step_completion'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Notification popup endpoints
         register_rest_route('aph/v1', '/notifications/popup', array(
             'methods' => 'GET',
@@ -127,6 +135,12 @@ class JPH_REST_API {
         register_rest_route('aph/v1', '/notifications/popup/(?P<id>\d+)/mark-shown', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_mark_popup_shown'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/notifications/list', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_notifications_list'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
@@ -403,6 +417,49 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
+        // Plan endpoints
+        register_rest_route('aph/v1', '/plan', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_plan'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_save_plan'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/transformation', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_transformation'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/goal', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_goal'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/focus', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_focus'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/steps', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_steps'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/practiced', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_mark_plan_practiced'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Admin settings endpoints
         register_rest_route('aph/v1', '/admin/clear-all-user-data', array(
             'methods' => 'POST',
@@ -564,6 +621,12 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)/fix-stats', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_student_stats'),
+            'permission_callback' => array($this, 'check_fix_streak_permission')
+        ));
+        
         register_rest_route('aph/v1', '/students/(?P<id>\d+)/debug-data', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_student_debug_data'),
@@ -702,6 +765,13 @@ class JPH_REST_API {
             'methods' => 'POST',
             'callback' => array($this, 'rest_clear_table'),
             'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        // Repair streak endpoint
+        register_rest_route('aph/v1', '/repair-streak', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_repair_streak'),
+            'permission_callback' => array($this, 'check_user_permission')
         ));
         
     }
@@ -1578,6 +1648,41 @@ class JPH_REST_API {
         } catch (Exception $e) {
             return new WP_Error('delete_badge_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
+    }
+
+    /**
+     * Handle AJAX requests to update practice item order
+     */
+    public function ajax_update_practice_item_order() {
+        if (!check_ajax_referer('jph_update_practice_item_order', 'nonce', false)) {
+            wp_send_json_error(array('message' => 'Invalid request. Please refresh and try again.'), 403);
+        }
+
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error(array('message' => 'You must be logged in to reorder practice items.'), 401);
+        }
+
+        $raw_ids = isset($_POST['item_ids']) ? wp_unslash($_POST['item_ids']) : array();
+        if (!is_array($raw_ids)) {
+            $raw_ids = array($raw_ids);
+        }
+
+        $result = $this->database->update_practice_item_order($user_id, $raw_ids);
+
+        if (is_wp_error($result)) {
+            $status = 400;
+            $error_data = $result->get_error_data();
+            if (is_array($error_data) && isset($error_data['status'])) {
+                $status = intval($error_data['status']);
+            } elseif (is_int($error_data)) {
+                $status = $error_data;
+            }
+
+            wp_send_json_error(array('message' => $result->get_error_message()), $status);
+        }
+
+        wp_send_json_success(array('message' => 'Practice item order updated successfully.'));
     }
     
     /**
@@ -2886,18 +2991,21 @@ class JPH_REST_API {
                         // Keep original event key for automation triggers, but add timestamp to title for uniqueness
                         $event_key = $badge['fluentcrm_event_key'];
                         $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+                        $event_value = "Badge: {$badge['name']} - {$badge['description']}";
                         
                         $result = $tracker->track([
                             'event_key' => $event_key,
                             'title' => $unique_title,
                             'email' => $user_email,
-                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'value' => $event_value,
                             'provider' => 'academy_practice_hub'
                         ]);
                         
                         error_log("Event tracker result: " . ($result ? 'Success' : 'Failed'));
                         if ($result) {
                             error_log("FluentCRM Event triggered successfully via tracker: {$badge['fluentcrm_event_key']} for user {$user_email}");
+                            // Ensure email is saved directly to database
+                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
                             error_log("=== End FluentCRM Event Debug ===");
                             return true;
                         }
@@ -2912,18 +3020,21 @@ class JPH_REST_API {
                         // Keep original event key for automation triggers, but add timestamp to title for uniqueness
                         $event_key = $badge['fluentcrm_event_key'];
                         $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+                        $event_value = "Badge: {$badge['name']} - {$badge['description']}";
                         
                         $result = fluentCrmTrackEvent([
                             'event_key' => $event_key,
                             'title' => $unique_title,
                             'email' => $user_email,
-                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'value' => $event_value,
                             'provider' => 'academy_practice_hub'
                         ]);
                         
                         error_log("fluentCrmTrackEvent result: " . ($result ? 'Success' : 'Failed'));
                         if ($result) {
                             error_log("FluentCRM Event triggered successfully via fluentCrmTrackEvent: {$badge['fluentcrm_event_key']} for user {$user_email}");
+                            // Ensure email is saved directly to database
+                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
                             error_log("=== End FluentCRM Event Debug ===");
                             return true;
                         }
@@ -2944,6 +3055,7 @@ class JPH_REST_API {
             // Keep original event key for automation triggers, but add timestamp to title for uniqueness
             $event_key = $badge['fluentcrm_event_key'];
             $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+            $event_value = "Badge: {$badge['name']} - {$badge['description']}";
             
             error_log("Event Key: {$event_key}");
             error_log("Unique Title: {$unique_title}");
@@ -2952,9 +3064,12 @@ class JPH_REST_API {
                 'event_key' => $event_key,
                 'title' => $unique_title,
                 'email' => $user_email,
-                'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                'value' => $event_value,
                 'provider' => 'academy_practice_hub'
             ], true);
+            
+            // Ensure email is saved directly to database
+            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
             
             error_log("FluentCRM Event triggered via fallback action hook: {$badge['fluentcrm_event_key']} for user {$user_email}");
             error_log("=== End FluentCRM Event Debug ===");
@@ -2962,6 +3077,70 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             error_log("FluentCRM Event error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Ensure event email is saved directly to fc_event_tracking table
+     * This ensures the email is always visible in the event logs
+     */
+    private function ensure_event_email_saved($event_key, $title, $value, $email) {
+        global $wpdb;
+        
+        try {
+            $table_name = $wpdb->prefix . 'fc_event_tracking';
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+            if (!$table_exists) {
+                error_log("FluentCRM event tracking table does not exist: {$table_name}");
+                return false;
+            }
+            
+            // Check if event was already inserted (within last 5 seconds to avoid duplicates)
+            $recent_event = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, email FROM {$table_name} 
+                WHERE event_key = %s 
+                AND title = %s 
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)
+                ORDER BY id DESC LIMIT 1",
+                $event_key,
+                $title
+            ));
+            
+            if ($recent_event) {
+                // Update email if it's missing or different
+                if (empty($recent_event->email) || $recent_event->email !== $email) {
+                    $wpdb->update(
+                        $table_name,
+                        array('email' => $email),
+                        array('id' => $recent_event->id),
+                        array('%s'),
+                        array('%d')
+                    );
+                    error_log("Updated event email in database: event_id={$recent_event->id}, email={$email}");
+                }
+            } else {
+                // Insert new event directly if it doesn't exist
+                $wpdb->insert(
+                    $table_name,
+                    array(
+                        'event_key' => $event_key,
+                        'title' => $title,
+                        'value' => $value,
+                        'email' => $email,
+                        'provider' => 'academy_practice_hub',
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%s', '%s', '%s', '%s', '%s', '%s')
+                );
+                error_log("Inserted event directly into database: event_key={$event_key}, email={$email}");
+            }
+            
+            return true;
+        } catch (Exception $e) {
+            error_log("Error ensuring event email saved: " . $e->getMessage());
             return false;
         }
     }
@@ -3514,6 +3693,95 @@ class JPH_REST_API {
     }
     
     /**
+     * Repair a broken streak using gems
+     */
+    public function rest_repair_streak($request) {
+        try {
+            $user_id = get_current_user_id();
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $params = $request->get_json_params();
+            $days_to_repair = intval($params['days_to_repair'] ?? 1);
+            
+            if ($days_to_repair < 1 || $days_to_repair > 7) {
+                return new WP_Error('invalid_days', 'Days to repair must be between 1 and 7', array('status' => 400));
+            }
+            
+            // Get user stats
+            $user_stats = $this->database->get_user_stats($user_id);
+            if (!$user_stats) {
+                return new WP_Error('user_not_found', 'User stats not found', array('status' => 404));
+            }
+            
+            $cost_per_day = 25;
+            $total_cost = $days_to_repair * $cost_per_day;
+            $current_gems = $user_stats['gems_balance'] ?? 0;
+            $current_streak = $user_stats['current_streak'] ?? 0;
+            $last_recovery = $user_stats['last_streak_recovery_date'] ?? null;
+            $weekly_recoveries = $user_stats['streak_recovery_count_this_week'] ?? 0;
+            
+            // Check if user has enough gems
+            if ($current_gems < $total_cost) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'Not enough gems. Need ' . $total_cost . ' gems, but you have ' . $current_gems . '.'
+                ));
+            }
+            
+            // Check limits (max 7 days, 24h cooldown, 2 per week)
+            if ($last_recovery && strtotime($last_recovery) > strtotime('-24 hours')) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => '24-hour cooldown active. Last recovery: ' . $last_recovery
+                ));
+            }
+            
+            if ($weekly_recoveries >= 2) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'Weekly recovery limit reached (2 per week).'
+                ));
+            }
+            
+            // Calculate new streak
+            $new_streak = $current_streak + $days_to_repair;
+            
+            // Deduct gems and update streak
+            $new_gem_balance = $current_gems - $total_cost;
+            $new_weekly_count = $weekly_recoveries + 1;
+            
+            // Update user stats
+            $this->database->update_user_stats($user_id, array(
+                'gems_balance' => $new_gem_balance,
+                'current_streak' => $new_streak,
+                'last_streak_recovery_date' => current_time('Y-m-d'),
+                'streak_recovery_count_this_week' => $new_weekly_count
+            ));
+            
+            // Record transaction
+            $this->database->record_gems_transaction(
+                $user_id,
+                'spent',
+                -$total_cost,
+                'streak_recovery',
+                'Repaired ' . $days_to_repair . ' days of streak for ' . $total_cost . ' gems'
+            );
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Streak repaired! +' . $days_to_repair . ' days',
+                'new_gem_balance' => $new_gem_balance,
+                'new_streak' => $new_streak
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('repair_streak_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
      * Fix student level by recalculating from total XP
      */
     public function rest_fix_student_level($request) {
@@ -3574,6 +3842,56 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             return new WP_Error('fix_level_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Fix student stats (both streak and level) by recalculating from practice sessions
+     */
+    public function rest_fix_student_stats($request) {
+        try {
+            $user_id = intval($request->get_param('id'));
+            $current_user_id = get_current_user_id();
+            
+            // Security check: non-admins can only fix their own stats
+            if (!current_user_can('manage_options') && $user_id !== $current_user_id) {
+                return new WP_Error('permission_denied', 'You can only fix your own stats', array('status' => 403));
+            }
+            
+            // Fix streak
+            $streak_result = $this->rest_fix_student_streak($request);
+            if (is_wp_error($streak_result)) {
+                return $streak_result;
+            }
+            $streak_data = $streak_result->get_data();
+            
+            // Fix level
+            $level_result = $this->rest_fix_student_level($request);
+            if (is_wp_error($level_result)) {
+                // If level fix fails but streak succeeded, still return success for streak
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'Stats partially fixed (streak updated, level fix failed)',
+                    'streak' => $streak_data,
+                    'level' => array('error' => $level_result->get_error_message())
+                ));
+            }
+            $level_data = $level_result->get_data();
+            
+            // Get updated user stats
+            $gamification = new APH_Gamification();
+            $updated_stats = $gamification->get_user_stats($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Stats recalculated successfully',
+                'streak' => $streak_data,
+                'level' => $level_data,
+                'user_stats' => $updated_stats
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('fix_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -5824,14 +6142,17 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             // Default preferences (all visible)
             $default_preferences = array(
                 'stats' => true,
+                'roadmap' => true,
                 'search_section' => true,
+                'repertoire_section' => true,
                 'tab_shield' => true,
                 'tab_badges' => true,
                 'tab_analytics' => true,
                 'dark_mode' => false,
                 'bg_color' => '#ffffff',
                 'accent_color' => '#004555',
-                'theme' => 'default'
+                'theme' => 'default',
+                'color_palette' => 'default'
             );
             
             if (empty($preferences_json)) {
@@ -5847,7 +6168,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $preferences = wp_parse_args($preferences, $default_preferences);
             
             // Ensure boolean values are boolean, keep strings as strings
-            $boolean_keys = array('stats', 'search_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
+            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
             foreach ($boolean_keys as $key) {
                 if (isset($preferences[$key])) {
                     $preferences[$key] = (bool) $preferences[$key];
@@ -5866,6 +6187,12 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             if (isset($preferences['theme'])) {
                 $allowed_themes = array('default', 'ocean', 'forest', 'sunset', 'lavender', 'midnight');
                 $preferences['theme'] = in_array($preferences['theme'], $allowed_themes) ? $preferences['theme'] : 'default';
+            }
+            
+            // Sanitize color palette
+            if (isset($preferences['color_palette'])) {
+                $allowed_palettes = array('default', 'green', 'blue', 'purple', 'red', 'orange', 'indigo');
+                $preferences['color_palette'] = in_array($preferences['color_palette'], $allowed_palettes) ? $preferences['color_palette'] : 'default';
             }
             
             return rest_ensure_response(array(
@@ -5899,6 +6226,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             // Define allowed preference keys with defaults
             $default_preferences = array(
                 'stats' => true,
+                'roadmap' => true,
                 'search_section' => true,
                 'repertoire_section' => true,
                 'tab_shield' => true,
@@ -5907,14 +6235,15 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 'dark_mode' => false,
                 'bg_color' => '#ffffff',
                 'accent_color' => '#004555',
-                'theme' => 'default'
+                'theme' => 'default',
+                'color_palette' => 'default'
             );
             
             // Validate and sanitize preferences
             $sanitized_preferences = array();
             
             // Boolean preferences
-            $boolean_keys = array('stats', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
+            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
             foreach ($boolean_keys as $key) {
                 if (isset($preferences[$key])) {
                     $sanitized_preferences[$key] = (bool) $preferences[$key];
@@ -5944,6 +6273,14 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 $sanitized_preferences['theme'] = $default_preferences['theme'];
             }
             
+            // Color palette preference
+            $allowed_palettes = array('default', 'green', 'blue', 'purple', 'red', 'orange', 'indigo');
+            if (isset($preferences['color_palette']) && in_array($preferences['color_palette'], $allowed_palettes)) {
+                $sanitized_preferences['color_palette'] = $preferences['color_palette'];
+            } else {
+                $sanitized_preferences['color_palette'] = $default_preferences['color_palette'];
+            }
+            
             // Save as JSON string
             $preferences_json = json_encode($sanitized_preferences);
             update_user_meta($user_id, 'aph_dashboard_preferences', $preferences_json);
@@ -5957,6 +6294,64 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
         } catch (Exception $e) {
             return new WP_Error('dashboard_preferences_update_error', 'Error updating preferences: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update roadmap step completion status
+     */
+    public function rest_update_roadmap_step_completion($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            $params = $request->get_json_params();
+            $membership_level = isset($params['membership_level']) ? intval($params['membership_level']) : 0;
+            $step_id = isset($params['step_id']) ? sanitize_text_field($params['step_id']) : '';
+            $completed = isset($params['completed']) ? (bool) $params['completed'] : false;
+            
+            if (empty($membership_level) || empty($step_id)) {
+                return new WP_Error('invalid_params', 'Membership level and step ID are required', array('status' => 400));
+            }
+            
+            // Validate membership level
+            if (!in_array($membership_level, array(1, 2, 3))) {
+                return new WP_Error('invalid_membership', 'Invalid membership level', array('status' => 400));
+            }
+            
+            // Get current completion status
+            $meta_key = 'jph_roadmap_completion_' . $membership_level;
+            $completion_meta = get_user_meta($user_id, $meta_key, true);
+            $completion = array();
+            
+            if (!empty($completion_meta)) {
+                $decoded = json_decode($completion_meta, true);
+                if (is_array($decoded)) {
+                    $completion = $decoded;
+                }
+            }
+            
+            // Update completion status
+            if ($completed) {
+                $completion[$step_id] = true;
+            } else {
+                unset($completion[$step_id]);
+            }
+            
+            // Save updated completion status
+            update_user_meta($user_id, $meta_key, json_encode($completion));
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Step completion updated successfully',
+                'completed' => $completed
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('roadmap_completion_update_error', 'Error updating step completion: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -6051,6 +6446,80 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
         } catch (Exception $e) {
             return new WP_Error('mark_popup_error', 'Error marking popup as shown: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get list of notifications for current user
+     */
+    public function rest_get_notifications_list($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+            }
+            
+            if (!class_exists('ALM_Notifications_Manager')) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'notifications' => array()
+                ));
+            }
+            
+            $limit = isset($request['limit']) ? intval($request['limit']) : 10;
+            $limit = min($limit, 25); // Max 25 notifications
+            
+            $notifications_manager = new ALM_Notifications_Manager();
+            $notifications = $notifications_manager->get_notifications(array(
+                'status' => 'active',
+                'only_published' => true,
+                'limit' => $limit,
+                'order' => 'DESC',
+            ));
+            
+            // Mark notifications as read
+            if (!empty($notifications)) {
+                $notifications_manager->mark_notifications_read(wp_list_pluck($notifications, 'ID'), $user_id);
+            }
+            
+            // Get category palette for styling
+            $category_palette = ALM_Notifications_Manager::get_category_palette();
+            $default_category = ALM_Notifications_Manager::DEFAULT_CATEGORY;
+            
+            $formatted_notifications = array();
+            foreach ($notifications as $notification) {
+                $category_slug = sanitize_key($notification['category'] ?? $default_category);
+                if (empty($category_slug) || !isset($category_palette[$category_slug])) {
+                    $category_slug = $default_category;
+                }
+                
+                $category_data = $category_palette[$category_slug];
+                
+                $formatted_notifications[] = array(
+                    'ID' => intval($notification['ID']),
+                    'title' => wp_unslash($notification['title']),
+                    'content' => wp_kses_post(wpautop(wp_unslash($notification['content']))),
+                    'link_label' => wp_unslash($notification['link_label'] ?? ''),
+                    'link_url' => esc_url_raw($notification['link_url'] ?? ''),
+                    'category' => $category_slug,
+                    'category_label' => $category_data['label'],
+                    'category_colors' => array(
+                        'background' => $category_data['background'],
+                        'text' => $category_data['text'],
+                        'border' => $category_data['border'],
+                    ),
+                    'publish_at' => $notification['publish_at'],
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'notifications' => $formatted_notifications
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('notifications_error', 'Error getting notifications: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -8747,6 +9216,271 @@ Return only the cleaned feedback text, no explanations or additional commentary.
             
         } catch (Exception $e) {
             return new WP_Error('fix_my_progress_error', 'Error fixing progress: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get user's plan
+     */
+    public function rest_get_plan($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view your plan', array('status' => 401));
+            }
+            
+            $plan = $this->database->get_user_plan($user_id);
+            
+            // Get weekly session count
+            $sessions_this_week = $this->database->get_weekly_session_count($user_id);
+            
+            if ($plan) {
+                $plan['sessions_this_week'] = $sessions_this_week;
+            } else {
+                $plan = array(
+                    'user_id' => $user_id,
+                    'transformation' => '',
+                    'goal_90_day' => '',
+                    'weekly_focus_item_id' => null,
+                    'practice_steps' => array(),
+                    'deadline' => null,
+                    'sessions_this_week' => $sessions_this_week,
+                    'last_practiced_date' => null
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'plan' => $plan,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_plan_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Save user's plan
+     */
+    public function rest_save_plan($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to save your plan', array('status' => 401));
+            }
+            
+            $plan_data = array();
+            
+            if ($request->get_param('transformation') !== null) {
+                $plan_data['transformation'] = sanitize_textarea_field($request->get_param('transformation'));
+            }
+            
+            if ($request->get_param('goal_90_day') !== null) {
+                $plan_data['goal_90_day'] = sanitize_text_field($request->get_param('goal_90_day'));
+            }
+            
+            if ($request->get_param('weekly_focus_item_id') !== null) {
+                $plan_data['weekly_focus_item_id'] = intval($request->get_param('weekly_focus_item_id'));
+            }
+            
+            if ($request->get_param('practice_steps') !== null) {
+                $steps = $request->get_param('practice_steps');
+                if (is_array($steps)) {
+                    $plan_data['practice_steps'] = array_map('sanitize_text_field', $steps);
+                }
+            }
+            
+            if ($request->get_param('deadline') !== null) {
+                $plan_data['deadline'] = sanitize_text_field($request->get_param('deadline'));
+            }
+            
+            $result = $this->database->save_user_plan($user_id, $plan_data);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Plan saved successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('save_plan_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update plan transformation
+     */
+    public function rest_update_plan_transformation($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $transformation = sanitize_textarea_field($request->get_param('transformation'));
+            
+            $result = $this->database->save_user_plan($user_id, array('transformation' => $transformation));
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Transformation updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_transformation_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update plan goal
+     */
+    public function rest_update_plan_goal($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $goal = sanitize_text_field($request->get_param('goal'));
+            
+            // Use save_user_plan directly to ensure proper error handling
+            $result = $this->database->save_user_plan($user_id, array('goal_90_day' => $goal));
+            
+            if (is_wp_error($result)) {
+                error_log('PLAN Goal Save Error: ' . $result->get_error_message());
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Goal updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            error_log('PLAN Goal Save Exception: ' . $e->getMessage());
+            error_log('PLAN Goal Save Trace: ' . $e->getTraceAsString());
+            return new WP_Error('update_goal_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update weekly focus item
+     */
+    public function rest_update_plan_focus($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $item_id = intval($request->get_param('item_id'));
+            
+            // Verify item belongs to user
+            $practice_items = $this->database->get_user_practice_items($user_id);
+            $item_exists = false;
+            foreach ($practice_items as $item) {
+                if ($item['id'] == $item_id) {
+                    $item_exists = true;
+                    break;
+                }
+            }
+            
+            if (!$item_exists && $item_id > 0) {
+                return new WP_Error('invalid_item', 'Practice item not found or does not belong to you', array('status' => 400));
+            }
+            
+            $result = $this->database->update_weekly_focus($user_id, $item_id > 0 ? $item_id : null);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Weekly focus updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_focus_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update practice steps
+     */
+    public function rest_update_plan_steps($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $steps = $request->get_param('steps');
+            
+            if (!is_array($steps)) {
+                return new WP_Error('invalid_steps', 'Steps must be an array', array('status' => 400));
+            }
+            
+            // Sanitize steps
+            $steps = array_map('sanitize_text_field', $steps);
+            
+            $result = $this->database->update_practice_steps($user_id, $steps);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice steps updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_steps_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Mark plan as practiced today
+     */
+    public function rest_mark_plan_practiced($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to mark practice', array('status' => 401));
+            }
+            
+            $result = $this->database->mark_plan_practiced($user_id);
+            
+            if (!$result) {
+                return new WP_Error('mark_practiced_error', 'Failed to mark as practiced', array('status' => 500));
+            }
+            
+            // Get updated session count
+            $sessions_this_week = $this->database->get_weekly_session_count($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice marked successfully',
+                'sessions_this_week' => $sessions_this_week,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('mark_practiced_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

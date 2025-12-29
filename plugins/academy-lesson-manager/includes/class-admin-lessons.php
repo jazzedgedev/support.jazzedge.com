@@ -48,7 +48,7 @@ class ALM_Admin_Lessons {
         
         // Handle bulk actions first
         // Handle bulk actions - check for bulk_action or button names
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['bulk_action']) || isset($_POST['submit_bulk_tag']) || isset($_POST['submit_bulk_style']))) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['bulk_action']) || isset($_POST['submit_bulk_membership']) || isset($_POST['submit_bulk_tag']) || isset($_POST['submit_bulk_style']))) {
             $this->handle_bulk_action();
             return;
         }
@@ -279,8 +279,12 @@ class ALM_Admin_Lessons {
             $where_conditions[] = "(collection_id IS NOT NULL AND collection_id != 0)";
         }
         
-        // Hide archived lessons by default (unless show_archived toggle is enabled)
-        if (!$show_archived) {
+        // Filter lessons by archived status
+        if ($show_archived) {
+            // Show only archived lessons when toggle is enabled
+            $where_conditions[] = "l.status = 'archived'";
+        } else {
+            // Hide archived lessons by default (show only published)
             $where_conditions[] = "(l.status = 'published' OR l.status IS NULL OR l.status = '')";
         }
         // Filter for lessons with/without resources
@@ -450,13 +454,16 @@ class ALM_Admin_Lessons {
         echo '<select id="bulk_membership_level" name="bulk_membership_level" style="margin-right: 8px;">';
         echo '<option value="">' . __('Select level...', 'academy-lesson-manager') . '</option>';
         foreach ($membership_levels as $key => $level) {
+            // Skip Free (0) level - starter program access is handled via whitelist
+            if ($level['numeric'] == 0) {
+                continue;
+            }
             echo '<option value="' . esc_attr($level['numeric']) . '">' . esc_html($level['name']) . ' (' . $level['numeric'] . ') - ' . esc_html($level['description']) . '</option>';
         }
         echo '</select>';
-        echo '<input type="submit" class="button" value="' . __('Update Membership', 'academy-lesson-manager') . '" onclick="document.getElementById(\'bulk_action\').value=\'update_membership\'; var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<input type="submit" class="button" name="submit_bulk_membership" value="' . __('Update Membership', 'academy-lesson-manager') . '" onclick="var membershipLevel = document.getElementById(\'bulk_membership_level\').value; if (!membershipLevel || membershipLevel === \'\') { alert(\'' . esc_js(__('Please select a membership level.', 'academy-lesson-manager')) . '\'); return false; } var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { alert(\'' . esc_js(__('Please select at least one lesson.', 'academy-lesson-manager')) . '\'); return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container); return true;" />';
         echo '<p class="description" style="margin-top: 8px;">' . __('Select lessons from the list below, then choose a membership level and click "Update Membership".', 'academy-lesson-manager') . '</p>';
         echo '</div>';
-        echo '<input type="hidden" id="bulk_action" name="bulk_action" value="update_membership" />';
         
         // Bulk skill level update
         echo '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">';
@@ -474,7 +481,7 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
         }
         echo '</select>';
-        echo '<input type="submit" class="button" id="doaction-skill-level" name="doaction-skill-level" value="' . __('Update Skill Level', 'academy-lesson-manager') . '" onclick="var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container);" />';
+        echo '<input type="submit" class="button" id="doaction-skill-level" name="doaction-skill-level" value="' . __('Update Skill Level', 'academy-lesson-manager') . '" onclick="var skillLevel = document.getElementById(\'bulk-action-skill-level-selector\').value; if (!skillLevel || skillLevel === \'-1\' || skillLevel === \'\') { alert(\'' . esc_js(__('Please select a skill level.', 'academy-lesson-manager')) . '\'); return false; } var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { alert(\'' . esc_js(__('Please select at least one lesson.', 'academy-lesson-manager')) . '\'); return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container); return true;" />';
         echo '<p class="description" style="margin-top: 8px;">' . __('Select lessons from the list below, then choose a skill level and click "Update Skill Level".', 'academy-lesson-manager') . '</p>';
         echo '</div>';
         
@@ -1396,6 +1403,16 @@ class ALM_Admin_Lessons {
         echo '<p>';
         echo '<a href="?page=academy-manager-lessons" class="button">&larr; ' . __('Back to Lessons', 'academy-lesson-manager') . '</a> ';
         
+        // Add View Lesson button if post exists
+        if (!empty($lesson_url)) {
+            echo '<a href="' . esc_url($lesson_url) . '" class="button button-primary" target="_blank" rel="noopener noreferrer" title="' . __('View Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-external" style="vertical-align: middle; margin-top: -2px;"></span> ' . __('View Lesson', 'academy-lesson-manager') . '</a> ';
+        }
+        
+        // Add View Collection button if lesson has a collection
+        if (!empty($lesson->collection_id)) {
+            echo '<a href="?page=academy-manager&action=edit&id=' . esc_attr($lesson->collection_id) . '" class="button" title="' . __('View Collection', 'academy-lesson-manager') . '"><span class="dashicons dashicons-external"></span> ' . __('View Collection', 'academy-lesson-manager') . '</a> ';
+        }
+        
         // Add Copy URL button if post exists
         if (!empty($lesson_url)) {
             echo '<button type="button" class="button alm-copy-url-btn" data-url="' . esc_attr($lesson_url) . '" title="' . __('Copy Lesson URL', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-page"></span> ' . __('Copy URL', 'academy-lesson-manager') . '</button> ';
@@ -1408,6 +1425,9 @@ class ALM_Admin_Lessons {
         
         // Add Fix button to re-sync lesson data
         echo '<a href="?page=academy-manager-lessons&action=fix&id=' . $lesson->ID . '" class="button" onclick="return confirm(\'' . __('Re-sync this lesson to WordPress post?', 'academy-lesson-manager') . '\')" title="' . __('Re-sync Lesson Data', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-tools"></span> ' . __('Re-sync', 'academy-lesson-manager') . '</a> ';
+        
+        // Add Copy Transcript button
+        echo '<button type="button" class="button alm-copy-transcript-btn" data-lesson-id="' . esc_attr($lesson->ID) . '" title="' . __('Copy Combined Transcript', 'academy-lesson-manager') . '"><span class="dashicons dashicons-clipboard"></span> ' . __('Copy Transcript', 'academy-lesson-manager') . '</button> ';
         
         echo '<a href="?page=academy-manager-lessons&action=delete&id=' . $lesson->ID . '" class="button" onclick="return confirm(\'' . __('Are you sure you want to delete this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span> ' . __('Delete', 'academy-lesson-manager') . '</a>';
         echo '</p>';
@@ -1447,7 +1467,7 @@ class ALM_Admin_Lessons {
         
         echo '<tr>';
         echo '<th scope="row">' . __('Lesson ID', 'academy-lesson-manager') . '</th>';
-        echo '<td>' . $lesson->ID . '</td>';
+        echo '<td>' . $lesson->ID . ' <a href="?page=academy-manager-chapters&action=add&lesson_id=' . $lesson->ID . '" class="button button-small" style="margin-left: 10px;">' . __('Add Chapter', 'academy-lesson-manager') . '</a></td>';
         echo '</tr>';
         
         // Add sync status indicator
@@ -1594,7 +1614,17 @@ class ALM_Admin_Lessons {
         
         echo '<tr>';
         echo '<th scope="row"><label for="lesson_description">' . __('Description', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><textarea id="lesson_description" name="lesson_description" rows="5" cols="50" class="large-text">' . esc_textarea(stripslashes($lesson->lesson_description)) . '</textarea></td>';
+        echo '<td>';
+        echo '<textarea id="lesson_description" name="lesson_description" rows="5" cols="50" class="large-text">' . esc_textarea(stripslashes($lesson->lesson_description)) . '</textarea>';
+        echo '<div style="margin-top: 10px; padding: 10px; background: #f0f0f1; border-left: 4px solid #2271b1; border-radius: 3px;">';
+        echo '<button type="button" id="alm-generate-description" class="button button-primary" data-lesson-id="' . esc_attr($lesson->ID) . '">';
+        echo '<span class="dashicons dashicons-admin-tools" style="vertical-align: middle;"></span> ';
+        echo __('Generate with AI', 'academy-lesson-manager');
+        echo '</button>';
+        echo '<span id="alm-generate-description-status" style="margin-left: 15px; font-weight: bold; display: inline-block; min-width: 200px;"></span>';
+        echo '<p class="description" style="margin-top: 8px; margin-bottom: 0;">' . __('This will replace any existing description with an AI-generated one based on all chapter transcripts.', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+        echo '</td>';
         echo '</tr>';
         
         echo '<tr>';
@@ -1739,6 +1769,10 @@ class ALM_Admin_Lessons {
         echo '<select id="membership_level" name="membership_level" required>';
         $membership_levels = ALM_Admin_Settings::get_membership_levels();
         foreach ($membership_levels as $key => $level) {
+            // Skip Free (0) level - starter program access is handled via whitelist
+            if ($level['numeric'] == 0) {
+                continue;
+            }
             $selected = ($level['numeric'] == $lesson->membership_level) ? 'selected' : '';
             echo '<option value="' . esc_attr($level['numeric']) . '" ' . $selected . '>' . esc_html($level['name']) . ' (' . $level['numeric'] . ') - ' . esc_html($level['description']) . '</option>';
         }
@@ -1977,6 +2011,82 @@ class ALM_Admin_Lessons {
             });
             </script>';
         }
+        
+        // Copy Transcript JavaScript
+        echo '<script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const copyTranscriptBtn = document.querySelector(".alm-copy-transcript-btn");
+            if (copyTranscriptBtn) {
+                copyTranscriptBtn.addEventListener("click", function() {
+                    const lessonId = this.getAttribute("data-lesson-id");
+                    const originalHtml = this.innerHTML;
+                    
+                    // Show loading state
+                    this.innerHTML = "<span class=\"dashicons dashicons-update spin\"></span> Loading...";
+                    this.disabled = true;
+                    
+                    // Make AJAX request
+                    jQuery.ajax({
+                        url: ajaxurl,
+                        type: "POST",
+                        data: {
+                            action: "alm_get_lesson_transcript",
+                            lesson_id: lessonId,
+                            nonce: "' . wp_create_nonce('alm_admin_nonce') . '"
+                        },
+                        success: function(response) {
+                            if (response.success && response.data.transcript) {
+                                // Copy to clipboard
+                                const transcript = response.data.transcript;
+                                navigator.clipboard.writeText(transcript).then(function() {
+                                    copyTranscriptBtn.innerHTML = "<span class=\"dashicons dashicons-yes\"></span> Copied!";
+                                    copyTranscriptBtn.style.background = "#46b450";
+                                    setTimeout(function() {
+                                        copyTranscriptBtn.innerHTML = originalHtml;
+                                        copyTranscriptBtn.style.background = "";
+                                        copyTranscriptBtn.disabled = false;
+                                    }, 2000);
+                                }).catch(function(err) {
+                                    // Fallback for older browsers
+                                    const textArea = document.createElement("textarea");
+                                    textArea.value = transcript;
+                                    document.body.appendChild(textArea);
+                                    textArea.select();
+                                    document.execCommand("copy");
+                                    document.body.removeChild(textArea);
+                                    copyTranscriptBtn.innerHTML = "<span class=\"dashicons dashicons-yes\"></span> Copied!";
+                                    copyTranscriptBtn.style.background = "#46b450";
+                                    setTimeout(function() {
+                                        copyTranscriptBtn.innerHTML = originalHtml;
+                                        copyTranscriptBtn.style.background = "";
+                                        copyTranscriptBtn.disabled = false;
+                                    }, 2000);
+                                });
+                            } else {
+                                alert(response.data.message || "Failed to get transcript.");
+                                copyTranscriptBtn.innerHTML = originalHtml;
+                                copyTranscriptBtn.disabled = false;
+                            }
+                        },
+                        error: function() {
+                            alert("Error loading transcript. Please try again.");
+                            copyTranscriptBtn.innerHTML = originalHtml;
+                            copyTranscriptBtn.disabled = false;
+                        }
+                    });
+                });
+            }
+        });
+        </script>
+        <style>
+        .dashicons.spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        </style>';
     }
     
     /**
@@ -2783,10 +2893,26 @@ class ALM_Admin_Lessons {
             echo '<th scope="col">' . __('Bunny', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Duration', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Free', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col">' . __('Transcript', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Actions', 'academy-lesson-manager') . '</th>';
             echo '</tr>';
             echo '</thead>';
             echo '<tbody>';
+            
+            // Get transcripts for all chapters in one query for efficiency
+            $transcripts_table = $this->database->get_table_name('transcripts');
+            $chapter_ids = array_map(function($c) { return $c->ID; }, $chapters);
+            $transcript_chapter_ids = array();
+            if (!empty($chapter_ids)) {
+                $placeholders = implode(',', array_fill(0, count($chapter_ids), '%d'));
+                $transcript_results = $this->wpdb->get_results($this->wpdb->prepare(
+                    "SELECT chapter_id FROM {$transcripts_table} WHERE chapter_id IN ($placeholders) AND source = 'whisper'",
+                    ...$chapter_ids
+                ));
+                foreach ($transcript_results as $t) {
+                    $transcript_chapter_ids[] = $t->chapter_id;
+                }
+            }
             
             foreach ($chapters as $chapter) {
                 $background = ($chapter->vimeo_id == 0 && empty($chapter->youtube_id) && empty($chapter->bunny_url)) ? 'background-color: #ffebee;' : '';
@@ -2794,14 +2920,51 @@ class ALM_Admin_Lessons {
                 echo '<td class="chapter-drag-handle" style="cursor: move; text-align: center;">⋮⋮</td>';
                 echo '<td>' . $chapter->ID . '</td>';
                 echo '<td class="chapter-order">' . $chapter->menu_order . '</td>';
-                echo '<td><a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '">' . esc_html(stripslashes($chapter->chapter_title)) . '</a></td>';
-                echo '<td>' . ($chapter->vimeo_id && $chapter->vimeo_id > 0 ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                echo '<td><a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" target="_blank" rel="noopener noreferrer">' . esc_html(stripslashes($chapter->chapter_title)) . '</a></td>';
+                echo '<td>';
+                if ($chapter->vimeo_id && $chapter->vimeo_id > 0) {
+                    echo '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>';
+                    // Add download button for Vimeo videos
+                    $download_url = wp_nonce_url(
+                        add_query_arg(array(
+                            'page' => 'academy-manager-lesson-samples',
+                            'download_chapter' => '1',
+                            'chapter_id' => $chapter->ID
+                        ), admin_url('admin.php')),
+                        'alm_download_chapter',
+                        'nonce'
+                    );
+                    echo ' <a href="' . esc_url($download_url) . '" class="button button-small button-secondary" title="' . __('Download Vimeo Video', 'academy-lesson-manager') . '" style="margin-left: 5px;">' . __('Download', 'academy-lesson-manager') . '</a>';
+                } else {
+                    echo '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>';
+                }
+                echo '</td>';
                 echo '<td>' . (!empty($chapter->youtube_id) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
                 echo '<td>' . (!empty($chapter->bunny_url) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
                 echo '<td>' . ALM_Helpers::format_duration($chapter->duration) . '</td>';
-                echo '<td>' . ($chapter->free === 'y' ? __('Yes', 'academy-lesson-manager') : __('No', 'academy-lesson-manager')) . '</td>';
+                echo '<td>' . ($chapter->free === 'y' ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                echo '<td>' . (in_array($chapter->ID, $transcript_chapter_ids) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
                 echo '<td>';
-                echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small">' . __('Edit', 'academy-lesson-manager') . '</a> ';
+                echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small" target="_blank" rel="noopener noreferrer">' . __('Edit', 'academy-lesson-manager') . '</a> ';
+                
+                // Add download button if Bunny URL exists
+                if (!empty($chapter->bunny_url)) {
+                    $download_url = wp_nonce_url(
+                        add_query_arg(array(
+                            'page' => 'academy-manager-lesson-samples',
+                            'download_chapter' => '1',
+                            'chapter_id' => $chapter->ID
+                        ), admin_url('admin.php')),
+                        'alm_download_chapter',
+                        'nonce'
+                    );
+                    echo ' <a href="' . esc_url($download_url) . '" class="button button-small button-secondary" title="' . __('Download Bunny.net Video', 'academy-lesson-manager') . '">' . __('Download', 'academy-lesson-manager') . '</a> ';
+                }
+                
+                // Add transcribe button if MP3 file exists
+                if (!empty($chapter->mp3_file_url)) {
+                    echo ' <button type="button" class="button button-small alm-transcribe-chapter-btn" data-chapter-id="' . esc_attr($chapter->ID) . '" title="' . __('Transcribe this chapter', 'academy-lesson-manager') . '">' . __('Transcribe', 'academy-lesson-manager') . '</button> ';
+                }
                 echo ' <a href="?page=academy-manager-lessons&action=delete-chapter&chapter_id=' . $chapter->ID . '&lesson_id=' . $lesson_id . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')" style="color: #dc3232;">' . __('Delete', 'academy-lesson-manager') . '</a>';
                 echo '</td>';
                 echo '</tr>';
@@ -2828,7 +2991,9 @@ class ALM_Admin_Lessons {
         $action = isset($_POST['bulk_action']) ? sanitize_text_field($_POST['bulk_action']) : '';
         
         // Check for button names as alternative triggers
-        if (isset($_POST['submit_bulk_tag'])) {
+        if (isset($_POST['submit_bulk_membership'])) {
+            $action = 'update_membership';
+        } elseif (isset($_POST['submit_bulk_tag'])) {
             $action = 'add_tag';
         } elseif (isset($_POST['submit_bulk_style'])) {
             $action = 'add_style';
@@ -2925,20 +3090,26 @@ class ALM_Admin_Lessons {
      * Handle bulk membership update
      */
     private function handle_bulk_membership_update() {
+        // Ensure no output before redirect
+        if (ob_get_level()) {
+            ob_clean();
+        }
+        
         $lesson_ids = isset($_POST['lesson']) ? array_map('intval', $_POST['lesson']) : array();
-        $membership_level = isset($_POST['bulk_membership_level']) ? intval($_POST['bulk_membership_level']) : 0;
         
         // Check if lessons were selected
         if (empty($lesson_ids)) {
-            wp_redirect($this->build_redirect_url('no_lessons_selected'));
+            wp_safe_redirect($this->build_redirect_url('no_lessons_selected'));
             exit;
         }
         
-        // Check if membership level was selected
-        if ($membership_level === 0 || $membership_level === '') {
-            wp_redirect($this->build_redirect_url('no_level_selected'));
+        // Check if membership level was provided (allow 0 for Free level)
+        if (!isset($_POST['bulk_membership_level']) || $_POST['bulk_membership_level'] === '') {
+            wp_safe_redirect($this->build_redirect_url('no_level_selected'));
             exit;
         }
+        
+        $membership_level = intval($_POST['bulk_membership_level']);
         
         $updated = 0;
         
@@ -2953,10 +3124,21 @@ class ALM_Admin_Lessons {
             
             if ($result !== false) {
                 $updated++;
+                
+                // Sync to WordPress post if exists
+                $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                    "SELECT post_id FROM {$this->table_name} WHERE ID = %d",
+                    $lesson_id
+                ));
+                
+                if ($lesson && $lesson->post_id) {
+                    $sync = new ALM_Post_Sync();
+                    $sync->sync_lesson_to_post($lesson_id);
+                }
             }
         }
         
-        wp_redirect($this->build_redirect_url('bulk_lesson_level_updated'));
+        wp_safe_redirect($this->build_redirect_url('bulk_lesson_level_updated'));
         exit;
     }
     
@@ -4234,9 +4416,9 @@ class ALM_Admin_Lessons {
             'show_archived' => isset($_POST['preserve_show_archived']) ? (bool)$_POST['preserve_show_archived'] : (isset($_GET['show_archived']) ? (bool)$_GET['show_archived'] : false),
         );
         
-        // Add non-empty filters
+        // Add non-empty filters (allow 0 for membership_level and other numeric filters)
         foreach ($filters as $key => $value) {
-            if (!empty($value) || ($key === 'search' && $value !== '')) {
+            if (!empty($value) || ($key === 'search' && $value !== '') || ($key === 'membership_level' && $value === 0) || ($key === 'hide_unassigned' && $value === true) || ($key === 'show_archived' && $value === true)) {
                 $params[$key] = $value;
             }
         }
@@ -4247,5 +4429,96 @@ class ALM_Admin_Lessons {
         }
         
         return admin_url('admin.php?' . http_build_query($params));
+    }
+    
+    /**
+     * Combine all VTT files for a lesson into plain text
+     * 
+     * @param int $lesson_id Lesson ID
+     * @return string Combined transcript text
+     */
+    public function combine_lesson_vtt_files($lesson_id) {
+        $chapters_table = $this->database->get_table_name('chapters');
+        $transcripts_table = $this->database->get_table_name('transcripts');
+        
+        // Get all chapters for this lesson
+        $chapters = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT ID, chapter_title, menu_order FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
+            $lesson_id
+        ));
+        
+        if (empty($chapters)) {
+            return '';
+        }
+        
+        $combined_text = '';
+        $upload_dir = wp_upload_dir();
+        $vtt_dir = $upload_dir['basedir'] . '/alm_transcriptions';
+        
+        foreach ($chapters as $chapter) {
+            // Try to get VTT filename from transcripts table first
+            // Check if vtt_file column exists first
+            $vtt_file = null;
+            $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$transcripts_table} LIKE 'vtt_file'");
+            if (!empty($column_exists)) {
+                $vtt_file = $this->wpdb->get_var($this->wpdb->prepare(
+                    "SELECT vtt_file FROM {$transcripts_table} WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+                    $chapter->ID
+                ));
+            }
+            
+            // Fallback to default naming convention
+            if (empty($vtt_file)) {
+                $vtt_file = 'chapter-' . $chapter->ID . '.vtt';
+            }
+            
+            $vtt_path = $vtt_dir . '/' . $vtt_file;
+            
+            if (file_exists($vtt_path)) {
+                $vtt_content = file_get_contents($vtt_path);
+                if ($vtt_content !== false) {
+                    // Extract text from VTT (remove timestamps and WEBVTT header)
+                    $text = $this->extract_text_from_vtt($vtt_content);
+                    if (!empty($text)) {
+                        $combined_text .= "## " . stripslashes($chapter->chapter_title) . "\n\n";
+                        $combined_text .= $text . "\n\n";
+                    }
+                }
+            }
+        }
+        
+        return trim($combined_text);
+    }
+    
+    /**
+     * Extract plain text from VTT content (removes timestamps and formatting)
+     * 
+     * @param string $vtt_content VTT file content
+     * @return string Plain text
+     */
+    private function extract_text_from_vtt($vtt_content) {
+        $lines = explode("\n", $vtt_content);
+        $text_lines = array();
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Skip empty lines, WEBVTT header, and timestamp lines
+            if (empty($line) || 
+                $line === 'WEBVTT' || 
+                preg_match('/^\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}/', $line) ||
+                preg_match('/^NOTE\s+/', $line)) {
+                continue;
+            }
+            
+            // Remove VTT formatting tags like <c>, <v>, etc.
+            $line = preg_replace('/<[^>]+>/', '', $line);
+            
+            if (!empty($line)) {
+                $text_lines[] = $line;
+            }
+        }
+        
+        return implode(' ', $text_lines);
     }
 }

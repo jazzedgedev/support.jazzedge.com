@@ -449,6 +449,10 @@ class ALM_Admin_Collections {
         echo '<select id="membership_level" name="membership_level" required>';
         $membership_levels = ALM_Admin_Settings::get_membership_levels();
         foreach ($membership_levels as $key => $level) {
+            // Skip Free (0) level - starter program access is handled via whitelist
+            if ($level['numeric'] == 0) {
+                continue;
+            }
             $selected = ($level['numeric'] == intval($collection->membership_level)) ? 'selected' : '';
             echo '<option value="' . esc_attr($level['numeric']) . '" ' . $selected . '>' . esc_html($level['name']) . ' (' . $level['numeric'] . ') - ' . esc_html($level['description']) . '</option>';
         }
@@ -609,7 +613,7 @@ class ALM_Admin_Collections {
                 }
                 echo '</td>';
                 echo '<td>';
-                echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '" class="button button-small">' . __('Edit', 'academy-lesson-manager') . '</a> ';
+                echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '" class="button button-small" target="_blank">' . __('Edit', 'academy-lesson-manager') . '</a> ';
                 echo '<a href="?page=academy-manager-lessons&action=remove_from_collection&id=' . $lesson->ID . '&collection_id=' . $collection_id . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to remove this lesson from the collection?', 'academy-lesson-manager') . '\')">' . __('Remove', 'academy-lesson-manager') . '</a>';
                 echo '</td>';
                 echo '</tr>';

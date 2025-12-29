@@ -218,6 +218,7 @@ class Katahdin_AI_Hub {
         add_option('katahdin_ai_hub_debug_mode', false);
         add_option('katahdin_ai_hub_usage_limit', 10000); // Monthly limit
         add_option('katahdin_ai_hub_rate_limit', 60); // Requests per minute
+        add_option('katahdin_ai_hub_enable_logging', 1); // Enable logging by default
         
         // Flush rewrite rules
         flush_rewrite_rules();

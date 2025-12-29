@@ -29,6 +29,12 @@ class Academy_Lesson_Manager {
      * Constructor
      */
     public function __construct() {
+        // Include membership checker early so functions are available
+        require_once ALM_PLUGIN_DIR . 'includes/class-membership-checker.php';
+        if (class_exists('ALM_Membership_Checker')) {
+            ALM_Membership_Checker::init();
+        }
+        
         // Register AJAX handlers immediately - these need to be available for both admin and frontend
         // Register on both constructor and init to ensure they're available
         add_action('init', array($this, 'register_ajax_handlers'), 5);
@@ -46,6 +52,7 @@ class Academy_Lesson_Manager {
         add_action('wp_ajax_alm_toggle_resource_favorite', array($this, 'ajax_toggle_resource_favorite'));
         add_action('wp_ajax_alm_update_favorites_order', array($this, 'ajax_update_favorites_order'));
         add_action('wp_ajax_alm_delete_favorite', array($this, 'ajax_delete_favorite'));
+        add_action('wp_ajax_alm_delete_all_favorites', array($this, 'ajax_delete_all_favorites'));
     }
     
     /**
@@ -112,6 +119,10 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-notifications.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-notifications.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-teachers.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-credit-log.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-membership-checker.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-whisper-client.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-vtt-generator.php';
     }
     
     /**
@@ -130,6 +141,9 @@ class Academy_Lesson_Manager {
         // Add AJAX handler for Bunny.net metadata fetching
         add_action('wp_ajax_alm_fetch_bunny_metadata', array($this, 'ajax_fetch_bunny_metadata'));
         
+        // Add AJAX handler for Vimeo metadata fetching
+        add_action('wp_ajax_alm_fetch_vimeo_metadata', array($this, 'ajax_fetch_vimeo_metadata'));
+        
         // Add AJAX handler for testing Bunny.net connection
         add_action('wp_ajax_alm_test_bunny_connection', array($this, 'ajax_test_bunny_connection'));
         
@@ -143,6 +157,27 @@ class Academy_Lesson_Manager {
         // Add AJAX handler for calculating lesson duration from chapters
         add_action('wp_ajax_alm_calculate_lesson_duration', array($this, 'ajax_calculate_lesson_duration'));
         
+        // Add AJAX handlers for transcription
+        add_action('wp_ajax_alm_transcribe_chapter', array($this, 'ajax_transcribe_chapter'));
+        add_action('wp_ajax_alm_check_transcription_status', array($this, 'ajax_check_transcription_status'));
+        add_action('wp_ajax_alm_check_vtt_file', array($this, 'ajax_check_vtt_file'));
+        add_action('wp_ajax_alm_sync_vtt_file', array($this, 'ajax_sync_vtt_file'));
+        add_action('wp_ajax_alm_clear_transcription_status', array($this, 'ajax_clear_transcription_status'));
+        add_action('wp_ajax_alm_trigger_transcription', array($this, 'ajax_trigger_transcription'));
+        add_action('wp_ajax_nopriv_alm_trigger_transcription', array($this, 'ajax_trigger_transcription')); // Allow non-logged-in for background trigger
+        
+        // Add AJAX handler for AI description generation
+        add_action('wp_ajax_alm_generate_lesson_description', array($this, 'ajax_generate_lesson_description'));
+        
+        // Add AJAX handler for getting combined lesson transcript
+        add_action('wp_ajax_alm_get_lesson_transcript', array($this, 'ajax_get_lesson_transcript'));
+        
+        // Add scheduled event for background transcription
+        add_action('alm_run_transcription', array($this, 'run_transcription_background'), 10, 2);
+        
+        // Add AJAX handler to manually trigger transcription (for WPEngine compatibility)
+        add_action('wp_ajax_alm_trigger_transcription', array($this, 'ajax_trigger_transcription'));
+        
         // Add AJAX handler for calculating all chapter durations from Bunny API
         add_action('wp_ajax_alm_calculate_all_bunny_durations', array($this, 'ajax_calculate_all_bunny_durations'));
         
@@ -151,6 +186,10 @@ class Academy_Lesson_Manager {
         
         // Add AJAX handlers for collection-level duration calculation
         add_action('wp_ajax_alm_calculate_collection_bunny_durations', array($this, 'ajax_calculate_collection_bunny_durations'));
+        
+        // Add AJAX handlers for credit log admin
+        add_action('wp_ajax_alm_search_users', array($this, 'ajax_search_users'));
+        add_action('wp_ajax_alm_search_posts', array($this, 'ajax_search_posts'));
         add_action('wp_ajax_alm_calculate_collection_vimeo_durations', array($this, 'ajax_calculate_collection_vimeo_durations'));
         
         // Add AJAX handler for syncing all lessons in a collection
@@ -170,9 +209,16 @@ class Academy_Lesson_Manager {
         add_action('wp_ajax_alm_set_intro_sample', array($this, 'ajax_set_intro_sample'));
         add_action('wp_ajax_alm_set_shortest_sample', array($this, 'ajax_set_shortest_sample'));
         
+        // Add AJAX handlers for webhook
+        add_action('wp_ajax_alm_get_webhook_logs', array($this, 'ajax_get_webhook_logs'));
+        add_action('wp_ajax_alm_clear_webhook_logs', array($this, 'ajax_clear_webhook_logs'));
+        
         // Add WordPress hooks for reverse sync
         add_action('save_post', array($this, 'handle_post_save'));
         add_action('delete_post', array($this, 'handle_post_delete'));
+        
+        // Ensure files are included (safety check for AJAX requests)
+        $this->include_files();
         
         // Initialize admin classes
         new ALM_Admin_Collections();
@@ -184,7 +230,10 @@ class Academy_Lesson_Manager {
         new ALM_Admin_Essentials_Users();
         new ALM_Admin_Membership_Pricing();
         new ALM_Admin_Notifications();
-        new ALM_Admin_Teachers();
+        if (class_exists('ALM_Admin_Teachers')) {
+            new ALM_Admin_Teachers();
+        }
+        new ALM_Admin_Lesson_Samples(); // Initialize early so hooks fire
     }
     
     /**
@@ -259,8 +308,8 @@ class Academy_Lesson_Manager {
         
         add_submenu_page(
             'academy-manager',
-            __('Lesson Samples Manager', 'academy-lesson-manager'),
-            __('Lesson Samples Manager', 'academy-lesson-manager'),
+            __('Lesson Samples', 'academy-lesson-manager'),
+            __('Lesson Samples', 'academy-lesson-manager'),
             'manage_options',
             'academy-manager-lesson-samples',
             array($this, 'admin_page_lesson_samples')
@@ -273,6 +322,15 @@ class Academy_Lesson_Manager {
             'manage_options',
             'academy-manager-teachers',
             array($this, 'admin_page_teachers')
+        );
+        
+        add_submenu_page(
+            'academy-manager',
+            __('Credit Log', 'academy-lesson-manager'),
+            __('Credit Log', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-credit-log',
+            array($this, 'admin_page_credit_log')
         );
     }
     
@@ -320,8 +378,188 @@ class Academy_Lesson_Manager {
     }
     
     public function admin_page_teachers() {
+        // Ensure files are included (safety check for AJAX requests)
+        $this->include_files();
+        
+        if (!class_exists('ALM_Admin_Teachers')) {
+            wp_die(__('ALM_Admin_Teachers class not found. Please ensure the plugin files are properly loaded.', 'academy-lesson-manager'));
+        }
+        
         $admin_teachers = new ALM_Admin_Teachers();
         $admin_teachers->render_page();
+    }
+    
+    public function admin_page_credit_log() {
+        $admin_credit_log = new ALM_Admin_Credit_Log();
+        $admin_credit_log->render_page();
+    }
+    
+    /**
+     * AJAX handler for searching users
+     */
+    public function ajax_search_users() {
+        check_ajax_referer('alm_search_users', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $query = isset($_POST['query']) ? sanitize_text_field($_POST['query']) : '';
+        
+        if (strlen($query) < 2) {
+            wp_send_json_success(array());
+        }
+        
+        global $wpdb;
+        
+        $users = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID, user_login, user_email, display_name 
+             FROM {$wpdb->users} 
+             WHERE user_login LIKE %s OR user_email LIKE %s OR display_name LIKE %s 
+             ORDER BY display_name ASC 
+             LIMIT 20",
+            '%' . $wpdb->esc_like($query) . '%',
+            '%' . $wpdb->esc_like($query) . '%',
+            '%' . $wpdb->esc_like($query) . '%'
+        ));
+        
+        $results = array();
+        foreach ($users as $user) {
+            $results[] = array(
+                'ID' => $user->ID,
+                'user_login' => $user->user_login,
+                'user_email' => $user->user_email,
+                'display_name' => $user->display_name
+            );
+        }
+        
+        wp_send_json_success($results);
+    }
+    
+    /**
+     * AJAX handler for searching posts/lessons
+     * Searches the alm_lessons table to get the correct post_id
+     * Also searches by collection title and allows adding entire collections
+     */
+    public function ajax_search_posts() {
+        check_ajax_referer('alm_search_posts', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $query = isset($_POST['query']) ? sanitize_text_field($_POST['query']) : '';
+        $search_type = isset($_POST['search_type']) ? sanitize_text_field($_POST['search_type']) : 'lesson'; // 'lesson' or 'collection'
+        
+        if (strlen($query) < 2) {
+            wp_send_json_success(array());
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $lessons_table = $database->get_table_name('lessons');
+        $collections_table = $database->get_table_name('collections');
+        
+        $results = array();
+        
+        if ($search_type === 'collection') {
+            // Search collections
+            $collections = $wpdb->get_results($wpdb->prepare(
+                "SELECT c.ID, c.collection_title, c.post_id 
+                 FROM {$collections_table} c
+                 WHERE c.collection_title LIKE %s 
+                 ORDER BY c.collection_title ASC 
+                 LIMIT 20",
+                '%' . $wpdb->esc_like($query) . '%'
+            ));
+            
+            foreach ($collections as $collection) {
+                // Get all lessons in this collection with their post_ids
+                // IMPORTANT: Use the post_id from alm_lessons table - this is what shows on the edit page
+                $lessons_in_collection = $wpdb->get_results($wpdb->prepare(
+                    "SELECT l.ID as lesson_id, l.lesson_title, l.post_id 
+                     FROM {$lessons_table} l
+                     WHERE l.collection_id = %d AND l.post_id > 0
+                     ORDER BY l.ID DESC",
+                    $collection->ID
+                ));
+                
+                $lesson_count = count($lessons_in_collection);
+                $post_ids = array();
+                $lessons_data = array();
+                
+                foreach ($lessons_in_collection as $l) {
+                    $post_id = intval($l->post_id);
+                    $lesson_id = intval($l->lesson_id);
+                    
+                    // Verify post exists and matches
+                    $post = get_post($post_id);
+                    if ($post_id > 0 && $post) {
+                        $post_ids[] = $post_id;
+                        $lessons_data[] = array(
+                            'lesson_id' => $lesson_id,
+                            'post_id' => $post_id,
+                            'lesson_title' => $l->lesson_title,
+                            'post_title' => $post->post_title
+                        );
+                    } else {
+                        // Log if post doesn't exist but post_id is set
+                        error_log("Credit Log Debug: Lesson ID {$lesson_id} has post_id {$post_id} but post doesn't exist");
+                    }
+                }
+                
+                $results[] = array(
+                    'ID' => 0, // Collection, not a single post
+                    'post_title' => $collection->collection_title,
+                    'collection_id' => $collection->ID,
+                    'collection_title' => $collection->collection_title,
+                    'is_collection' => true,
+                    'lesson_count' => count($post_ids), // Use actual count of valid posts
+                    'post_ids' => $post_ids,
+                    'lessons_data' => $lessons_data, // Include full lesson data for better display
+                    'display_title' => $collection->collection_title . ' (' . count($post_ids) . ' lessons)'
+                );
+            }
+        } else {
+            // Search lessons (default)
+            $lessons = $wpdb->get_results($wpdb->prepare(
+                "SELECT l.ID, l.lesson_title, l.post_id, l.collection_id, c.collection_title
+                 FROM {$lessons_table} l
+                 LEFT JOIN {$collections_table} c ON l.collection_id = c.ID
+                 WHERE l.lesson_title LIKE %s 
+                 ORDER BY c.collection_title ASC, l.lesson_title ASC 
+                 LIMIT 50",
+                '%' . $wpdb->esc_like($query) . '%'
+            ));
+            
+            foreach ($lessons as $lesson) {
+                // Use post_id from alm_lessons table (this is the correct post_id shown on edit page)
+                $post_id = intval($lesson->post_id);
+                $post_title = $lesson->lesson_title;
+                
+                // If post_id exists, get the actual post title for display
+                if ($post_id > 0) {
+                    $post = get_post($post_id);
+                    if ($post) {
+                        $post_title = $post->post_title;
+                    }
+                }
+                
+                $collection_name = $lesson->collection_title ? $lesson->collection_title : 'No Collection';
+                
+                $results[] = array(
+                    'ID' => $post_id, // This is the post_id that should be used in credit log
+                    'post_title' => $post_title,
+                    'lesson_id' => $lesson->ID, // Include lesson ID for reference
+                    'collection_id' => $lesson->collection_id,
+                    'collection_title' => $collection_name,
+                    'is_collection' => false,
+                    'display_title' => $lesson->lesson_title . ($post_id > 0 ? ' (Post ID: ' . $post_id . ')' : ' (No Post ID)') . ' - ' . $collection_name
+                );
+            }
+        }
+        
+        wp_send_json_success($results);
     }
     
     /**
@@ -565,6 +803,70 @@ class Academy_Lesson_Manager {
                         }
                     });
                 });
+                
+                // Vimeo metadata fetching
+                $(".fetch-vimeo-metadata").on("click", function(e) {
+                    e.preventDefault();
+                    
+                    var $button = $(this);
+                    var $vimeoField = $button.siblings("input[name=\'vimeo_id\']");
+                    var $durationField = $("input[name=\'duration\']");
+                    var vimeoId = $vimeoField.val();
+                    
+                    if (!vimeoId) {
+                        alert("Please enter a Vimeo ID first.");
+                        return;
+                    }
+                    
+                    $button.prop("disabled", true).text("Fetching...");
+                    
+                    $.ajax({
+                        url: ajaxurl,
+                        type: "POST",
+                        data: {
+                            action: "alm_fetch_vimeo_metadata",
+                            vimeo_id: vimeoId,
+                            nonce: alm_admin.nonce
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                var data = response.data;
+                                var updates = [];
+                                
+                                // Update duration field
+                                if (data.duration > 0) {
+                                    $durationField.val(data.duration);
+                                    
+                                    // Update duration display
+                                    var hours = Math.floor(data.duration / 3600);
+                                    var minutes = Math.floor((data.duration % 3600) / 60);
+                                    var seconds = data.duration % 60;
+                                    var formatted = String(hours).padStart(2, "0") + ":" + 
+                                                   String(minutes).padStart(2, "0") + ":" + 
+                                                   String(seconds).padStart(2, "0");
+                                    $durationField.next(".description").text("(" + formatted + ")");
+                                    updates.push("Duration: " + Math.floor(data.duration / 60) + " minutes");
+                                }
+                                
+                                // Show success message with all updates
+                                var message = "Video metadata fetched successfully! " + updates.join(", ");
+                                $("<div class=\"notice notice-success is-dismissible\"><p>" + message + "</p></div>")
+                                    .insertAfter($button.closest("tr"))
+                                    .delay(3000)
+                                    .fadeOut();
+                            } else {
+                                alert("Error: " + response.data);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", xhr, status, error);
+                            alert("Error fetching video metadata. Please check the Vimeo ID.");
+                        },
+                        complete: function() {
+                            $button.prop("disabled", false).text("Fetch Metadata");
+                        }
+                    });
+                });
             });
         ');
         
@@ -730,6 +1032,50 @@ class Academy_Lesson_Manager {
                         },
                         complete: function() {
                             $button.prop("disabled", false).text("Calculate All Vimeo Durations");
+                        }
+                    });
+                });
+                
+                // Handle "Find VTT File" button click
+                $("#alm-sync-vtt-file").on("click", function() {
+                    var $button = $(this);
+                    var chapterId = $button.data("chapter-id");
+                    var lessonId = $button.data("lesson-id");
+                    var $status = $("#alm-sync-vtt-status");
+                    var $input = $("#transcript_file");
+                    
+                    if (!chapterId || !lessonId) {
+                        alert("Error: Missing chapter or lesson ID");
+                        return;
+                    }
+                    
+                    $button.prop("disabled", true).text("Searching...");
+                    $status.html("");
+                    
+                    $.ajax({
+                        url: alm_admin.ajax_url,
+                        type: "POST",
+                        data: {
+                            action: "alm_sync_vtt_file",
+                            chapter_id: chapterId,
+                            lesson_id: lessonId,
+                            nonce: alm_admin.nonce
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Update the input field with the filename
+                                $input.val(response.data.vtt_filename);
+                                $status.html("<span style=\"color: #46b450; font-weight: bold;\">✓ " + response.data.message + "</span>");
+                                $button.prop("disabled", false).text("Find VTT File");
+                            } else {
+                                $status.html("<span style=\"color: #dc3232;\">✗ " + (response.data && response.data.message ? response.data.message : "Error finding VTT file") + "</span>");
+                                $button.prop("disabled", false).text("Find VTT File");
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", xhr, status, error);
+                            $status.html("<span style=\"color: #dc3232;\">✗ Error: " + error + "</span>");
+                            $button.prop("disabled", false).text("Find VTT File");
                         }
                     });
                 });
@@ -1356,6 +1702,36 @@ class Academy_Lesson_Manager {
         
         if (!$video_info) {
             wp_send_json_error('Could not fetch video metadata. Please check the URL and API configuration.');
+        }
+        
+        wp_send_json_success($video_info);
+    }
+    
+    /**
+     * AJAX handler for fetching Vimeo metadata
+     */
+    public function ajax_fetch_vimeo_metadata() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'alm_admin_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+        }
+        
+        $vimeo_id = sanitize_text_field($_POST['vimeo_id']);
+        
+        if (empty($vimeo_id)) {
+            wp_send_json_error('Vimeo ID is required');
+        }
+        
+        $vimeo_api = new ALM_Vimeo_API();
+        $video_info = $vimeo_api->get_video_info($vimeo_id);
+        
+        if (!$video_info) {
+            wp_send_json_error('Could not fetch video metadata. Please check the Vimeo ID.');
         }
         
         wp_send_json_success($video_info);
@@ -2350,6 +2726,79 @@ class Academy_Lesson_Manager {
     }
     
     /**
+     * AJAX handler for deleting all favorites for the current user
+     */
+    public function ajax_delete_all_favorites() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'alm_favorites_nonce')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $table_type = isset($_POST['table_type']) ? sanitize_text_field($_POST['table_type']) : '';
+        
+        global $wpdb;
+        
+        // Determine table name based on table_type
+        if ($table_type === 'jph') {
+            $table_name = $wpdb->prefix . 'jph_lesson_favorites';
+        } elseif ($table_type === 'jf') {
+            $table_name = $wpdb->prefix . 'jf_favorites';
+        } else {
+            // Default fallback - try jph first
+            $jph_table = $wpdb->prefix . 'jph_lesson_favorites';
+            $jf_table = $wpdb->prefix . 'jf_favorites';
+            
+            $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $jph_table));
+            if ($exists) {
+                $table_name = $jph_table;
+            } else {
+                $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $jf_table));
+                if ($exists) {
+                    $table_name = $jf_table;
+                } else {
+                    wp_send_json_error('Favorites table not found');
+                    return;
+                }
+            }
+        }
+        
+        // Get current user ID
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+            return;
+        }
+        
+        // Delete all favorites for this user
+        // For jf table, we set is_active to 0 instead of deleting
+        if ($table_type === 'jf') {
+            $deleted = $wpdb->update(
+                $table_name,
+                array('is_active' => 0),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+        } else {
+            // For jph table, delete the records
+            $deleted = $wpdb->delete(
+                $table_name,
+                array('user_id' => $user_id),
+                array('%d')
+            );
+        }
+        
+        if ($deleted !== false) {
+            wp_send_json_success(array(
+                'message' => 'All favorites deleted successfully',
+                'deleted_count' => $deleted
+            ));
+        } else {
+            wp_send_json_error('Failed to delete favorites');
+        }
+    }
+    
+    /**
      * AJAX handler for toggling resource favorites
      */
     public function ajax_toggle_resource_favorite() {
@@ -2761,6 +3210,777 @@ class Academy_Lesson_Manager {
         $timestamp = wp_next_scheduled('alm_check_essentials_selections');
         if ($timestamp) {
             wp_unschedule_event($timestamp, 'alm_check_essentials_selections');
+        }
+    }
+    
+    /**
+     * AJAX handler for getting webhook logs
+     */
+    public function ajax_get_webhook_logs() {
+        check_ajax_referer('alm_webhook_settings', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        require_once ALM_PLUGIN_DIR . 'includes/class-zoom-webhook.php';
+        $webhook = new ALM_Zoom_Webhook();
+        
+        $logs = $webhook->get_debug_logs();
+        
+        wp_send_json_success($logs);
+    }
+    
+    /**
+     * AJAX handler for clearing webhook logs
+     */
+    public function ajax_clear_webhook_logs() {
+        check_ajax_referer('alm_webhook_settings', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        require_once ALM_PLUGIN_DIR . 'includes/class-zoom-webhook.php';
+        $webhook = new ALM_Zoom_Webhook();
+        
+        $webhook->clear_debug_logs();
+        
+        wp_send_json_success(array('message' => __('Logs cleared successfully.', 'academy-lesson-manager')));
+    }
+    
+    /**
+     * AJAX handler for transcribing a chapter
+     */
+    public function ajax_transcribe_chapter() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        
+        if (!$chapter_id) {
+            wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $chapters_table = $database->get_table_name('chapters');
+        
+        // Get chapter
+        $chapter = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$chapters_table} WHERE ID = %d",
+            $chapter_id
+        ));
+        
+        if (!$chapter) {
+            wp_send_json_error(array('message' => __('Chapter not found.', 'academy-lesson-manager')));
+        }
+        
+        if (empty($chapter->mp3_file_url)) {
+            wp_send_json_error(array('message' => __('No MP3 file uploaded for this chapter.', 'academy-lesson-manager')));
+        }
+        
+        // Get MP3 file path
+        $upload_dir = wp_upload_dir();
+        $mp3_path = $upload_dir['basedir'] . '/alm_mp3s/' . $chapter->mp3_file_url;
+        
+        if (!file_exists($mp3_path)) {
+            wp_send_json_error(array('message' => __('MP3 file not found on server.', 'academy-lesson-manager')));
+        }
+        
+        // Set status to processing (this will set start_time)
+        $this->update_transcription_status($chapter_id, 'processing', 'Starting transcription...', 5);
+        
+        // Clean any output buffers first
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Send response manually (don't use wp_send_json_success as it calls wp_die())
+        // Set proper headers
+        if (!headers_sent()) {
+            status_header(200);
+            nocache_headers();
+            header('Content-Type: application/json; charset=' . get_option('blog_charset'));
+        }
+        
+        // Output JSON response
+        $response = wp_json_encode(array(
+            'success' => true,
+            'data' => array(
+                'message' => __('Transcription started. Processing...', 'academy-lesson-manager'),
+                'chapter_id' => $chapter_id
+            )
+        ));
+        
+        echo $response;
+        
+        // Close connection to browser so it doesn't wait
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            // Fallback for non-FastCGI environments
+            if (ob_get_level()) {
+                ob_end_flush();
+            }
+            flush();
+        }
+        
+        // Set time limits and run transcription after response is sent
+        ignore_user_abort(true);
+        set_time_limit(600); // 10 minutes
+        
+        // Log that we're starting the transcription process
+        error_log(sprintf(
+            'ALM Transcription [Chapter %d]: Starting transcription process after sending response. MP3: %s',
+            $chapter_id,
+            basename($mp3_path)
+        ));
+        
+        // Run transcription (process continues after response is sent)
+        $this->transcribe_chapter($chapter_id, $mp3_path);
+    }
+    
+    /**
+     * AJAX handler for checking transcription status
+     */
+    public function ajax_check_transcription_status() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        
+        if (!$chapter_id) {
+            wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
+        }
+        
+        $status = get_transient('alm_transcription_status_' . $chapter_id);
+        
+        // Check if MP3 file has been deleted (indicates transcription completed)
+        // If status is still "processing" but MP3 is gone, transcription likely completed
+        global $wpdb;
+        $database = new ALM_Database();
+        $chapters_table = $database->get_table_name('chapters');
+        $chapter = $wpdb->get_row($wpdb->prepare(
+            "SELECT mp3_file_url FROM {$chapters_table} WHERE ID = %d",
+            $chapter_id
+        ));
+        
+        $mp3_deleted = $chapter && empty($chapter->mp3_file_url);
+        
+        // If MP3 is deleted and status is processing, mark as completed
+        if ($mp3_deleted && $status && isset($status['status']) && $status['status'] === 'processing') {
+            $status['status'] = 'completed';
+            $status['message'] = 'Transcription completed successfully!';
+            $status['progress'] = 100;
+            // Update the transient
+            set_transient('alm_transcription_status_' . $chapter_id, $status, 3600);
+        }
+        
+        if (!$status) {
+            wp_send_json_error(array('message' => __('No transcription status found.', 'academy-lesson-manager')));
+        }
+        
+        // Calculate elapsed time
+        $elapsed = 0;
+        if (isset($status['start_time'])) {
+            $elapsed = time() - $status['start_time'];
+        }
+        
+        // Add elapsed time and last update info to response
+        $status['elapsed'] = $elapsed;
+        $status['last_update'] = isset($status['last_update']) ? $status['last_update'] : (isset($status['timestamp']) ? $status['timestamp'] : time());
+        
+        // Include debug log if available
+        if (isset($status['debug_log'])) {
+            $status['debug_log'] = $status['debug_log'];
+        }
+        
+        wp_send_json_success($status);
+    }
+    
+    /**
+     * AJAX handler for clearing stuck transcription status
+     */
+    public function ajax_clear_transcription_status() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        
+        if (!$chapter_id) {
+            wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
+        }
+        
+        // Clear the status transient
+        delete_transient('alm_transcription_status_' . $chapter_id);
+        
+        wp_send_json_success(array('message' => __('Status cleared. You can now retry transcription.', 'academy-lesson-manager')));
+    }
+    
+    /**
+     * AJAX handler for checking if VTT file exists
+     */
+    public function ajax_check_vtt_file() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        
+        if (!$chapter_id) {
+            wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
+        }
+        
+        // Check if VTT file exists
+        $upload_dir = wp_upload_dir();
+        $vtt_dir = $upload_dir['basedir'] . '/alm_transcriptions';
+        $vtt_filename = 'chapter-' . $chapter_id . '.vtt';
+        $vtt_path = $vtt_dir . '/' . $vtt_filename;
+        
+        $exists = file_exists($vtt_path);
+        
+        wp_send_json_success(array(
+            'exists' => $exists,
+            'vtt_path' => $vtt_path,
+            'vtt_filename' => $vtt_filename
+        ));
+    }
+    
+    /**
+     * AJAX handler for syncing VTT file from filesystem to database
+     */
+    public function ajax_sync_vtt_file() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        
+        if (!$chapter_id || !$lesson_id) {
+            wp_send_json_error(array('message' => __('Invalid chapter or lesson ID.', 'academy-lesson-manager')));
+        }
+        
+        global $wpdb;
+        $transcripts_table = $wpdb->prefix . 'alm_transcripts';
+        
+        // Check if VTT file exists
+        $upload_dir = wp_upload_dir();
+        $vtt_dir = $upload_dir['basedir'] . '/alm_transcriptions';
+        $vtt_filename = 'chapter-' . $chapter_id . '.vtt';
+        $vtt_path = $vtt_dir . '/' . $vtt_filename;
+        
+        if (!file_exists($vtt_path)) {
+            wp_send_json_error(array('message' => __('VTT file not found: ' . $vtt_filename, 'academy-lesson-manager')));
+        }
+        
+        // Read VTT content to extract plain text
+        $vtt_content = file_get_contents($vtt_path);
+        if ($vtt_content === false) {
+            wp_send_json_error(array('message' => __('Could not read VTT file.', 'academy-lesson-manager')));
+        }
+        
+        // Extract plain text from VTT
+        $transcript_text = $this->extract_text_from_vtt($vtt_content);
+        
+        // Check if transcript already exists
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT ID FROM {$transcripts_table} WHERE chapter_id = %d AND (source = 'whisper' OR source = 'zoom') LIMIT 1",
+            $chapter_id
+        ));
+        
+        if ($existing) {
+            // Update existing transcript
+            $wpdb->update(
+                $transcripts_table,
+                array(
+                    'vtt_file' => $vtt_filename,
+                    'content' => $transcript_text,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('ID' => $existing->ID),
+                array('%s', '%s', '%s'),
+                array('%d')
+            );
+        } else {
+            // Create new transcript record
+            $wpdb->insert(
+                $transcripts_table,
+                array(
+                    'lesson_id' => $lesson_id,
+                    'chapter_id' => $chapter_id,
+                    'source' => 'zoom',
+                    'vtt_file' => $vtt_filename,
+                    'content' => $transcript_text,
+                    'created_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql')
+                ),
+                array('%d', '%d', '%s', '%s', '%s', '%s', '%s')
+            );
+        }
+        
+        wp_send_json_success(array(
+            'vtt_filename' => $vtt_filename,
+            'message' => __('VTT file synced successfully!', 'academy-lesson-manager')
+        ));
+    }
+    
+    /**
+     * Extract plain text from VTT content (removes timestamps and formatting)
+     * 
+     * @param string $vtt_content VTT file content
+     * @return string Plain text transcript
+     */
+    private function extract_text_from_vtt($vtt_content) {
+        $lines = explode("\n", $vtt_content);
+        $text_lines = array();
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Skip empty lines, WEBVTT header, and timestamp lines
+            if (empty($line) || 
+                $line === 'WEBVTT' || 
+                preg_match('/^\d{2}:\d{2}:\d{2}/', $line) || 
+                preg_match('/^-->$/', $line)) {
+                continue;
+            }
+            
+            // Remove VTT formatting tags like <c>, <v>, etc.
+            $line = preg_replace('/<[^>]+>/', '', $line);
+            
+            if (!empty($line)) {
+                $text_lines[] = $line;
+            }
+        }
+        
+        return implode(' ', $text_lines);
+    }
+    
+    /**
+     * Transcribe a chapter
+     * 
+     * @param int $chapter_id Chapter ID
+     * @param string $mp3_path Path to MP3 file
+     */
+    private function transcribe_chapter($chapter_id, $mp3_path) {
+        $this->update_transcription_status($chapter_id, 'processing', 'Initializing transcription...', 15);
+        
+        try {
+            global $wpdb;
+            $database = new ALM_Database();
+            $chapters_table = $database->get_table_name('chapters');
+            
+            // Get chapter
+            $this->update_transcription_status($chapter_id, 'processing', 'Loading chapter data from database...', 16);
+            $chapter = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$chapters_table} WHERE ID = %d",
+                $chapter_id
+            ));
+            
+            if (!$chapter) {
+                $this->update_transcription_status($chapter_id, 'failed', 'Chapter not found', 0);
+                return;
+            }
+            
+            $this->update_transcription_status($chapter_id, 'processing', 'Validating MP3 file...', 20);
+            
+            // Check if file exists
+            if (!file_exists($mp3_path)) {
+                $this->update_transcription_status($chapter_id, 'failed', 'MP3 file not found: ' . $mp3_path, 0);
+                return;
+            }
+            
+            $file_size = filesize($mp3_path);
+            $file_size_mb = round($file_size / 1024 / 1024, 2);
+            $this->update_transcription_status($chapter_id, 'processing', sprintf('MP3 file found: %.2f MB', $file_size_mb), 21);
+            
+            // Validate file
+            $whisper_client = new ALM_Whisper_Client();
+            $this->update_transcription_status($chapter_id, 'processing', 'Running file validation checks...', 22);
+            $validation = $whisper_client->validate_file($mp3_path);
+            
+            if (!$validation['success']) {
+                $this->update_transcription_status($chapter_id, 'failed', $validation['message'], 0);
+                return;
+            }
+            
+            $this->update_transcription_status($chapter_id, 'processing', sprintf('File validated: %.2f MB, %.1f min', $validation['file_size_mb'], $validation['duration_minutes']), 25);
+            
+            $this->update_transcription_status($chapter_id, 'processing', 'Preparing to upload to Whisper API...', 30);
+            
+            // Transcribe
+            $self = $this;
+            $api_start_time = time();
+            $this->update_transcription_status($chapter_id, 'processing', 'Calling Whisper API (this may take 5-15 minutes)...', 35);
+            
+            $result = $whisper_client->transcribe_file($mp3_path, $chapter_id, 3, function($status, $message) use ($chapter_id, $self, $api_start_time) {
+                $elapsed = time() - $api_start_time;
+                $progress = $status === 'processing' ? min(50 + ($elapsed / 60), 75) : ($status === 'failed' ? 0 : 100);
+                $self->update_transcription_status($chapter_id, $status, $message . ' (API elapsed: ' . $elapsed . 's)', $progress);
+            });
+            
+            if (!$result['success']) {
+                $this->update_transcription_status($chapter_id, 'failed', $result['message'], 0);
+                return;
+            }
+            
+            $this->update_transcription_status($chapter_id, 'processing', 'API response received! Processing transcript data...', 80);
+            
+            if (empty($result['text'])) {
+                $this->update_transcription_status($chapter_id, 'failed', 'API returned empty transcript', 0);
+                return;
+            }
+            
+            $this->update_transcription_status($chapter_id, 'processing', sprintf('Transcript received: %d characters', strlen($result['text'])), 82);
+            
+            $this->update_transcription_status($chapter_id, 'processing', 'Saving transcript to database...', 85);
+        
+        // Save transcript to database
+        $transcripts_table = $database->get_table_name('transcripts');
+        $transcript_text = $result['text'];
+        $duration_seconds = $result['duration_seconds'];
+        
+        // Check if transcript already exists
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT ID FROM {$transcripts_table} WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+            $chapter_id
+        ));
+        
+        // Generate VTT file
+        $vtt_generator = new ALM_VTT_Generator();
+        $upload_dir = wp_upload_dir();
+        $vtt_dir = $upload_dir['basedir'] . '/alm_transcriptions';
+        if (!file_exists($vtt_dir)) {
+            wp_mkdir_p($vtt_dir);
+        }
+        
+        $vtt_filename = 'chapter-' . $chapter_id . '.vtt';
+        $vtt_path = $vtt_dir . '/' . $vtt_filename;
+        $vtt_generator->generate_vtt($transcript_text, $result['segments'], $duration_seconds, $vtt_path);
+        
+        if ($existing) {
+            // Update existing transcript
+            $wpdb->update(
+                $transcripts_table,
+                array(
+                    'content' => $transcript_text,
+                    'vtt_file' => $vtt_filename,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('ID' => $existing->ID),
+                array('%s', '%s', '%s'),
+                array('%d')
+            );
+        } else {
+            // Create new transcript
+            $wpdb->insert(
+                $transcripts_table,
+                array(
+                    'lesson_id' => $chapter->lesson_id,
+                    'chapter_id' => $chapter_id,
+                    'source' => 'whisper',
+                    'content' => $transcript_text,
+                    'vtt_file' => $vtt_filename,
+                    'created_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql')
+                ),
+                array('%d', '%d', '%s', '%s', '%s', '%s', '%s')
+            );
+        }
+        
+        // Delete MP3 file after successful transcription
+        $upload_dir = wp_upload_dir();
+        $mp3_dir = $upload_dir['basedir'] . '/alm_mp3s';
+        $mp3_file = basename($mp3_path);
+        $mp3_full_path = $mp3_dir . '/' . $mp3_file;
+        
+        if (file_exists($mp3_full_path)) {
+            @unlink($mp3_full_path);
+        }
+        
+        // Also clear the mp3_file_url from the database
+        $wpdb->update(
+            $chapters_table,
+            array('mp3_file_url' => ''),
+            array('ID' => $chapter_id),
+            array('%s'),
+            array('%d')
+        );
+        
+            // Update status to completed
+            $this->update_transcription_status($chapter_id, 'completed', 'Transcription completed successfully!', 100);
+            
+        } catch (Exception $e) {
+            error_log('ALM Transcription Exception [Chapter ' . $chapter_id . ']: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            $this->update_transcription_status($chapter_id, 'failed', 'Exception: ' . $e->getMessage(), 0);
+        } catch (Error $e) {
+            error_log('ALM Transcription Fatal Error [Chapter ' . $chapter_id . ']: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            $this->update_transcription_status($chapter_id, 'failed', 'Fatal Error: ' . $e->getMessage(), 0);
+        }
+    }
+    
+    /**
+     * Run transcription in background (called via scheduled event)
+     * 
+     * @param int $chapter_id Chapter ID
+     * @param string $mp3_path Path to MP3 file
+     */
+    public function run_transcription_background($chapter_id, $mp3_path) {
+        // Update status to show we're starting
+        $this->update_transcription_status($chapter_id, 'processing', 'Background process started...', 10);
+        
+        ignore_user_abort(true);
+        set_time_limit(0);
+        
+        try {
+            $this->transcribe_chapter($chapter_id, $mp3_path);
+        } catch (Exception $e) {
+            $this->update_transcription_status($chapter_id, 'failed', 'Error: ' . $e->getMessage(), 0);
+        } catch (Error $e) {
+            $this->update_transcription_status($chapter_id, 'failed', 'Fatal error: ' . $e->getMessage(), 0);
+        }
+    }
+    
+    /**
+     * Helper to update transcription status
+     */
+    private function update_transcription_status($chapter_id, $status, $message, $progress) {
+        $existing_status = get_transient('alm_transcription_status_' . $chapter_id);
+        $start_time = $existing_status && isset($existing_status['start_time']) ? $existing_status['start_time'] : time();
+        $debug_log = $existing_status && isset($existing_status['debug_log']) ? $existing_status['debug_log'] : array();
+        
+        // Add to debug log
+        $debug_log[] = array(
+            'time' => time(),
+            'status' => $status,
+            'message' => $message,
+            'progress' => $progress
+        );
+        
+        // Keep only last 50 log entries
+        if (count($debug_log) > 50) {
+            $debug_log = array_slice($debug_log, -50);
+        }
+        
+        set_transient('alm_transcription_status_' . $chapter_id, array(
+            'status' => $status,
+            'message' => $message,
+            'progress' => $progress,
+            'timestamp' => time(),
+            'start_time' => $start_time,
+            'last_update' => time(),
+            'debug_log' => $debug_log
+        ), 3600);
+        
+        // Also log to error log for server-side debugging
+        error_log(sprintf(
+            'ALM Transcription [Chapter %d]: %s - %s (Progress: %d%%)',
+            $chapter_id,
+            strtoupper($status),
+            $message,
+            $progress
+        ));
+    }
+    
+    /**
+     * AJAX handler to generate lesson description using AI
+     */
+    public function ajax_generate_lesson_description() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        
+        if (!$lesson_id) {
+            wp_send_json_error(array('message' => __('Invalid lesson ID.', 'academy-lesson-manager')));
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $lessons_table = $database->get_table_name('lessons');
+        $chapters_table = $database->get_table_name('chapters');
+        $transcripts_table = $wpdb->prefix . 'alm_transcripts';
+        
+        // Get lesson
+        $lesson = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$lessons_table} WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            wp_send_json_error(array('message' => __('Lesson not found.', 'academy-lesson-manager')));
+        }
+        
+        // Get all chapters for this lesson
+        $chapters = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID FROM {$chapters_table} WHERE lesson_id = %d",
+            $lesson_id
+        ));
+        
+        if (empty($chapters)) {
+            wp_send_json_error(array('message' => __('No chapters found for this lesson.', 'academy-lesson-manager')));
+        }
+        
+        // Get all transcripts for all chapters
+        $chapter_ids = array_map(function($chapter) {
+            return $chapter->ID;
+        }, $chapters);
+        
+        $placeholders = implode(',', array_fill(0, count($chapter_ids), '%d'));
+        $transcripts = $wpdb->get_results($wpdb->prepare(
+            "SELECT content FROM {$transcripts_table} WHERE chapter_id IN ($placeholders) AND source = 'whisper' AND content IS NOT NULL AND content != ''",
+            ...$chapter_ids
+        ));
+        
+        if (empty($transcripts)) {
+            wp_send_json_error(array('message' => __('No transcripts found for this lesson. Please transcribe chapters first.', 'academy-lesson-manager')));
+        }
+        
+        // Combine all transcript content
+        $transcript_text = '';
+        foreach ($transcripts as $transcript) {
+            $transcript_text .= strip_tags($transcript->content) . ' ';
+        }
+        $transcript_text = trim($transcript_text);
+        
+        // Limit transcript length to avoid token limits (keep first 5000 characters)
+        if (strlen($transcript_text) > 5000) {
+            $transcript_text = substr($transcript_text, 0, 5000) . '...';
+        }
+        
+        // Get the prompt from settings
+        $default_prompt = 'Create a compelling lesson description based on the following transcript. Limit to 100 words or less. No emojis.';
+        $prompt = get_option('alm_ai_lesson_description_prompt', $default_prompt);
+        
+        // Build the full prompt
+        $full_prompt = $prompt . "\n\nTranscript:\n" . $transcript_text;
+        
+        // Get OpenAI API key
+        $api_key = get_option('katahdin_ai_hub_openai_key');
+        if (empty($api_key)) {
+            $api_key = get_option('fluent_support_ai_openai_key');
+        }
+        
+        if (empty($api_key)) {
+            wp_send_json_error(array('message' => __('OpenAI API key not found. Please configure it in settings.', 'academy-lesson-manager')));
+        }
+        
+        // Call OpenAI API
+        $response = wp_remote_post('https://api.openai.com/v1/chat/completions', array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type' => 'application/json',
+            ),
+            'body' => json_encode(array(
+                'model' => 'gpt-4o-mini',
+                'messages' => array(
+                    array(
+                        'role' => 'user',
+                        'content' => $full_prompt
+                    )
+                ),
+                'max_tokens' => 200,
+                'temperature' => 0.7,
+            )),
+            'timeout' => 30,
+        ));
+        
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => __('Error calling OpenAI API: ', 'academy-lesson-manager') . $response->get_error_message()));
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (!isset($body['choices'][0]['message']['content'])) {
+            $error_message = isset($body['error']['message']) ? $body['error']['message'] : __('Unknown error from OpenAI API.', 'academy-lesson-manager');
+            wp_send_json_error(array('message' => __('OpenAI API error: ', 'academy-lesson-manager') . $error_message));
+        }
+        
+        $generated_description = trim($body['choices'][0]['message']['content']);
+        
+        // Update lesson description
+        $wpdb->update(
+            $lessons_table,
+            array('lesson_description' => $generated_description),
+            array('ID' => $lesson_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        wp_send_json_success(array(
+            'description' => $generated_description,
+            'message' => __('Description generated successfully!', 'academy-lesson-manager')
+        ));
+    }
+    
+    /**
+     * AJAX handler for getting combined lesson transcript
+     */
+    public function ajax_get_lesson_transcript() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        
+        if (!$lesson_id) {
+            wp_send_json_error(array('message' => __('Invalid lesson ID.', 'academy-lesson-manager')));
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $lesson_transcript_table = $database->get_table_name('lesson_transcript');
+        
+        // Check if transcript exists in database
+        $stored_transcript = $wpdb->get_row($wpdb->prepare(
+            "SELECT transcript_text FROM {$lesson_transcript_table} WHERE lesson_id = %d",
+            $lesson_id
+        ));
+        
+        // If not in database or empty, generate it
+        if (empty($stored_transcript) || empty($stored_transcript->transcript_text)) {
+            $admin_lessons = new ALM_Admin_Lessons();
+            $combined_text = $admin_lessons->combine_lesson_vtt_files($lesson_id);
+            
+            if (empty($combined_text)) {
+                wp_send_json_error(array('message' => __('No VTT files found for this lesson.', 'academy-lesson-manager')));
+            }
+            
+            // Store in database
+            $wpdb->replace(
+                $lesson_transcript_table,
+                array(
+                    'lesson_id' => $lesson_id,
+                    'transcript_text' => $combined_text,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('%d', '%s', '%s')
+            );
+            
+            wp_send_json_success(array('transcript' => $combined_text));
+        } else {
+            // Return stored transcript
+            wp_send_json_success(array('transcript' => $stored_transcript->transcript_text));
         }
     }
 }

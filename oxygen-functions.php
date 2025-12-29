@@ -1476,6 +1476,46 @@ function je_has_lesson_access() {
     if (in_array($lesson_post_id, [587, 548, 547])) { 
         return 'true'; 
     }
+    
+    // Check for old credit system purchases - bypasses all membership checks
+    if (!empty($user_id)) {
+        $current_post_id = get_the_ID();
+        $credit_log_purchase = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_user_credit_log WHERE user_id = %d AND post_id = %d", $user_id, $current_post_id));
+        
+        // If not found, also check if there's a lesson post_id from ALM table
+        if (empty($credit_log_purchase) && $current_post_id) {
+            // Try to get ALM lesson_id from post to find the lesson's post_id
+            $alm_lesson_id = null;
+            if (function_exists('get_field')) {
+                $alm_lesson_id = get_field('alm_lesson_id', $current_post_id);
+            }
+            if (empty($alm_lesson_id)) {
+                $alm_lesson_id = get_post_meta($current_post_id, 'alm_lesson_id', true);
+            }
+            
+            if ($alm_lesson_id) {
+                // Get lesson's post_id from ALM table
+                $lesson_post_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT post_id FROM {$wpdb->prefix}alm_lessons WHERE ID = %d",
+                    intval($alm_lesson_id)
+                ));
+                
+                // If lesson has a different post_id, check that too
+                if ($lesson_post_id && $lesson_post_id != $current_post_id) {
+                    $credit_log_purchase = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_user_credit_log WHERE user_id = %d AND post_id = %d", $user_id, $lesson_post_id));
+                }
+            }
+        }
+        
+        // Debug logging if debug parameter is set
+        if (isset($_GET['debug']) && !empty($_GET['debug'])) {
+            error_log("je_has_lesson_access DEBUG - user_id: {$user_id}, current_post_id: {$current_post_id}, credit_log_result: " . ($credit_log_purchase ? $credit_log_purchase : 'NOT FOUND'));
+        }
+        if (!empty($credit_log_purchase)) {
+            return 'true';
+        }
+    }
+    
     if (empty($user_id)) { 
         return 'false'; 
     }
@@ -1519,10 +1559,6 @@ function je_has_lesson_access() {
 		}
 	}
     //echo "**$user_membership_level";
-    if (empty($purchased_lesson)) { 
-        $purchased_lesson = $wpdb->get_var($wpdb->prepare("SELECT ID FROM academy_user_credit_log WHERE user_id = %d AND post_id = %d", $user_id, $lesson_id));
-    }
-
     if (!empty($purchased_lesson)) { 
         return 'true'; 
     }
@@ -1561,6 +1597,7 @@ function je_has_class_access() {
     return 'false';
 }
 
+/* MOVED TO ALM_Membership_Checker - See plugins/academy-lesson-manager/includes/class-membership-checker.php
 function ja_return_user_membership_data() {
 	// Check for blocking tags first - if user has blocking tags, return empty/free membership
 	if (je_has_blocking_tags()) {
@@ -1606,6 +1643,8 @@ function ja_return_user_membership_data() {
 	$memb_data['tags'] = '';
 	$memb_data['keap_id'] = do_shortcode('[memb_contact fields=Id]');
 	return $memb_data;
+}
+*/
 /*
     global $user_id;
     $memb_data = [];
@@ -1662,8 +1701,8 @@ function ja_return_user_membership_data() {
 
     return $memb_data;
     */
-}
 
+/* MOVED TO ALM_Membership_Checker - See plugins/academy-lesson-manager/includes/class-membership-checker.php
 function je_return_membership_level($return = 'nicename') {
     // Retrieve user membership data from session or Keap
     $membership_data = ja_return_user_membership_data();
@@ -1700,8 +1739,10 @@ function je_return_membership_level($return = 'nicename') {
     // Fallback if no condition matched
     return $return == 'numeric' ? 0 : 'Free';
 }
+*/
 
 
+/* MOVED TO ALM_Membership_Checker - See plugins/academy-lesson-manager/includes/class-membership-checker.php
 function je_return_membership_level_old($return = 'product') {
     $academy_level = '';
     
@@ -1765,7 +1806,7 @@ function je_return_membership_level_old($return = 'product') {
         return 0; // Default to no membership or unknown
     }
 }
-
+*/
 
 /****************************************************************************************************************
 //****************************************************************************************************************
@@ -1773,10 +1814,9 @@ function je_return_membership_level_old($return = 'product') {
 //****************************************************************************************************************
 // ****************************************************************************************************************/
 
-/**
- * Check if user has any blocking tags that should deny access
- * @return bool True if user has blocking tags, false otherwise
- */
+/* MOVED TO ALM_Membership_Checker - See plugins/academy-lesson-manager/includes/class-membership-checker.php
+// Check if user has any blocking tags that should deny access
+// @return bool True if user has blocking tags, false otherwise
 function je_has_blocking_tags() {
     if (!function_exists('memb_hasAnyTags')) {
         return false;
@@ -1848,6 +1888,7 @@ function ja_is_hsp_member() {
 function ja_is_classes_only_member() {
     return (memb_hasMembership('JA_YEAR_CLASSES_ONLY') === true || memb_hasMembership('JA_MONTHLY_CLASSES_ONLY') === true) ? 'true' : 'false';
 }
+*/
 
 /****************************************************************************************************************
 //****************************************************************************************************************
@@ -3207,6 +3248,7 @@ function je_top_5_lessons_viewed($interval = 7) {
 
 }
 
+/* MOVED TO ALM_Membership_Checker - See plugins/academy-lesson-manager/includes/class-membership-checker.php
 function je_return_membership_expired() {
 	$academy_expiration_date = strtotime(memb_getContactField('_AcademyExpirationDate'));
 	if (empty($academy_expiration_date)) {
@@ -3220,6 +3262,7 @@ function je_return_membership_expired() {
 	}
 	return;
 }
+*/
 
 
 function ja_is_legacy_lessons_classes() {
@@ -4147,7 +4190,12 @@ function je_event_watched($event_id){
 
 function je_is_chapter_complete($chapter_id){
 	global $wpdb, $user_id;
-	$q = $wpdb->get_var( "SELECT user_id FROM academy_completed_chapters WHERE chapter_id = $chapter_id AND user_id = $user_id" ); 
+	// Check for completion record that hasn't been soft-deleted
+	$q = $wpdb->get_var( $wpdb->prepare(
+		"SELECT user_id FROM academy_completed_chapters WHERE chapter_id = %d AND user_id = %d AND deleted_at IS NULL",
+		$chapter_id,
+		$user_id
+	) ); 
 	if (!empty($q)){ return TRUE; } else { return FALSE; }
 }
 
@@ -4158,8 +4206,16 @@ function je_is_lesson_complete($lesson_id = 0){ // was je_are_all_lesson_chapter
 		$post_id = get_the_ID();
 		$lesson_id = get_post_meta( $post_id, 'lesson_id', true );
  	}
-	$lesson_chapter_count = $wpdb->get_var( "SELECT COUNT(*) FROM academy_chapters WHERE lesson_id = $lesson_id" );
-	$completed_chapters_count = $wpdb->get_var( "SELECT COUNT(DISTINCT chapter_id) FROM academy_completed_chapters WHERE lesson_id = $lesson_id AND user_id = $user_id" ); 
+	$lesson_chapter_count = $wpdb->get_var( $wpdb->prepare(
+		"SELECT COUNT(*) FROM academy_chapters WHERE lesson_id = %d",
+		$lesson_id
+	) );
+	$completed_chapters_count = $wpdb->get_var( $wpdb->prepare(
+		"SELECT COUNT(DISTINCT chapter_id) FROM academy_completed_chapters 
+		 WHERE lesson_id = %d AND user_id = %d AND deleted_at IS NULL",
+		$lesson_id,
+		$user_id
+	) ); 
 
 	if ($lesson_chapter_count == $completed_chapters_count){ return TRUE; } else { return FALSE; }
 }
@@ -4171,8 +4227,16 @@ function je_is_course_complete($course_id = 0){
 		$post_id = get_the_ID();
 		$course_id = get_post_meta( $post_id, 'course_id', true );
  	}
-	$course_lesson_count = $wpdb->get_var( "SELECT COUNT(*) FROM academy_lessons WHERE course_id = $course_id" );
-	$completed_lessons_count = $wpdb->get_var( "SELECT COUNT(*) FROM academy_completed_lessons WHERE course_id = $course_id AND user_id = $user_id" ); 
+	$course_lesson_count = $wpdb->get_var( $wpdb->prepare(
+		"SELECT COUNT(*) FROM academy_lessons WHERE course_id = %d",
+		$course_id
+	) );
+	$completed_lessons_count = $wpdb->get_var( $wpdb->prepare(
+		"SELECT COUNT(*) FROM academy_completed_lessons 
+		 WHERE course_id = %d AND user_id = %d AND deleted_at IS NULL",
+		$course_id,
+		$user_id
+	) ); 
 	if ($course_lesson_count == $completed_lessons_count){ return TRUE; } else { return FALSE; }
 }
 
@@ -4210,7 +4274,12 @@ function je_date_path_completed($path_id = 0,$format = 'full'){
 	else { 
 		$path_id = get_the_ID();
  	}
- 	$date = $wpdb->get_var( "SELECT datetime FROM academy_completed_paths WHERE user_id = $user_id AND path_id = $path_id " );
+ 	$date = $wpdb->get_var( $wpdb->prepare(
+		"SELECT datetime FROM academy_completed_paths 
+		 WHERE user_id = %d AND path_id = %d AND deleted_at IS NULL",
+		$user_id,
+		$path_id
+	) );
  	if ($format == 'full') {
  		return (empty($date)) ? '' : '<span style="color:#f04e23;">Completed on: <strong>' .date('m-d-Y',strtotime($date)).'</strong></span>';
 	} else {
@@ -4226,7 +4295,12 @@ function je_is_lesson_marked_complete($lesson_id = 0){
 		$post_id = get_the_ID();
 		$lesson_id = get_post_meta( $post_id, 'lesson_id', true );
  	}
-	$q = $wpdb->get_var( "SELECT lesson_id FROM academy_completed_lessons WHERE lesson_id = $lesson_id AND user_id = $user_id " );
+	$q = $wpdb->get_var( $wpdb->prepare(
+		"SELECT lesson_id FROM academy_completed_lessons 
+		 WHERE lesson_id = %d AND user_id = %d AND deleted_at IS NULL",
+		$lesson_id,
+		$user_id
+	) );
 	if (!empty($q)){ return TRUE; } else { return FALSE; }
 }
 
@@ -4237,7 +4311,12 @@ function je_is_course_marked_complete($course_id = 0){
 		$post_id = get_the_ID();
 		$course_id = get_post_meta( $post_id, 'course_id', true );
  	}
-	$q = $wpdb->get_var( "SELECT course_id FROM academy_completed_courses WHERE course_id = $course_id AND user_id = $user_id " );
+	$q = $wpdb->get_var( $wpdb->prepare(
+		"SELECT course_id FROM academy_completed_courses 
+		 WHERE course_id = %d AND user_id = %d AND deleted_at IS NULL",
+		$course_id,
+		$user_id
+	) );
 	if (!empty($q)){ return TRUE; } else { return FALSE; }
 }
 
@@ -4247,7 +4326,12 @@ function je_is_path_marked_complete($path_id = 0){
 	else { 
 		$path_id = get_the_ID();
  	}
-	$q = $wpdb->get_var( "SELECT ID FROM academy_completed_paths WHERE path_id = $path_id AND user_id = $user_id " );
+	$q = $wpdb->get_var( $wpdb->prepare(
+		"SELECT ID FROM academy_completed_paths 
+		 WHERE path_id = %d AND user_id = %d AND deleted_at IS NULL",
+		$path_id,
+		$user_id
+	) );
 	if (!empty($q)){ return TRUE; } else { return FALSE; }
 }
 
@@ -6891,6 +6975,90 @@ add_action('fluentform/submission_inserted', function($entryId, $formData, $form
     // Add to selected managed lists
     if ($selected) $contact->attachLists($selected);
 
+}, 20, 3);
+
+// Handle Academy Starter Free signup (Form ID 48) - Create WordPress user and send to Zapier
+add_action('fluentform/submission_inserted', function($entryId, $formData, $form) {
+    if ((int)$form->id !== 48) return;
+    
+    $email = $formData['email'] ?? '';
+    $first_name = $formData['names']['first_name'] ?? $formData['first_name'] ?? '';
+    
+    if (!$email) {
+        error_log('Academy Starter signup: Missing email address');
+        return;
+    }
+    
+    // Check if user already exists
+    $existing_user = get_user_by('email', $email);
+    if ($existing_user) {
+        error_log('Academy Starter signup: User already exists with email: ' . $email);
+        // Still send to Zapier with existing user info (but no password)
+        $password = 'EXISTING_USER';
+    } else {
+        // Generate a secure random password
+        $password = wp_generate_password(16, true, true);
+        
+        // Create username from email (before @)
+        $username = sanitize_user(substr($email, 0, strpos($email, '@')));
+        
+        // Ensure username is unique
+        $original_username = $username;
+        $counter = 1;
+        while (username_exists($username)) {
+            $username = $original_username . $counter;
+            $counter++;
+        }
+        
+        // Create WordPress user
+        $user_id = wp_create_user($username, $password, $email);
+        
+        if (is_wp_error($user_id)) {
+            error_log('Academy Starter signup: Failed to create user - ' . $user_id->get_error_message());
+            return;
+        }
+        
+        // Update user meta with first name
+        if ($first_name) {
+            update_user_meta($user_id, 'first_name', $first_name);
+        }
+        
+        // Set default role (adjust if needed)
+        $user = new WP_User($user_id);
+        $user->set_role('subscriber');
+        
+        error_log('Academy Starter signup: Created user ID ' . $user_id . ' for email: ' . $email);
+    }
+    
+    // Send data to Zapier webhook
+    $zapier_url = 'https://hooks.zapier.com/hooks/catch/64451/uf0l8xd/';
+    
+    $payload = array(
+        'fname' => $first_name,
+        'email' => $email,
+        'password' => $password
+    );
+    
+    $response = wp_remote_post($zapier_url, array(
+        'body' => json_encode($payload),
+        'headers' => array(
+            'Content-Type' => 'application/json'
+        ),
+        'timeout' => 15,
+        'sslverify' => true
+    ));
+    
+    if (is_wp_error($response)) {
+        error_log('Academy Starter signup: Zapier webhook error - ' . $response->get_error_message());
+    } else {
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code === 200) {
+            error_log('Academy Starter signup: Successfully sent to Zapier for email: ' . $email);
+        } else {
+            error_log('Academy Starter signup: Zapier webhook returned code ' . $response_code);
+        }
+    }
+    
 }, 20, 3);
 
 /* Helpers */

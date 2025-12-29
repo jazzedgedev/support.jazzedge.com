@@ -61,6 +61,7 @@ class Katahdin_AI_Hub_Admin {
         register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_debug_mode');
         register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_usage_limit');
         register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_rate_limit');
+        register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_enable_logging');
     }
     
     /**
@@ -133,6 +134,19 @@ class Katahdin_AI_Hub_Admin {
                                        value="1" <?php checked(get_option('katahdin_ai_hub_debug_mode'), 1); ?> />
                                 <p class="description">
                                     <?php _e('Enable detailed logging for debugging', 'katahdin-ai-hub'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th scope="row">
+                                <label for="katahdin_ai_hub_enable_logging"><?php _e('Enable Database Logging', 'katahdin-ai-hub'); ?></label>
+                            </th>
+                            <td>
+                                <input type="checkbox" id="katahdin_ai_hub_enable_logging" name="katahdin_ai_hub_enable_logging" 
+                                       value="1" <?php checked(get_option('katahdin_ai_hub_enable_logging', 1), 1); ?> />
+                                <p class="description">
+                                    <?php _e('Enable logging to the database. Disable this to prevent the logs table from growing large.', 'katahdin-ai-hub'); ?>
                                 </p>
                             </td>
                         </tr>

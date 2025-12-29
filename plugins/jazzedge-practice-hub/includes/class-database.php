@@ -40,7 +40,8 @@ class JPH_Database {
             'badges' => $wpdb->prefix . 'jph_badges',
             'user_badges' => $wpdb->prefix . 'jph_user_badges',
             'lesson_favorites' => $wpdb->prefix . 'jph_lesson_favorites',
-            'gems_transactions' => $wpdb->prefix . 'jph_gems_transactions'
+            'gems_transactions' => $wpdb->prefix . 'jph_gems_transactions',
+            'user_plans' => $wpdb->prefix . 'jph_user_plans'
         );
     }
     
@@ -102,6 +103,9 @@ class JPH_Database {
         
         // Migration 3: Add source column to gems_transactions table if it doesn't exist
         $this->migrate_add_source_column_to_gems_transactions();
+        
+        // Migration 4: Create user_plans table if it doesn't exist
+        $this->migrate_create_user_plans_table();
     }
     
     /**
@@ -139,6 +143,30 @@ class JPH_Database {
             $this->wpdb->query("ALTER TABLE {$table_name} ADD INDEX source (source)");
             
             error_log('JPH Database: Migration completed - source column added to gems_transactions table');
+        }
+    }
+    
+    /**
+     * Migration: Create user_plans table if it doesn't exist
+     */
+    private function migrate_create_user_plans_table() {
+        $table_name = $this->tables['user_plans'];
+        
+        // Check if table exists
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+        
+        if (!$table_exists) {
+            // Get the create statement from schema
+            $schema = JPH_Database_Schema::get_schema();
+            $create_statements = JPH_Database_Schema::get_create_statements();
+            
+            if (isset($create_statements['user_plans'])) {
+                require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+                $dbdelta_sql = $this->convert_to_dbdelta_format($create_statements['user_plans']);
+                dbDelta($dbdelta_sql);
+                
+                error_log('JPH Database: Migration completed - user_plans table created');
+            }
         }
     }
     
@@ -244,13 +272,69 @@ class JPH_Database {
         $table_name = $this->tables['practice_items'];
         
         // Check if user already has this name (only active items)
-        $existing = $this->wpdb->get_var($this->wpdb->prepare(
+        $existing_active = $this->wpdb->get_var($this->wpdb->prepare(
             "SELECT id FROM {$table_name} WHERE user_id = %d AND name = %s AND is_active = 1",
             $user_id, $name
         ));
         
-        if ($existing) {
+        if ($existing_active) {
             return new WP_Error('duplicate_name', 'You already have a practice item with this name');
+        }
+        
+        // Check if there's an inactive item with the same name (reactivate instead of insert)
+        $existing_inactive = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE user_id = %d AND name = %s AND is_active = 0",
+            $user_id, $name
+        ));
+        
+        if ($existing_inactive) {
+            // Reactivate the existing inactive item
+            $total_count = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table_name} WHERE user_id = %d AND is_active = 1",
+                $user_id
+            ));
+            
+            // Check total item limit (max 6 active items total)
+            if ($total_count >= 6) {
+                return new WP_Error('limit_exceeded', 'You can only have 6 active practice items at once. Delete an item to add a new one.');
+            }
+            
+            // Check if sort_order column exists
+            $columns = $this->wpdb->get_col("DESCRIBE {$table_name}");
+            $has_sort_order = in_array('sort_order', $columns);
+            $has_updated_at = in_array('updated_at', $columns);
+            
+            // Prepare update data
+            $update_data = array(
+                'is_active' => 1,
+                'category' => $category,
+                'description' => $description
+            );
+            $update_format = array('%d', '%s', '%s');
+            
+            if ($has_sort_order) {
+                $update_data['sort_order'] = $total_count;
+                $update_format[] = '%d';
+            }
+            
+            if ($has_updated_at) {
+                $update_data['updated_at'] = current_time('mysql');
+                $update_format[] = '%s';
+            }
+            
+            $result = $this->wpdb->update(
+                $table_name,
+                $update_data,
+                array('id' => $existing_inactive),
+                $update_format,
+                array('%d')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to reactivate practice item: ' . $this->wpdb->last_error);
+            }
+            
+            return $existing_inactive;
         }
         
         // Check total item limit (max 6 active items total)
@@ -1106,6 +1190,237 @@ class JPH_Database {
         ), ARRAY_A);
         
         return $session;
+    }
+    
+    /**
+     * Get user's plan data
+     */
+    public function get_user_plan($user_id) {
+        $table_name = $this->tables['user_plans'];
+        
+        $plan = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT * FROM {$table_name} WHERE user_id = %d",
+            $user_id
+        ), ARRAY_A);
+        
+        if ($plan && !empty($plan['practice_steps'])) {
+            $plan['practice_steps'] = json_decode($plan['practice_steps'], true);
+            if (!is_array($plan['practice_steps'])) {
+                $plan['practice_steps'] = array();
+            }
+        } else if ($plan) {
+            $plan['practice_steps'] = array();
+        }
+        
+        return $plan ?: null;
+    }
+    
+    /**
+     * Save or update user's plan data
+     */
+    public function save_user_plan($user_id, $plan_data) {
+        $table_name = $this->tables['user_plans'];
+        
+        // Check if plan exists
+        $existing = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT id FROM {$table_name} WHERE user_id = %d",
+            $user_id
+        ));
+        
+        // Prepare data
+        $data = array(
+            'user_id' => $user_id,
+            'updated_at' => current_time('mysql')
+        );
+        $format = array('%d', '%s');
+        
+        if (isset($plan_data['goal_90_day'])) {
+            $data['goal_90_day'] = $plan_data['goal_90_day'];
+            $format[] = '%s';
+        }
+        
+        if (isset($plan_data['weekly_focus_item_id'])) {
+            $data['weekly_focus_item_id'] = $plan_data['weekly_focus_item_id'];
+            $format[] = '%d';
+        }
+        
+        if (isset($plan_data['practice_steps'])) {
+            $data['practice_steps'] = json_encode($plan_data['practice_steps']);
+            $format[] = '%s';
+        }
+        
+        if (isset($plan_data['deadline'])) {
+            $data['deadline'] = $plan_data['deadline'];
+            $format[] = '%s';
+        }
+        
+        if (isset($plan_data['week_start_date'])) {
+            $data['week_start_date'] = $plan_data['week_start_date'];
+            $format[] = '%s';
+        }
+        
+        if ($existing) {
+            // Update existing plan
+            $result = $this->wpdb->update(
+                $table_name,
+                $data,
+                array('user_id' => $user_id),
+                $format,
+                array('%d')
+            );
+            
+            if ($result === false) {
+                return new WP_Error('update_failed', 'Failed to update plan: ' . $this->wpdb->last_error);
+            }
+            
+            return true;
+        } else {
+            // Create new plan
+            $data['created_at'] = current_time('mysql');
+            $format[] = '%s';
+            
+            $result = $this->wpdb->insert($table_name, $data, $format);
+            
+            if ($result === false) {
+                return new WP_Error('insert_failed', 'Failed to create plan: ' . $this->wpdb->last_error);
+            }
+            
+            return $this->wpdb->insert_id;
+        }
+    }
+    
+    /**
+     * Update plan goal
+     */
+    public function update_plan_goal($user_id, $goal) {
+        return $this->save_user_plan($user_id, array('goal_90_day' => $goal));
+    }
+    
+    /**
+     * Update weekly focus item
+     */
+    public function update_weekly_focus($user_id, $item_id) {
+        // Reset week if needed
+        $this->maybe_reset_week($user_id);
+        
+        return $this->save_user_plan($user_id, array('weekly_focus_item_id' => $item_id));
+    }
+    
+    /**
+     * Update practice steps
+     */
+    public function update_practice_steps($user_id, $steps) {
+        if (!is_array($steps)) {
+            $steps = array();
+        }
+        
+        // Limit to 5 steps
+        $steps = array_slice($steps, 0, 5);
+        
+        return $this->save_user_plan($user_id, array('practice_steps' => $steps));
+    }
+    
+    /**
+     * Mark plan as practiced today
+     */
+    public function mark_plan_practiced($user_id) {
+        $table_name = $this->tables['user_plans'];
+        
+        // Reset week if needed
+        $this->maybe_reset_week($user_id);
+        
+        // Get current plan
+        $plan = $this->get_user_plan($user_id);
+        
+        if (!$plan) {
+            // Create plan if it doesn't exist
+            $this->save_user_plan($user_id, array());
+            $plan = $this->get_user_plan($user_id);
+        }
+        
+        // Check if already practiced today
+        $today = current_time('Y-m-d');
+        $last_practiced = $plan['last_practiced_date'] ? date('Y-m-d', strtotime($plan['last_practiced_date'])) : null;
+        
+        if ($last_practiced === $today) {
+            // Already practiced today, don't increment
+            return true;
+        }
+        
+        // Increment session count
+        $sessions = intval($plan['sessions_this_week']) + 1;
+        
+        $result = $this->wpdb->update(
+            $table_name,
+            array(
+                'sessions_this_week' => $sessions,
+                'last_practiced_date' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ),
+            array('user_id' => $user_id),
+            array('%d', '%s', '%s'),
+            array('%d')
+        );
+        
+        return $result !== false;
+    }
+    
+    /**
+     * Get weekly session count
+     */
+    public function get_weekly_session_count($user_id, $week_start = null) {
+        $plan = $this->get_user_plan($user_id);
+        
+        if (!$plan) {
+            return 0;
+        }
+        
+        // Check if week needs reset
+        $this->maybe_reset_week($user_id);
+        
+        // Get updated plan
+        $plan = $this->get_user_plan($user_id);
+        
+        return intval($plan['sessions_this_week']);
+    }
+    
+    /**
+     * Check if week needs to be reset and reset if necessary
+     */
+    private function maybe_reset_week($user_id) {
+        $table_name = $this->tables['user_plans'];
+        
+        $plan = $this->get_user_plan($user_id);
+        
+        if (!$plan) {
+            return;
+        }
+        
+        // Calculate current week start (Monday)
+        $today = new DateTime(current_time('Y-m-d'));
+        $day_of_week = $today->format('w'); // 0 = Sunday, 1 = Monday, etc.
+        $days_to_monday = ($day_of_week == 0) ? 6 : ($day_of_week - 1);
+        $current_week_start = clone $today;
+        $current_week_start->modify("-{$days_to_monday} days");
+        $current_week_start_str = $current_week_start->format('Y-m-d');
+        
+        // Check if stored week_start_date is different from current week
+        $stored_week_start = $plan['week_start_date'];
+        
+        if (!$stored_week_start || $stored_week_start !== $current_week_start_str) {
+            // Reset week
+            $this->wpdb->update(
+                $table_name,
+                array(
+                    'sessions_this_week' => 0,
+                    'week_start_date' => $current_week_start_str,
+                    'updated_at' => current_time('mysql')
+                ),
+                array('user_id' => $user_id),
+                array('%d', '%s', '%s'),
+                array('%d')
+            );
+        }
     }
     
     

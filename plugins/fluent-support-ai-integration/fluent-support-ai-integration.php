@@ -94,11 +94,6 @@ class FluentSupportAI {
         // Activation and deactivation hooks
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
-        
-        // Debug hook to check if admin menu is working
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            add_action('admin_notices', array($this, 'debug_admin_notice'));
-        }
     }
     
     /**

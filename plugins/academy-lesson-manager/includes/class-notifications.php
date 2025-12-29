@@ -204,6 +204,8 @@ class ALM_Notifications_Manager {
             $category = self::DEFAULT_CATEGORY;
         }
 
+        $popup_stop_timestamp = !empty($data['popup_stop_date']) ? strtotime($data['popup_stop_date']) : false;
+        
         $prepared = array(
             'title' => sanitize_text_field($data['title']),
             'content' => wp_kses_post($data['content']),
@@ -211,6 +213,7 @@ class ALM_Notifications_Manager {
             'link_url' => esc_url_raw($data['link_url']),
             'is_active' => intval($data['is_active']) ? 1 : 0,
             'show_popup' => intval($data['show_popup']) ? 1 : 0,
+            'popup_stop_date' => $popup_stop_timestamp ? date('Y-m-d H:i:s', $popup_stop_timestamp) : null,
             'publish_at' => $publish_timestamp ? date('Y-m-d H:i:s', $publish_timestamp) : current_time('mysql'),
             'category' => $category,
         );
@@ -220,18 +223,18 @@ class ALM_Notifications_Manager {
                 $this->notifications_table,
                 $prepared,
                 array('ID' => intval($data['ID'])),
-                array('%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s'),
+                array('%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s'),
                 array('%d')
             );
 
             return false === $updated ? new WP_Error('alm_notification_update_failed', __('Unable to update notification.', 'academy-lesson-manager')) : intval($data['ID']);
         }
 
-        $inserted = $this->wpdb->insert(
-            $this->notifications_table,
-            $prepared,
-            array('%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s')
-        );
+            $inserted = $this->wpdb->insert(
+                $this->notifications_table,
+                $prepared,
+                array('%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s')
+            );
 
         if (false === $inserted) {
             return new WP_Error('alm_notification_insert_failed', __('Unable to create notification.', 'academy-lesson-manager'));
@@ -428,9 +431,23 @@ class ALM_Notifications_Manager {
             return null;
         }
 
-        // Filter to only those with show_popup = 1
-        $popup_notifications = array_filter($notifications, function($notif) {
-            return !empty($notif['show_popup']) && intval($notif['show_popup']) === 1;
+        // Filter to only those with show_popup = 1 and check popup_stop_date
+        $current_time = current_time('mysql');
+        $popup_notifications = array_filter($notifications, function($notif) use ($current_time) {
+            if (empty($notif['show_popup']) || intval($notif['show_popup']) !== 1) {
+                return false;
+            }
+            
+            // Check if popup_stop_date is set and if current time is past it
+            if (!empty($notif['popup_stop_date'])) {
+                $stop_date = strtotime($notif['popup_stop_date']);
+                $current_timestamp = strtotime($current_time);
+                if ($current_timestamp > $stop_date) {
+                    return false; // Stop showing popup after this date
+                }
+            }
+            
+            return true;
         });
 
         if (empty($popup_notifications)) {

@@ -5,7 +5,7 @@ A WordPress plugin that automatically captures Bunny.net video uploads via webho
 ## Features
 
 - **Automatic Processing**: Captures video uploads from Bunny.net via webhook
-- **Filename Parsing**: Extracts lesson ID and chapter ID from video filenames
+- **Filename Parsing**: Extracts lesson ID from video filenames (chapter ID is optional and ignored)
 - **Database Updates**: Automatically updates `wp_alm_lessons` table with HLS Playlist URLs
 - **Smart Filtering**: Only processes videos with "-sample" in the filename
 - **Comprehensive Logging**: Logs all events for manual review and debugging
@@ -50,19 +50,21 @@ Videos must follow this naming convention to be processed:
 78-797-id797-Finding-Scale-Secrets-sample.mp4
 ```
 
-- **First number (78)** = Lesson ID (maps to `wp_alm_lessons.ID`)
-- **Second number (797)** = Chapter ID (stored in `sample_chapter_id`)
+- **First number (78)** = Lesson ID (required, maps to `wp_alm_lessons.ID`)
+- **Second number (797)** = Chapter ID (optional, may be present in filename but is not used)
 - **Must contain "-sample"** in the filename
+
+**Note:** Only the lesson ID is required. The chapter ID in the filename is ignored since there is only one sample per lesson.
 
 ## How It Works
 
 1. Bunny.net sends a webhook when a video is uploaded
 2. Plugin checks if filename contains "-sample"
-3. Filename is parsed to extract lesson ID and chapter ID
+3. Filename is parsed to extract lesson ID (chapter ID is optional and ignored)
 4. HLS Playlist URL is constructed: `https://{cdn-hostname}/{video-id}/playlist.m3u8`
 5. Database is updated:
    - `sample_video_url` = HLS Playlist URL
-   - `sample_chapter_id` = Chapter ID
+   - `sample_chapter_id` = 0 (so it displays as "Direct URL" instead of "Use Chapter")
 6. All events are logged for review
 
 ## Database Updates
@@ -70,7 +72,7 @@ Videos must follow this naming convention to be processed:
 The plugin updates the following fields in `wp_alm_lessons`:
 
 - `sample_video_url` - HLS Playlist URL (e.g., `https://vz-0696d3da-4b7.b-cdn.net/{video-id}/playlist.m3u8`)
-- `sample_chapter_id` - Chapter ID extracted from filename
+- `sample_chapter_id` - Set to 0 (so the sample video displays as "Direct URL" on the lesson edit page)
 
 ## Logging
 

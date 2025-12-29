@@ -217,26 +217,30 @@ class Bunny_Video_Webhook_Processor {
     }
     
     /**
-     * Parse filename to extract lesson ID and chapter ID
+     * Parse filename to extract lesson ID (and optionally chapter ID)
      * 
-     * Format: 78-797-id797-Finding-Scale-Secrets-sample.mp4
-     * First number (78) = lesson ID
-     * Second number (797) = chapter ID
+     * Format: {lesson-id}-{chapter-id}-id{chapter-id}-{title}-sample.mp4
+     * Only lesson ID is required. Chapter ID is optional and will be extracted if present.
      * 
      * @param string $filename Video filename
-     * @return array|WP_Error Parsed data with lesson_id and chapter_id
+     * @return array|WP_Error Parsed data with lesson_id and chapter_id (chapter_id may be 0)
      */
     private function parse_filename($filename) {
         // Remove file extension
         $filename = preg_replace('/\.[^.]+$/', '', $filename);
         
-        // Extract first two numbers from filename
-        // Pattern: number-number-...
-        if (preg_match('/^(\d+)-(\d+)/', $filename, $matches)) {
+        // Extract lesson ID (first number) - this is required
+        // Pattern: number-... (may have second number for chapter, but it's optional)
+        if (preg_match('/^(\d+)/', $filename, $matches)) {
             $lesson_id = intval($matches[1]);
-            $chapter_id = intval($matches[2]);
             
-            if ($lesson_id > 0 && $chapter_id > 0) {
+            if ($lesson_id > 0) {
+                // Try to extract chapter ID if present (second number after first dash)
+                $chapter_id = 0;
+                if (preg_match('/^(\d+)-(\d+)/', $filename, $chapter_matches)) {
+                    $chapter_id = intval($chapter_matches[2]);
+                }
+                
                 return array(
                     'lesson_id' => $lesson_id,
                     'chapter_id' => $chapter_id
@@ -246,7 +250,7 @@ class Bunny_Video_Webhook_Processor {
         
         return new WP_Error(
             'invalid_filename',
-            sprintf('Could not parse lesson ID and chapter ID from filename: %s', $filename),
+            sprintf('Could not parse lesson ID from filename: %s', $filename),
             array('filename' => $filename)
         );
     }
@@ -404,12 +408,13 @@ class Bunny_Video_Webhook_Processor {
             );
         }
         
-        // Update lesson with sample video URL and chapter ID
+        // Update lesson with sample video URL
+        // Set sample_chapter_id to 0 so it displays as "Direct URL" instead of "Use Chapter"
         $result = $this->wpdb->update(
             $this->lessons_table,
             array(
                 'sample_video_url' => $bunny_url,
-                'sample_chapter_id' => $chapter_id
+                'sample_chapter_id' => 0
             ),
             array('ID' => $lesson_id),
             array('%s', '%d'),

@@ -1,0 +1,30 @@
+<div id="academyStarterMarketing" style="background: linear-gradient(135deg, #f04e23 0%, #ff6b4a 100%); color: #ffffff; padding: 30px; border-radius: 12px; margin-bottom: 30px; text-align: center; box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3);">
+  <h2 style="font-size: 32px; font-weight: bold; margin: 0 0 20px 0; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);">Transform Your Playing in 90 Days for Just $7</h2>
+  <p style="font-size: 20px; line-height: 1.6; margin: 0 0 20px 0; max-width: 800px; margin-left: auto; margin-right: auto;">Imagine where your piano playing could be in 90 days. With over 6 hours of structured instruction, you'll build real skills, learn to play songs you love, and develop the foundation for a lifetime of musical growth.</p>
+  <p style="font-size: 22px; font-weight: bold; margin: 20px 0; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);">Why not invest in yourself for just $7?</p>
+  <p style="font-size: 18px; line-height: 1.6; margin: 20px 0 0 0; max-width: 700px; margin-left: auto; margin-right: auto; background: rgba(255, 255, 255, 0.15); padding: 15px; border-radius: 8px;"><strong>You're never charged more</strong> unless you decide to upgrade. This is a one-time $7 payment with no hidden fees, no auto-renewals, and no surprises. Just 90 days of focused learning to transform your playing.</p>
+</div>
+
+<div id="essentialsContainer">
+  <div class="essentials-left">
+    <h3>Included with Academy Starter:</h3>
+    <p>Start your piano journey with our Academy Starter program. Get instant access to foundational lessons and blueprints designed to build your skills from the ground up.</p>
+    <ul>
+      <li><strong>30-Day Piano Playbook (3hr 34min):</strong> My 30-Day Piano Playbook is a great way to get started with my lessons. Through these 30 lessons you'll learn about rhythm, improvisation, chords and more. Days 1-19 are easier lessons, while days 20-30 are more advanced.</li>
+      <li><strong>Blues Piano Blueprint (54m):</strong> Learn how to play different kinds of blues like shuffle, swing and stride. You'll learn both accompaniments and licks and learn how to move between both to create your own signature sound!</li>
+      <li><strong>Rock Piano Blueprint (40m):</strong> Learn the techniques to play your favorite rock songs whether playing the melody yourself or accompanying yourself or others while singing.</li>
+      <li><strong>Super Simple Standards (1h 16m):</strong> Learn how to play both jazz and even pop/rock standards (popular songs) using a simplified approach with chord shells. This is a great place to start, especially for beginners, and this is knowledge that you can build upon to create even more advanced arrangements.</li>
+    </ul>
+    <p><strong>Total Content:</strong> Over 6 hours of comprehensive piano instruction across all included lessons and blueprints.</p>
+  </div>
+  <div class="essentials-right">
+    <h3>Academy Starter Details</h3>
+    <p><strong>Study for 90 Days for Just $7:</strong> Academy Starter is a one-time payment of $7 that gives you 90 days of access to all included content. That's over 6 hours of piano instruction for an incredible value!</p>
+    <p><strong>No Recurring Charges:</strong> This is not a subscription. You pay $7 once and get 90 days of full access to all Academy Starter content. There are no hidden fees, no auto-renewals, and nothing sneaky.</p>
+    <p><strong>All Sales Final:</strong> This purchase is non-refundable. All sales are final.</p>
+    <p>You can manage your account and access your content at any time in your <strong>Account Area</strong>.</p>
+    
+    <p>For complete terms and conditions, please visit our <a href="https://jazzedge.academy/terms/" target="_blank">Terms & Conditions page</a>.</p>
+  </div>
+</div>
+

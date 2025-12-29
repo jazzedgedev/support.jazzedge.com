@@ -121,6 +121,11 @@
                 openSampleModal(videoUrl, lessonTitle);
             }
         });
+        
+        // Auto-submit form when filter dropdowns change
+        $('.alm-library-filter-select').on('change', function() {
+            $(this).closest('form').submit();
+        });
     });
     
     /**

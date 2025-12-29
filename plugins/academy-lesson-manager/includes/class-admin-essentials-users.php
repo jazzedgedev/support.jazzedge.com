@@ -48,6 +48,34 @@ class ALM_Admin_Essentials_Users {
             return;
         }
         
+        // Delete lesson from user's library
+        if (isset($_GET['alm_delete_lesson']) && isset($_GET['user_id']) && isset($_GET['lesson_id'])) {
+            // Check nonce
+            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'alm_delete_lesson_' . intval($_GET['user_id']) . '_' . intval($_GET['lesson_id']))) {
+                wp_die('Security check failed. Please try again.');
+            }
+            
+            $user_id = intval($_GET['user_id']);
+            $lesson_id = intval($_GET['lesson_id']);
+            
+            $result = $this->delete_lesson_from_library($user_id, $lesson_id);
+            
+            if ($result === false) {
+                wp_redirect(add_query_arg(array(
+                    'page' => 'academy-manager-essentials-users',
+                    'view_user' => $user_id,
+                    'message' => 'error',
+                    'error_msg' => 'Failed to delete lesson from library. Please check database.'
+                ), admin_url('admin.php')));
+            } else {
+                wp_redirect(add_query_arg(array(
+                    'page' => 'academy-manager-essentials-users',
+                    'view_user' => $user_id,
+                    'message' => 'lesson_deleted'
+                ), admin_url('admin.php')));
+            }
+            exit;
+        }
         
         // Grant selection manually - check for button OR hidden field
         if ((isset($_POST['alm_grant_selection']) || (isset($_POST['user_id']) && isset($_POST['grant_amount']))) && isset($_POST['user_id'])) {
@@ -86,6 +114,38 @@ class ALM_Admin_Essentials_Users {
             }
             exit;
         }
+    }
+    
+    /**
+     * Delete a lesson from user's library
+     * 
+     * @param int $user_id User ID
+     * @param int $lesson_id Lesson ID
+     * @return bool Success
+     */
+    private function delete_lesson_from_library($user_id, $lesson_id) {
+        // Verify the lesson exists in the user's library
+        $exists = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->library_table} WHERE user_id = %d AND lesson_id = %d",
+            $user_id,
+            $lesson_id
+        ));
+        
+        if (!$exists) {
+            return false;
+        }
+        
+        // Delete from library table (NOT from lessons table)
+        $result = $this->wpdb->delete(
+            $this->library_table,
+            array(
+                'user_id' => $user_id,
+                'lesson_id' => $lesson_id
+            ),
+            array('%d', '%d')
+        );
+        
+        return ($result !== false && $result > 0);
     }
     
     /**
@@ -241,6 +301,12 @@ class ALM_Admin_Essentials_Users {
             <?php if ($message === 'selection_granted'): ?>
             <div class="notice notice-success is-dismissible">
                 <p><?php echo esc_html__('Selection has been granted.', 'academy-lesson-manager'); ?></p>
+            </div>
+            <?php endif; ?>
+            
+            <?php if ($message === 'lesson_deleted'): ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?php echo esc_html__('Lesson has been removed from user\'s library.', 'academy-lesson-manager'); ?></p>
             </div>
             <?php endif; ?>
             
@@ -430,6 +496,7 @@ class ALM_Admin_Essentials_Users {
                             <th>Selected Date</th>
                             <th>Cycle</th>
                             <th>Duration</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -440,6 +507,23 @@ class ALM_Admin_Essentials_Users {
                             <td><?php echo esc_html(date('F j, Y g:i a', strtotime($lesson->selected_at))); ?></td>
                             <td><?php echo esc_html($lesson->selection_cycle); ?></td>
                             <td><?php echo esc_html($this->format_duration($lesson->duration)); ?></td>
+                            <td>
+                                <a href="<?php echo wp_nonce_url(
+                                    add_query_arg(array(
+                                        'page' => 'academy-manager-essentials-users',
+                                        'view_user' => $view_user_id,
+                                        'alm_delete_lesson' => '1',
+                                        'user_id' => $view_user_id,
+                                        'lesson_id' => $lesson->ID
+                                    ), admin_url('admin.php')),
+                                    'alm_delete_lesson_' . $view_user_id . '_' . $lesson->ID
+                                ); ?>" 
+                                class="button button-small button-link-delete" 
+                                onclick="return confirm('Are you sure you want to remove this lesson from the user\'s library? This will NOT delete the lesson from the system.');"
+                                style="color: #a00;">
+                                    Delete
+                                </a>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>

@@ -1,0 +1,19 @@
+/* Academy AI Assistant - Admin Styles */
+
+.aaa-status-section,
+.aaa-tables-section {
+    margin: 20px 0;
+}
+
+.aaa-status-section table,
+.aaa-tables-section table {
+    margin-top: 10px;
+}
+
+.aaa-clear-logs {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f0f0f1;
+    border-left: 4px solid #2271b1;
+}
+

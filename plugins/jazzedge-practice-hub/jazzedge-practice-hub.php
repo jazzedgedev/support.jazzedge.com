@@ -5908,6 +5908,43 @@ class JazzEdge_Practice_Hub {
             'permission_callback' => '__return_true'
         ));
         
+        // Plan endpoints
+        register_rest_route('jph/v1', '/plan', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_plan'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/plan', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_save_plan'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/plan/goal', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_goal'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/plan/focus', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_focus'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/plan/steps', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_steps'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('jph/v1', '/plan/practiced', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_mark_plan_practiced'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
     }
     
     /**
@@ -8103,6 +8140,239 @@ class JazzEdge_Practice_Hub {
             ));
         } catch (Exception $e) {
             return new WP_Error('gamification_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get user's plan
+     */
+    public function rest_get_plan($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view your plan', array('status' => 401));
+            }
+            
+            $plan = $database->get_user_plan($user_id);
+            
+            // Get weekly session count
+            $sessions_this_week = $database->get_weekly_session_count($user_id);
+            
+            if ($plan) {
+                $plan['sessions_this_week'] = $sessions_this_week;
+            } else {
+                $plan = array(
+                    'user_id' => $user_id,
+                    'goal_90_day' => '',
+                    'weekly_focus_item_id' => null,
+                    'practice_steps' => array(),
+                    'deadline' => null,
+                    'sessions_this_week' => $sessions_this_week,
+                    'last_practiced_date' => null
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'plan' => $plan,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_plan_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Save user's plan
+     */
+    public function rest_save_plan($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to save your plan', array('status' => 401));
+            }
+            
+            $plan_data = array();
+            
+            if ($request->get_param('goal_90_day') !== null) {
+                $plan_data['goal_90_day'] = sanitize_text_field($request->get_param('goal_90_day'));
+            }
+            
+            if ($request->get_param('weekly_focus_item_id') !== null) {
+                $plan_data['weekly_focus_item_id'] = intval($request->get_param('weekly_focus_item_id'));
+            }
+            
+            if ($request->get_param('practice_steps') !== null) {
+                $steps = $request->get_param('practice_steps');
+                if (is_array($steps)) {
+                    $plan_data['practice_steps'] = array_map('sanitize_text_field', $steps);
+                }
+            }
+            
+            if ($request->get_param('deadline') !== null) {
+                $plan_data['deadline'] = sanitize_text_field($request->get_param('deadline'));
+            }
+            
+            $result = $database->save_user_plan($user_id, $plan_data);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Plan saved successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('save_plan_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update plan goal
+     */
+    public function rest_update_plan_goal($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $goal = sanitize_text_field($request->get_param('goal'));
+            
+            $result = $database->update_plan_goal($user_id, $goal);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Goal updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_goal_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update weekly focus item
+     */
+    public function rest_update_plan_focus($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $item_id = intval($request->get_param('item_id'));
+            
+            // Verify item belongs to user
+            $practice_items = $database->get_user_practice_items($user_id);
+            $item_exists = false;
+            foreach ($practice_items as $item) {
+                if ($item['id'] == $item_id) {
+                    $item_exists = true;
+                    break;
+                }
+            }
+            
+            if (!$item_exists && $item_id > 0) {
+                return new WP_Error('invalid_item', 'Practice item not found or does not belong to you', array('status' => 400));
+            }
+            
+            $result = $database->update_weekly_focus($user_id, $item_id > 0 ? $item_id : null);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Weekly focus updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_focus_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update practice steps
+     */
+    public function rest_update_plan_steps($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $steps = $request->get_param('steps');
+            
+            if (!is_array($steps)) {
+                return new WP_Error('invalid_steps', 'Steps must be an array', array('status' => 400));
+            }
+            
+            // Sanitize steps
+            $steps = array_map('sanitize_text_field', $steps);
+            
+            $result = $database->update_practice_steps($user_id, $steps);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice steps updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_steps_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Mark plan as practiced today
+     */
+    public function rest_mark_plan_practiced($request) {
+        try {
+            $database = new JPH_Database();
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to mark practice', array('status' => 401));
+            }
+            
+            $result = $database->mark_plan_practiced($user_id);
+            
+            if (!$result) {
+                return new WP_Error('mark_practiced_error', 'Failed to mark as practiced', array('status' => 500));
+            }
+            
+            // Get updated session count
+            $sessions_this_week = $database->get_weekly_session_count($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice marked successfully',
+                'sessions_this_week' => $sessions_this_week,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('mark_practiced_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -12997,6 +13267,35 @@ class JazzEdge_Practice_Hub {
     /**
      * Student Dashboard Shortcode
      */
+    /**
+     * Check if current user can access PLAN tab (test users only)
+     */
+    private function user_can_access_plan_tab() {
+        $user_id = get_current_user_id();
+        if (!$user_id || $user_id === 0) {
+            return false;
+        }
+        
+        // Check if enabled for all users (production mode)
+        $enable_for_all = get_option('aaa_enable_for_all', false);
+        if ($enable_for_all) {
+            return true;
+        }
+        
+        // Check if user is in test whitelist
+        $test_user_ids = get_option('aaa_test_user_ids', '');
+        if (empty($test_user_ids)) {
+            return false;
+        }
+        
+        // Parse comma-separated user IDs
+        $whitelist = array_map('trim', explode(',', $test_user_ids));
+        $whitelist = array_map('absint', $whitelist); // Sanitize
+        $whitelist = array_filter($whitelist); // Remove empty values
+        
+        return in_array($user_id, $whitelist, true);
+    }
+    
     public function shortcode_student_dashboard($atts) {
         // Only show to logged-in users
         if (!is_user_logged_in()) {
@@ -13004,6 +13303,7 @@ class JazzEdge_Practice_Hub {
         }
         
         $user_id = get_current_user_id();
+        $can_access_plan = $this->user_can_access_plan_tab();
         $database = new JPH_Database();
         
         // Get user's practice items
@@ -13182,6 +13482,149 @@ class JazzEdge_Practice_Hub {
                 <?php endif; ?>
             </div>
             
+            <?php if ($can_access_plan): ?>
+            <!-- Tabbed Navigation -->
+            <div class="jph-tabs-container">
+                <div class="jph-tabs-nav">
+                    <button class="jph-tab-btn active" data-tab="plan">
+                        <span class="tab-icon">📋</span>
+                        <span class="tab-title">Plan</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="practice">
+                        <span class="tab-icon">🎹</span>
+                        <span class="tab-title">Practice</span>
+                    </button>
+                </div>
+                
+                <!-- PLAN Tab -->
+                <div class="jph-tab-pane active" id="plan-tab">
+                    <?php
+                    // Get user's plan data
+                    $user_plan = $database->get_user_plan($user_id);
+                    $sessions_this_week = $database->get_weekly_session_count($user_id);
+                    
+                    // Auto-select first practice item if no focus selected
+                    $weekly_focus_item_id = $user_plan ? $user_plan['weekly_focus_item_id'] : null;
+                    if (!$weekly_focus_item_id && !empty($practice_items)) {
+                        $weekly_focus_item_id = $practice_items[0]['id'];
+                    }
+                    
+                    $practice_steps = $user_plan && !empty($user_plan['practice_steps']) ? $user_plan['practice_steps'] : array();
+                    // Ensure we have up to 5 steps
+                    while (count($practice_steps) < 5) {
+                        $practice_steps[] = '';
+                    }
+                    $practice_steps = array_slice($practice_steps, 0, 5);
+                    ?>
+                    
+                    <!-- Goal Snapshot -->
+                    <div class="jph-plan-section jph-plan-goal">
+                        <h3>Your 90-Day Piano Goal</h3>
+                        <input type="text" 
+                               id="jph-plan-goal" 
+                               class="jph-plan-goal-input" 
+                               placeholder="What do you want to achieve in 90 days?"
+                               value="<?php echo esc_attr($user_plan ? $user_plan['goal_90_day'] : ''); ?>"
+                               maxlength="200">
+                    </div>
+                    
+                    <!-- This Week's Focus -->
+                    <div class="jph-plan-section jph-plan-focus">
+                        <h3>This Week's Focus</h3>
+                        <select id="jph-plan-focus" class="jph-plan-focus-select">
+                            <option value="">-- Select a practice item --</option>
+                            <?php foreach ($practice_items as $item): ?>
+                                <option value="<?php echo esc_attr($item['id']); ?>" <?php selected($weekly_focus_item_id, $item['id']); ?>>
+                                    <?php echo esc_html($item['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="jph-plan-subtext">Chosen from your active practice items</p>
+                    </div>
+                    
+                    <!-- Practice Steps -->
+                    <div class="jph-plan-section jph-plan-steps">
+                        <h3>Practice Steps (20–30 min)</h3>
+                        <div class="jph-plan-steps-list">
+                            <?php for ($i = 0; $i < 5; $i++): ?>
+                                <div class="jph-plan-step-item">
+                                    <span class="jph-plan-step-number"><?php echo $i + 1; ?>.</span>
+                                    <input type="text" 
+                                           class="jph-plan-step-input" 
+                                           placeholder="Step <?php echo $i + 1; ?>"
+                                           value="<?php echo esc_attr(isset($practice_steps[$i]) ? $practice_steps[$i] : ''); ?>"
+                                           data-step-index="<?php echo $i; ?>"
+                                           maxlength="150">
+                                    <span class="jph-plan-step-time">⏱</span>
+                                </div>
+                            <?php endfor; ?>
+                        </div>
+                    </div>
+                    
+                    <!-- Practice Confirmation -->
+                    <div class="jph-plan-section jph-plan-confirmation">
+                        <h3>Practice Confirmation</h3>
+                        <div class="jph-plan-practiced-buttons">
+                            <button type="button" class="jph-btn jph-btn-primary jph-plan-practiced-yes" id="jph-plan-practiced-yes">
+                                Yes
+                            </button>
+                            <button type="button" class="jph-btn jph-btn-secondary jph-plan-practiced-no" id="jph-plan-practiced-no">
+                                Not yet
+                            </button>
+                        </div>
+                        <p class="jph-plan-sessions-count">
+                            Sessions this week: <span id="jph-plan-sessions-count"><?php echo esc_html($sessions_this_week); ?></span> / 5
+                        </p>
+                    </div>
+                    
+                    <!-- Favorites Bridge (Collapsed) -->
+                    <?php if (!empty($lesson_favorites)): ?>
+                    <div class="jph-plan-section jph-plan-favorites-bridge">
+                        <div class="jph-plan-favorites-header" id="jph-plan-favorites-toggle">
+                            <h3>Need something new to work on?</h3>
+                            <span class="jph-plan-favorites-arrow">▼</span>
+                        </div>
+                        <div class="jph-plan-favorites-content" id="jph-plan-favorites-content" style="display: none;">
+                            <p>You can add items from your favorites to your practice items.</p>
+                            <button type="button" class="jph-btn jph-btn-secondary" onclick="window.location.href='#practice-items-tab'; document.querySelector('[data-tab=\"practice\"]').click();">
+                                Manage Practice Items
+                            </button>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
+                <!-- Practice Tab (existing content) -->
+                <div class="jph-tab-pane" id="practice-tab">
+            <?php else: ?>
+            <!-- Coming Soon Message for non-test users -->
+            <div class="jph-coming-soon">
+                <div class="coming-soon-icon">🚀</div>
+                <h2>Something Amazing is Coming!</h2>
+                <p class="coming-soon-subtitle">We're building something special just for you</p>
+                <div class="coming-soon-features">
+                    <div class="feature-item">
+                        <div class="feature-icon">📋</div>
+                        <h3>Practice Planning</h3>
+                        <p>Create structured practice plans tailored to your goals</p>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">🎯</div>
+                        <h3>Goal Setting</h3>
+                        <p>Set and track your practice goals with ease</p>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">📊</div>
+                        <h3>Progress Tracking</h3>
+                        <p>Visualize your journey and celebrate milestones</p>
+                    </div>
+                </div>
+                <div class="coming-soon-cta">
+                    <p class="excitement-text">✨ Get ready to take your practice to the next level! ✨</p>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <div class="jph-practice-items">
                 <h3>Your Practice Items 
                     <span class="item-count">(<?php echo count($practice_items); ?>/6)</span>
@@ -13353,6 +13796,11 @@ class JazzEdge_Practice_Hub {
                     </button>
                 </div>
             </div>
+            
+            <?php if ($can_access_plan): ?>
+                </div> <!-- End practice-tab -->
+            </div> <!-- End jph-tabs-container -->
+            <?php endif; ?>
             
             <!-- Practice Logging Modal -->
             <div id="jph-log-modal" class="jph-modal" style="display: none;">
@@ -14789,6 +15237,328 @@ class JazzEdge_Practice_Hub {
         }
         
         /* Full Width Practice History */
+        /* PLAN Tab Styles */
+        .jph-tabs-container {
+            margin: 30px 0;
+        }
+        
+        .jph-tabs-nav {
+            display: flex;
+            background: white;
+            border-radius: 16px;
+            padding: 8px;
+            box-shadow: 0 4px 20px rgba(0, 69, 85, 0.1);
+            border: 2px solid #e8f5f4;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            gap: 4px;
+        }
+        
+        .jph-tab-btn {
+            flex: 1;
+            min-width: 140px;
+            background: transparent;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: #64748b;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .jph-tab-btn:hover {
+            background: rgba(0, 69, 85, 0.05);
+            color: #004555;
+            transform: translateY(-2px);
+        }
+        
+        .jph-tab-btn.active {
+            background: linear-gradient(135deg, #004555, #006666);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 69, 85, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .jph-tab-btn .tab-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+        
+        .jph-tab-pane {
+            display: none;
+        }
+        
+        .jph-tab-pane.active {
+            display: block;
+        }
+        
+        /* PLAN Tab Content */
+        .jph-plan-section {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 69, 85, 0.08);
+        }
+        
+        .jph-plan-section h3 {
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #2A3940;
+        }
+        
+        .jph-plan-goal-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-plan-goal-input:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-focus-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-plan-focus-select:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-subtext {
+            margin: 10px 0 0 0;
+            font-size: 13px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .jph-plan-steps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .jph-plan-step-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .jph-plan-step-number {
+            font-weight: 600;
+            color: #239B90;
+            min-width: 24px;
+        }
+        
+        .jph-plan-step-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-plan-step-input:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-step-time {
+            font-size: 18px;
+            color: #666;
+            min-width: 24px;
+            text-align: center;
+        }
+        
+        .jph-plan-practiced-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .jph-plan-practiced-yes,
+        .jph-plan-practiced-no {
+            flex: 1;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        
+        .jph-plan-practiced-yes {
+            background: #239B90;
+            color: white;
+        }
+        
+        .jph-plan-practiced-yes:hover {
+            background: #1a7a70;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+        }
+        
+        .jph-plan-practiced-no {
+            background: #f5f5f5;
+            color: #666;
+        }
+        
+        .jph-plan-practiced-no:hover {
+            background: #e8e8e8;
+        }
+        
+        .jph-plan-sessions-count {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .jph-plan-sessions-count span {
+            font-weight: 600;
+            color: #239B90;
+        }
+        
+        .jph-plan-favorites-bridge {
+            border-top: 2px solid #e8f5f4;
+            padding-top: 20px;
+            margin-top: 20px;
+        }
+        
+        .jph-plan-favorites-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+        }
+        
+        .jph-plan-favorites-header:hover {
+            background: #f5f5f5;
+        }
+        
+        .jph-plan-favorites-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .jph-plan-favorites-arrow {
+            font-size: 14px;
+            color: #666;
+            transition: transform 0.3s ease;
+        }
+        
+        .jph-plan-favorites-content {
+            padding: 15px 10px;
+        }
+        
+        .jph-plan-favorites-content p {
+            margin: 0 0 15px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* Coming Soon Styles */
+        .jph-coming-soon {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0, 69, 85, 0.08);
+            margin: 30px 0;
+        }
+        
+        .coming-soon-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .jph-coming-soon h2 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            color: #2A3940;
+        }
+        
+        .coming-soon-subtitle {
+            margin: 0 0 40px 0;
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .coming-soon-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .feature-item {
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .feature-item h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            color: #2A3940;
+        }
+        
+        .feature-item p {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .coming-soon-cta {
+            margin-top: 40px;
+        }
+        
+        .excitement-text {
+            font-size: 18px;
+            color: #239B90;
+            font-weight: 600;
+        }
+        
         .jph-badges-section {
             background: white;
             border-radius: 16px;
@@ -17842,8 +18612,228 @@ class JazzEdge_Practice_Hub {
                         }
                     });
                 });
+                
+                <?php if ($can_access_plan): ?>
+                // PLAN Tab Functionality
+                initPlanTab();
+                <?php endif; ?>
             });
         }
+        
+        <?php if ($can_access_plan): ?>
+        // Initialize PLAN Tab
+        function initPlanTab() {
+            // Tab switching
+            jQuery('.jph-tab-btn').on('click', function(e) {
+                e.preventDefault();
+                var targetTab = jQuery(this).data('tab');
+                
+                // Remove active class from all tabs and panes
+                jQuery('.jph-tab-btn').removeClass('active');
+                jQuery('.jph-tab-pane').removeClass('active');
+                
+                // Add active class to clicked tab and corresponding pane
+                jQuery(this).addClass('active');
+                jQuery('#' + targetTab + '-tab').addClass('active');
+                
+                // Load plan data when switching to plan tab
+                if (targetTab === 'plan') {
+                    loadPlanData();
+                }
+            });
+            
+            // Auto-save goal on blur/enter
+            var goalSaveTimeout;
+            jQuery('#jph-plan-goal').on('blur keypress', function(e) {
+                if (e.type === 'keypress' && e.which !== 13) return; // Only save on Enter key
+                
+                clearTimeout(goalSaveTimeout);
+                goalSaveTimeout = setTimeout(function() {
+                    savePlanGoal();
+                }, 500);
+            });
+            
+            // Auto-save focus on change
+            jQuery('#jph-plan-focus').on('change', function() {
+                savePlanFocus();
+            });
+            
+            // Auto-save steps on blur
+            var stepSaveTimeout;
+            jQuery('.jph-plan-step-input').on('blur', function() {
+                clearTimeout(stepSaveTimeout);
+                stepSaveTimeout = setTimeout(function() {
+                    savePlanSteps();
+                }, 500);
+            });
+            
+            // Practice confirmation buttons
+            jQuery('#jph-plan-practiced-yes').on('click', function() {
+                markPlanPracticed();
+            });
+            
+            jQuery('#jph-plan-practiced-no').on('click', function() {
+                // Just show a message, don't do anything
+                showMessage('Keep going! You can mark as practiced when you\'re ready.', 'info');
+            });
+            
+            // Favorites bridge toggle
+            jQuery('#jph-plan-favorites-toggle').on('click', function() {
+                jQuery('#jph-plan-favorites-content').slideToggle();
+                var arrow = jQuery(this).find('.jph-plan-favorites-arrow');
+                arrow.text(arrow.text() === '▼' ? '▲' : '▼');
+            });
+            
+            // Load plan data on page load if plan tab is active
+            if (jQuery('#plan-tab').hasClass('active')) {
+                loadPlanData();
+            }
+        }
+        
+        // Load plan data from API
+        function loadPlanData() {
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/plan'); ?>',
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success && response.plan) {
+                        var plan = response.plan;
+                        
+                        // Update goal
+                        if (plan.goal_90_day) {
+                            jQuery('#jph-plan-goal').val(plan.goal_90_day);
+                        }
+                        
+                        // Update focus
+                        if (plan.weekly_focus_item_id) {
+                            jQuery('#jph-plan-focus').val(plan.weekly_focus_item_id);
+                        }
+                        
+                        // Update steps
+                        if (plan.practice_steps && Array.isArray(plan.practice_steps)) {
+                            plan.practice_steps.forEach(function(step, index) {
+                                if (step && jQuery('.jph-plan-step-input[data-step-index="' + index + '"]').length) {
+                                    jQuery('.jph-plan-step-input[data-step-index="' + index + '"]').val(step);
+                                }
+                            });
+                        }
+                        
+                        // Update session count
+                        if (plan.sessions_this_week !== undefined) {
+                            jQuery('#jph-plan-sessions-count').text(plan.sessions_this_week);
+                        }
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading plan data:', error);
+                }
+            });
+        }
+        
+        // Save plan goal
+        function savePlanGoal() {
+            var goal = jQuery('#jph-plan-goal').val();
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/plan/goal'); ?>',
+                method: 'PUT',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: JSON.stringify({ goal: goal }),
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.success) {
+                        // Silent save - no message needed
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error saving goal:', error);
+                }
+            });
+        }
+        
+        // Save plan focus
+        function savePlanFocus() {
+            var itemId = jQuery('#jph-plan-focus').val();
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/plan/focus'); ?>',
+                method: 'PUT',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: JSON.stringify({ item_id: itemId ? parseInt(itemId) : 0 }),
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.success) {
+                        // Silent save
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error saving focus:', error);
+                }
+            });
+        }
+        
+        // Save plan steps
+        function savePlanSteps() {
+            var steps = [];
+            jQuery('.jph-plan-step-input').each(function() {
+                var step = jQuery(this).val().trim();
+                if (step) {
+                    steps.push(step);
+                }
+            });
+            
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/plan/steps'); ?>',
+                method: 'PUT',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                data: JSON.stringify({ steps: steps }),
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.success) {
+                        // Silent save
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error saving steps:', error);
+                }
+            });
+        }
+        
+        // Mark plan as practiced
+        function markPlanPracticed() {
+            jQuery.ajax({
+                url: '<?php echo rest_url('jph/v1/plan/practiced'); ?>',
+                method: 'POST',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Update session count
+                        if (response.sessions_this_week !== undefined) {
+                            jQuery('#jph-plan-sessions-count').text(response.sessions_this_week);
+                        }
+                        showMessage('Great job! Practice marked for today. 🎉', 'success');
+                    } else {
+                        showMessage('Error marking practice: ' + (response.message || 'Unknown error'), 'error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error marking practiced:', error);
+                    showMessage('Error marking practice. Please try again.', 'error');
+                }
+            });
+        }
+        <?php endif; ?>
         
         // Start initialization
         // Initialize Streak Shield & Recovery system

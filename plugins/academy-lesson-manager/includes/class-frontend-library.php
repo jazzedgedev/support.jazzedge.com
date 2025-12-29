@@ -77,7 +77,7 @@ class ALM_Frontend_Library {
         wp_enqueue_script('alm-essentials-library', ALM_PLUGIN_URL . 'assets/js/essentials-library.js', array('jquery'), ALM_VERSION, true);
         
         // Enqueue HLS.js for browsers that don't support HLS natively (Firefox, Chrome)
-        wp_enqueue_script('hls.js', 'https://cdn.jsdelivr.net/npm/hls.js@latest', array(), null, true);
+        wp_enqueue_script('hls.js', 'https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js', array(), '1.4.12', true);
         
         // Enqueue microtip CSS for tooltips
         wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
@@ -112,6 +112,7 @@ class ALM_Frontend_Library {
         $lesson_level = isset($_GET['lesson_level']) ? sanitize_text_field($_GET['lesson_level']) : '';
         $tag = isset($_GET['tag']) ? sanitize_text_field($_GET['tag']) : '';
         $lesson_style = isset($_GET['lesson_style']) ? sanitize_text_field($_GET['lesson_style']) : '';
+        $collection_id = isset($_GET['collection_id']) ? intval($_GET['collection_id']) : 0;
         
         // Get paged from query var (for pretty permalinks) or GET parameter
         $paged = get_query_var('paged');
@@ -125,8 +126,8 @@ class ALM_Frontend_Library {
         $offset = ($paged - 1) * $per_page;
         
         // Get selectable lessons with filters
-        $selectable_lessons = $this->library->get_selectable_lessons($search, $per_page, $offset, $lesson_level, $tag, $lesson_style);
-        $total_lessons = $this->library->get_selectable_lessons_count($search, $lesson_level, $tag, $lesson_style);
+        $selectable_lessons = $this->library->get_selectable_lessons($search, $per_page, $offset, $lesson_level, $tag, $lesson_style, $collection_id);
+        $total_lessons = $this->library->get_selectable_lessons_count($search, $lesson_level, $tag, $lesson_style, $collection_id);
         $total_pages = ceil($total_lessons / $per_page);
         
         // Get library lesson IDs for filtering
@@ -177,7 +178,7 @@ class ALM_Frontend_Library {
                         <div class="alm-library-search-icon"></div>
                     </div>
                     <button type="submit" class="alm-library-search-button">Search</button>
-                        <?php if ($search || $lesson_level || $tag || $lesson_style): ?>
+                        <?php if ($search || $lesson_level || $tag || $lesson_style || $collection_id): ?>
                     <a href="?" class="alm-library-clear-search">Clear</a>
                     <?php endif; ?>
                     </div>
@@ -189,6 +190,29 @@ class ALM_Frontend_Library {
                             <option value="intermediate" <?php selected($lesson_level, 'intermediate'); ?>>Intermediate</option>
                             <option value="advanced" <?php selected($lesson_level, 'advanced'); ?>>Advanced</option>
                             <option value="pro" <?php selected($lesson_level, 'pro'); ?>>Pro</option>
+                        </select>
+                        <select id="alm-library-collection-filter" name="collection_id" class="alm-library-filter-select">
+                            <option value="">Filter by collection</option>
+                            <?php
+                            // Get Studio level (membership_level = 2) collections
+                            global $wpdb;
+                            $collections_table = $wpdb->prefix . 'alm_collections';
+                            $studio_collections = $wpdb->get_results($wpdb->prepare(
+                                "SELECT ID, collection_title 
+                                 FROM {$collections_table} 
+                                 WHERE membership_level = %d 
+                                 ORDER BY collection_title ASC",
+                                2
+                            ));
+                            
+                            if (!empty($studio_collections)) {
+                                foreach ($studio_collections as $collection) {
+                                    $coll_id = intval($collection->ID);
+                                    $coll_title = stripslashes($collection->collection_title);
+                                    echo '<option value="' . esc_attr($coll_id) . '" ' . selected($collection_id, $coll_id, false) . '>' . esc_html($coll_title) . '</option>';
+                                }
+                            }
+                            ?>
                         </select>
                         <select id="alm-library-tag-filter" name="tag" class="alm-library-filter-select">
                             <option value="">Filter by tag</option>
@@ -325,6 +349,9 @@ class ALM_Frontend_Library {
                     }
                     if ($lesson_level) {
                         $query_args['lesson_level'] = $lesson_level;
+                    }
+                    if ($collection_id) {
+                        $query_args['collection_id'] = $collection_id;
                     }
                     if ($tag) {
                         $query_args['tag'] = $tag;

@@ -135,6 +135,13 @@ class ALM_Rest_API {
                 'text' => array('type' => 'string', 'required' => true),
             ),
         ));
+        
+        // Zoom webhook endpoint (unauthenticated, validates via shared secret)
+        register_rest_route('alm/v1', '/zoom-recording', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array($this, 'handle_zoom_webhook'),
+            'permission_callback' => '__return_true', // Public endpoint, validates secret internally
+        ));
     }
     
     /**
@@ -174,7 +181,7 @@ class ALM_Rest_API {
         // Get system message from saved option, or use default
         $default_prompt = "You are an AI assistant helping to expand and improve notification messages for a music education platform (Jazzedge Academy). 
 
-Your task is to take a brief notification message and expand it into a more detailed, engaging, and informative message while maintaining the original intent and tone.
+Your task is to take a brief notification message and expand it into a more detailed, engaging, and informative message.
 
 Guidelines:
 - Keep the friendly, encouraging tone appropriate for students
@@ -185,7 +192,10 @@ Guidelines:
 - Keep it concise but comprehensive
 - Use clear, accessible language
 
-Return only the expanded text, no explanations or additional commentary.";
+IMPORTANT: Start your response with a compelling title in square brackets [Title Here], followed by the expanded description. The title should be 3-8 words, catchy and attention-grabbing.
+
+Example format:
+[New Jazz Standards Course Available] We're excited to announce our new Jazz Standards course that will help you master classic jazz tunes. This comprehensive course includes video lessons, sheet music, and backing tracks to practice with...";
         
         $system_message = get_option('alm_notification_ai_prompt', $default_prompt);
         
@@ -195,14 +205,26 @@ Return only the expanded text, no explanations or additional commentary.";
         }
 
         // Call Katahdin AI Hub
-        $expanded_text = $this->call_katahdin_ai($text, $system_message, 'gpt-4', 1000, 0.7);
+        $expanded_response = $this->call_katahdin_ai($text, $system_message, 'gpt-4', 1000, 0.7);
         
-        if (is_wp_error($expanded_text)) {
-            return new WP_Error('ai_error', $expanded_text->get_error_message(), array('status' => 500));
+        if (is_wp_error($expanded_response)) {
+            return new WP_Error('ai_error', $expanded_response->get_error_message(), array('status' => 500));
         }
         
+        // Extract title from brackets at the start of the response
+        $title = '';
+        $description = trim($expanded_response);
+        
+        // Look for title in brackets at the beginning: [Title Here] description...
+        if (preg_match('/^\[([^\]]+)\]\s*(.+)$/s', $description, $matches)) {
+            $title = trim($matches[1]);
+            $description = trim($matches[2]);
+        }
+        
+        // Return response with title in brackets at the start for easy copy-paste
         return new WP_REST_Response(array(
-            'expanded_text' => $expanded_text,
+            'expanded_text' => $description ? $description : $expanded_response,
+            'expanded_title' => $title,
             'original_text' => $text
         ), 200);
     }
@@ -748,6 +770,9 @@ Return only the expanded text, no explanations or additional commentary.";
         $page = max(1, intval($request->get_param('page')));
         $per_page = min(100, max(1, intval($request->get_param('per_page')))); // Allow up to 100 per page
         $offset = ($page - 1) * $per_page;
+        
+        // Check for debug parameter
+        $debug_mode = isset($_GET['debug']) && $_GET['debug'] == '1';
 
         $membership_param_raw = isset($ai_filters['membership_level']) ? $ai_filters['membership_level'] : $request->get_param('membership_level');
         $membership_param = $membership_param_raw !== null ? intval($membership_param_raw) : null;
@@ -844,16 +869,37 @@ Return only the expanded text, no explanations or additional commentary.";
         }
 
         if ($apply_membership_filter && $membership_param_provided) {
+            // Get free trial lesson IDs
+            $free_trial_lesson_ids = get_option('alm_free_trial_lesson_ids', array());
+            $free_trial_lesson_ids = array_map('intval', $free_trial_lesson_ids);
+            $free_trial_lesson_ids = array_filter($free_trial_lesson_ids);
+            
             // If membership_param was provided directly (from frontend filter), use exact match
             // Otherwise, use <= logic for accessibility (user can see content at their level or below)
             if ($membership_param_provided && !isset($ai_filters['membership_level'])) {
                 // Direct frontend filter - exact match (including 0 for Free)
-                $where[] = "l.membership_level = %d";
-                $params[] = $membership_param;
+                if ($membership_param == 0 && !empty($free_trial_lesson_ids)) {
+                    // Free trial users can access: lessons with membership_level = 0 OR lessons in free trial whitelist
+                    $placeholders = implode(',', array_fill(0, count($free_trial_lesson_ids), '%d'));
+                    $where[] = "(l.membership_level = %d OR l.post_id IN ($placeholders))";
+                    $params[] = $membership_param;
+                    $params = array_merge($params, $free_trial_lesson_ids);
+                } else {
+                    $where[] = "l.membership_level = %d";
+                    $params[] = $membership_param;
+                }
             } else {
                 // AI filter or enforcement - use <= logic for accessibility
-                $where[] = "l.membership_level <= %d";
-                $params[] = $max_level;
+                if ($max_level == 0 && !empty($free_trial_lesson_ids)) {
+                    // Free trial users can access: lessons with membership_level = 0 OR lessons in free trial whitelist
+                    $placeholders = implode(',', array_fill(0, count($free_trial_lesson_ids), '%d'));
+                    $where[] = "(l.membership_level <= %d OR l.post_id IN ($placeholders))";
+                    $params[] = $max_level;
+                    $params = array_merge($params, $free_trial_lesson_ids);
+                } else {
+                    $where[] = "l.membership_level <= %d";
+                    $params[] = $max_level;
+                }
             }
         }
         if ($collection_id > 0) {
@@ -1022,7 +1068,23 @@ Return only the expanded text, no explanations or additional commentary.";
             $f_where = array('1=1');
             $f_params_full = array();
             // Apply the same membership/filters if enabled
-            if ($apply_membership_filter && $max_level > 0) { $f_where[] = "l.membership_level <= %d"; $f_params_full[] = $max_level; }
+            if ($apply_membership_filter) {
+                // Get free trial lesson IDs
+                $free_trial_lesson_ids = get_option('alm_free_trial_lesson_ids', array());
+                $free_trial_lesson_ids = array_map('intval', $free_trial_lesson_ids);
+                $free_trial_lesson_ids = array_filter($free_trial_lesson_ids);
+                
+                if ($max_level == 0 && !empty($free_trial_lesson_ids)) {
+                    // Free trial users can access: lessons with membership_level = 0 OR lessons in free trial whitelist
+                    $placeholders = implode(',', array_fill(0, count($free_trial_lesson_ids), '%d'));
+                    $f_where[] = "(l.membership_level <= %d OR l.post_id IN ($placeholders))";
+                    $f_params_full[] = $max_level;
+                    $f_params_full = array_merge($f_params_full, $free_trial_lesson_ids);
+                } elseif ($max_level > 0) {
+                    $f_where[] = "l.membership_level <= %d";
+                    $f_params_full[] = $max_level;
+                }
+            }
             if ($collection_id > 0) { $f_where[] = "l.collection_id = %d"; $f_params_full[] = $collection_id; }
             if ($song_lesson === 'y' || $song_lesson === 'n') { $f_where[] = "l.song_lesson = %s"; $f_params_full[] = $song_lesson; }
             if (!empty($lesson_level) && in_array($lesson_level, array('beginner', 'intermediate', 'advanced', 'pro'), true)) {
@@ -1187,8 +1249,122 @@ Return only the expanded text, no explanations or additional commentary.";
             'per_page' => $per_page,
             'total_pages' => $per_page > 0 ? (int) ceil($total / $per_page) : 1
         );
+        
+        // Add debug SQL if debug mode is enabled
+        if ($debug_mode) {
+            // Build the actual SQL with values substituted for debugging
+            $debug_sql = isset($prepared) ? $prepared : '';
+            $debug_count_sql = isset($count_sql) ? $count_sql : '';
+            
+            // If fuzzy fallback was used, show that SQL instead
+            if (!empty($q) && (empty($rows) || $total === 0) && isset($prepared2)) {
+                $debug_sql = $prepared2;
+                if (isset($count_sql2) && isset($count_params2)) {
+                    $debug_count_sql = $this->wpdb->prepare($count_sql2, $count_params2);
+                }
+            }
+            
+            $response['_debug'] = array(
+                'sql' => $debug_sql,
+                'count_sql' => $debug_count_sql,
+                'filters' => array(
+                    'query' => $q,
+                    'lesson_style' => $lesson_style,
+                    'lesson_level' => $lesson_level,
+                    'tag' => $tag,
+                    'collection_id' => $collection_id,
+                    'membership_level' => $membership_param,
+                    'page' => $page,
+                    'per_page' => $per_page
+                ),
+                'total_results' => $total,
+                'returned_results' => count($items)
+            );
+        }
 
         return new WP_REST_Response($response, 200);
+    }
+    
+    /**
+     * Handle Zoom webhook from Zapier
+     * 
+     * @param WP_REST_Request $request REST request object
+     * @return WP_REST_Response|WP_Error Response or error
+     */
+    public function handle_zoom_webhook(WP_REST_Request $request) {
+        // Load webhook processor
+        require_once ALM_PLUGIN_DIR . 'includes/class-zoom-webhook.php';
+        $webhook = new ALM_Zoom_Webhook();
+        
+        // Get payload - Zapier sends form data
+        $payload = array();
+        
+        // WordPress REST API parses form data into get_body_params()
+        $body_params = $request->get_body_params();
+        if (!empty($body_params)) {
+            $payload = $body_params;
+        } else {
+            // Fallback to JSON body
+            $json_params = $request->get_json_params();
+            if (!empty($json_params)) {
+                $payload = $json_params;
+            } else {
+                // Last resort: try $_POST directly (for form-encoded data)
+                $payload = $_POST;
+            }
+        }
+        
+        // If still empty, try parsing raw body as form data
+        if (empty($payload)) {
+            $raw_body = $request->get_body();
+            if (!empty($raw_body)) {
+                parse_str($raw_body, $payload);
+            }
+        }
+        
+        // Log all incoming requests, even if payload is empty
+        // This ensures we capture all webhook attempts for debugging
+        if (empty($payload)) {
+            // Log empty/malformed request
+            $debug = array(
+                'timestamp' => current_time('mysql'),
+                'payload' => array(),
+                'error' => 'Empty or unparseable payload received',
+                'request_method' => $request->get_method(),
+                'request_headers' => $request->get_headers(),
+                'raw_body' => $request->get_body(),
+                'steps' => array(
+                    array('step' => 'payload_extraction', 'status' => 'failed', 'message' => 'Could not extract payload from request')
+                )
+            );
+            $webhook->add_debug_log($debug);
+            
+            return new WP_REST_Response(array(
+                'success' => false,
+                'error' => 'Empty or unparseable payload received',
+                'debug' => $debug
+            ), 400);
+        }
+        
+        // Process webhook (this will also log the request)
+        $result = $webhook->process_webhook($payload, false);
+        
+        if ($result['success']) {
+            return new WP_REST_Response(array(
+                'success' => true,
+                'event_id' => $result['event_id'],
+                'vimeo_id' => $result['vimeo_id'],
+                'collection_id' => $result['collection_id'],
+                'migration' => $result['migration'],
+                'debug' => $result['debug']
+            ), 200);
+        } else {
+            return new WP_REST_Response(array(
+                'success' => false,
+                'error' => $result['error'],
+                'debug' => $result['debug']
+            ), 400);
+        }
     }
 }
 

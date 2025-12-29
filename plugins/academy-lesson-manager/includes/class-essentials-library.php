@@ -468,9 +468,10 @@ class ALM_Essentials_Library {
      * @param string $lesson_level Optional lesson level filter
      * @param string $tag Optional tag filter
      * @param string $lesson_style Optional lesson style filter
+     * @param int $collection_id Optional collection ID filter
      * @return array Array of lesson objects
      */
-    public function get_selectable_lessons($search = '', $limit = 100, $offset = 0, $lesson_level = '', $tag = '', $lesson_style = '') {
+    public function get_selectable_lessons($search = '', $limit = 100, $offset = 0, $lesson_level = '', $tag = '', $lesson_style = '', $collection_id = 0) {
         $collections_table = $this->wpdb->prefix . 'alm_collections';
         $where = array("l.membership_level = 2");
         $params = array();
@@ -508,6 +509,12 @@ class ALM_Essentials_Library {
             $params[] = '%, ' . $style_trimmed;
         }
         
+        // Filter by collection ID
+        if (!empty($collection_id) && is_numeric($collection_id)) {
+            $where[] = "l.collection_id = %d";
+            $params[] = intval($collection_id);
+        }
+        
         $where_sql = "WHERE " . implode(" AND ", $where);
         
         $limit_clause = '';
@@ -538,9 +545,10 @@ class ALM_Essentials_Library {
      * @param string $lesson_level Optional lesson level filter
      * @param string $tag Optional tag filter
      * @param string $lesson_style Optional lesson style filter
+     * @param int $collection_id Optional collection ID filter
      * @return int Count
      */
-    public function get_selectable_lessons_count($search = '', $lesson_level = '', $tag = '', $lesson_style = '') {
+    public function get_selectable_lessons_count($search = '', $lesson_level = '', $tag = '', $lesson_style = '', $collection_id = 0) {
         $where = array("membership_level = 2");
         $params = array();
         
@@ -575,6 +583,12 @@ class ALM_Essentials_Library {
             $params[] = $style_trimmed . ',%';
             $params[] = '%, ' . $style_trimmed . ',%';
             $params[] = '%, ' . $style_trimmed;
+        }
+        
+        // Filter by collection ID
+        if (!empty($collection_id) && is_numeric($collection_id)) {
+            $where[] = "collection_id = %d";
+            $params[] = intval($collection_id);
         }
         
         $where_sql = "WHERE " . implode(" AND ", $where);

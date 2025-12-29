@@ -321,6 +321,14 @@ class ALM_Admin_Chapters {
         echo '</tr>';
         
         echo '<tr>';
+        echo '<th scope="row"><label for="mp3_file">' . __('MP3 File for Transcription', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="file" id="mp3_file" name="mp3_file" accept="audio/mpeg,audio/mp3" />';
+        echo '<p class="description">' . __('Upload an MP3 file (max 25MB) for transcription. Required for automatic transcription.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
         echo '<th scope="row"><label for="duration">' . __('Duration (seconds)', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         echo '<input type="number" id="duration" name="duration" value="0" class="small-text" />';
@@ -457,9 +465,9 @@ class ALM_Admin_Chapters {
             return;
         }
         
-        // Get transcript file name if it exists
+        // Get transcript file name if it exists (check both whisper and zoom sources)
         $transcript_file = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT vtt_file FROM {$this->wpdb->prefix}alm_transcripts WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+            "SELECT vtt_file FROM {$this->wpdb->prefix}alm_transcripts WHERE chapter_id = %d AND (source = 'whisper' OR source = 'zoom') LIMIT 1",
             $id
         ));
         
@@ -473,9 +481,28 @@ class ALM_Admin_Chapters {
             }
         }
         
+        // Get chapter URL for view button
+        $chapter_url = '';
+        if (!empty($chapter->lesson_id) && !empty($chapter->slug)) {
+            $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT post_id FROM {$lessons_table} WHERE ID = %d",
+                $chapter->lesson_id
+            ));
+            
+            if ($lesson && $lesson->post_id && get_post($lesson->post_id)) {
+                $chapter_url = add_query_arg('c', $chapter->slug, get_permalink($lesson->post_id));
+            }
+        }
+        
         // Back button and actions
         echo '<p>';
-        echo '<a href="?page=academy-manager-chapters" class="button">&larr; ' . __('Back to Chapters', 'academy-lesson-manager') . '</a> ';
+        if (!empty($chapter->lesson_id) && !empty($chapter->lesson_title)) {
+            echo '<a href="?page=academy-manager-lessons&action=edit&id=' . esc_attr($chapter->lesson_id) . '" class="button">&larr; ' . __('Back to Lesson', 'academy-lesson-manager') . ': ' . esc_html(stripslashes($chapter->lesson_title)) . '</a> ';
+        }
+        echo '<a href="?page=academy-manager-chapters" class="button">' . __('All Chapters', 'academy-lesson-manager') . '</a> ';
+        if (!empty($chapter_url)) {
+            echo '<a href="' . esc_url($chapter_url) . '" class="button button-primary" target="_blank" rel="noopener noreferrer"><span class="dashicons dashicons-external" style="vertical-align: middle; margin-top: -2px;"></span> ' . __('View Chapter', 'academy-lesson-manager') . '</a> ';
+        }
         echo '<a href="?page=academy-manager-chapters&action=delete&id=' . $chapter->ID . '" class="button" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')">' . __('Delete', 'academy-lesson-manager') . '</a>';
         echo '</p>';
         
@@ -483,7 +510,7 @@ class ALM_Admin_Chapters {
         echo '<div class="alm-chapter-details">';
         echo '<h2>' . __('Edit Chapter', 'academy-lesson-manager') . '</h2>';
         
-        echo '<form method="post" action="">';
+        echo '<form method="post" action="" enctype="multipart/form-data">';
         echo '<table class="form-table">';
         echo '<tbody>';
         
@@ -523,7 +550,24 @@ class ALM_Admin_Chapters {
         
         echo '<tr>';
         echo '<th scope="row"><label for="vimeo_id">' . __('Vimeo ID', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="number" id="vimeo_id" name="vimeo_id" value="' . esc_attr($chapter->vimeo_id) . '" class="small-text" /></td>';
+        echo '<td>';
+        echo '<input type="number" id="vimeo_id" name="vimeo_id" value="' . esc_attr($chapter->vimeo_id) . '" class="small-text" />';
+        echo '<button type="button" class="button fetch-vimeo-metadata" style="margin-left: 10px;">' . __('Fetch Metadata', 'academy-lesson-manager') . '</button>';
+        // Add download button if Vimeo ID exists
+        if (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
+            $download_url = wp_nonce_url(
+                add_query_arg(array(
+                    'page' => 'academy-manager-lesson-samples',
+                    'download_chapter' => '1',
+                    'chapter_id' => $chapter->ID
+                ), admin_url('admin.php')),
+                'alm_download_chapter',
+                'nonce'
+            );
+            echo ' <a href="' . esc_url($download_url) . '" class="button button-secondary" title="' . __('Download Vimeo Video', 'academy-lesson-manager') . '">' . __('Download Video', 'academy-lesson-manager') . '</a>';
+        }
+        echo '<p class="description">' . __('Enter a Vimeo ID and click "Fetch Metadata" to automatically get video duration.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
         echo '</tr>';
         
         echo '<tr>';
@@ -536,7 +580,34 @@ class ALM_Admin_Chapters {
         echo '<td>';
         echo '<input type="url" id="bunny_url" name="bunny_url" value="' . esc_attr($chapter->bunny_url) . '" class="regular-text" />';
         echo '<button type="button" class="button fetch-bunny-metadata" style="margin-left: 10px;">' . __('Fetch Metadata', 'academy-lesson-manager') . '</button>';
+        
+        // Add download button if Bunny URL exists
+        if (!empty($chapter->bunny_url)) {
+            $download_url = wp_nonce_url(
+                add_query_arg(array(
+                    'page' => 'academy-manager-lesson-samples',
+                    'download_chapter' => '1',
+                    'chapter_id' => $chapter->ID
+                ), admin_url('admin.php')),
+                'alm_download_chapter',
+                'nonce'
+            );
+            echo ' <a href="' . esc_url($download_url) . '" class="button button-secondary" title="' . __('Download Bunny.net Video', 'academy-lesson-manager') . '">' . __('Download Video', 'academy-lesson-manager') . '</a>';
+        }
+        
         echo '<p class="description">' . __('Enter a Bunny.net URL and click "Fetch Metadata" to automatically get video duration and other information.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="mp3_file">' . __('MP3 File for Transcription', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        if (!empty($chapter->mp3_file_url)) {
+            $mp3_url = wp_get_upload_dir()['baseurl'] . '/alm_mp3s/' . basename($chapter->mp3_file_url);
+            echo '<p><strong>' . __('Current MP3:', 'academy-lesson-manager') . '</strong> <a href="' . esc_url($mp3_url) . '" target="_blank">' . esc_html(basename($chapter->mp3_file_url)) . '</a></p>';
+        }
+        echo '<input type="file" id="mp3_file" name="mp3_file" accept="audio/mpeg,audio/mp3" />';
+        echo '<p class="description">' . __('Upload an MP3 file (max 25MB) for transcription. Leave empty to keep existing file.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
         
@@ -575,7 +646,35 @@ class ALM_Admin_Chapters {
         echo '<th scope="row"><label for="transcript_file">' . __('Transcript File Name', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         echo '<input type="text" id="transcript_file" name="transcript_file" value="' . esc_attr($transcript_file ? $transcript_file : '') . '" class="regular-text" />';
-        echo '<p class="description">' . __('VTT transcript file name (stored in wp-content/alm_transcripts/). Leave empty if no transcript exists.', 'academy-lesson-manager') . '</p>';
+        echo ' <button type="button" id="alm-sync-vtt-file" class="button" data-chapter-id="' . esc_attr($chapter->ID) . '" data-lesson-id="' . esc_attr($chapter->lesson_id) . '">' . __('Find VTT File', 'academy-lesson-manager') . '</button>';
+        echo '<span id="alm-sync-vtt-status" style="margin-left: 10px;"></span>';
+        echo '<p class="description">' . __('VTT transcript file name (stored in wp-content/uploads/alm_transcriptions/). Click "Find VTT File" to automatically detect and sync the file.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Check if MP3 file exists for transcription
+        $has_mp3 = !empty($chapter->mp3_file_url);
+        $has_transcript = !empty($transcript_file);
+        
+        echo '<tr>';
+        echo '<th scope="row">' . __('Transcription', 'academy-lesson-manager') . '</th>';
+        echo '<td>';
+        if ($has_mp3) {
+            echo '<button type="button" id="alm-transcribe-chapter" class="button button-primary" data-chapter-id="' . esc_attr($chapter->ID) . '">';
+            echo $has_transcript ? __('Re-transcribe Chapter', 'academy-lesson-manager') : __('Transcribe Chapter', 'academy-lesson-manager');
+            echo '</button> ';
+            echo '<span id="alm-transcribe-status" style="margin-left: 10px; min-height: 20px; display: inline-block;"></span>';
+            echo '<div id="alm-transcribe-progress" style="display: none; margin-top: 10px;">';
+            echo '<div style="background: #f0f0f1; border-radius: 3px; padding: 10px;">';
+            echo '<div id="alm-transcribe-message" style="margin-bottom: 5px;"></div>';
+            echo '<div style="background: #fff; border-radius: 2px; height: 20px; overflow: hidden;">';
+            echo '<div id="alm-transcribe-progress-bar" style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s;"></div>';
+            echo '</div>';
+            echo '</div>';
+            echo '</div>';
+        } else {
+            echo '<p class="description" style="color: #dc3232;">' . __('Upload an MP3 file above to enable transcription.', 'academy-lesson-manager') . '</p>';
+        }
         echo '</td>';
         echo '</tr>';
         
@@ -623,6 +722,9 @@ class ALM_Admin_Chapters {
         // Generate slug from chapter title
         $slug = sanitize_title($chapter_title);
         
+        // Handle MP3 file upload
+        $mp3_file_url = $this->handle_mp3_upload();
+        
         $data = array(
             'lesson_id' => $lesson_id,
             'chapter_title' => $chapter_title,
@@ -630,6 +732,7 @@ class ALM_Admin_Chapters {
             'vimeo_id' => intval($_POST['vimeo_id']),
             'youtube_id' => sanitize_text_field($_POST['youtube_id']),
             'bunny_url' => esc_url_raw($_POST['bunny_url']),
+            'mp3_file_url' => $mp3_file_url,
             'duration' => intval($_POST['duration']),
             'free' => sanitize_text_field($_POST['free']),
             'slug' => $slug,
@@ -669,6 +772,12 @@ class ALM_Admin_Chapters {
         // Generate slug from chapter title
         $slug = sanitize_title($chapter_title);
         
+        // Handle MP3 file upload (only if new file uploaded)
+        $mp3_file_url = $this->handle_mp3_upload($chapter_id);
+        if ($mp3_file_url !== null) {
+            $data['mp3_file_url'] = $mp3_file_url;
+        }
+        
         $data = array(
             'lesson_id' => $lesson_id,
             'chapter_title' => $chapter_title,
@@ -682,11 +791,20 @@ class ALM_Admin_Chapters {
             'updated_at' => current_time('mysql')
         );
         
+        if ($mp3_file_url !== null) {
+            $data['mp3_file_url'] = $mp3_file_url;
+        }
+        
+        $format = array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s');
+        if ($mp3_file_url !== null) {
+            $format[] = '%s';
+        }
+        
         $result = $this->wpdb->update(
             $this->table_name,
             $data,
             array('ID' => $chapter_id),
-            array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s'),
+            $format,
             array('%d')
         );
         
@@ -694,9 +812,9 @@ class ALM_Admin_Chapters {
         if (isset($_POST['transcript_file'])) {
             $transcript_file = sanitize_text_field($_POST['transcript_file']);
             
-            // Check if transcript exists for this chapter
+            // Check if transcript exists for this chapter (check both whisper and zoom sources)
             $transcript_id = $this->wpdb->get_var($this->wpdb->prepare(
-                "SELECT ID FROM {$this->wpdb->prefix}alm_transcripts WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+                "SELECT ID FROM {$this->wpdb->prefix}alm_transcripts WHERE chapter_id = %d AND (source = 'whisper' OR source = 'zoom') LIMIT 1",
                 $chapter_id
             ));
             
@@ -918,5 +1036,174 @@ class ALM_Admin_Chapters {
         echo '</div>';
         
         echo '</div>';
+    }
+    
+    /**
+     * Handle MP3 file upload
+     * 
+     * @param int $chapter_id Optional chapter ID for update (to delete old file)
+     * @return string|null File URL on success, null if no file uploaded
+     */
+    private function handle_mp3_upload($chapter_id = null) {
+        if (!isset($_FILES['mp3_file']) || $_FILES['mp3_file']['error'] !== UPLOAD_ERR_OK) {
+            // No file uploaded or error - return null for updates, empty string for creates
+            if ($chapter_id !== null) {
+                return null; // Keep existing file
+            }
+            return ''; // No file for new chapter
+        }
+        
+        $file = $_FILES['mp3_file'];
+        
+        // Validate file type
+        $allowed_types = array('audio/mpeg', 'audio/mp3');
+        $file_type = wp_check_filetype($file['name']);
+        if (!in_array($file_type['type'], $allowed_types) && $file_type['ext'] !== 'mp3') {
+            wp_die(__('Invalid file type. Only MP3 files are allowed.', 'academy-lesson-manager'));
+        }
+        
+        // Check file size (25MB limit for Whisper API)
+        $max_size = 25 * 1024 * 1024; // 25MB in bytes
+        if ($file['size'] > $max_size) {
+            wp_die(__('File is too large. Maximum size is 25MB.', 'academy-lesson-manager'));
+        }
+        
+        // Create upload directory if it doesn't exist
+        $upload_dir = wp_upload_dir();
+        $alm_mp3_dir = $upload_dir['basedir'] . '/alm_mp3s';
+        if (!file_exists($alm_mp3_dir)) {
+            wp_mkdir_p($alm_mp3_dir);
+        }
+        
+        // Delete old file if updating
+        if ($chapter_id !== null) {
+            $old_chapter = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT mp3_file_url FROM {$this->table_name} WHERE ID = %d",
+                $chapter_id
+            ));
+            if ($old_chapter && !empty($old_chapter->mp3_file_url)) {
+                $old_file_path = $alm_mp3_dir . '/' . basename($old_chapter->mp3_file_url);
+                if (file_exists($old_file_path)) {
+                    @unlink($old_file_path);
+                }
+            }
+        }
+        
+        // Generate unique filename
+        $filename = sanitize_file_name($file['name']);
+        $filename = wp_unique_filename($alm_mp3_dir, $filename);
+        $file_path = $alm_mp3_dir . '/' . $filename;
+        
+        // Move uploaded file
+        if (!move_uploaded_file($file['tmp_name'], $file_path)) {
+            wp_die(__('Failed to upload MP3 file.', 'academy-lesson-manager'));
+        }
+        
+        return $filename;
+    }
+    
+    /**
+     * Get Bunny.net download URL for testing
+     * 
+     * @param string $bunny_url The Bunny.net URL
+     * @return string|false Download URL on success, false on failure
+     */
+    private function get_bunny_download_url($bunny_url) {
+        if (empty($bunny_url)) {
+            return false;
+        }
+        
+        // Extract video ID from URL
+        $bunny_api = new ALM_Bunny_API();
+        $video_id = $bunny_api->extract_video_id_from_url($bunny_url);
+        
+        if (!$video_id) {
+            return false;
+        }
+        
+        // Get library ID and API key
+        $library_id = get_option('alm_bunny_library_id', '');
+        $api_key = get_option('alm_bunny_api_key', '');
+        
+        if (empty($library_id) || empty($api_key)) {
+            return false;
+        }
+        
+        // Get video metadata from Bunny.net API to find source file
+        $api_base_url = 'https://video.bunnycdn.com';
+        $url = $api_base_url . '/library/' . $library_id . '/videos/' . $video_id;
+        
+        $args = array(
+            'headers' => array(
+                'AccessKey' => $api_key,
+                'accept' => 'application/json'
+            ),
+            'timeout' => 10
+        );
+        
+        $response = wp_remote_get($url, $args);
+        
+        if (is_wp_error($response)) {
+            return false;
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code !== 200) {
+            return false;
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return false;
+        }
+        
+        // Construct MP4 URL using Bunny.net's MP4 fallback URL pattern:
+        // https://{pull_zone_hostname}/{video_id}/play_{height}p.mp4
+        // Most common: play_720p.mp4
+        
+        // Get pull zone hostname (playback hostname)
+        $pull_zone_hostname = null;
+        
+        // First, try to extract from bunny_url
+        $parsed = parse_url($bunny_url);
+        if (isset($parsed['host']) && strpos($parsed['host'], 'vz-') === 0) {
+            $pull_zone_hostname = $parsed['host'];
+        }
+        
+        // If not found, try to get from settings
+        if (!$pull_zone_hostname) {
+            $cdn_hostname = get_option('bunny_video_webhook_cdn_hostname', '');
+            if (!empty($cdn_hostname) && strpos($cdn_hostname, 'vz-') === 0) {
+                $pull_zone_hostname = $cdn_hostname;
+            }
+        }
+        
+        // If still not found, check API response for hostname
+        if (!$pull_zone_hostname && isset($data['hostname']) && !empty($data['hostname'])) {
+            $pull_zone_hostname = $data['hostname'];
+        }
+        
+        // Last resort: try to extract from any URL in the response
+        if (!$pull_zone_hostname && isset($data['thumbnailFileName'])) {
+            // Sometimes the thumbnail URL contains the hostname
+            if (isset($data['thumbnailUrl']) && !empty($data['thumbnailUrl'])) {
+                $thumb_parsed = parse_url($data['thumbnailUrl']);
+                if (isset($thumb_parsed['host']) && strpos($thumb_parsed['host'], 'vz-') === 0) {
+                    $pull_zone_hostname = $thumb_parsed['host'];
+                }
+            }
+        }
+        
+        if (!$pull_zone_hostname) {
+            return false;
+        }
+        
+        // Construct the MP4 URL using the correct pattern
+        // Use 720p as default (most common)
+        $download_url = sprintf('https://%s/%s/play_720p.mp4', $pull_zone_hostname, $video_id);
+        
+        return $download_url;
     }
 }

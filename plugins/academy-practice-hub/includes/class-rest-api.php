@@ -413,6 +413,43 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // Plan endpoints
+        register_rest_route('aph/v1', '/plan', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_plan'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_save_plan'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/goal', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_goal'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/focus', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_focus'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/steps', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_plan_steps'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/plan/practiced', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_mark_plan_practiced'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Admin data management endpoints
         register_rest_route('aph/v1', '/admin/export-user-data', array(
             'methods' => 'GET',
@@ -2427,18 +2464,21 @@ class JPH_REST_API {
                         // Keep original event key for automation triggers, but add timestamp to title for uniqueness
                         $event_key = $badge['fluentcrm_event_key'];
                         $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+                        $event_value = "Badge: {$badge['name']} - {$badge['description']}";
                         
                         $result = $tracker->track([
                             'event_key' => $event_key,
                             'title' => $unique_title,
                             'email' => $user_email,
-                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'value' => $event_value,
                             'provider' => 'academy_practice_hub'
                         ]);
                         
                         error_log("Event tracker result: " . ($result ? 'Success' : 'Failed'));
                         if ($result) {
                             error_log("FluentCRM Event triggered successfully via tracker: {$badge['fluentcrm_event_key']} for user {$user_email}");
+                            // Ensure email is saved directly to database
+                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
                             error_log("=== End FluentCRM Event Debug ===");
                             return true;
                         }
@@ -2453,18 +2493,21 @@ class JPH_REST_API {
                         // Keep original event key for automation triggers, but add timestamp to title for uniqueness
                         $event_key = $badge['fluentcrm_event_key'];
                         $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+                        $event_value = "Badge: {$badge['name']} - {$badge['description']}";
                         
                         $result = fluentCrmTrackEvent([
                             'event_key' => $event_key,
                             'title' => $unique_title,
                             'email' => $user_email,
-                            'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                            'value' => $event_value,
                             'provider' => 'academy_practice_hub'
                         ]);
                         
                         error_log("fluentCrmTrackEvent result: " . ($result ? 'Success' : 'Failed'));
                         if ($result) {
                             error_log("FluentCRM Event triggered successfully via fluentCrmTrackEvent: {$badge['fluentcrm_event_key']} for user {$user_email}");
+                            // Ensure email is saved directly to database
+                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
                             error_log("=== End FluentCRM Event Debug ===");
                             return true;
                         }
@@ -2485,6 +2528,7 @@ class JPH_REST_API {
             // Keep original event key for automation triggers, but add timestamp to title for uniqueness
             $event_key = $badge['fluentcrm_event_key'];
             $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
+            $event_value = "Badge: {$badge['name']} - {$badge['description']}";
             
             error_log("Event Key: {$event_key}");
             error_log("Unique Title: {$unique_title}");
@@ -2493,9 +2537,12 @@ class JPH_REST_API {
                 'event_key' => $event_key,
                 'title' => $unique_title,
                 'email' => $user_email,
-                'value' => "Badge: {$badge['name']} - {$badge['description']}",
+                'value' => $event_value,
                 'provider' => 'academy_practice_hub'
             ], true);
+            
+            // Ensure email is saved directly to database
+            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
             
             error_log("FluentCRM Event triggered via fallback action hook: {$badge['fluentcrm_event_key']} for user {$user_email}");
             error_log("=== End FluentCRM Event Debug ===");
@@ -2503,6 +2550,70 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             error_log("FluentCRM Event error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Ensure event email is saved directly to fc_event_tracking table
+     * This ensures the email is always visible in the event logs
+     */
+    private function ensure_event_email_saved($event_key, $title, $value, $email) {
+        global $wpdb;
+        
+        try {
+            $table_name = $wpdb->prefix . 'fc_event_tracking';
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
+            if (!$table_exists) {
+                error_log("FluentCRM event tracking table does not exist: {$table_name}");
+                return false;
+            }
+            
+            // Check if event was already inserted (within last 5 seconds to avoid duplicates)
+            $recent_event = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, email FROM {$table_name} 
+                WHERE event_key = %s 
+                AND title = %s 
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)
+                ORDER BY id DESC LIMIT 1",
+                $event_key,
+                $title
+            ));
+            
+            if ($recent_event) {
+                // Update email if it's missing or different
+                if (empty($recent_event->email) || $recent_event->email !== $email) {
+                    $wpdb->update(
+                        $table_name,
+                        array('email' => $email),
+                        array('id' => $recent_event->id),
+                        array('%s'),
+                        array('%d')
+                    );
+                    error_log("Updated event email in database: event_id={$recent_event->id}, email={$email}");
+                }
+            } else {
+                // Insert new event directly if it doesn't exist
+                $wpdb->insert(
+                    $table_name,
+                    array(
+                        'event_key' => $event_key,
+                        'title' => $title,
+                        'value' => $value,
+                        'email' => $email,
+                        'provider' => 'academy_practice_hub',
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%s', '%s', '%s', '%s', '%s', '%s')
+                );
+                error_log("Inserted event directly into database: event_key={$event_key}, email={$email}");
+            }
+            
+            return true;
+        } catch (Exception $e) {
+            error_log("Error ensuring event email saved: " . $e->getMessage());
             return false;
         }
     }
@@ -3875,6 +3986,233 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             ));
         } catch (Exception $e) {
             return new WP_Error('delete_item_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Get user's plan
+     */
+    public function rest_get_plan($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to view your plan', array('status' => 401));
+            }
+            
+            $plan = $this->database->get_user_plan($user_id);
+            
+            // Get weekly session count
+            $sessions_this_week = $this->database->get_weekly_session_count($user_id);
+            
+            if ($plan) {
+                $plan['sessions_this_week'] = $sessions_this_week;
+            } else {
+                $plan = array(
+                    'user_id' => $user_id,
+                    'goal_90_day' => '',
+                    'weekly_focus_item_id' => null,
+                    'practice_steps' => array(),
+                    'deadline' => null,
+                    'sessions_this_week' => $sessions_this_week,
+                    'last_practiced_date' => null
+                );
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'plan' => $plan,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('get_plan_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Save user's plan
+     */
+    public function rest_save_plan($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to save your plan', array('status' => 401));
+            }
+            
+            $plan_data = array();
+            
+            if ($request->get_param('goal_90_day') !== null) {
+                $plan_data['goal_90_day'] = sanitize_text_field($request->get_param('goal_90_day'));
+            }
+            
+            if ($request->get_param('weekly_focus_item_id') !== null) {
+                $plan_data['weekly_focus_item_id'] = intval($request->get_param('weekly_focus_item_id'));
+            }
+            
+            if ($request->get_param('practice_steps') !== null) {
+                $steps = $request->get_param('practice_steps');
+                if (is_array($steps)) {
+                    $plan_data['practice_steps'] = array_map('sanitize_text_field', $steps);
+                }
+            }
+            
+            if ($request->get_param('deadline') !== null) {
+                $plan_data['deadline'] = sanitize_text_field($request->get_param('deadline'));
+            }
+            
+            $result = $this->database->save_user_plan($user_id, $plan_data);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Plan saved successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('save_plan_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update plan goal
+     */
+    public function rest_update_plan_goal($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $goal = sanitize_text_field($request->get_param('goal'));
+            
+            $result = $this->database->update_plan_goal($user_id, $goal);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Goal updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_goal_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update weekly focus item
+     */
+    public function rest_update_plan_focus($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $item_id = intval($request->get_param('item_id'));
+            
+            // Verify item belongs to user
+            $practice_items = $this->database->get_user_practice_items($user_id);
+            $item_exists = false;
+            foreach ($practice_items as $item) {
+                if ($item['id'] == $item_id) {
+                    $item_exists = true;
+                    break;
+                }
+            }
+            
+            if (!$item_exists && $item_id > 0) {
+                return new WP_Error('invalid_item', 'Practice item not found or does not belong to you', array('status' => 400));
+            }
+            
+            $result = $this->database->update_weekly_focus($user_id, $item_id > 0 ? $item_id : null);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Weekly focus updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_focus_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Update practice steps
+     */
+    public function rest_update_plan_steps($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update your plan', array('status' => 401));
+            }
+            
+            $steps = $request->get_param('steps');
+            
+            if (!is_array($steps)) {
+                return new WP_Error('invalid_steps', 'Steps must be an array', array('status' => 400));
+            }
+            
+            // Sanitize steps
+            $steps = array_map('sanitize_text_field', $steps);
+            
+            $result = $this->database->update_practice_steps($user_id, $steps);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice steps updated successfully',
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('update_steps_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * REST API: Mark plan as practiced today
+     */
+    public function rest_mark_plan_practiced($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to mark practice', array('status' => 401));
+            }
+            
+            $result = $this->database->mark_plan_practiced($user_id);
+            
+            if (!$result) {
+                return new WP_Error('mark_practiced_error', 'Failed to mark as practiced', array('status' => 500));
+            }
+            
+            // Get updated session count
+            $sessions_this_week = $this->database->get_weekly_session_count($user_id);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Practice marked successfully',
+                'sessions_this_week' => $sessions_this_week,
+                'timestamp' => current_time('mysql')
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('mark_practiced_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

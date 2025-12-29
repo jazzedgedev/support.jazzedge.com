@@ -912,6 +912,52 @@ class JPH_Frontend {
     /**
      * Render the student dashboard
      */
+    /**
+     * Check if current user can access PLAN tab (test users only)
+     */
+    private function user_can_access_plan_tab() {
+        $user_id = get_current_user_id();
+        
+        // Debug logging
+        error_log('PLAN Tab Check - User ID: ' . $user_id);
+        
+        if (!$user_id || $user_id === 0) {
+            error_log('PLAN Tab Check - No user ID, returning false');
+            return false;
+        }
+        
+        // Check if enabled for all users (production mode)
+        $enable_for_all = get_option('aaa_enable_for_all', false);
+        error_log('PLAN Tab Check - Enable for all: ' . ($enable_for_all ? 'true' : 'false'));
+        
+        if ($enable_for_all) {
+            error_log('PLAN Tab Check - Enabled for all, returning true');
+            return true;
+        }
+        
+        // Check if user is in test whitelist
+        $test_user_ids = get_option('aaa_test_user_ids', '');
+        error_log('PLAN Tab Check - Test user IDs option: ' . $test_user_ids);
+        
+        if (empty($test_user_ids)) {
+            error_log('PLAN Tab Check - No test user IDs set, returning false');
+            return false;
+        }
+        
+        // Parse comma-separated user IDs
+        $whitelist = array_map('trim', explode(',', $test_user_ids));
+        $whitelist = array_map('absint', $whitelist); // Sanitize
+        $whitelist = array_filter($whitelist); // Remove empty values
+        
+        error_log('PLAN Tab Check - Parsed whitelist: ' . print_r($whitelist, true));
+        error_log('PLAN Tab Check - User ID in whitelist: ' . (in_array($user_id, $whitelist, true) ? 'true' : 'false'));
+        
+        $result = in_array($user_id, $whitelist, true);
+        error_log('PLAN Tab Check - Final result: ' . ($result ? 'true' : 'false'));
+        
+        return $result;
+    }
+    
     public function render_dashboard($atts) {
         // Only show to logged-in users
         if (!is_user_logged_in()) {
@@ -919,6 +965,18 @@ class JPH_Frontend {
         }
         
         $user_id = get_current_user_id();
+        $can_access_plan = $this->user_can_access_plan_tab();
+        
+        // Debug info for console
+        $test_user_ids = get_option('aaa_test_user_ids', '');
+        $enable_for_all = get_option('aaa_enable_for_all', false);
+        $debug_info = array(
+            'user_id' => $user_id,
+            'can_access_plan' => $can_access_plan,
+            'test_user_ids_option' => $test_user_ids,
+            'enable_for_all' => $enable_for_all
+        );
+        
         $notifications_page_url = apply_filters('jph_notifications_page_url', home_url('/notifications/'));
         $unread_notifications = 0;
         $notifications_category_palette = array();
@@ -996,6 +1054,25 @@ class JPH_Frontend {
         
         ob_start();
         ?>
+        <!-- IMMEDIATE DEBUG - Runs before any HTML -->
+        <script>
+            (function() {
+                console.log('🔍 DEBUG SCRIPT LOADED - Page is rendering');
+                console.log('User ID from PHP:', <?php echo $user_id; ?>);
+                console.log('Can Access Plan:', <?php echo $can_access_plan ? 'true' : 'false'; ?>);
+                console.log('Test User IDs:', '<?php echo esc_js($test_user_ids); ?>');
+                <?php 
+                $whitelist_immediate = array();
+                if (!empty($test_user_ids)) {
+                    $whitelist_immediate = array_map('trim', explode(',', $test_user_ids));
+                    $whitelist_immediate = array_map('absint', $whitelist_immediate);
+                    $whitelist_immediate = array_filter($whitelist_immediate);
+                }
+                ?>
+                console.log('Parsed Whitelist:', <?php echo json_encode($whitelist_immediate); ?>);
+                console.log('User in Whitelist?', <?php echo in_array($user_id, $whitelist_immediate, true) ? 'true' : 'false'; ?>);
+            })();
+        </script>
         <div class="jph-student-dashboard">
             
             <?php if ($promo_banner): ?>
@@ -1200,24 +1277,51 @@ class JPH_Frontend {
                 </div>
             </div>
             
+            <!-- Debug Output (Top Level) -->
+            <script>
+                console.log('=== DASHBOARD DEBUG (Top Level) ===');
+                console.log('User ID:', <?php echo $user_id; ?>);
+                console.log('Can Access Plan:', <?php echo $can_access_plan ? 'true' : 'false'; ?>);
+                console.log('Test User IDs:', '<?php echo esc_js($test_user_ids); ?>');
+                console.log('Enable For All:', <?php echo $enable_for_all ? 'true' : 'false'; ?>);
+                
+                <?php 
+                $whitelist = array();
+                if (!empty($test_user_ids)) {
+                    $whitelist = array_map('trim', explode(',', $test_user_ids));
+                    $whitelist = array_map('absint', $whitelist);
+                    $whitelist = array_filter($whitelist);
+                }
+                ?>
+                console.log('Parsed Whitelist:', <?php echo json_encode($whitelist); ?>);
+                console.log('User in Whitelist?', <?php echo in_array($user_id, $whitelist, true) ? 'true' : 'false'; ?>);
+                
+                <?php if (!$can_access_plan): ?>
+                console.error('❌ ACCESS DENIED - User ID ' + <?php echo $user_id; ?> + ' not in test list');
+                console.error('Whitelist contains:', <?php echo json_encode($whitelist); ?>);
+                <?php else: ?>
+                console.log('✅ ACCESS GRANTED');
+                <?php endif; ?>
+            </script>
+            
             <!-- Tabbed Navigation -->
             <div class="jph-tabs-container">
                 <div class="jph-tabs-nav">
-                    <button class="jph-tab-btn active" data-tab="practice-items">
+                    <button class="jph-tab-btn active" data-tab="plan">
+                        <span class="tab-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                            </svg>
+                        </span>
+                        <span class="tab-title">Plan</span>
+                    </button>
+                    <button class="jph-tab-btn" data-tab="practice-items">
                         <span class="tab-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
                             </svg>
                         </span>
                         <span class="tab-title">Practice Items</span>
-                    </button>
-                    <button class="jph-tab-btn" data-tab="shield-protection">
-                        <span class="tab-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                            </svg>
-                        </span>
-                        <span class="tab-title">Shield Protection</span>
                     </button>
                     <button class="jph-tab-btn" data-tab="badges">
                         <span class="tab-icon">
@@ -1248,8 +1352,184 @@ class JPH_Frontend {
                 <!-- Tab Content -->
                 <div class="jph-tabs-content">
                     
+                    <!-- Plan Tab -->
+                    <div class="jph-tab-pane active" id="plan-tab">
+                        <!-- Debug Info (remove after testing) -->
+                        <script>
+                            console.log('=== PLAN Tab Debug Info ===');
+                            console.log('User ID:', <?php echo $user_id; ?>);
+                            console.log('Can Access Plan:', <?php echo $can_access_plan ? 'true' : 'false'; ?>);
+                            console.log('Test User IDs Option:', '<?php echo esc_js($test_user_ids); ?>');
+                            console.log('Enable For All:', <?php echo $enable_for_all ? 'true' : 'false'; ?>);
+                            console.log('Full Debug Info:', <?php echo json_encode($debug_info); ?>);
+                            
+                            <?php 
+                            // Parse whitelist for debugging
+                            $whitelist = array();
+                            if (!empty($test_user_ids)) {
+                                $whitelist = array_map('trim', explode(',', $test_user_ids));
+                                $whitelist = array_map('absint', $whitelist);
+                                $whitelist = array_filter($whitelist);
+                            }
+                            ?>
+                            console.log('Parsed Whitelist:', <?php echo json_encode($whitelist); ?>);
+                            console.log('User ID in Whitelist:', <?php echo in_array($user_id, $whitelist, true) ? 'true' : 'false'; ?>);
+                            
+                            <?php if (!$can_access_plan): ?>
+                            console.warn('⚠️ PLAN Tab Access DENIED');
+                            console.warn('User ID ' + <?php echo $user_id; ?> + ' is NOT in test list: ' + <?php echo json_encode($whitelist); ?>);
+                            console.warn('To fix: Add user ID ' + <?php echo $user_id; ?> + ' to aaa_test_user_ids option in AI Assistant settings');
+                            <?php else: ?>
+                            console.log('✅ PLAN Tab Access GRANTED');
+                            <?php endif; ?>
+                        </script>
+                        <?php if ($can_access_plan): ?>
+                            <?php
+                            // Get user's plan data
+                            $user_plan = $this->database->get_user_plan($user_id);
+                            $sessions_this_week = $this->database->get_weekly_session_count($user_id);
+                            
+                            // Auto-select first practice item if no focus selected
+                            $weekly_focus_item_id = $user_plan ? $user_plan['weekly_focus_item_id'] : null;
+                            if (!$weekly_focus_item_id && !empty($practice_items)) {
+                                $weekly_focus_item_id = $practice_items[0]['id'];
+                            }
+                            
+                            $practice_steps = $user_plan && !empty($user_plan['practice_steps']) ? $user_plan['practice_steps'] : array();
+                            // Ensure we have up to 5 steps
+                            while (count($practice_steps) < 5) {
+                                $practice_steps[] = '';
+                            }
+                            $practice_steps = array_slice($practice_steps, 0, 5);
+                            ?>
+                            
+                            <!-- Goal Snapshot -->
+                            <div class="jph-plan-section jph-plan-goal">
+                                <h3>Your 90-Day Piano Goal</h3>
+                                <input type="text" 
+                                       id="jph-plan-goal" 
+                                       class="jph-plan-goal-input" 
+                                       placeholder="What do you want to achieve in 90 days?"
+                                       value="<?php echo esc_attr($user_plan ? $user_plan['goal_90_day'] : ''); ?>"
+                                       maxlength="200">
+                            </div>
+                            
+                            <!-- This Week's Focus -->
+                            <div class="jph-plan-section jph-plan-focus">
+                                <h3>This Week's Focus</h3>
+                                <select id="jph-plan-focus" class="jph-plan-focus-select">
+                                    <option value="">-- Select a practice item --</option>
+                                    <?php foreach ($practice_items as $item): ?>
+                                        <option value="<?php echo esc_attr($item['id']); ?>" <?php selected($weekly_focus_item_id, $item['id']); ?>>
+                                            <?php echo esc_html($item['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="jph-plan-subtext">Chosen from your active practice items</p>
+                            </div>
+                            
+                            <!-- Practice Steps -->
+                            <div class="jph-plan-section jph-plan-steps">
+                                <h3>Practice Steps (20–30 min)</h3>
+                                <div class="jph-plan-steps-list">
+                                    <?php for ($i = 0; $i < 5; $i++): ?>
+                                        <div class="jph-plan-step-item">
+                                            <span class="jph-plan-step-number"><?php echo $i + 1; ?>.</span>
+                                            <input type="text" 
+                                                   class="jph-plan-step-input" 
+                                                   placeholder="Step <?php echo $i + 1; ?>"
+                                                   value="<?php echo esc_attr(isset($practice_steps[$i]) ? $practice_steps[$i] : ''); ?>"
+                                                   data-step-index="<?php echo $i; ?>"
+                                                   maxlength="150">
+                                            <span class="jph-plan-step-time">⏱</span>
+                                        </div>
+                                    <?php endfor; ?>
+                                </div>
+                            </div>
+                            
+                            <!-- Favorites Bridge (Collapsed) -->
+                            <?php if (!empty($lesson_favorites)): ?>
+                            <div class="jph-plan-section jph-plan-favorites-bridge">
+                                <div class="jph-plan-favorites-header" id="jph-plan-favorites-toggle">
+                                    <h3>Need something new to work on?</h3>
+                                    <span class="jph-plan-favorites-arrow">▼</span>
+                                </div>
+                                <div class="jph-plan-favorites-content" id="jph-plan-favorites-content" style="display: none;">
+                                    <p>You can add items from your favorites to your practice items.</p>
+                                    <button type="button" class="jph-btn jph-btn-secondary" onclick="jQuery('[data-tab=\"practice-items\"]').click();">
+                                        Manage Practice Items
+                                    </button>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <?php 
+                            // Parse whitelist for debugging (re-parse here for scope)
+                            $whitelist_debug = array();
+                            if (!empty($test_user_ids)) {
+                                $whitelist_debug = array_map('trim', explode(',', $test_user_ids));
+                                $whitelist_debug = array_map('absint', $whitelist_debug);
+                                $whitelist_debug = array_filter($whitelist_debug);
+                            }
+                            ?>
+                            <!-- Debug in Coming Soon Section -->
+                            <script>
+                                console.log('=== INSIDE COMING SOON SECTION ===');
+                                console.log('This means can_access_plan is FALSE');
+                                console.log('User ID:', <?php echo $user_id; ?>);
+                                console.log('Test User IDs Option:', '<?php echo esc_js($test_user_ids); ?>');
+                                console.log('Parsed Whitelist:', <?php echo json_encode($whitelist_debug); ?>);
+                                console.error('⚠️ User ID ' + <?php echo $user_id; ?> + ' is NOT authorized');
+                                console.error('Add this user ID to aaa_test_user_ids option');
+                            </script>
+                            <div class="jph-coming-soon" id="jph-coming-soon-debug">
+                                <!-- Debug script INSIDE coming-soon div -->
+                                <script>
+                                    console.log('🎯 COMING SOON DIV IS VISIBLE');
+                                    console.log('This div has class: jph-coming-soon');
+                                    console.log('User ID:', <?php echo $user_id; ?>);
+                                    console.log('Can Access Plan:', false);
+                                    console.log('Test User IDs:', '<?php echo esc_js($test_user_ids); ?>');
+                                    console.log('Parsed Whitelist:', <?php echo json_encode($whitelist_debug); ?>);
+                                    
+                                    // Make the div visible in console
+                                    var comingSoonDiv = document.getElementById('jph-coming-soon-debug');
+                                    if (comingSoonDiv) {
+                                        console.log('✅ Coming Soon div found in DOM');
+                                        console.log('Div text content:', comingSoonDiv.textContent.substring(0, 100));
+                                    } else {
+                                        console.error('❌ Coming Soon div NOT found in DOM');
+                                    }
+                                </script>
+                                <div class="coming-soon-icon">🚀</div>
+                                <h2>Something Amazing is Coming!</h2>
+                                <p class="coming-soon-subtitle">We're building something special just for you</p>
+                                <div class="coming-soon-features">
+                                    <div class="feature-item">
+                                        <div class="feature-icon">📋</div>
+                                        <h3>Practice Planning</h3>
+                                        <p>Create structured practice plans tailored to your goals</p>
+                                    </div>
+                                    <div class="feature-item">
+                                        <div class="feature-icon">🎯</div>
+                                        <h3>Goal Setting</h3>
+                                        <p>Set and track your practice goals with ease</p>
+                                    </div>
+                                    <div class="feature-item">
+                                        <div class="feature-icon">📊</div>
+                                        <h3>Progress Tracking</h3>
+                                        <p>Visualize your journey and celebrate milestones</p>
+                                    </div>
+                                </div>
+                                <div class="coming-soon-cta">
+                                    <p class="excitement-text">✨ Get ready to take your practice to the next level! ✨</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    
                     <!-- Practice Items Tab -->
-                    <div class="jph-tab-pane active" id="practice-items-tab">
+                    <div class="jph-tab-pane" id="practice-items-tab">
                         <!-- Practice Items Section -->
                         <div class="jph-practice-items">
                             <h3>Your Practice Items 
@@ -1371,9 +1651,9 @@ class JPH_Frontend {
                         </div>
                     </div>
                     
-                    <!-- Shield Protection Tab -->
-                    <div class="jph-tab-pane" id="shield-protection-tab">
-                        <!-- Shield Protection Section -->
+                    <!-- Badges Tab -->
+                    <div class="jph-tab-pane" id="badges-tab">
+                        <!-- Shield Protection Section - Moved to top of Badges tab -->
                         <div class="jph-shield-protection">
                             <h3>🛡️ Shield Protection</h3>
                             
@@ -1440,10 +1720,7 @@ class JPH_Frontend {
                             </div>
                             <?php endif; ?>
                         </div>
-                    </div>
-                    
-                    <!-- Badges Tab -->
-                    <div class="jph-tab-pane" id="badges-tab">
+                        
                         <!-- Badges Section -->
                         <div class="jph-badges-section">
                             <h2>🏆 Your Badges</h2>
@@ -5925,6 +6202,146 @@ class JPH_Frontend {
             }
         }
         
+        /* PLAN Tab Content Styles */
+        .jph-plan-section {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0, 69, 85, 0.08);
+        }
+        
+        .jph-plan-section h3 {
+            margin: 0 0 20px 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #2A3940;
+        }
+        
+        .jph-plan-goal-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-plan-goal-input:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-focus-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-plan-focus-select:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-subtext {
+            margin: 10px 0 0 0;
+            font-size: 13px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .jph-plan-steps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .jph-plan-step-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .jph-plan-step-number {
+            font-weight: 600;
+            color: #239B90;
+            min-width: 24px;
+        }
+        
+        .jph-plan-step-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 2px solid #e8f5f4;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+        
+        .jph-plan-step-input:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-plan-step-time {
+            font-size: 18px;
+            color: #666;
+            min-width: 24px;
+            text-align: center;
+        }
+        
+        .jph-plan-favorites-bridge {
+            border-top: 2px solid #e8f5f4;
+            padding-top: 20px;
+            margin-top: 20px;
+        }
+        
+        .jph-plan-favorites-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+        }
+        
+        .jph-plan-favorites-header:hover {
+            background: #f5f5f5;
+        }
+        
+        .jph-plan-favorites-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .jph-plan-favorites-arrow {
+            font-size: 14px;
+            color: #666;
+            transition: transform 0.3s ease;
+        }
+        
+        .jph-plan-favorites-content {
+            padding: 15px 10px;
+        }
+        
+        .jph-plan-favorites-content p {
+            margin: 0 0 15px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        
         @media (max-width: 768px) {
             .jph-tabs-nav {
                 flex-direction: column;
@@ -5973,6 +6390,124 @@ class JPH_Frontend {
             
             .jph-tab-btn .tab-description {
                 font-size: 12px;
+            }
+        }
+        
+        /* Coming Soon Section */
+        .jph-coming-soon {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fffe 100%);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 69, 85, 0.1);
+            border: 2px solid #e8f5f4;
+            margin: 20px 0;
+        }
+        
+        .coming-soon-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+        
+        .jph-coming-soon h2 {
+            font-size: 2.5em;
+            color: #004555;
+            margin: 0 0 10px 0;
+            font-weight: 700;
+        }
+        
+        .coming-soon-subtitle {
+            font-size: 1.3em;
+            color: #666;
+            margin: 0 0 40px 0;
+        }
+        
+        .coming-soon-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+        
+        .feature-item {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 5px 20px rgba(0, 69, 85, 0.08);
+            border: 2px solid #e8f5f4;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 69, 85, 0.15);
+            border-color: #239B90;
+        }
+        
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .feature-item h3 {
+            font-size: 1.3em;
+            color: #004555;
+            margin: 0 0 10px 0;
+            font-weight: 600;
+        }
+        
+        .feature-item p {
+            color: #666;
+            margin: 0;
+            line-height: 1.6;
+        }
+        
+        .coming-soon-cta {
+            margin-top: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border-radius: 16px;
+            border: 2px solid #f39c12;
+        }
+        
+        .excitement-text {
+            font-size: 1.4em;
+            color: #d35400;
+            margin: 0;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(211, 84, 0, 0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .jph-coming-soon {
+                padding: 40px 20px;
+            }
+            
+            .jph-coming-soon h2 {
+                font-size: 2em;
+            }
+            
+            .coming-soon-subtitle {
+                font-size: 1.1em;
+            }
+            
+            .coming-soon-features {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .excitement-text {
+                font-size: 1.2em;
             }
         }
         </style>
@@ -6278,6 +6813,12 @@ class JPH_Frontend {
                                 loadBadges();
                             }
                             break;
+                        case 'plan':
+                            // Load plan data when switching to plan tab
+                            if (typeof loadPlanData === 'function') {
+                                loadPlanData();
+                            }
+                            break;
                     }
                 });
             }
@@ -6300,6 +6841,11 @@ class JPH_Frontend {
             initShieldHandlers();
             initStatsHandlers();
             initDisplayNameHandlers();
+            
+            <?php if ($can_access_plan): ?>
+            // Initialize PLAN tab functionality
+            initPlanTab();
+            <?php endif; ?>
             
             // Clean Neuroscience Tips (Adult-oriented)
             function initNeuroscienceTips() {
@@ -8032,6 +8578,167 @@ class JPH_Frontend {
                 // Load current display name (which will set the appropriate value)
                 loadCurrentDisplayName();
             }
+            
+            <?php if ($can_access_plan): ?>
+            // Initialize PLAN Tab
+            function initPlanTab() {
+                // Auto-save goal on blur/enter
+                var goalSaveTimeout;
+                $('#jph-plan-goal').on('blur keypress', function(e) {
+                    if (e.type === 'keypress' && e.which !== 13) return; // Only save on Enter key
+                    
+                    clearTimeout(goalSaveTimeout);
+                    goalSaveTimeout = setTimeout(function() {
+                        savePlanGoal();
+                    }, 500);
+                });
+                
+                // Auto-save focus on change
+                $('#jph-plan-focus').on('change', function() {
+                    savePlanFocus();
+                });
+                
+                // Auto-save steps on blur
+                var stepSaveTimeout;
+                $('.jph-plan-step-input').on('blur', function() {
+                    clearTimeout(stepSaveTimeout);
+                    stepSaveTimeout = setTimeout(function() {
+                        savePlanSteps();
+                    }, 500);
+                });
+                
+                // Favorites bridge toggle
+                $('#jph-plan-favorites-toggle').on('click', function() {
+                    $('#jph-plan-favorites-content').slideToggle();
+                    var arrow = $(this).find('.jph-plan-favorites-arrow');
+                    arrow.text(arrow.text() === '▼' ? '▲' : '▼');
+                });
+                
+                // Load plan data on page load if plan tab is active
+                if ($('#plan-tab').hasClass('active')) {
+                    loadPlanData();
+                }
+            }
+            
+            // Load plan data from API
+            function loadPlanData() {
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan'); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.plan) {
+                            var plan = response.plan;
+                            
+                            // Update goal
+                            if (plan.goal_90_day) {
+                                $('#jph-plan-goal').val(plan.goal_90_day);
+                            }
+                            
+                            // Update focus
+                            if (plan.weekly_focus_item_id) {
+                                $('#jph-plan-focus').val(plan.weekly_focus_item_id);
+                            }
+                            
+                            // Update steps
+                            if (plan.practice_steps && Array.isArray(plan.practice_steps)) {
+                                plan.practice_steps.forEach(function(step, index) {
+                                    if (step && $('.jph-plan-step-input[data-step-index="' + index + '"]').length) {
+                                        $('.jph-plan-step-input[data-step-index="' + index + '"]').val(step);
+                                    }
+                                });
+                            }
+                            
+                            // Update session count
+                            if (plan.sessions_this_week !== undefined) {
+                                $('#jph-plan-sessions-count').text(plan.sessions_this_week);
+                            }
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading plan data:', error);
+                    }
+                });
+            }
+            
+            // Save plan goal
+            function savePlanGoal() {
+                var goal = $('#jph-plan-goal').val();
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan/goal'); ?>',
+                    method: 'PUT',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: JSON.stringify({ goal: goal }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.success) {
+                            // Silent save - no message needed
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error saving goal:', error);
+                    }
+                });
+            }
+            
+            // Save plan focus
+            function savePlanFocus() {
+                var itemId = $('#jph-plan-focus').val();
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan/focus'); ?>',
+                    method: 'PUT',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: JSON.stringify({ item_id: itemId ? parseInt(itemId) : 0 }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.success) {
+                            // Silent save
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error saving focus:', error);
+                    }
+                });
+            }
+            
+            // Save plan steps
+            function savePlanSteps() {
+                var steps = [];
+                $('.jph-plan-step-input').each(function() {
+                    var step = $(this).val().trim();
+                    if (step) {
+                        steps.push(step);
+                    }
+                });
+                
+                $.ajax({
+                    url: '<?php echo rest_url('aph/v1/plan/steps'); ?>',
+                    method: 'PUT',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    data: JSON.stringify({ steps: steps }),
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.success) {
+                            // Silent save
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error saving steps:', error);
+                    }
+                });
+            }
+            
+            <?php endif; ?>
             
             // Initialize drag and drop for practice items
             function initDragAndDrop() {
