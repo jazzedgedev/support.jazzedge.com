@@ -125,7 +125,7 @@ class Keap_Reports {
                 $this->api->set_database($this->database);
                 $this->reports = new Keap_Reports_Reports($this->database, $this->api);
                 $this->cron = new Keap_Reports_Cron($this->reports);
-                $this->admin = new Keap_Reports_Admin($this->api, $this->reports, $this->database);
+                $this->admin = new Keap_Reports_Admin($this->api, $this->reports, $this->database, $this->cron);
             }
     
     /**
@@ -189,8 +189,12 @@ class Keap_Reports {
      * Deactivation hook
      */
     public function deactivate() {
+        // Disable auto-fetch to stop any running processes
+        update_option('keap_reports_auto_fetch_enabled', 0);
+        
         // Clear scheduled cron jobs
         wp_clear_scheduled_hook('keap_reports_fetch_scheduled');
+        wp_clear_scheduled_hook('keap_reports_fetch_daily_subscriptions');
     }
 }
 

@@ -157,6 +157,20 @@ class JPH_Database {
             array('%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s')
         );
         
+        if ($result) {
+            // Update last_practiced_date in user_plans
+            $plans_table = $wpdb->prefix . 'jph_user_plans';
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO {$plans_table} (user_id, last_practiced_date, updated_at)
+                 VALUES (%d, NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE last_practiced_date = NOW(), updated_at = NOW()",
+                $user_id
+            ));
+            
+            // Trigger action for reminder system
+            do_action('jph_practice_session_logged', $user_id);
+        }
+        
         return $result ? $wpdb->insert_id : new WP_Error('insert_failed', 'Failed to log practice session');
     }
     
@@ -1357,6 +1371,10 @@ class JPH_Database {
                 sessions_this_week int(11) unsigned DEFAULT 0,
                 last_practiced_date datetime DEFAULT NULL,
                 week_start_date date DEFAULT NULL,
+                reminder_enabled tinyint(1) unsigned DEFAULT 1,
+                reminder_threshold_days int(11) unsigned DEFAULT 3,
+                last_reminder_sent datetime DEFAULT NULL,
+                reminder_cooldown_days int(11) unsigned DEFAULT 7,
                 created_at datetime DEFAULT CURRENT_TIMESTAMP,
                 updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
@@ -1367,6 +1385,35 @@ class JPH_Database {
             
             dbDelta($sql);
             error_log("APH: Created user_plans table: $table_name");
+        } else {
+            // Table exists, check if we need to add reminder columns
+            $this->maybe_add_reminder_columns($table_name);
+        }
+    }
+    
+    /**
+     * Add reminder columns to existing user_plans table if they don't exist
+     */
+    private function maybe_add_reminder_columns($table_name) {
+        global $wpdb;
+        
+        $columns_to_add = array(
+            'reminder_enabled' => "ALTER TABLE $table_name ADD COLUMN reminder_enabled tinyint(1) unsigned DEFAULT 1",
+            'reminder_threshold_days' => "ALTER TABLE $table_name ADD COLUMN reminder_threshold_days int(11) unsigned DEFAULT 3",
+            'last_reminder_sent' => "ALTER TABLE $table_name ADD COLUMN last_reminder_sent datetime DEFAULT NULL",
+            'reminder_cooldown_days' => "ALTER TABLE $table_name ADD COLUMN reminder_cooldown_days int(11) unsigned DEFAULT 7"
+        );
+        
+        foreach ($columns_to_add as $column_name => $sql) {
+            $column_exists = $wpdb->get_results($wpdb->prepare(
+                "SHOW COLUMNS FROM $table_name LIKE %s",
+                $column_name
+            ));
+            
+            if (empty($column_exists)) {
+                $wpdb->query($sql);
+                error_log("APH: Added column $column_name to user_plans table");
+            }
         }
     }
     

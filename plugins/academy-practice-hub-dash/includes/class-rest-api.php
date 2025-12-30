@@ -660,6 +660,27 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
+        // AI Goal Generator endpoint
+        register_rest_route('aph/v1', '/ai/generate-goal', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_generate_90day_goal'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // AI Transformation Vision Generator endpoint
+        register_rest_route('aph/v1', '/ai/generate-transformation', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_generate_transformation_vision'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // Practice Reminder Settings endpoint
+        register_rest_route('aph/v1', '/plan/reminder-settings', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'rest_update_reminder_settings'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
         // Database debug endpoint
         register_rest_route('aph/v1', '/debug/database', array(
             'methods' => 'GET',
@@ -4994,6 +5015,164 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
         ));
         
         return $ai_response;
+    }
+    
+    /**
+     * Generate 90-day goal from user input
+     */
+    public function rest_generate_90day_goal($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to generate a goal', array('status' => 401));
+            }
+            
+            $user_input = $request->get_param('input');
+            if (empty($user_input) || strlen(trim($user_input)) === 0) {
+                return new WP_Error('invalid_input', 'Please provide what you want to learn', array('status' => 400));
+            }
+            
+            // Limit input to 100 characters
+            $user_input = substr(trim($user_input), 0, 100);
+            
+            // Create system message for goal generation
+            $ai_system_message = 'You are a helpful piano practice coach for JazzEdge Academy. Your task is to help students create a specific, achievable 90-day piano goal based on what they want to learn. The goal should be clear, actionable, and focused on measurable outcomes. Keep the response to 250 characters or less.';
+            
+            // Create prompt
+            $prompt = "Based on what this student wants to learn, create a specific 90-day piano goal for them. Make it clear, achievable, and focused on measurable outcomes.\n\nWhat they want to learn: {$user_input}\n\nGenerate a 90-day goal (250 characters or less):";
+            
+            // Get AI settings
+            $ai_model = get_option('aph_ai_model', 'gpt-4');
+            $ai_max_tokens = 150; // Limit tokens to keep response concise
+            $ai_temperature = 0.7;
+            
+            // Call Katahdin AI Hub
+            $ai_response = $this->call_katahdin_ai($prompt, $ai_system_message, $ai_model, $ai_max_tokens, $ai_temperature);
+            
+            if (is_wp_error($ai_response)) {
+                return new WP_Error('ai_generation_failed', 'Failed to generate goal: ' . $ai_response->get_error_message(), array('status' => 500));
+            }
+            
+            // Trim and limit to 250 characters
+            $goal = trim($ai_response);
+            if (strlen($goal) > 250) {
+                $goal = substr($goal, 0, 247) . '...';
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'goal' => $goal
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('goal_generation_error', 'Error generating goal: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Generate transformation vision from user input
+     */
+    public function rest_generate_transformation_vision($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to generate a transformation vision', array('status' => 401));
+            }
+            
+            $user_input = $request->get_param('input');
+            if (empty($user_input) || strlen(trim($user_input)) === 0) {
+                return new WP_Error('invalid_input', 'Please provide what you want to achieve', array('status' => 400));
+            }
+            
+            // Limit input to 100 characters
+            $user_input = substr(trim($user_input), 0, 100);
+            
+            // Create system message for transformation vision generation
+            $ai_system_message = 'You are a helpful piano practice coach for JazzEdge Academy. Your task is to help students create an inspiring, aspirational transformation vision based on what they want to achieve. The vision should describe where they want to be in 3 months, 6 months, and 1 year. It should be motivating, specific, and paint a clear picture of their musical journey. Keep the response to 500 characters or less.';
+            
+            // Create prompt
+            $prompt = "Based on what this student wants to achieve, create an inspiring transformation vision for them. Describe where they want to be in 3 months, 6 months, and 1 year. Make it aspirational but realistic, and paint a clear picture of their musical journey.\n\nWhat they want to achieve: {$user_input}\n\nGenerate a transformation vision (500 characters or less):";
+            
+            // Get AI settings
+            $ai_model = get_option('aph_ai_model', 'gpt-4');
+            $ai_max_tokens = 250; // More tokens for longer vision
+            $ai_temperature = 0.8; // Slightly higher for more creative/aspirational content
+            
+            // Call Katahdin AI Hub
+            $ai_response = $this->call_katahdin_ai($prompt, $ai_system_message, $ai_model, $ai_max_tokens, $ai_temperature);
+            
+            if (is_wp_error($ai_response)) {
+                return new WP_Error('ai_generation_failed', 'Failed to generate transformation vision: ' . $ai_response->get_error_message(), array('status' => 500));
+            }
+            
+            // Trim and limit to 500 characters
+            $vision = trim($ai_response);
+            if (strlen($vision) > 500) {
+                $vision = substr($vision, 0, 497) . '...';
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'vision' => $vision
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('vision_generation_error', 'Error generating transformation vision: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Update practice reminder settings
+     */
+    public function rest_update_reminder_settings($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to update reminder settings', array('status' => 401));
+            }
+            
+            $reminder_enabled = $request->get_param('reminder_enabled');
+            $reminder_threshold_days = $request->get_param('reminder_threshold_days');
+            
+            // Validate threshold
+            if ($reminder_threshold_days !== null) {
+                $reminder_threshold_days = intval($reminder_threshold_days);
+                if ($reminder_threshold_days < 1 || $reminder_threshold_days > 14) {
+                    return new WP_Error('invalid_threshold', 'Reminder threshold must be between 1 and 14 days', array('status' => 400));
+                }
+            }
+            
+            // Prepare update data
+            $update_data = array();
+            if ($reminder_enabled !== null) {
+                $update_data['reminder_enabled'] = $reminder_enabled ? 1 : 0;
+            }
+            if ($reminder_threshold_days !== null) {
+                $update_data['reminder_threshold_days'] = $reminder_threshold_days;
+            }
+            
+            if (empty($update_data)) {
+                return new WP_Error('no_data', 'No data provided to update', array('status' => 400));
+            }
+            
+            // Update user plan
+            $result = $this->database->save_user_plan($user_id, $update_data);
+            
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'Reminder settings updated successfully'
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('reminder_settings_error', 'Error updating reminder settings: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     /**

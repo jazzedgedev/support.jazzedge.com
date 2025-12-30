@@ -3374,34 +3374,8 @@ class JPH_Frontend {
                             $user_plan = $this->database->get_user_plan($user_id);
                             $sessions_this_week = $this->database->get_weekly_session_count($user_id);
                             
-                            // Auto-select first practice item if no focus selected
-                            $weekly_focus_item_id = $user_plan ? $user_plan['weekly_focus_item_id'] : null;
-                            if (!$weekly_focus_item_id && !empty($practice_items)) {
-                                $weekly_focus_item_id = $practice_items[0]['id'];
-                            }
-                            
-                            // Get weekly focus item name
-                            $weekly_focus_item_name = '';
-                            if ($weekly_focus_item_id) {
-                                foreach ($practice_items as $item) {
-                                    if ($item['id'] == $weekly_focus_item_id) {
-                                        $weekly_focus_item_name = $item['name'];
-                                        break;
-                                    }
-                                }
-                            }
-                            
                             ?>
                             
-                            <!-- Print Transformation Sheet Button -->
-                            <div class="jph-plan-print-wrapper">
-                                <button type="button" id="jph-print-transformation-sheet" class="jph-btn jph-btn-secondary jph-print-btn">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0c-.376.023-.75.05-1.124.08C2.994 15.288 2.25 16.568 2.25 18c0 1.512.744 2.792 1.876 3.645.21.155.456.283.73.373M12 18.75V21m-3.75-2.25h7.5M15.75 8.25v-3.375c0-.621-.504-1.125-1.125-1.125h-3.75c-.621 0-1.125.504-1.125 1.125V8.25m3.75 0v.75m0 0h3.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125H12.75m-7.5 0H6a2.25 2.25 0 002.25-2.25V15.75c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125H9.75m-3.75 0v-6.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125v6.375m-6-9V8.25c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125H6.375c-.621 0-1.125-.504-1.125-1.125z" />
-                                    </svg>
-                                    Print Transformation Sheet
-                                </button>
-                            </div>
                             
                             <!-- Transformation Sheet Print Content (hidden until print) -->
                             <div id="jph-transformation-sheet-print" class="jph-transformation-sheet-print">
@@ -3430,12 +3404,6 @@ class JPH_Frontend {
                                     </div>
                                 </div>
                                 
-                                <div class="transformation-sheet-section" id="transformation-sheet-focus-section" style="<?php echo $weekly_focus_item_name ? '' : 'display: none;'; ?>">
-                                    <h2>This Week's Focus</h2>
-                                    <div class="transformation-sheet-content" id="transformation-sheet-focus">
-                                        <?php echo $weekly_focus_item_name ? esc_html($weekly_focus_item_name) : ''; ?>
-                                    </div>
-                                </div>
                                 
                                 <div class="transformation-sheet-footer">
                                     <p>JazzEdge Academy - Your Journey to Musical Excellence</p>
@@ -3467,23 +3435,145 @@ class JPH_Frontend {
                             <div class="jph-plan-goal-community-wrapper">
                                 <!-- Goal Snapshot -->
                                 <div class="jph-plan-section jph-plan-goal">
-                                    <h3>
-                                        Your 90-Day Piano Goal
-                                        <span class="jph-plan-microtip" aria-label="Set a specific, achievable goal for the next 90 days. This helps you stay focused and track your progress. Examples: 'Learn to play 3 jazz standards', 'Master the blues scale in all keys', or 'Complete the beginner improvisation course'. Your changes save automatically when you click away." data-microtip-position="top" data-microtip-size="large" role="tooltip">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                    <div class="jph-plan-goal-header-row">
+                                        <h3>
+                                            Your 90-Day Piano Goal
+                                            <span class="jph-plan-microtip" aria-label="Set a specific, achievable goal for the next 90 days. This helps you stay focused and track your progress. Examples: 'Learn to play 3 jazz standards', 'Master the blues scale in all keys', or 'Complete the beginner improvisation course'. Your changes save automatically when you click away." data-microtip-position="top" data-microtip-size="large" role="tooltip">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                                </svg>
+                                            </span>
+                                        </h3>
+                                        <button type="button" id="jph-print-transformation-sheet" class="jph-print-btn-inline" title="Print Transformation Sheet">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                                             </svg>
-                                        </span>
-                                    </h3>
-                                    <textarea id="jph-plan-goal" 
-                                              class="jph-plan-goal-input" 
-                                              placeholder="What do you want to achieve in 90 days?"
-                                              rows="3"
-                                              maxlength="250"><?php echo esc_textarea($user_plan ? ($user_plan['goal_90_day'] ?? '') : ''); ?></textarea>
+                                            <span class="jph-print-btn-text">Print Transformation Sheet</span>
+                                        </button>
+                                    </div>
+                                    <div class="jph-plan-goal-input-wrapper">
+                                        <textarea id="jph-plan-goal" 
+                                                  class="jph-plan-goal-input" 
+                                                  placeholder="What do you want to achieve in 90 days?"
+                                                  rows="3"
+                                                  maxlength="250"><?php echo esc_textarea($user_plan ? ($user_plan['goal_90_day'] ?? '') : ''); ?></textarea>
+                                        <button type="button" id="jph-ai-goal-helper-btn" class="jph-ai-goal-helper-btn" title="Get AI help with your goal">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                            </svg>
+                                            <span>AI Help</span>
+                                        </button>
+                                    </div>
                                     <div class="jph-plan-goal-footer">
                                         <div class="jph-plan-save-status" id="jph-plan-goal-status"></div>
                                         <div class="jph-plan-goal-counter">
                                             <span id="jph-plan-goal-char-count">0</span>/250
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- AI Goal Helper Modal -->
+                                <div id="jph-ai-goal-helper-modal" class="jph-ai-goal-helper-modal" style="display: none;">
+                                    <div class="jph-ai-goal-helper-overlay"></div>
+                                    <div class="jph-ai-goal-helper-popup">
+                                        <div class="jph-ai-goal-helper-header">
+                                            <h3>
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                                </svg>
+                                                Get AI Help with Your 90-Day Goal
+                                            </h3>
+                                            <button type="button" class="jph-ai-goal-helper-close" id="jph-ai-goal-helper-close">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="20" height="20">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="jph-ai-goal-helper-body">
+                                            <p class="jph-ai-goal-helper-intro">Tell us what you want to learn in 100 characters or less, and Jazzedge AI will help you create a focused 90-day goal.</p>
+                                            <form id="jph-ai-goal-helper-form">
+                                                <div class="jph-ai-goal-helper-input-wrapper">
+                                                    <textarea 
+                                                        id="jph-ai-goal-helper-input" 
+                                                        class="jph-ai-goal-helper-input" 
+                                                        placeholder="e.g., I want to learn jazz improvisation"
+                                                        rows="3"
+                                                        maxlength="100"></textarea>
+                                                    <div class="jph-ai-goal-helper-char-count">
+                                                        <span id="jph-ai-goal-helper-char-count">0</span>/100
+                                                    </div>
+                                                </div>
+                                                <div class="jph-ai-goal-helper-actions">
+                                                    <button type="button" class="jph-ai-goal-helper-cancel" id="jph-ai-goal-helper-cancel">Cancel</button>
+                                                    <button type="submit" class="jph-ai-goal-helper-submit" id="jph-ai-goal-helper-submit">
+                                                        <span class="jph-ai-goal-helper-submit-text">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                                            </svg>
+                                                            Generate Goal
+                                                        </span>
+                                                        <span class="jph-ai-goal-helper-submit-spinner" style="display: none;">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" class="spinner">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.25 21.75h4.992v-.001M2.25 9.348h4.992m-4.992 0v4.992m0-4.992v-4.992m4.992 0h4.992m-4.992 0v4.992m0-4.992v-4.992" />
+                                                            </svg>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                            <div class="jph-ai-goal-helper-error" id="jph-ai-goal-helper-error" style="display: none;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- AI Transformation Vision Helper Modal -->
+                                <div id="jph-ai-transformation-helper-modal" class="jph-ai-goal-helper-modal" style="display: none;">
+                                    <div class="jph-ai-goal-helper-overlay"></div>
+                                    <div class="jph-ai-goal-helper-popup">
+                                        <div class="jph-ai-goal-helper-header">
+                                            <h3>
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                                </svg>
+                                                Get AI Help with Your Transformation Vision
+                                            </h3>
+                                            <button type="button" class="jph-ai-goal-helper-close" id="jph-ai-transformation-helper-close">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="20" height="20">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="jph-ai-goal-helper-body">
+                                            <p class="jph-ai-goal-helper-intro">Tell us what you want to achieve in 100 characters or less, and Jazzedge AI will help you create an inspiring transformation vision for 3 months, 6 months, and 1 year.</p>
+                                            <form id="jph-ai-transformation-helper-form">
+                                                <div class="jph-ai-goal-helper-input-wrapper">
+                                                    <textarea 
+                                                        id="jph-ai-transformation-helper-input" 
+                                                        class="jph-ai-goal-helper-input" 
+                                                        placeholder="e.g., I want to perform jazz standards confidently"
+                                                        rows="3"
+                                                        maxlength="100"></textarea>
+                                                    <div class="jph-ai-goal-helper-char-count">
+                                                        <span id="jph-ai-transformation-helper-char-count">0</span>/100
+                                                    </div>
+                                                </div>
+                                                <div class="jph-ai-goal-helper-actions">
+                                                    <button type="button" class="jph-ai-goal-helper-cancel" id="jph-ai-transformation-helper-cancel">Cancel</button>
+                                                    <button type="submit" class="jph-ai-goal-helper-submit" id="jph-ai-transformation-helper-submit">
+                                                        <span class="jph-ai-goal-helper-submit-text">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                                            </svg>
+                                                            Generate Vision
+                                                        </span>
+                                                        <span class="jph-ai-goal-helper-submit-spinner" style="display: none;">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" class="spinner">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.25 21.75h4.992v-.001M2.25 9.348h4.992m-4.992 0v4.992m0-4.992v-4.992m4.992 0h4.992m-4.992 0v4.992m0-4.992v-4.992" />
+                                                            </svg>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                            <div class="jph-ai-goal-helper-error" id="jph-ai-transformation-helper-error" style="display: none;"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -3498,35 +3588,14 @@ class JPH_Frontend {
                                 </div>
                             </div>
                             
-                            <!-- This Week's Focus -->
-                            <div class="jph-plan-section jph-plan-focus">
-                                <h3>
-                                    This Week's Focus
-                                    <span class="jph-plan-microtip" aria-label="Select one practice item to focus on this week. Choose from your active practice items. Once selected, click the 'Practice' button to log a practice session for this item. You can change your focus anytime - it saves automatically when you make a selection." data-microtip-position="top" data-microtip-size="large" role="tooltip">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                                        </svg>
-                                    </span>
-                                </h3>
-                                <div class="jph-plan-focus-wrapper">
-                                    <select id="jph-plan-focus" class="jph-plan-focus-select">
-                                        <option value="">-- Select a practice item --</option>
-                                        <?php foreach ($practice_items as $item): ?>
-                                            <option value="<?php echo esc_attr($item['id']); ?>" <?php selected($weekly_focus_item_id, $item['id']); ?>>
-                                                <?php echo esc_html($item['name']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <button type="button" id="jph-plan-practice-btn" class="jph-plan-practice-btn">Practice</button>
-                                </div>
-                                <div class="jph-plan-save-status" id="jph-plan-focus-status"></div>
-                                <p class="jph-plan-subtext">Chosen from your active practice items</p>
-                            </div>
                             
                             <!-- Transformation Vision -->
                             <div class="jph-plan-section jph-plan-transformation">
                                 <h3>
-                                    🎯 Your Transformation Vision
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.5 15.75h1.5m-1.5 0-1 3m8.5-3 1 3m0 0-1-3m1 3-1-3m-4.5-2.25h.008v.008H12.75v-.008Z" />
+                                    </svg>
+                                    Your Transformation Vision
                                     <span class="jph-plan-microtip" aria-label="Describe your long-term vision for your piano journey. Think about where you want to be in 3 months, 6 months, and 1 year. This is your 'why' - the bigger picture that motivates you. Be specific and aspirational, but realistic. Your changes save automatically when you click away from the text area." data-microtip-position="top" data-microtip-size="large" role="tooltip">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
@@ -3534,12 +3603,20 @@ class JPH_Frontend {
                                     </span>
                                 </h3>
                                 <p class="jph-plan-transformation-intro">Visualize yourself in 3 months, 6 months, 1 year. What do you want to see? This should be a 'reach' but not unattainable. Think about the direction and forward momentum you want to create.</p>
-                                <textarea 
-                                       id="jph-plan-transformation" 
-                                       class="jph-plan-transformation-input" 
-                                       placeholder="Where do you want to be? What transformation do you want to see? (e.g., 'In 3 months, I want to play my favorite song smoothly. In 6 months, I want to improvise over chord changes. In 1 year, I want to perform at a local open mic.')"
-                                       rows="4"
-                                       maxlength="500"><?php echo esc_textarea($user_plan ? ($user_plan['transformation'] ?? '') : ''); ?></textarea>
+                                <div class="jph-plan-transformation-input-wrapper">
+                                    <textarea 
+                                           id="jph-plan-transformation" 
+                                           class="jph-plan-transformation-input" 
+                                           placeholder="Where do you want to be? What transformation do you want to see? (e.g., 'In 3 months, I want to play my favorite song smoothly. In 6 months, I want to improvise over chord changes. In 1 year, I want to perform at a local open mic.')"
+                                           rows="4"
+                                           maxlength="500"><?php echo esc_textarea($user_plan ? ($user_plan['transformation'] ?? '') : ''); ?></textarea>
+                                    <button type="button" id="jph-ai-transformation-helper-btn" class="jph-ai-goal-helper-btn" title="Get AI help with your transformation vision">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                        </svg>
+                                        <span>AI Help</span>
+                                    </button>
+                                </div>
                                 <div class="jph-plan-save-status" id="jph-plan-transformation-status"></div>
                                 <p class="jph-plan-subtext">💡 This is about direction and forward momentum - where are you heading?</p>
                             </div>
@@ -3565,7 +3642,12 @@ class JPH_Frontend {
                             $sessions_count = intval($sessions_count);
                             ?>
                             <div class="jph-plan-section jph-plan-stats-summary">
-                                <h3>📊 Your Practice This Week</h3>
+                                <h3>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                    </svg>
+                                    Your Practice This Week
+                                </h3>
                                 <div class="jph-plan-stats-grid">
                                     <div class="jph-plan-stat-item">
                                         <div class="jph-plan-stat-value"><?php echo esc_html($sessions_count); ?></div>
@@ -15109,35 +15191,264 @@ class JPH_Frontend {
             margin-bottom: 0;
         }
         
-        .jph-plan-print-wrapper {
-            margin-bottom: 30px;
-            text-align: right;
+        .jph-plan-goal-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
         }
         
-        .jph-print-btn {
+        .jph-plan-goal-header-row h3 {
+            margin: 0;
+            flex: 1;
+        }
+        
+        .jph-print-btn-inline {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: transparent;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .jph-print-btn-inline:hover {
+            background: #f8fafc;
+            border-color: #239B90;
+            color: #239B90;
+        }
+        
+        .jph-print-btn-inline svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+        
+        .jph-print-btn-text {
+            white-space: nowrap;
+        }
+        
+        .jph-plan-goal-input-wrapper {
+            position: relative;
+        }
+        
+        .jph-ai-goal-helper-btn {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
             background: #239B90;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
+            z-index: 10;
         }
         
-        .jph-print-btn:hover {
+        .jph-ai-goal-helper-btn:hover {
             background: #1a7a70;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
         }
         
-        .jph-print-btn svg {
-            width: 18px;
-            height: 18px;
+        .jph-ai-goal-helper-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .jph-ai-goal-helper-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .jph-ai-goal-helper-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .jph-ai-goal-helper-popup {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            z-index: 10001;
+        }
+        
+        .jph-ai-goal-helper-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .jph-ai-goal-helper-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+        }
+        
+        .jph-ai-goal-helper-close {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .jph-ai-goal-helper-close:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+        
+        .jph-ai-goal-helper-body {
+            padding: 24px;
+        }
+        
+        .jph-ai-goal-helper-intro {
+            margin: 0 0 20px 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .jph-ai-goal-helper-input-wrapper {
+            margin-bottom: 20px;
+        }
+        
+        .jph-ai-goal-helper-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+            transition: border-color 0.2s ease;
+        }
+        
+        .jph-ai-goal-helper-input:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-ai-goal-helper-char-count {
+            text-align: right;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .jph-ai-goal-helper-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .jph-ai-goal-helper-cancel,
+        .jph-ai-goal-helper-submit {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+        
+        .jph-ai-goal-helper-cancel {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        .jph-ai-goal-helper-cancel:hover {
+            background: #e2e8f0;
+        }
+        
+        .jph-ai-goal-helper-submit {
+            background: #239B90;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .jph-ai-goal-helper-submit:hover:not(:disabled) {
+            background: #1a7a70;
+        }
+        
+        .jph-ai-goal-helper-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .jph-ai-goal-helper-submit-text {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .jph-ai-goal-helper-submit-spinner {
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .jph-ai-goal-helper-submit-spinner .spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .jph-ai-goal-helper-error {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            color: #dc2626;
+            font-size: 14px;
         }
         
         .jph-transformation-sheet-print {
@@ -15318,6 +15629,14 @@ class JPH_Frontend {
             font-style: italic;
         }
         
+        .jph-plan-transformation-input-wrapper {
+            position: relative;
+        }
+        
+        .jph-plan-transformation-input-wrapper {
+            position: relative;
+        }
+        
         .jph-plan-transformation-input {
             width: 100%;
             padding: 12px 16px;
@@ -15375,53 +15694,6 @@ class JPH_Frontend {
         
         .jph-plan-goal-counter.danger {
             color: #ef4444;
-        }
-        
-        .jph-plan-focus-wrapper {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-        
-        .jph-plan-focus-select {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e8f5f4;
-            border-radius: 8px;
-            font-size: 16px;
-            font-family: inherit;
-            background: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .jph-plan-focus-select:focus {
-            outline: none;
-            border-color: #239B90;
-            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
-        }
-        
-        .jph-plan-practice-btn {
-            background-color: #f04e23;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-        }
-        
-        .jph-plan-practice-btn:hover {
-            background-color: #d43e1a;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(240, 78, 35, 0.3);
-        }
-        
-        .jph-plan-practice-btn:active {
-            transform: translateY(0);
         }
         
         .jph-plan-subtext {
@@ -15863,7 +16135,6 @@ class JPH_Frontend {
                 // Update the print content with current values
                 var goalText = $('#jph-plan-goal').val().trim() || 'No goal set yet';
                 var transformationText = $('#jph-plan-transformation').val().trim() || 'No transformation vision set yet';
-                var focusText = $('#jph-plan-focus option:selected').text();
                 var currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
                 
                 // Build the print HTML
@@ -15894,13 +16165,6 @@ class JPH_Frontend {
                 printContent += '<h2>Your Transformation Vision</h2>';
                 printContent += '<div class="transformation-sheet-content">' + $('<div>').text(transformationText).html() + '</div>';
                 printContent += '</div>';
-                
-                if (focusText && focusText !== '-- Select a practice item --' && focusText.trim() !== '') {
-                    printContent += '<div class="transformation-sheet-section">';
-                    printContent += '<h2>This Week\'s Focus</h2>';
-                    printContent += '<div class="transformation-sheet-content">' + $('<div>').text(focusText).html() + '</div>';
-                    printContent += '</div>';
-                }
                 
                 printContent += '<div class="transformation-sheet-footer">';
                 printContent += '<p>JazzEdge Academy - Your Journey to Musical Excellence</p>';
@@ -15992,24 +16256,6 @@ class JPH_Frontend {
                 });
                 
                 // Auto-save focus on change
-                $('#jph-plan-focus').on('change', function() {
-                    savePlanFocus();
-                });
-                
-                // Practice button - navigate to practice tab
-                $('#jph-plan-practice-btn').on('click', function(e) {
-                    e.preventDefault();
-                    // Switch to practice-items tab
-                    $('.jph-tab-btn').removeClass('active');
-                    $('.jph-tab-pane').removeClass('active');
-                    $('.jph-tab-btn[data-tab="practice-items"]').addClass('active');
-                    $('#practice-items-tab').addClass('active');
-                    
-                    // Scroll to top
-                    $('html, body').animate({
-                        scrollTop: $('.jph-tabs-content').offset().top - 100
-                    }, 500);
-                });
                 
                 // View Analytics button - navigate to analytics tab
                 $('#jph-plan-view-analytics-btn').on('click', function(e) {
@@ -16107,11 +16353,328 @@ class JPH_Frontend {
                     $('body').css('overflow', '');
                 });
                 
+                // AI Goal Helper Modal
+                var $goalHelperModal = $('#jph-ai-goal-helper-modal');
+                var $goalHelperInput = $('#jph-ai-goal-helper-input');
+                var $goalHelperCharCount = $('#jph-ai-goal-helper-char-count');
+                var $goalHelperForm = $('#jph-ai-goal-helper-form');
+                var $goalHelperSubmit = $('#jph-ai-goal-helper-submit');
+                var $goalHelperError = $('#jph-ai-goal-helper-error');
+                
+                // Character counter for AI helper input
+                $goalHelperInput.on('input', function() {
+                    var length = $(this).val().length;
+                    $goalHelperCharCount.text(length);
+                });
+                
+                // Open AI Goal Helper Modal
+                $('#jph-ai-goal-helper-btn').on('click', function(e) {
+                    e.preventDefault();
+                    $goalHelperModal.fadeIn(200);
+                    $('body').css('overflow', 'hidden');
+                    $goalHelperInput.focus();
+                });
+                
+                // Close AI Goal Helper Modal
+                $('#jph-ai-goal-helper-close, #jph-ai-goal-helper-cancel').on('click', function(e) {
+                    e.preventDefault();
+                    $goalHelperModal.fadeOut(200);
+                    $('body').css('overflow', '');
+                    $goalHelperInput.val('');
+                    $goalHelperCharCount.text('0');
+                    $goalHelperError.hide().text('');
+                });
+                
+                // Submit AI Goal Helper Form
+                $goalHelperForm.on('submit', function(e) {
+                    e.preventDefault();
+                    
+                    var input = $goalHelperInput.val().trim();
+                    if (!input) {
+                        $goalHelperError.text('Please tell us what you want to learn.').show();
+                        return;
+                    }
+                    
+                    // Show loading state
+                    $goalHelperSubmit.prop('disabled', true);
+                    $goalHelperSubmit.find('.jph-ai-goal-helper-submit-text').hide();
+                    $goalHelperSubmit.find('.jph-ai-goal-helper-submit-spinner').show();
+                    $goalHelperError.hide();
+                    
+                    // Call REST API
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/ai/generate-goal'); ?>',
+                        method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                            'Content-Type': 'application/json'
+                        },
+                        data: JSON.stringify({
+                            input: input
+                        }),
+                        success: function(response) {
+                            if (response.success && response.goal) {
+                                // Populate the 90-day goal textarea
+                                $('#jph-plan-goal').val(response.goal);
+                                
+                                // Trigger input event to update character counter
+                                $('#jph-plan-goal').trigger('input');
+                                
+                                // Auto-save if there's an auto-save handler
+                                if (typeof updateGoalCharCounter === 'function') {
+                                    updateGoalCharCounter();
+                                }
+                                
+                                // Close modal
+                                $goalHelperModal.fadeOut(200);
+                                $('body').css('overflow', '');
+                                $goalHelperInput.val('');
+                                $goalHelperCharCount.text('0');
+                            } else {
+                                $goalHelperError.text('Failed to generate goal. Please try again.').show();
+                            }
+                        },
+                        error: function(xhr) {
+                            var errorMsg = 'Failed to generate goal. Please try again.';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMsg = xhr.responseJSON.message;
+                            }
+                            $goalHelperError.text(errorMsg).show();
+                        },
+                        complete: function() {
+                            // Reset button state
+                            $goalHelperSubmit.prop('disabled', false);
+                            $goalHelperSubmit.find('.jph-ai-goal-helper-submit-text').show();
+                            $goalHelperSubmit.find('.jph-ai-goal-helper-submit-spinner').hide();
+                        }
+                    });
+                });
+                
+                // AI Transformation Vision Helper Modal
+                var $transformationHelperModal = $('#jph-ai-transformation-helper-modal');
+                var $transformationHelperInput = $('#jph-ai-transformation-helper-input');
+                var $transformationHelperCharCount = $('#jph-ai-transformation-helper-char-count');
+                var $transformationHelperForm = $('#jph-ai-transformation-helper-form');
+                var $transformationHelperSubmit = $('#jph-ai-transformation-helper-submit');
+                var $transformationHelperError = $('#jph-ai-transformation-helper-error');
+                
+                // Only set up handlers if elements exist
+                if ($transformationHelperModal.length && $('#jph-ai-transformation-helper-btn').length) {
+                    // Character counter for transformation helper input
+                    if ($transformationHelperInput.length && $transformationHelperCharCount.length) {
+                        $transformationHelperInput.on('input', function() {
+                            var length = $(this).val().length;
+                            $transformationHelperCharCount.text(length);
+                        });
+                    }
+                    
+                    // Open AI Transformation Vision Helper Modal
+                    $('#jph-ai-transformation-helper-btn').on('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if ($transformationHelperModal.length) {
+                            $transformationHelperModal.fadeIn(200);
+                            $('body').css('overflow', 'hidden');
+                            if ($transformationHelperInput.length) {
+                                $transformationHelperInput.focus();
+                            }
+                        }
+                    });
+                    
+                    // Close AI Transformation Vision Helper Modal
+                    if ($('#jph-ai-transformation-helper-close').length || $('#jph-ai-transformation-helper-cancel').length) {
+                        $('#jph-ai-transformation-helper-close, #jph-ai-transformation-helper-cancel').on('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if ($transformationHelperModal.length) {
+                                $transformationHelperModal.fadeOut(200);
+                                $('body').css('overflow', '');
+                                if ($transformationHelperInput.length) {
+                                    $transformationHelperInput.val('');
+                                }
+                                if ($transformationHelperCharCount.length) {
+                                    $transformationHelperCharCount.text('0');
+                                }
+                                if ($transformationHelperError.length) {
+                                    $transformationHelperError.hide().text('');
+                                }
+                            }
+                        });
+                    }
+                    
+                    // Submit AI Transformation Vision Helper Form
+                    if ($transformationHelperForm.length) {
+                        $transformationHelperForm.on('submit', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            var input = $transformationHelperInput.length ? $transformationHelperInput.val().trim() : '';
+                            if (!input) {
+                                if ($transformationHelperError.length) {
+                                    $transformationHelperError.text('Please tell us what you want to achieve.').show();
+                                }
+                                return;
+                            }
+                            
+                            // Show loading state
+                            if ($transformationHelperSubmit.length) {
+                                $transformationHelperSubmit.prop('disabled', true);
+                                $transformationHelperSubmit.find('.jph-ai-goal-helper-submit-text').hide();
+                                $transformationHelperSubmit.find('.jph-ai-goal-helper-submit-spinner').show();
+                            }
+                            if ($transformationHelperError.length) {
+                                $transformationHelperError.hide();
+                            }
+                            
+                            // Call REST API
+                            $.ajax({
+                                url: '<?php echo rest_url('aph/v1/ai/generate-transformation'); ?>',
+                                method: 'POST',
+                                headers: {
+                                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                                    'Content-Type': 'application/json'
+                                },
+                                data: JSON.stringify({
+                                    input: input
+                                }),
+                                timeout: 30000, // 30 second timeout
+                                success: function(response) {
+                                    if (response && response.success && response.vision) {
+                                        // Populate the transformation vision textarea
+                                        var $transformationTextarea = $('#jph-plan-transformation');
+                                        if ($transformationTextarea.length) {
+                                            $transformationTextarea.val(response.vision);
+                                            $transformationTextarea.trigger('input');
+                                        }
+                                        
+                                        // Close modal
+                                        if ($transformationHelperModal.length) {
+                                            $transformationHelperModal.fadeOut(200);
+                                            $('body').css('overflow', '');
+                                        }
+                                        if ($transformationHelperInput.length) {
+                                            $transformationHelperInput.val('');
+                                        }
+                                        if ($transformationHelperCharCount.length) {
+                                            $transformationHelperCharCount.text('0');
+                                        }
+                                    } else {
+                                        if ($transformationHelperError.length) {
+                                            $transformationHelperError.text('Failed to generate transformation vision. Please try again.').show();
+                                        }
+                                    }
+                                },
+                                error: function(xhr, status, error) {
+                                    var errorMsg = 'Failed to generate transformation vision. Please try again.';
+                                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                                        errorMsg = xhr.responseJSON.message;
+                                    } else if (status === 'timeout') {
+                                        errorMsg = 'Request timed out. Please try again.';
+                                    }
+                                    if ($transformationHelperError.length) {
+                                        $transformationHelperError.text(errorMsg).show();
+                                    }
+                                },
+                                complete: function() {
+                                    // Reset button state
+                                    if ($transformationHelperSubmit.length) {
+                                        $transformationHelperSubmit.prop('disabled', false);
+                                        $transformationHelperSubmit.find('.jph-ai-goal-helper-submit-text').show();
+                                        $transformationHelperSubmit.find('.jph-ai-goal-helper-submit-spinner').hide();
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
+                
+                // Practice Reminder Settings
+                var $reminderEnabled = $('#jph-reminder-enabled');
+                var $reminderThreshold = $('#jph-reminder-threshold-days');
+                var $reminderThresholdWrapper = $('#jph-reminder-threshold-wrapper');
+                var reminderTimeout;
+                
+                // Toggle reminder enabled/disabled
+                $reminderEnabled.on('change', function() {
+                    var isEnabled = $(this).is(':checked');
+                    if (isEnabled) {
+                        $reminderThresholdWrapper.css({
+                            'opacity': '1',
+                            'pointer-events': 'auto'
+                        });
+                    } else {
+                        $reminderThresholdWrapper.css({
+                            'opacity': '0.5',
+                            'pointer-events': 'none'
+                        });
+                    }
+                    saveReminderSettings();
+                });
+                
+                // Save reminder settings on threshold change
+                $reminderThreshold.on('change', function() {
+                    var value = parseInt($(this).val());
+                    if (value < 1) {
+                        $(this).val(1);
+                    } else if (value > 14) {
+                        $(this).val(14);
+                    }
+                    saveReminderSettings();
+                });
+                
+                // Debounced save function
+                function saveReminderSettings() {
+                    clearTimeout(reminderTimeout);
+                    reminderTimeout = setTimeout(function() {
+                        var enabled = $reminderEnabled.is(':checked') ? 1 : 0;
+                        var threshold = parseInt($reminderThreshold.val()) || 3;
+                        
+                        $.ajax({
+                            url: '<?php echo rest_url('aph/v1/plan/reminder-settings'); ?>',
+                            method: 'PUT',
+                            headers: {
+                                'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                                'Content-Type': 'application/json'
+                            },
+                            data: JSON.stringify({
+                                reminder_enabled: enabled,
+                                reminder_threshold_days: threshold
+                            }),
+                            success: function(response) {
+                                if (response.success) {
+                                    showSaveStatus('jph-plan-reminder-status', 'saved');
+                                } else {
+                                    showSaveStatus('jph-plan-reminder-status', 'error');
+                                }
+                            },
+                            error: function() {
+                                showSaveStatus('jph-plan-reminder-status', 'error');
+                            }
+                        });
+                    }, 500);
+                }
+                
                 // Close on Escape key
                 $(document).on('keydown', function(e) {
-                    if (e.key === 'Escape' && $('#jph-ai-assistant-modal').is(':visible')) {
-                        $('#jph-ai-assistant-modal').fadeOut(300);
-                        $('body').css('overflow', '');
+                    if (e.key === 'Escape') {
+                        if ($('#jph-ai-assistant-modal').is(':visible')) {
+                            $('#jph-ai-assistant-modal').fadeOut(300);
+                            $('body').css('overflow', '');
+                        }
+                        if ($goalHelperModal.is(':visible')) {
+                            $goalHelperModal.fadeOut(200);
+                            $('body').css('overflow', '');
+                            $goalHelperInput.val('');
+                            $goalHelperCharCount.text('0');
+                            $goalHelperError.hide().text('');
+                        }
+                        if ($transformationHelperModal.is(':visible')) {
+                            $transformationHelperModal.fadeOut(200);
+                            $('body').css('overflow', '');
+                            $transformationHelperInput.val('');
+                            $transformationHelperCharCount.text('0');
+                            $transformationHelperError.hide().text('');
+                        }
                     }
                 });
                 
@@ -16150,16 +16713,78 @@ class JPH_Frontend {
                                 $('#jph-plan-goal').val(plan.goal_90_day || '');
                             }
                             
-                            // Update focus
-                            if (plan.weekly_focus_item_id) {
-                                $('#jph-plan-focus').val(plan.weekly_focus_item_id);
-                            }
                             
                         }
                     },
                     error: function(xhr, status, error) {
                     }
                 });
+            }
+            
+            // Practice Reminder Settings
+            var $reminderEnabled = $('#jph-reminder-enabled');
+            var $reminderThreshold = $('#jph-reminder-threshold-days');
+            var $reminderThresholdWrapper = $('#jph-reminder-threshold-wrapper');
+            var reminderTimeout;
+            
+            // Toggle reminder enabled/disabled
+            $reminderEnabled.on('change', function() {
+                var isEnabled = $(this).is(':checked');
+                if (isEnabled) {
+                    $reminderThresholdWrapper.css({
+                        'opacity': '1',
+                        'pointer-events': 'auto'
+                    });
+                } else {
+                    $reminderThresholdWrapper.css({
+                        'opacity': '0.5',
+                        'pointer-events': 'none'
+                    });
+                }
+                saveReminderSettings();
+            });
+            
+            // Save reminder settings on threshold change
+            $reminderThreshold.on('change', function() {
+                var value = parseInt($(this).val());
+                if (value < 1) {
+                    $(this).val(1);
+                } else if (value > 14) {
+                    $(this).val(14);
+                }
+                saveReminderSettings();
+            });
+            
+            // Debounced save function
+            function saveReminderSettings() {
+                clearTimeout(reminderTimeout);
+                reminderTimeout = setTimeout(function() {
+                    var enabled = $reminderEnabled.is(':checked') ? 1 : 0;
+                    var threshold = parseInt($reminderThreshold.val()) || 3;
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/plan/reminder-settings'); ?>',
+                        method: 'PUT',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                            'Content-Type': 'application/json'
+                        },
+                        data: JSON.stringify({
+                            reminder_enabled: enabled,
+                            reminder_threshold_days: threshold
+                        }),
+                        success: function(response) {
+                            if (response.success) {
+                                showSaveStatus('jph-plan-reminder-status', 'saved');
+                            } else {
+                                showSaveStatus('jph-plan-reminder-status', 'error');
+                            }
+                        },
+                        error: function() {
+                            showSaveStatus('jph-plan-reminder-status', 'error');
+                        }
+                    });
+                }, 500);
             }
             
             // Show save status
@@ -16225,31 +16850,6 @@ class JPH_Frontend {
                     },
                     error: function(xhr, status, error) {
                         showSaveStatus('jph-plan-goal-status', 'error');
-                    }
-                });
-            }
-            
-            // Save plan focus
-            function savePlanFocus() {
-                var itemId = $('#jph-plan-focus').val();
-                
-                $.ajax({
-                    url: '<?php echo rest_url('aph/v1/plan/focus'); ?>',
-                    method: 'PUT',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    data: JSON.stringify({ item_id: itemId ? parseInt(itemId) : 0 }),
-                    contentType: 'application/json',
-                    success: function(response) {
-                        if (response.success) {
-                            showSaveStatus('jph-plan-focus-status', 'saved');
-                        } else {
-                            showSaveStatus('jph-plan-focus-status', 'error');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        showSaveStatus('jph-plan-focus-status', 'error');
                     }
                 });
             }

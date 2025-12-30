@@ -98,6 +98,224 @@ new JPH_REST_API();
 // Initialize Admin Pages
 new JPH_Admin_Pages();
 
+// Initialize Practice Reminder System
+add_action('init', 'jph_init_practice_reminders');
+function jph_init_practice_reminders() {
+    // Schedule daily reminder check if not already scheduled
+    if (!wp_next_scheduled('jph_daily_practice_reminder_check')) {
+        // Schedule to run daily at 9 AM
+        wp_schedule_event(strtotime('today 9:00'), 'daily', 'jph_daily_practice_reminder_check');
+    }
+}
+
+// Hook into the scheduled event
+add_action('jph_daily_practice_reminder_check', 'jph_check_and_send_practice_reminders');
+
+/**
+ * Check and send practice reminders
+ */
+function jph_check_and_send_practice_reminders() {
+    global $wpdb;
+    
+    // Check if FluentCRM is available
+    if (!function_exists('fluentCrmApi')) {
+        error_log('JPH Practice Reminders: FluentCRM not available');
+        return;
+    }
+    
+    $table_name = $wpdb->prefix . 'jph_user_plans';
+    $now = current_time('mysql');
+    
+    // Get all users with reminders enabled
+    $users = $wpdb->get_results($wpdb->prepare(
+        "SELECT user_id, reminder_enabled, reminder_threshold_days, last_practiced_date, 
+                last_reminder_sent, reminder_cooldown_days
+         FROM {$table_name}
+         WHERE reminder_enabled = 1
+         AND (last_practiced_date IS NOT NULL OR reminder_threshold_days > 0)"
+    ));
+    
+    if (empty($users)) {
+        return;
+    }
+    
+    $reminders_sent = 0;
+    $errors = 0;
+    
+    foreach ($users as $user_data) {
+        $user_id = intval($user_data->user_id);
+        $threshold = intval($user_data->reminder_threshold_days);
+        $cooldown = intval($user_data->reminder_cooldown_days);
+        $last_practiced = $user_data->last_practiced_date;
+        $last_reminder = $user_data->last_reminder_sent;
+        
+        // Calculate days since last practice
+        if ($last_practiced) {
+            $last_practiced_date = new DateTime($last_practiced);
+            $now_date = new DateTime($now);
+            $days_since = $now_date->diff($last_practiced_date)->days;
+        } else {
+            // User has never practiced, use a large number
+            $days_since = 999;
+        }
+        
+        // Check if threshold is met
+        if ($days_since < $threshold) {
+            continue; // Not enough days, skip
+        }
+        
+        // Check cooldown period
+        if ($last_reminder) {
+            $last_reminder_date = new DateTime($last_reminder);
+            $now_date = new DateTime($now);
+            $days_since_reminder = $now_date->diff($last_reminder_date)->days;
+            
+            if ($days_since_reminder < $cooldown) {
+                continue; // Still in cooldown, skip
+            }
+        }
+        
+        // Get user email
+        $user = get_user_by('ID', $user_id);
+        if (!$user || !$user->user_email) {
+            continue;
+        }
+        
+        // Apply FluentCRM tag
+        $tag_name = "Practice Reminder - Day {$days_since}";
+        $result = jph_apply_fluentcrm_reminder_tag($user_id, $user->user_email, $tag_name, $days_since);
+        
+        if ($result['success']) {
+            // Update last_reminder_sent
+            $wpdb->update(
+                $table_name,
+                array('last_reminder_sent' => $now),
+                array('user_id' => $user_id),
+                array('%s'),
+                array('%d')
+            );
+            
+            $reminders_sent++;
+            error_log("JPH Practice Reminders: Sent reminder to user {$user_id} ({$user->user_email}) - {$days_since} days since last practice");
+        } else {
+            $errors++;
+            error_log("JPH Practice Reminders: Failed to send reminder to user {$user_id}: {$result['message']}");
+        }
+    }
+    
+    error_log("JPH Practice Reminders: Processed {$reminders_sent} reminders, {$errors} errors");
+}
+
+/**
+ * Apply FluentCRM tag for practice reminder
+ */
+function jph_apply_fluentcrm_reminder_tag($user_id, $user_email, $tag_name, $days_since) {
+    try {
+        // Check if FluentCRM is available
+        if (!function_exists('fluentCrmApi')) {
+            return array(
+                'success' => false,
+                'message' => 'FluentCRM not available'
+            );
+        }
+        
+        // Get or create contact
+        $contact = fluentCrmApi('contacts')->getContact($user_email);
+        
+        if (!$contact) {
+            // Create contact if doesn't exist
+            $contact = fluentCrmApi('contacts')->createOrUpdate(array(
+                'email' => $user_email,
+                'first_name' => get_user_meta($user_id, 'first_name', true) ?: '',
+                'last_name' => get_user_meta($user_id, 'last_name', true) ?: '',
+                'user_id' => $user_id
+            ));
+        }
+        
+        if (!$contact) {
+            return array(
+                'success' => false,
+                'message' => 'Could not create or retrieve FluentCRM contact'
+            );
+        }
+        
+        // Get or create tag
+        $tag = fluentCrmApi('tags')->getOrCreate($tag_name);
+        
+        if (!$tag) {
+            return array(
+                'success' => false,
+                'message' => 'Could not create FluentCRM tag'
+            );
+        }
+        
+        // Apply tag to contact
+        $contact->attachTags(array($tag->id));
+        
+        // Also apply a general "Practice Reminder" tag for easier automation
+        $general_tag = fluentCrmApi('tags')->getOrCreate('Practice Reminder');
+        if ($general_tag) {
+            $contact->attachTags(array($general_tag->id));
+        }
+        
+        return array(
+            'success' => true,
+            'message' => 'Tag applied successfully'
+        );
+        
+    } catch (Exception $e) {
+        return array(
+            'success' => false,
+            'message' => $e->getMessage()
+        );
+    }
+}
+
+/**
+ * Remove practice reminder tags when user practices
+ */
+function jph_remove_practice_reminder_tags($user_id) {
+    try {
+        // Check if FluentCRM is available
+        if (!function_exists('fluentCrmApi')) {
+            return;
+        }
+        
+        $user = get_user_by('ID', $user_id);
+        if (!$user || !$user->user_email) {
+            return;
+        }
+        
+        $contact = fluentCrmApi('contacts')->getContact($user->user_email);
+        if (!$contact) {
+            return;
+        }
+        
+        // Get all practice reminder tags
+        $tags = fluentCrmApi('tags')->all();
+        $reminder_tag_ids = array();
+        
+        foreach ($tags as $tag) {
+            if (strpos($tag->title, 'Practice Reminder') === 0) {
+                $reminder_tag_ids[] = $tag->id;
+            }
+        }
+        
+        if (!empty($reminder_tag_ids)) {
+            $contact->detachTags($reminder_tag_ids);
+        }
+        
+    } catch (Exception $e) {
+        error_log("JPH Practice Reminders: Error removing tags for user {$user_id}: " . $e->getMessage());
+    }
+}
+
+// Hook into practice session logging to remove reminder tags
+add_action('jph_practice_session_logged', 'jph_remove_practice_reminder_tags_on_practice', 10, 1);
+function jph_remove_practice_reminder_tags_on_practice($user_id) {
+    jph_remove_practice_reminder_tags($user_id);
+}
+
 // Initialize JPC Migration Admin (only if class exists)
 if (class_exists('JPH_JPC_Migration_Admin')) {
     new JPH_JPC_Migration_Admin();

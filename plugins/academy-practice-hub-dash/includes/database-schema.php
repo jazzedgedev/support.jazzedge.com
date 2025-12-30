@@ -1519,6 +1519,32 @@ class APH_Database_Schema {
                     'null' => true,
                     'description' => 'Start date of current week (for session counting)'
                 ),
+                'reminder_enabled' => array(
+                    'type' => 'TINYINT',
+                    'length' => 1,
+                    'unsigned' => true,
+                    'default' => 1,
+                    'description' => 'Whether practice reminder emails are enabled'
+                ),
+                'reminder_threshold_days' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 3,
+                    'description' => 'Number of days without practice before reminder is sent'
+                ),
+                'last_reminder_sent' => array(
+                    'type' => 'DATETIME',
+                    'null' => true,
+                    'description' => 'When the last practice reminder email was sent'
+                ),
+                'reminder_cooldown_days' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
+                    'default' => 7,
+                    'description' => 'Days to wait before sending another reminder'
+                ),
                 'created_at' => array(
                     'type' => 'DATETIME',
                     'default' => 'CURRENT_TIMESTAMP',
