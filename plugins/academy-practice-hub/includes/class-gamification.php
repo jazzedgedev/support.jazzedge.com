@@ -128,13 +128,30 @@ class APH_Gamification {
         $timezone_string = self::get_user_timezone_string($user_id);
         return new DateTimeZone($timezone_string);
     }
+
+    /**
+     * Get auto-gem streak save preference
+     */
+    private function get_auto_gem_streak_preference($user_id) {
+        $preferences_json = get_user_meta($user_id, 'aph_dashboard_preferences', true);
+        if (empty($preferences_json)) {
+            return true;
+        }
+        $preferences = json_decode($preferences_json, true);
+        if (!is_array($preferences)) {
+            return true;
+        }
+        return array_key_exists('auto_gem_streak_save', $preferences)
+            ? !empty($preferences['auto_gem_streak_save'])
+            : true;
+    }
     
     /**
      * Update streak
      * Recalculates streak from all practice sessions to ensure accuracy
      * Uses timestamp-based calculations to handle timezones correctly
      */
-    public function update_streak($user_id) {
+    public function update_streak($user_id, $apply_costs = true) {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'jph_user_stats';
@@ -150,11 +167,21 @@ class APH_Gamification {
             return false;
         }
         
-        $current_shields = $stats->streak_shield_count ?? 0;
+        $starting_shields = intval($stats->streak_shield_count ?? 0);
+        $starting_gems = intval($stats->gems_balance ?? 0);
+        $auto_gem_opt_in = $this->get_auto_gem_streak_preference($user_id);
+        $remaining_shields = $starting_shields;
+        $remaining_gems = $starting_gems;
+        $saved_dates = get_user_meta($user_id, 'aph_streak_saved_dates', true);
+        if (!is_array($saved_dates)) {
+            $saved_dates = array();
+        }
+        $saved_dates_map = array_fill_keys($saved_dates, true);
+        $saved_dates_changed = false;
         
         // Get all practice sessions
         $sessions = $wpdb->get_results($wpdb->prepare(
-            "SELECT created_at FROM {$sessions_table} 
+            "SELECT created_at, created_at_utc, user_timezone_at_session FROM {$sessions_table} 
              WHERE user_id = %d 
              ORDER BY created_at ASC",
             $user_id
@@ -176,86 +203,187 @@ class APH_Gamification {
             return array('streak_updated' => false, 'current_streak' => 0);
         }
         
-        // Get user timezone
-        $user_timezone = self::get_user_timezone($user_id);
-        $wp_timezone = $user_timezone;
+        // Grace window for streak continuation (36 hours)
+        $grace_seconds = 36 * HOUR_IN_SECONDS;
+        $auto_gem_cost = 50;
         
-        // Get unique practice dates (calendar days) in user's timezone
-        $practice_dates = array();
+        // Get user and WordPress timezones
+        $user_timezone = self::get_user_timezone($user_id);
+        $wp_timezone = wp_timezone();
+        $utc_timezone = new DateTimeZone('UTC');
+        
+        // Build unique practice dates with last timestamp per date (user timezone)
+        $practice_days = array();
         foreach ($sessions as $session) {
-            // created_at is stored in WordPress timezone (via current_time('mysql'))
-            // Convert to user timezone and get date
-            $session_datetime = new DateTime($session->created_at, $wp_timezone);
-            $date = $session_datetime->format('Y-m-d');
-            if (!in_array($date, $practice_dates)) {
-                $practice_dates[] = $date;
+            $session_timezone = $user_timezone;
+            if (!empty($session->user_timezone_at_session)) {
+                try {
+                    $session_timezone = new DateTimeZone($session->user_timezone_at_session);
+                } catch (Exception $e) {
+                    $session_timezone = $user_timezone;
+                }
+            }
+
+            if (!empty($session->created_at_utc)) {
+                $session_datetime = new DateTime($session->created_at_utc, $utc_timezone);
+            } else {
+                // created_at is stored in WordPress timezone (via current_time('mysql'))
+                $session_datetime = new DateTime($session->created_at, $wp_timezone);
+            }
+            $session_timestamp = $session_datetime->getTimestamp();
+            
+            // Convert to user timezone and get date key
+            $session_datetime->setTimezone($session_timezone);
+            $date_key = $session_datetime->format('Y-m-d');
+            
+            if (!isset($practice_days[$date_key]) || $session_timestamp > $practice_days[$date_key]) {
+                $practice_days[$date_key] = $session_timestamp;
             }
         }
         
-        if (empty($practice_dates)) {
+        if (empty($practice_days)) {
             return false;
         }
         
-        // Sort dates ascending
-        sort($practice_dates);
+        // Convert to sortable list (by timestamp)
+        $practice_day_list = array();
+        foreach ($practice_days as $date_key => $timestamp) {
+            $practice_day_list[] = array(
+                'date' => $date_key,
+                'timestamp' => $timestamp
+            );
+        }
         
-        // Get current date in user's timezone
-        $now_timestamp = current_time('timestamp');
-        $now_datetime = new DateTime('@' . $now_timestamp);
-        $now_datetime->setTimezone($user_timezone);
-        $today = $now_datetime->format('Y-m-d');
+        usort($practice_day_list, function($a, $b) {
+            return $a['timestamp'] <=> $b['timestamp'];
+        });
+
+        $practice_date_keys = array_keys($practice_days);
+        sort($practice_date_keys);
+        $missing_dates = array();
+        if (!empty($practice_date_keys)) {
+            $start_date = new DateTime($practice_date_keys[0], $user_timezone);
+            $end_date = new DateTime(end($practice_date_keys), $user_timezone);
+            $practice_date_map = array_fill_keys($practice_date_keys, true);
+
+            while ($start_date <= $end_date) {
+                $date_key = $start_date->format('Y-m-d');
+                if (!isset($practice_date_map[$date_key])) {
+                    $missing_dates[] = $date_key;
+                }
+                $start_date->modify('+1 day');
+            }
+        }
         
-        // Calculate yesterday
-        $yesterday_timestamp = $now_timestamp - DAY_IN_SECONDS;
-        $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
-        $yesterday_datetime->setTimezone($user_timezone);
-        $yesterday = $yesterday_datetime->format('Y-m-d');
+        // Get current timestamp
+        $now_timestamp = time();
         
-        // Calculate current streak (from most recent date backwards, counting consecutive calendar days)
+        // Calculate current streak (from most recent date backwards, using grace window + shields)
         $current_streak = 0;
-        $most_recent_date = end($practice_dates);
+        $most_recent_day = end($practice_day_list);
+        $shields_used = 0;
+        $shield_used = false;
+        $gems_used = 0;
+        $gems_spent = 0;
         
-        // Check if they have an active streak (practiced today or yesterday)
-        if ($most_recent_date === $today || $most_recent_date === $yesterday) {
-            $current_streak = 1;
-            $check_date = $most_recent_date;
+        // Check if they have an active streak (today/yesterday, within grace, or one-day gap with shield/gems)
+        $is_active = false;
+        if ($most_recent_day) {
+            $today_date = (new DateTime('@' . $now_timestamp))->setTimezone($user_timezone)->format('Y-m-d');
+            $today_midnight = new DateTime($today_date, $user_timezone);
+            $last_midnight = new DateTime($most_recent_day['date'], $user_timezone);
+            $days_since_last = (int) floor(($today_midnight->getTimestamp() - $last_midnight->getTimestamp()) / DAY_IN_SECONDS);
+            $recent_gap_seconds = $now_timestamp - $most_recent_day['timestamp'];
             
-            // Count backwards for consecutive calendar days
-            $date_index = array_search($most_recent_date, $practice_dates);
-            for ($i = $date_index - 1; $i >= 0; $i--) {
-                // Calculate expected previous date
-                $check_datetime = new DateTime($check_date, $wp_timezone);
-                $check_datetime->modify('-1 day');
-                $expected_date = $check_datetime->format('Y-m-d');
+            if ($days_since_last <= 1 || $recent_gap_seconds <= $grace_seconds) {
+                $is_active = true;
+            } elseif ($days_since_last === 2) {
+                $missing_date = (clone $last_midnight)->modify('+1 day')->format('Y-m-d');
+                if (isset($saved_dates_map[$missing_date])) {
+                    $is_active = true;
+                } elseif ($remaining_shields > 0) {
+                    $is_active = true;
+                    $remaining_shields--;
+                    $shields_used++;
+                    $shield_used = true;
+                    if ($apply_costs) {
+                        $saved_dates_map[$missing_date] = true;
+                        $saved_dates_changed = true;
+                    }
+                } elseif ($auto_gem_opt_in && $remaining_gems >= $auto_gem_cost) {
+                    $is_active = true;
+                    $remaining_gems -= $auto_gem_cost;
+                    $gems_used++;
+                    $gems_spent += $auto_gem_cost;
+                    if ($apply_costs) {
+                        $saved_dates_map[$missing_date] = true;
+                        $saved_dates_changed = true;
+                    }
+                }
+            }
+        }
+        
+        if ($is_active) {
+            $current_streak = 1;
+            
+            // Count backwards for streak continuity using grace window
+            for ($i = count($practice_day_list) - 1; $i > 0; $i--) {
+                $current_day = $practice_day_list[$i];
+                $prev_day = $practice_day_list[$i - 1];
+                $gap_seconds = $current_day['timestamp'] - $prev_day['timestamp'];
+                $current_midnight = new DateTime($current_day['date'], $user_timezone);
+                $prev_midnight = new DateTime($prev_day['date'], $user_timezone);
+                $day_gap = (int) floor(($current_midnight->getTimestamp() - $prev_midnight->getTimestamp()) / DAY_IN_SECONDS);
                 
-                if ($practice_dates[$i] === $expected_date) {
-                    // Consecutive day found
+                if ($day_gap === 1) {
                     $current_streak++;
-                    $check_date = $expected_date;
+                } elseif ($day_gap === 2 && $gap_seconds <= $grace_seconds) {
+                    $current_streak++;
+                } elseif ($day_gap === 2) {
+                    $missing_date = (clone $prev_midnight)->modify('+1 day')->format('Y-m-d');
+                    if (isset($saved_dates_map[$missing_date])) {
+                        $current_streak++;
+                    } elseif ($remaining_shields > 0) {
+                        $current_streak++;
+                        $remaining_shields--;
+                        $shields_used++;
+                        $shield_used = true;
+                        if ($apply_costs) {
+                            $saved_dates_map[$missing_date] = true;
+                            $saved_dates_changed = true;
+                        }
+                    } elseif ($auto_gem_opt_in && $remaining_gems >= $auto_gem_cost) {
+                        $current_streak++;
+                        $remaining_gems -= $auto_gem_cost;
+                        $gems_used++;
+                        $gems_spent += $auto_gem_cost;
+                        if ($apply_costs) {
+                            $saved_dates_map[$missing_date] = true;
+                            $saved_dates_changed = true;
+                        }
+                    } else {
+                        break;
+                    }
                 } else {
-                    // Gap found, streak broken
                     break;
                 }
             }
         }
         
-        // Calculate longest streak (consecutive calendar days)
+        // Calculate longest streak (calendar day continuity + grace for near-boundary)
         $longest_streak = 1;
         $temp_streak = 1;
-        for ($i = 1; $i < count($practice_dates); $i++) {
-            $prev_date = $practice_dates[$i - 1];
-            $curr_date = $practice_dates[$i];
+        for ($i = 1; $i < count($practice_day_list); $i++) {
+            $prev_day = $practice_day_list[$i - 1];
+            $curr_day = $practice_day_list[$i];
+            $gap_seconds = $curr_day['timestamp'] - $prev_day['timestamp'];
+            $current_midnight = new DateTime($curr_day['date'], $user_timezone);
+            $prev_midnight = new DateTime($prev_day['date'], $user_timezone);
+            $day_gap = (int) floor(($current_midnight->getTimestamp() - $prev_midnight->getTimestamp()) / DAY_IN_SECONDS);
             
-            // Check if dates are consecutive
-            $prev_datetime = new DateTime($prev_date, $wp_timezone);
-            $prev_datetime->modify('+1 day');
-            $expected_next_date = $prev_datetime->format('Y-m-d');
-            
-            if ($curr_date === $expected_next_date) {
-                // Consecutive day
+            if ($day_gap === 1 || ($day_gap === 2 && $gap_seconds <= $grace_seconds)) {
                 $temp_streak++;
             } else {
-                // Gap found, reset streak
                 $longest_streak = max($longest_streak, $temp_streak);
                 $temp_streak = 1;
             }
@@ -265,25 +393,54 @@ class APH_Gamification {
         // Determine if streak continued or was reset
         $old_streak = intval($stats->current_streak);
         $streak_continued = ($current_streak > 0 && ($current_streak >= $old_streak || $old_streak == 0));
-        $shield_used = false;
-        
-        // If streak was broken and user has shields, we could use one here
-        // But for now, we'll just recalculate accurately
-        // Shield logic can be added later if needed for the 36-hour grace period
-        
+
         // Update database
         $wpdb->update(
             $table_name,
             array(
                 'current_streak' => $current_streak,
                 'longest_streak' => $longest_streak,
-                'last_practice_date' => $most_recent_date,
+                'last_practice_date' => $most_recent_day ? $most_recent_day['date'] : null,
+                'streak_shield_count' => $apply_costs ? $remaining_shields : $starting_shields,
+                'gems_balance' => $apply_costs ? $remaining_gems : $starting_gems,
                 'updated_at' => current_time('mysql')
             ),
             array('user_id' => $user_id),
-            array('%d', '%d', '%s', '%s'),
+            array('%d', '%d', '%s', '%d', '%d', '%s'),
             array('%d')
         );
+
+        if ($apply_costs && $gems_used > 0) {
+            $wpdb->insert(
+                $wpdb->prefix . 'jph_gems_transactions',
+                array(
+                    'user_id' => $user_id,
+                    'transaction_type' => 'debit',
+                    'amount' => -$gems_spent,
+                    'source' => 'streak_auto_save',
+                    'description' => 'Auto-used gems to save streak (' . $gems_used . ' day' . ($gems_used > 1 ? 's' : '') . ')',
+                    'balance_after' => $remaining_gems,
+                    'created_at' => current_time('mysql')
+                ),
+                array('%d', '%s', '%d', '%s', '%s', '%d', '%s')
+            );
+        }
+
+        if ($apply_costs && $saved_dates_changed) {
+            $saved_dates_list = array_keys($saved_dates_map);
+            sort($saved_dates_list);
+            update_user_meta($user_id, 'aph_streak_saved_dates', $saved_dates_list);
+        }
+
+        update_user_meta($user_id, 'aph_streak_debug', array(
+            'missing_dates_count' => count($missing_dates),
+            'missing_dates' => $missing_dates,
+            'missing_dates_recent' => array_slice($missing_dates, -10),
+            'shields_used' => $shields_used,
+            'gems_used' => $gems_used,
+            'gems_spent' => $gems_spent,
+            'updated_at' => current_time('mysql')
+        ));
         
         return array(
             'streak_updated' => true,
@@ -291,7 +448,11 @@ class APH_Gamification {
             'longest_streak' => $longest_streak,
             'streak_continued' => $streak_continued,
             'shield_used' => $shield_used,
-            'shields_remaining' => $current_shields
+            'shields_used' => $shields_used,
+            'shields_remaining' => $apply_costs ? $remaining_shields : $starting_shields,
+            'gems_used' => $gems_used,
+            'gems_spent' => $gems_spent,
+            'gems_remaining' => $apply_costs ? $remaining_gems : $starting_gems
         );
     }
     

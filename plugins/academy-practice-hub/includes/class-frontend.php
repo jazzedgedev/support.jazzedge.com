@@ -912,52 +912,6 @@ class JPH_Frontend {
     /**
      * Render the student dashboard
      */
-    /**
-     * Check if current user can access PLAN tab (test users only)
-     */
-    private function user_can_access_plan_tab() {
-        $user_id = get_current_user_id();
-        
-        // Debug logging
-        error_log('PLAN Tab Check - User ID: ' . $user_id);
-        
-        if (!$user_id || $user_id === 0) {
-            error_log('PLAN Tab Check - No user ID, returning false');
-            return false;
-        }
-        
-        // Check if enabled for all users (production mode)
-        $enable_for_all = get_option('aaa_enable_for_all', false);
-        error_log('PLAN Tab Check - Enable for all: ' . ($enable_for_all ? 'true' : 'false'));
-        
-        if ($enable_for_all) {
-            error_log('PLAN Tab Check - Enabled for all, returning true');
-            return true;
-        }
-        
-        // Check if user is in test whitelist
-        $test_user_ids = get_option('aaa_test_user_ids', '');
-        error_log('PLAN Tab Check - Test user IDs option: ' . $test_user_ids);
-        
-        if (empty($test_user_ids)) {
-            error_log('PLAN Tab Check - No test user IDs set, returning false');
-            return false;
-        }
-        
-        // Parse comma-separated user IDs
-        $whitelist = array_map('trim', explode(',', $test_user_ids));
-        $whitelist = array_map('absint', $whitelist); // Sanitize
-        $whitelist = array_filter($whitelist); // Remove empty values
-        
-        error_log('PLAN Tab Check - Parsed whitelist: ' . print_r($whitelist, true));
-        error_log('PLAN Tab Check - User ID in whitelist: ' . (in_array($user_id, $whitelist, true) ? 'true' : 'false'));
-        
-        $result = in_array($user_id, $whitelist, true);
-        error_log('PLAN Tab Check - Final result: ' . ($result ? 'true' : 'false'));
-        
-        return $result;
-    }
-    
     public function render_dashboard($atts) {
         // Only show to logged-in users
         if (!is_user_logged_in()) {
@@ -965,17 +919,6 @@ class JPH_Frontend {
         }
         
         $user_id = get_current_user_id();
-        $can_access_plan = $this->user_can_access_plan_tab();
-        
-        // Debug info for console
-        $test_user_ids = get_option('aaa_test_user_ids', '');
-        $enable_for_all = get_option('aaa_enable_for_all', false);
-        $debug_info = array(
-            'user_id' => $user_id,
-            'can_access_plan' => $can_access_plan,
-            'test_user_ids_option' => $test_user_ids,
-            'enable_for_all' => $enable_for_all
-        );
         
         $notifications_page_url = apply_filters('jph_notifications_page_url', home_url('/notifications/'));
         $unread_notifications = 0;
@@ -1054,25 +997,6 @@ class JPH_Frontend {
         
         ob_start();
         ?>
-        <!-- IMMEDIATE DEBUG - Runs before any HTML -->
-        <script>
-            (function() {
-                console.log('🔍 DEBUG SCRIPT LOADED - Page is rendering');
-                console.log('User ID from PHP:', <?php echo $user_id; ?>);
-                console.log('Can Access Plan:', <?php echo $can_access_plan ? 'true' : 'false'; ?>);
-                console.log('Test User IDs:', '<?php echo esc_js($test_user_ids); ?>');
-                <?php 
-                $whitelist_immediate = array();
-                if (!empty($test_user_ids)) {
-                    $whitelist_immediate = array_map('trim', explode(',', $test_user_ids));
-                    $whitelist_immediate = array_map('absint', $whitelist_immediate);
-                    $whitelist_immediate = array_filter($whitelist_immediate);
-                }
-                ?>
-                console.log('Parsed Whitelist:', <?php echo json_encode($whitelist_immediate); ?>);
-                console.log('User in Whitelist?', <?php echo in_array($user_id, $whitelist_immediate, true) ? 'true' : 'false'; ?>);
-            })();
-        </script>
         <div class="jph-student-dashboard">
             
             <?php if ($promo_banner): ?>
@@ -1277,32 +1201,6 @@ class JPH_Frontend {
                 </div>
             </div>
             
-            <!-- Debug Output (Top Level) -->
-            <script>
-                console.log('=== DASHBOARD DEBUG (Top Level) ===');
-                console.log('User ID:', <?php echo $user_id; ?>);
-                console.log('Can Access Plan:', <?php echo $can_access_plan ? 'true' : 'false'; ?>);
-                console.log('Test User IDs:', '<?php echo esc_js($test_user_ids); ?>');
-                console.log('Enable For All:', <?php echo $enable_for_all ? 'true' : 'false'; ?>);
-                
-                <?php 
-                $whitelist = array();
-                if (!empty($test_user_ids)) {
-                    $whitelist = array_map('trim', explode(',', $test_user_ids));
-                    $whitelist = array_map('absint', $whitelist);
-                    $whitelist = array_filter($whitelist);
-                }
-                ?>
-                console.log('Parsed Whitelist:', <?php echo json_encode($whitelist); ?>);
-                console.log('User in Whitelist?', <?php echo in_array($user_id, $whitelist, true) ? 'true' : 'false'; ?>);
-                
-                <?php if (!$can_access_plan): ?>
-                console.error('❌ ACCESS DENIED - User ID ' + <?php echo $user_id; ?> + ' not in test list');
-                console.error('Whitelist contains:', <?php echo json_encode($whitelist); ?>);
-                <?php else: ?>
-                console.log('✅ ACCESS GRANTED');
-                <?php endif; ?>
-            </script>
             
             <!-- Tabbed Navigation -->
             <div class="jph-tabs-container">
@@ -1354,37 +1252,7 @@ class JPH_Frontend {
                     
                     <!-- Plan Tab -->
                     <div class="jph-tab-pane active" id="plan-tab">
-                        <!-- Debug Info (remove after testing) -->
-                        <script>
-                            console.log('=== PLAN Tab Debug Info ===');
-                            console.log('User ID:', <?php echo $user_id; ?>);
-                            console.log('Can Access Plan:', <?php echo $can_access_plan ? 'true' : 'false'; ?>);
-                            console.log('Test User IDs Option:', '<?php echo esc_js($test_user_ids); ?>');
-                            console.log('Enable For All:', <?php echo $enable_for_all ? 'true' : 'false'; ?>);
-                            console.log('Full Debug Info:', <?php echo json_encode($debug_info); ?>);
-                            
-                            <?php 
-                            // Parse whitelist for debugging
-                            $whitelist = array();
-                            if (!empty($test_user_ids)) {
-                                $whitelist = array_map('trim', explode(',', $test_user_ids));
-                                $whitelist = array_map('absint', $whitelist);
-                                $whitelist = array_filter($whitelist);
-                            }
-                            ?>
-                            console.log('Parsed Whitelist:', <?php echo json_encode($whitelist); ?>);
-                            console.log('User ID in Whitelist:', <?php echo in_array($user_id, $whitelist, true) ? 'true' : 'false'; ?>);
-                            
-                            <?php if (!$can_access_plan): ?>
-                            console.warn('⚠️ PLAN Tab Access DENIED');
-                            console.warn('User ID ' + <?php echo $user_id; ?> + ' is NOT in test list: ' + <?php echo json_encode($whitelist); ?>);
-                            console.warn('To fix: Add user ID ' + <?php echo $user_id; ?> + ' to aaa_test_user_ids option in AI Assistant settings');
-                            <?php else: ?>
-                            console.log('✅ PLAN Tab Access GRANTED');
-                            <?php endif; ?>
-                        </script>
-                        <?php if ($can_access_plan): ?>
-                            <?php
+                        <?php
                             // Get user's plan data
                             $user_plan = $this->database->get_user_plan($user_id);
                             $sessions_this_week = $this->database->get_weekly_session_count($user_id);
@@ -1461,71 +1329,6 @@ class JPH_Frontend {
                                     </button>
                                 </div>
                             </div>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <?php 
-                            // Parse whitelist for debugging (re-parse here for scope)
-                            $whitelist_debug = array();
-                            if (!empty($test_user_ids)) {
-                                $whitelist_debug = array_map('trim', explode(',', $test_user_ids));
-                                $whitelist_debug = array_map('absint', $whitelist_debug);
-                                $whitelist_debug = array_filter($whitelist_debug);
-                            }
-                            ?>
-                            <!-- Debug in Coming Soon Section -->
-                            <script>
-                                console.log('=== INSIDE COMING SOON SECTION ===');
-                                console.log('This means can_access_plan is FALSE');
-                                console.log('User ID:', <?php echo $user_id; ?>);
-                                console.log('Test User IDs Option:', '<?php echo esc_js($test_user_ids); ?>');
-                                console.log('Parsed Whitelist:', <?php echo json_encode($whitelist_debug); ?>);
-                                console.error('⚠️ User ID ' + <?php echo $user_id; ?> + ' is NOT authorized');
-                                console.error('Add this user ID to aaa_test_user_ids option');
-                            </script>
-                            <div class="jph-coming-soon" id="jph-coming-soon-debug">
-                                <!-- Debug script INSIDE coming-soon div -->
-                                <script>
-                                    console.log('🎯 COMING SOON DIV IS VISIBLE');
-                                    console.log('This div has class: jph-coming-soon');
-                                    console.log('User ID:', <?php echo $user_id; ?>);
-                                    console.log('Can Access Plan:', false);
-                                    console.log('Test User IDs:', '<?php echo esc_js($test_user_ids); ?>');
-                                    console.log('Parsed Whitelist:', <?php echo json_encode($whitelist_debug); ?>);
-                                    
-                                    // Make the div visible in console
-                                    var comingSoonDiv = document.getElementById('jph-coming-soon-debug');
-                                    if (comingSoonDiv) {
-                                        console.log('✅ Coming Soon div found in DOM');
-                                        console.log('Div text content:', comingSoonDiv.textContent.substring(0, 100));
-                                    } else {
-                                        console.error('❌ Coming Soon div NOT found in DOM');
-                                    }
-                                </script>
-                                <div class="coming-soon-icon">🚀</div>
-                                <h2>Something Amazing is Coming!</h2>
-                                <p class="coming-soon-subtitle">We're building something special just for you</p>
-                                <div class="coming-soon-features">
-                                    <div class="feature-item">
-                                        <div class="feature-icon">📋</div>
-                                        <h3>Practice Planning</h3>
-                                        <p>Create structured practice plans tailored to your goals</p>
-                                    </div>
-                                    <div class="feature-item">
-                                        <div class="feature-icon">🎯</div>
-                                        <h3>Goal Setting</h3>
-                                        <p>Set and track your practice goals with ease</p>
-                                    </div>
-                                    <div class="feature-item">
-                                        <div class="feature-icon">📊</div>
-                                        <h3>Progress Tracking</h3>
-                                        <p>Visualize your journey and celebrate milestones</p>
-                                    </div>
-                                </div>
-                                <div class="coming-soon-cta">
-                                    <p class="excitement-text">✨ Get ready to take your practice to the next level! ✨</p>
-                                </div>
-                            </div>
-                        <?php endif; ?>
                     </div>
                     
                     <!-- Practice Items Tab -->
@@ -2035,6 +1838,7 @@ class JPH_Frontend {
                             </div>
                             <div class="practice-history-header">
                                 <div class="practice-history-header-item">Date</div>
+                                <div class="practice-history-header-item center">Time</div>
                                 <div class="practice-history-header-item">Item</div>
                                 <div class="practice-history-header-item center">Duration</div>
                                 <div class="practice-history-header-item center">How it felt</div>
@@ -3772,7 +3576,7 @@ class JPH_Frontend {
         
         .practice-history-header {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 2fr 1fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 15px 0;
             border-bottom: 2px solid #e8f5f4;
@@ -3783,7 +3587,7 @@ class JPH_Frontend {
         
         .practice-history-item {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 2fr 1fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 15px 0;
             border-bottom: 1px solid #f0f0f0;
@@ -6393,123 +6197,6 @@ class JPH_Frontend {
             }
         }
         
-        /* Coming Soon Section */
-        .jph-coming-soon {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fffe 100%);
-            border-radius: 20px;
-            padding: 60px 40px;
-            text-align: center;
-            box-shadow: 0 10px 40px rgba(0, 69, 85, 0.1);
-            border: 2px solid #e8f5f4;
-            margin: 20px 0;
-        }
-        
-        .coming-soon-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
-            animation: pulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
-        }
-        
-        .jph-coming-soon h2 {
-            font-size: 2.5em;
-            color: #004555;
-            margin: 0 0 10px 0;
-            font-weight: 700;
-        }
-        
-        .coming-soon-subtitle {
-            font-size: 1.3em;
-            color: #666;
-            margin: 0 0 40px 0;
-        }
-        
-        .coming-soon-features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-            margin: 40px 0;
-        }
-        
-        .feature-item {
-            background: white;
-            padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 5px 20px rgba(0, 69, 85, 0.08);
-            border: 2px solid #e8f5f4;
-            transition: all 0.3s ease;
-        }
-        
-        .feature-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0, 69, 85, 0.15);
-            border-color: #239B90;
-        }
-        
-        .feature-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        
-        .feature-item h3 {
-            font-size: 1.3em;
-            color: #004555;
-            margin: 0 0 10px 0;
-            font-weight: 600;
-        }
-        
-        .feature-item p {
-            color: #666;
-            margin: 0;
-            line-height: 1.6;
-        }
-        
-        .coming-soon-cta {
-            margin-top: 40px;
-            padding: 30px;
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-            border-radius: 16px;
-            border: 2px solid #f39c12;
-        }
-        
-        .excitement-text {
-            font-size: 1.4em;
-            color: #d35400;
-            margin: 0;
-            font-weight: 600;
-            text-shadow: 0 2px 4px rgba(211, 84, 0, 0.2);
-        }
-        
-        @media (max-width: 768px) {
-            .jph-coming-soon {
-                padding: 40px 20px;
-            }
-            
-            .jph-coming-soon h2 {
-                font-size: 2em;
-            }
-            
-            .coming-soon-subtitle {
-                font-size: 1.1em;
-            }
-            
-            .coming-soon-features {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            
-            .excitement-text {
-                font-size: 1.2em;
-            }
-        }
         </style>
         
         <!-- Chart.js -->
@@ -6842,10 +6529,8 @@ class JPH_Frontend {
             initStatsHandlers();
             initDisplayNameHandlers();
             
-            <?php if ($can_access_plan): ?>
             // Initialize PLAN tab functionality
             initPlanTab();
-            <?php endif; ?>
             
             // Clean Neuroscience Tips (Adult-oriented)
             function initNeuroscienceTips() {
@@ -6914,6 +6599,45 @@ class JPH_Frontend {
                 }
                 return notes.substring(0, maxLength) + '...';
             }
+
+            function formatSessionDateTime(session) {
+                let dateObj = null;
+                if (session.created_at_utc) {
+                    const utcIso = session.created_at_utc.replace(' ', 'T') + 'Z';
+                    dateObj = new Date(utcIso);
+                } else if (session.created_at) {
+                    const localIso = session.created_at.replace(' ', 'T');
+                    dateObj = new Date(localIso);
+                }
+
+                if (!dateObj || isNaN(dateObj.getTime())) {
+                    return { date: 'Unknown', time: '' };
+                }
+
+                const timezone = session.user_timezone_at_session || '';
+                const dateOptions = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+                const timeOptions = { hour: 'numeric', minute: '2-digit' };
+
+                let dateFormatter;
+                let timeFormatter;
+                if (timezone) {
+                    try {
+                        dateFormatter = new Intl.DateTimeFormat(undefined, { ...dateOptions, timeZone: timezone });
+                        timeFormatter = new Intl.DateTimeFormat(undefined, { ...timeOptions, timeZone: timezone });
+                    } catch (e) {
+                        dateFormatter = new Intl.DateTimeFormat(undefined, dateOptions);
+                        timeFormatter = new Intl.DateTimeFormat(undefined, timeOptions);
+                    }
+                } else {
+                    dateFormatter = new Intl.DateTimeFormat(undefined, dateOptions);
+                    timeFormatter = new Intl.DateTimeFormat(undefined, timeOptions);
+                }
+
+                return {
+                    date: dateFormatter.format(dateObj),
+                    time: timeFormatter.format(dateObj)
+                };
+            }
             
             // Display practice history
             function displayPracticeHistory(sessions, hasMore = false) {
@@ -6922,7 +6646,7 @@ class JPH_Frontend {
                     html = '<div class="no-sessions">No practice sessions found.</div>';
                 } else {
                     sessions.forEach(session => {
-                        const date = new Date(session.created_at).toLocaleDateString();
+                        const formattedDateTime = formatSessionDateTime(session);
                         const score = parseInt(session.sentiment_score, 10);
                         const sentimentEmojiMap = {1:'😞',2:'😕',3:'😐',4:'😊',5:'🤩'};
                         const sentimentLabelMap = {1:'Struggled',2:'Difficult',3:'Okay',4:'Good',5:'Excellent'};
@@ -6943,7 +6667,8 @@ class JPH_Frontend {
                         
                     html += `
                             <div class="practice-history-item">
-                                <div class="practice-history-item-content">${date}</div>
+                                <div class="practice-history-item-content">${formattedDateTime.date}</div>
+                                <div class="practice-history-item-content center">${formattedDateTime.time}</div>
                                 <div class="practice-history-item-content">${session.item_name}</div>
                                 <div class="practice-history-item-content center">${session.duration_minutes} min</div>
                                 <div class="practice-history-item-content center">${sentiment}</div>
@@ -7043,7 +6768,7 @@ class JPH_Frontend {
                             // Append new sessions to existing list
                             let html = '';
                             response.sessions.forEach(session => {
-                                const date = new Date(session.created_at).toLocaleDateString();
+                                const formattedDateTime = formatSessionDateTime(session);
                                 const score = parseInt(session.sentiment_score, 10);
                                 const sentimentEmojiMap = {1:'😞',2:'😕',3:'😐',4:'😊',5:'🤩'};
                                 const sentimentLabelMap = {1:'Struggled',2:'Difficult',3:'Okay',4:'Good',5:'Excellent'};
@@ -7064,7 +6789,8 @@ class JPH_Frontend {
                                 
                     html += `
                             <div class="practice-history-item">
-                                <div class="practice-history-item-content">${date}</div>
+                                <div class="practice-history-item-content">${formattedDateTime.date}</div>
+                                <div class="practice-history-item-content center">${formattedDateTime.time}</div>
                                 <div class="practice-history-item-content">${session.item_name}</div>
                                 <div class="practice-history-item-content center">${session.duration_minutes} min</div>
                                 <div class="practice-history-item-content center">${sentiment}</div>
@@ -8579,7 +8305,6 @@ class JPH_Frontend {
                 loadCurrentDisplayName();
             }
             
-            <?php if ($can_access_plan): ?>
             // Initialize PLAN Tab
             function initPlanTab() {
                 // Auto-save goal on blur/enter
@@ -8738,7 +8463,6 @@ class JPH_Frontend {
                 });
             }
             
-            <?php endif; ?>
             
             // Initialize drag and drop for practice items
             function initDragAndDrop() {

@@ -634,7 +634,7 @@ class JPH_REST_API {
         $this->database->update_user_stats($user_id, array('total_minutes' => $new_total_minutes));
         
         // Update streak
-        $gamification->update_streak($user_id);
+        $gamification->update_streak($user_id, false);
         
         // Check for badges using our gamification class
         $newly_awarded = $gamification->check_and_award_badges($user_id);
@@ -796,11 +796,31 @@ class JPH_REST_API {
         // CSV headers
         $csv_content .= '"Date","Practice Item","Duration (minutes)","Sentiment Score","Improvement Detected","XP Earned","Notes"' . "\n";
         
+        $wp_timezone = wp_timezone();
+        $utc_timezone = new DateTimeZone('UTC');
+        $default_timezone = APH_Gamification::get_user_timezone($user_id);
+
         // Add session data
         foreach ($sessions as $session) {
+            $session_timezone = $default_timezone;
+            if (!empty($session['user_timezone_at_session'])) {
+                try {
+                    $session_timezone = new DateTimeZone($session['user_timezone_at_session']);
+                } catch (Exception $e) {
+                    $session_timezone = $default_timezone;
+                }
+            }
+
+            if (!empty($session['created_at_utc'])) {
+                $session_datetime = new DateTime($session['created_at_utc'], $utc_timezone);
+            } else {
+                $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+            }
+            $session_datetime->setTimezone($session_timezone);
+
             $csv_content .= sprintf(
                 '"%s","%s","%s","%s","%s","%s","%s"' . "\n",
-                date('Y-m-d H:i:s', strtotime($session['created_at'])),
+                $session_datetime->format('Y-m-d H:i:s'),
                 str_replace('"', '""', $session['item_name'] ?: 'Unknown Item'),
                 $session['duration_minutes'],
                 $session['sentiment_score'],

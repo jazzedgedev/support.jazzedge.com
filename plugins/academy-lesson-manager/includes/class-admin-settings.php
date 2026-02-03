@@ -95,6 +95,12 @@ class ALM_Admin_Settings {
             return; // Exit early after clear
         }
         
+        // Handle intensives actions
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['intensive_action'])) {
+            $this->handle_intensive_action();
+            return; // Exit early after action
+        }
+        
         // Handle AI prompts settings save
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ai_prompts'])) {
             $this->save_ai_prompts();
@@ -153,6 +159,15 @@ class ALM_Admin_Settings {
                 case 'webhook_logs_cleared':
                     echo '<div class="notice notice-success"><p>' . __('Webhook logs cleared successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
+                case 'intensive_saved':
+                    echo '<div class="notice notice-success"><p>' . __('Intensive saved successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'intensive_deleted':
+                    echo '<div class="notice notice-success"><p>' . __('Intensive deleted successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'intensive_error':
+                    echo '<div class="notice notice-error"><p>' . __('An error occurred while saving the intensive.', 'academy-lesson-manager') . '</p></div>';
+                    break;
                 case 'free_trial_saved':
                     echo '<div class="notice notice-success"><p>' . __('Starter Plan lessons saved successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
@@ -178,6 +193,7 @@ class ALM_Admin_Settings {
         echo '<a href="?page=academy-manager-settings&tab=popup" class="nav-tab ' . ($current_tab === 'popup' ? 'nav-tab-active' : '') . '">' . __('Popup', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=faqs" class="nav-tab ' . ($current_tab === 'faqs' ? 'nav-tab-active' : '') . '">' . __('FAQs', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=promotions" class="nav-tab ' . ($current_tab === 'promotions' ? 'nav-tab-active' : '') . '">' . __('Promotions', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=intensives" class="nav-tab ' . ($current_tab === 'intensives' ? 'nav-tab-active' : '') . '">' . __('Intensives', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=webhook" class="nav-tab ' . ($current_tab === 'webhook' ? 'nav-tab-active' : '') . '">' . __('Webhook', 'academy-lesson-manager') . '</a>';
         echo '</nav>';
         
@@ -213,6 +229,8 @@ class ALM_Admin_Settings {
             $faqs_admin->render_tab();
         } elseif ($current_tab === 'promotions') {
             $this->render_promotions_tab();
+        } elseif ($current_tab === 'intensives') {
+            $this->render_intensives_tab();
         } elseif ($current_tab === 'webhook') {
             $this->render_webhook_tab();
         } else {
@@ -1751,18 +1769,22 @@ class ALM_Admin_Settings {
         echo '<p><strong>' . __('Important:', 'academy-lesson-manager') . '</strong> ' . __('Your Zoom recording titles must include a special format tag to identify the collection and event type.', 'academy-lesson-manager') . '</p>';
         echo '<p><strong>' . __('Format:', 'academy-lesson-manager') . '</strong></p>';
         echo '<code style="display: block; padding: 10px; background: #fff; border: 1px solid #ccc; margin: 10px 0; font-size: 14px;">{id123|willie-coaching}</code>';
+        echo '<p><strong>' . __('Extended Format (with teacher):', 'academy-lesson-manager') . '</strong></p>';
+        echo '<code style="display: block; padding: 10px; background: #fff; border: 1px solid #ccc; margin: 10px 0; font-size: 14px;">{id123|willie-coaching|teacher}</code>';
         echo '<ul style="margin-left: 20px; margin-top: 10px;">';
-        echo '<li><strong>' . __('Left side (before pipe |):', 'academy-lesson-manager') . '</strong> ' . __('Collection ID - The ID of the ALM collection where the lesson should be added. Example: <code>id123</code> or <code>id191</code>', 'academy-lesson-manager') . '</li>';
-        echo '<li><strong>' . __('Right side (after pipe |):', 'academy-lesson-manager') . '</strong> ' . __('Event Type - The zoom identifier that matches the ACF field on your je_event posts. Valid values:', 'academy-lesson-manager') . '</li>';
+        echo '<li><strong>' . __('First part (before first pipe |):', 'academy-lesson-manager') . '</strong> ' . __('Collection ID - The ID of the ALM collection where the lesson should be added. Example: <code>id123</code> or <code>id191</code>', 'academy-lesson-manager') . '</li>';
+        echo '<li><strong>' . __('Second part (between pipes |):', 'academy-lesson-manager') . '</strong> ' . __('Event Type - The zoom identifier that matches the ACF field on your je_event posts. Valid values:', 'academy-lesson-manager') . '</li>';
         echo '<ul style="margin-left: 20px; margin-top: 5px;">';
         echo '<li><code>willie-coaching</code></li>';
         echo '<li><code>willie-special</code></li>';
         echo '<li><code>willie-community</code></li>';
         echo '<li><code>paul-class</code></li>';
         echo '</ul>';
+        echo '<li><strong>' . __('Third part (after second pipe |, optional):', 'academy-lesson-manager') . '</strong> ' . __('Teacher name - Additional metadata (e.g., <code>willie</code>). This is optional and will be ignored during processing.', 'academy-lesson-manager') . '</li>';
         echo '</ul>';
-        echo '<p><strong>' . __('Example Zoom Title:', 'academy-lesson-manager') . '</strong></p>';
+        echo '<p><strong>' . __('Example Zoom Titles:', 'academy-lesson-manager') . '</strong></p>';
         echo '<code style="display: block; padding: 10px; background: #fff; border: 1px solid #ccc; margin: 10px 0; font-size: 14px;">Willie Coaching Session - November 2025 {id191|willie-coaching}</code>';
+        echo '<code style="display: block; padding: 10px; background: #fff; border: 1px solid #ccc; margin: 10px 0; font-size: 14px;">Willie Coaching {id191|willie-coaching|willie}</code>';
         echo '<p class="description" style="margin-top: 10px;">' . __('The system will extract collection ID 191 and match events with zoom_identifier "willie-coaching" that occurred within ±2 hours of the recording date.', 'academy-lesson-manager') . '</p>';
         echo '</div>';
         
@@ -1881,7 +1903,14 @@ class ALM_Admin_Settings {
                 // Store JSON in a hidden textarea for reliable copying
                 // Use base64 encoding to avoid any HTML entity issues
                 echo '<textarea id="log-json-' . esc_attr($log_id) . '" style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;">' . esc_textarea($log_json) . '</textarea>';
-                echo '<button type="button" class="button button-small copy-log-btn" data-log-id="' . esc_attr($log_id) . '" style="margin-top: 10px;">' . __('Copy to Clipboard', 'academy-lesson-manager') . '</button>';
+                echo '<div style="margin-top: 10px;">';
+                echo '<button type="button" class="button button-small copy-log-btn" data-log-id="' . esc_attr($log_id) . '">' . __('Copy to Clipboard', 'academy-lesson-manager') . '</button>';
+                
+                // Add retry button for failed webhooks
+                if (!$success && isset($log['payload']) && !empty($log['payload'])) {
+                    echo ' <button type="button" class="button button-small button-primary retry-webhook-btn" data-log-index="' . esc_attr($index) . '" data-log-id="' . esc_attr($log_id) . '">' . __('Retry', 'academy-lesson-manager') . '</button>';
+                }
+                echo '</div>';
                 echo '</div>';
             }
         }
@@ -1939,6 +1968,314 @@ class ALM_Admin_Settings {
             'message' => 'webhook_logs_cleared'
         ), admin_url('admin.php')));
         exit;
+    }
+    
+    /**
+     * Render Intensives tab
+     */
+    private function render_intensives_tab() {
+        $intensives_table = $this->database->get_table_name('intensives');
+        $intensives = $this->wpdb->get_results("SELECT * FROM {$intensives_table} ORDER BY display_order ASC, start_date DESC", ARRAY_A);
+        
+        $editing_id = isset($_GET['edit_intensive']) ? intval($_GET['edit_intensive']) : 0;
+        $editing_intensive = $editing_id ? $this->wpdb->get_row($this->wpdb->prepare("SELECT * FROM {$intensives_table} WHERE ID = %d", $editing_id), ARRAY_A) : null;
+        
+        // Show success messages
+        if (isset($_GET['message'])) {
+            $message = sanitize_text_field($_GET['message']);
+            switch ($message) {
+                case 'intensive_saved':
+                    echo '<div class="notice notice-success"><p>' . __('Intensive saved successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'intensive_deleted':
+                    echo '<div class="notice notice-success"><p>' . __('Intensive deleted successfully.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'intensive_error':
+                    echo '<div class="notice notice-error"><p>' . __('An error occurred while saving the intensive.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+            }
+        }
+        
+        echo '<div class="alm-intensives-section">';
+        echo '<h2>' . __('6-Week Intensives', 'academy-lesson-manager') . '</h2>';
+        echo '<p class="description">' . __('Manage your 6-week intensives. These will be displayed on the intensives landing page.', 'academy-lesson-manager') . '</p>';
+        
+        // Intensive form
+        echo '<div class="postbox" style="margin-top: 20px; padding: 20px;">';
+        echo '<h3 style="margin-top: 0;">' . ($editing_intensive ? __('Edit Intensive', 'academy-lesson-manager') : __('Add New Intensive', 'academy-lesson-manager')) . '</h3>';
+        
+        echo '<form method="post" action="">';
+        wp_nonce_field('alm_intensive_action', 'alm_intensive_nonce');
+        echo '<input type="hidden" name="intensive_action" value="save" />';
+        echo '<input type="hidden" name="intensive_id" value="' . esc_attr($editing_intensive['ID'] ?? 0) . '" />';
+        
+        echo '<table class="form-table"><tbody>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_title">' . __('Title', 'academy-lesson-manager') . ' <span class="required">*</span></label></th>';
+        echo '<td><input type="text" id="intensive_title" name="intensive_title" value="' . esc_attr($editing_intensive['title'] ?? '') . '" class="regular-text" required /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_song_name">' . __('Song Name', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="text" id="intensive_song_name" name="intensive_song_name" value="' . esc_attr($editing_intensive['song_name'] ?? '') . '" class="regular-text" placeholder="e.g., My Romance" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_description">' . __('Description', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><textarea id="intensive_description" name="intensive_description" rows="5" class="large-text">' . esc_textarea($editing_intensive['description'] ?? '') . '</textarea></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_start_date">' . __('Start Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="date" id="intensive_start_date" name="intensive_start_date" value="' . esc_attr($editing_intensive['start_date'] ?? '') . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_end_date">' . __('End Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="date" id="intensive_end_date" name="intensive_end_date" value="' . esc_attr($editing_intensive['end_date'] ?? '') . '" class="regular-text" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_order_form_url">' . __('Order Form URL', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="url" id="intensive_order_form_url" name="intensive_order_form_url" value="' . esc_url($editing_intensive['order_form_url'] ?? '') . '" class="regular-text" placeholder="https://jazzedge.academy/" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_retail_price">' . __('Retail Price', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="intensive_retail_price" name="intensive_retail_price" value="' . esc_attr($editing_intensive['retail_price'] ?? '') . '" class="small-text" step="0.01" min="0" placeholder="247.00" /> <span class="description">' . __('Regular price for this intensive', 'academy-lesson-manager') . '</span></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_sale_price">' . __('Sale Price', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="intensive_sale_price" name="intensive_sale_price" value="' . esc_attr($editing_intensive['sale_price'] ?? '') . '" class="small-text" step="0.01" min="0" placeholder="147.00" /> <span class="description">' . __('Early access or sale price (leave empty if no sale)', 'academy-lesson-manager') . '</span></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_skill_level">' . __('Skill Level', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="intensive_skill_level" name="intensive_skill_level" class="regular-text">';
+        $skill_levels = array(
+            'beg' => 'Beginner',
+            'int' => 'Intermediate',
+            'adv' => 'Advanced',
+            'pro' => 'Professional'
+        );
+        $current_skill_level = $editing_intensive['skill_level'] ?? 'beg';
+        foreach ($skill_levels as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected($current_skill_level, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_display_order">' . __('Display Order', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="intensive_display_order" name="intensive_display_order" value="' . esc_attr($editing_intensive['display_order'] ?? 0) . '" class="small-text" min="0" /></td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_is_active">' . __('Active', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="checkbox" id="intensive_is_active" name="intensive_is_active" value="1" ' . checked(1, $editing_intensive['is_active'] ?? 1, false) . ' /> <label for="intensive_is_active">' . __('Show this intensive on the landing page', 'academy-lesson-manager') . '</label></td>';
+        echo '</tr>';
+        
+        echo '</tbody></table>';
+        
+        echo '<p class="submit">';
+        echo '<input type="submit" class="button button-primary" value="' . ($editing_intensive ? __('Update Intensive', 'academy-lesson-manager') : __('Add Intensive', 'academy-lesson-manager')) . '" />';
+        if ($editing_intensive) {
+            echo ' <a href="?page=academy-manager-settings&tab=intensives" class="button">' . __('Cancel', 'academy-lesson-manager') . '</a>';
+        }
+        echo '</p>';
+        
+        echo '</form>';
+        echo '</div>';
+        
+        // Intensives list
+        echo '<div class="postbox" style="margin-top: 20px; padding: 20px;">';
+        echo '<h3 style="margin-top: 0;">' . __('All Intensives', 'academy-lesson-manager') . '</h3>';
+        
+        if (empty($intensives)) {
+            echo '<p>' . __('No intensives found. Add your first intensive above.', 'academy-lesson-manager') . '</p>';
+        } else {
+            echo '<table class="wp-list-table widefat fixed striped">';
+            echo '<thead>';
+            echo '<tr>';
+            echo '<th style="width: 5%;">' . __('ID', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 20%;">' . __('Title', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 25%;">' . __('Description', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 12%;">' . __('Dates', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 8%;">' . __('Skill Level', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 8%;">' . __('Order', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 8%;">' . __('Status', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 5%;">' . __('Actions', 'academy-lesson-manager') . '</th>';
+            echo '</tr>';
+            echo '</thead>';
+            echo '<tbody>';
+            
+            foreach ($intensives as $intensive) {
+                $start_date = $intensive['start_date'] ? date('M j, Y', strtotime($intensive['start_date'])) : '—';
+                $end_date = $intensive['end_date'] ? date('M j, Y', strtotime($intensive['end_date'])) : '—';
+                $status = $intensive['is_active'] ? '<span style="color: green;">●</span> Active' : '<span style="color: #ccc;">○</span> Inactive';
+                
+                $skill_levels = array(
+                    'beg' => 'Beginner',
+                    'int' => 'Intermediate',
+                    'adv' => 'Advanced',
+                    'pro' => 'Professional'
+                );
+                $skill_level = $intensive['skill_level'] ?? 'beg';
+                $skill_level_label = isset($skill_levels[$skill_level]) ? $skill_levels[$skill_level] : ucfirst($skill_level);
+                
+                echo '<tr>';
+                echo '<td>' . esc_html($intensive['ID']) . '</td>';
+                echo '<td><strong>' . esc_html($intensive['title']) . '</strong></td>';
+                echo '<td>' . esc_html(wp_trim_words($intensive['description'] ?? '', 20)) . '</td>';
+                echo '<td>' . esc_html($start_date) . ' - ' . esc_html($end_date) . '</td>';
+                echo '<td>' . esc_html($skill_level_label) . '</td>';
+                echo '<td>' . esc_html($intensive['display_order']) . '</td>';
+                echo '<td>' . $status . '</td>';
+                echo '<td>';
+                echo '<a href="?page=academy-manager-settings&tab=intensives&edit_intensive=' . esc_attr($intensive['ID']) . '" class="button button-small">' . __('Edit', 'academy-lesson-manager') . '</a> ';
+                echo '<form method="post" action="" style="display: inline;" onsubmit="return confirm(\'' . esc_js(__('Are you sure you want to delete this intensive?', 'academy-lesson-manager')) . '\');">';
+                wp_nonce_field('alm_intensive_action', 'alm_intensive_nonce');
+                echo '<input type="hidden" name="intensive_action" value="delete" />';
+                echo '<input type="hidden" name="intensive_id" value="' . esc_attr($intensive['ID']) . '" />';
+                echo '<input type="submit" class="button button-small button-link-delete" value="' . __('Delete', 'academy-lesson-manager') . '" />';
+                echo '</form>';
+                echo '</td>';
+                echo '</tr>';
+            }
+            
+            echo '</tbody>';
+            echo '</table>';
+        }
+        
+        echo '</div>';
+        echo '</div>';
+    }
+    
+    /**
+     * Handle intensive actions (save/delete)
+     */
+    private function handle_intensive_action() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        
+        check_admin_referer('alm_intensive_action', 'alm_intensive_nonce');
+        
+        $action = isset($_POST['intensive_action']) ? sanitize_text_field($_POST['intensive_action']) : '';
+        $intensives_table = $this->database->get_table_name('intensives');
+        
+        if ($action === 'save') {
+            $intensive_id = isset($_POST['intensive_id']) ? intval($_POST['intensive_id']) : 0;
+            $title = isset($_POST['intensive_title']) ? sanitize_text_field($_POST['intensive_title']) : '';
+            $song_name = isset($_POST['intensive_song_name']) ? sanitize_text_field($_POST['intensive_song_name']) : '';
+            $description = isset($_POST['intensive_description']) ? sanitize_textarea_field($_POST['intensive_description']) : '';
+            $start_date = isset($_POST['intensive_start_date']) ? sanitize_text_field($_POST['intensive_start_date']) : null;
+            $end_date = isset($_POST['intensive_end_date']) ? sanitize_text_field($_POST['intensive_end_date']) : null;
+            $order_form_url = isset($_POST['intensive_order_form_url']) ? esc_url_raw($_POST['intensive_order_form_url']) : '';
+            $retail_price = isset($_POST['intensive_retail_price']) && $_POST['intensive_retail_price'] !== '' ? floatval($_POST['intensive_retail_price']) : null;
+            $sale_price = isset($_POST['intensive_sale_price']) && $_POST['intensive_sale_price'] !== '' ? floatval($_POST['intensive_sale_price']) : null;
+            $skill_level = isset($_POST['intensive_skill_level']) ? sanitize_text_field($_POST['intensive_skill_level']) : 'beg';
+            $display_order = isset($_POST['intensive_display_order']) ? intval($_POST['intensive_display_order']) : 0;
+            $is_active = isset($_POST['intensive_is_active']) ? 1 : 0;
+            
+            // Validate skill level
+            $valid_skill_levels = array('beg', 'int', 'adv', 'pro');
+            if (!in_array($skill_level, $valid_skill_levels)) {
+                $skill_level = 'beg';
+            }
+            
+            if (empty($title)) {
+                wp_redirect(add_query_arg(array(
+                    'page' => 'academy-manager-settings',
+                    'tab' => 'intensives',
+                    'message' => 'intensive_error'
+                ), admin_url('admin.php')));
+                exit;
+            }
+            
+            $data = array(
+                'title' => $title,
+                'song_name' => $song_name,
+                'description' => $description,
+                'start_date' => $start_date ? $start_date : null,
+                'end_date' => $end_date ? $end_date : null,
+                'order_form_url' => $order_form_url,
+                'retail_price' => $retail_price,
+                'sale_price' => $sale_price,
+                'skill_level' => $skill_level,
+                'display_order' => $display_order,
+                'is_active' => $is_active
+            );
+            
+            if ($intensive_id > 0) {
+                // Update existing
+                $result = $this->wpdb->update(
+                    $intensives_table,
+                    $data,
+                    array('ID' => $intensive_id),
+                    array('%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%d', '%d'),
+                    array('%d')
+                );
+            } else {
+                // Insert new
+                $result = $this->wpdb->insert(
+                    $intensives_table,
+                    $data,
+                    array('%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%d', '%d')
+                );
+            }
+            
+            if ($result !== false) {
+                wp_redirect(add_query_arg(array(
+                    'page' => 'academy-manager-settings',
+                    'tab' => 'intensives',
+                    'message' => 'intensive_saved'
+                ), admin_url('admin.php')));
+            } else {
+                wp_redirect(add_query_arg(array(
+                    'page' => 'academy-manager-settings',
+                    'tab' => 'intensives',
+                    'message' => 'intensive_error'
+                ), admin_url('admin.php')));
+            }
+            exit;
+            
+        } elseif ($action === 'delete') {
+            $intensive_id = isset($_POST['intensive_id']) ? intval($_POST['intensive_id']) : 0;
+            
+            if ($intensive_id > 0) {
+                $result = $this->wpdb->delete(
+                    $intensives_table,
+                    array('ID' => $intensive_id),
+                    array('%d')
+                );
+                
+                if ($result !== false) {
+                    wp_redirect(add_query_arg(array(
+                        'page' => 'academy-manager-settings',
+                        'tab' => 'intensives',
+                        'message' => 'intensive_deleted'
+                    ), admin_url('admin.php')));
+                } else {
+                    wp_redirect(add_query_arg(array(
+                        'page' => 'academy-manager-settings',
+                        'tab' => 'intensives',
+                        'message' => 'intensive_error'
+                    ), admin_url('admin.php')));
+                }
+            } else {
+                wp_redirect(add_query_arg(array(
+                    'page' => 'academy-manager-settings',
+                    'tab' => 'intensives',
+                    'message' => 'intensive_error'
+                ), admin_url('admin.php')));
+            }
+            exit;
+        }
     }
     
     /**

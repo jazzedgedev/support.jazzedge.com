@@ -1498,13 +1498,21 @@ class JPH_Frontend {
                     </h3>
                     <p class="jph-roadmap-description"><?php echo esc_html($roadmap_data['description']); ?></p>
                 </div>
-                <button type="button" class="jph-roadmap-toggle" aria-label="Toggle roadmap" aria-expanded="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-roadmap-chevron">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-                    </svg>
-                </button>
+                <div class="jph-roadmap-actions">
+                    <button type="button" class="jph-roadmap-hide" aria-label="Hide roadmap">Hide</button>
+                    <button type="button" class="jph-roadmap-toggle" aria-label="Toggle roadmap" aria-expanded="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-roadmap-chevron">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                        </svg>
+                    </button>
+                </div>
             </div>
             <div class="jph-roadmap-content">
+                <div class="jph-roadmap-video-wrapper">
+                    <video class="jph-roadmap-video" controls playsinline poster="https://jazzedge.academy/wp-content/uploads/2026/01/academy-walkthrough-1.jpg">
+                        <source src="https://vz-0696d3da-4b7.b-cdn.net/8cb914ec-0e1c-4db5-842c-2b40e990e150/playlist.m3u8" type="application/x-mpegURL" />
+                    </video>
+                </div>
                 <div class="jph-roadmap-stages">
                     <?php foreach ($roadmap_data['stages'] as $stage): ?>
                         <div class="jph-roadmap-stage">
@@ -1596,7 +1604,7 @@ class JPH_Frontend {
             if (header) {
                 header.addEventListener('click', function(e) {
                     // Don't toggle if clicking directly on the button (it will handle its own click)
-                    if (e.target.closest('.jph-roadmap-toggle')) {
+                    if (e.target.closest('.jph-roadmap-toggle') || e.target.closest('.jph-roadmap-hide')) {
                         return;
                     }
                     toggleRoadmap();
@@ -1705,50 +1713,6 @@ class JPH_Frontend {
         </script>
         <?php
         return ob_get_clean();
-    }
-    
-    /**
-     * Check if current user can access PLAN tab (test users only)
-     */
-    private function user_can_access_plan_tab() {
-        $user_id = get_current_user_id();
-        
-        
-        if (!$user_id || $user_id === 0) {
-            error_log('PLAN Tab Check - No user ID, returning false');
-            return false;
-        }
-        
-        // Check if enabled for all users (production mode)
-        $enable_for_all = get_option('aaa_enable_for_all', false);
-        error_log('PLAN Tab Check - Enable for all: ' . ($enable_for_all ? 'true' : 'false'));
-        
-        if ($enable_for_all) {
-            error_log('PLAN Tab Check - Enabled for all, returning true');
-            return true;
-        }
-        
-        // Check if user is in test whitelist
-        $test_user_ids = get_option('aaa_test_user_ids', '');
-        error_log('PLAN Tab Check - Test user IDs option: ' . $test_user_ids);
-        
-        if (empty($test_user_ids)) {
-            error_log('PLAN Tab Check - No test user IDs set, returning false');
-            return false;
-        }
-        
-        // Parse comma-separated user IDs
-        $whitelist = array_map('trim', explode(',', $test_user_ids));
-        $whitelist = array_map('absint', $whitelist); // Sanitize
-        $whitelist = array_filter($whitelist); // Remove empty values
-        
-        error_log('PLAN Tab Check - Parsed whitelist: ' . print_r($whitelist, true));
-        error_log('PLAN Tab Check - User ID in whitelist: ' . (in_array($user_id, $whitelist, true) ? 'true' : 'false'));
-        
-        $result = in_array($user_id, $whitelist, true);
-        error_log('PLAN Tab Check - Final result: ' . ($result ? 'true' : 'false'));
-        
-        return $result;
     }
     
     /**
@@ -2125,7 +2089,10 @@ class JPH_Frontend {
         }
         
         $user_id = get_current_user_id();
-        $can_access_plan = $this->user_can_access_plan_tab();
+        $can_access_ai = false;
+        if (class_exists('AAA_Feature_Flags') && method_exists('AAA_Feature_Flags', 'user_can_access_ai')) {
+            $can_access_ai = (new AAA_Feature_Flags())->user_can_access_ai();
+        }
         
         
         $notifications_page_url = apply_filters('jph_notifications_page_url', home_url('/notifications/'));
@@ -2216,7 +2183,8 @@ class JPH_Frontend {
             'repertoire_section' => true,
             'tab_shield' => true,
             'tab_badges' => true,
-            'tab_analytics' => true
+            'tab_analytics' => true,
+            'auto_gem_streak_save' => true
         );
         if (!empty($dashboard_prefs_json)) {
             $parsed_prefs = json_decode($dashboard_prefs_json, true);
@@ -2228,6 +2196,17 @@ class JPH_Frontend {
                 }
             }
         }
+
+        $streak_debug = get_user_meta($user_id, 'aph_streak_debug', true);
+        $streak_debug = is_array($streak_debug) ? $streak_debug : array();
+        $streak_missing_count = intval($streak_debug['missing_dates_count'] ?? 0);
+        $streak_missing_recent = $streak_debug['missing_dates_recent'] ?? array();
+        $streak_missing_all = $streak_debug['missing_dates'] ?? array();
+        $streak_shields_used = intval($streak_debug['shields_used'] ?? 0);
+        $streak_gems_used = intval($streak_debug['gems_used'] ?? 0);
+        $streak_gems_spent = intval($streak_debug['gems_spent'] ?? 0);
+        $streak_debug_updated = $streak_debug['updated_at'] ?? '';
+        $streak_timezone = APH_Gamification::get_user_timezone_string($user_id);
         
         // Enqueue scripts and styles
         wp_enqueue_script('jquery');
@@ -2364,13 +2343,37 @@ class JPH_Frontend {
                 </div>
             </div>
             
+            <!-- Support Video Modal -->
+            <div id="jph-support-modal" class="jph-support-modal" style="display: none;">
+                <div class="jph-support-modal-overlay"></div>
+                <div class="jph-support-modal-content">
+                    <div class="jph-support-modal-header">
+                        <h3>Need help?</h3>
+                        <button type="button" class="jph-support-modal-close" aria-label="Close">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="jph-support-modal-body">
+                        <video class="jph-support-video" controls playsinline poster="https://jazzedge.academy/wp-content/uploads/2026/01/academy-walkthrough-1.jpg">
+                            <source src="https://vz-0696d3da-4b7.b-cdn.net/8cb914ec-0e1c-4db5-842c-2b40e990e150/playlist.m3u8" type="application/x-mpegURL" />
+                        </video>
+                        <div class="jph-support-modal-actions">
+                            <a class="jph-support-action-btn jph-support-action-secondary" href="/support">Read Support Docs</a>
+                            <a class="jph-support-action-btn jph-support-action-primary" href="https://support.jazzedge.com/support/?site=academy" target="_blank" rel="noopener noreferrer">Submit Support Ticket</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Temporary placement of Dashboard Settings button at bottom -->
             
             <div class="jph-header">
             <!-- Support Pill Badge - floating badge attached to header -->
-            <a href="/support" target="_blank" rel="noopener noreferrer" class="jph-support-pill">
+            <button type="button" id="jph-support-pill-btn" class="jph-support-pill">
                 Need help? Click here
-            </a>
+            </button>
                 <div class="header-top">
                     <div class="welcome-title-container">
                         <h2 id="jph-welcome-title">
@@ -2461,7 +2464,15 @@ class JPH_Frontend {
                             </svg>
                             <?php echo esc_html($user_stats['current_streak']); ?>
                         </span>
-                        <span class="stat-label">Streak</span>
+                        <span class="stat-label stat-label-with-icon">
+                            Streak
+                            <button type="button" class="jph-streak-explainer-btn" aria-label="Explain streak" title="Explain streak">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#666" width="16" height="16">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                                </svg>
+                                <span class="jph-streak-explainer-fallback">?</span>
+                            </button>
+                        </span>
                     </div>
                     <div class="stat">
                         <span class="stat-value stat-gems">
@@ -2501,11 +2512,14 @@ class JPH_Frontend {
                             </h3>
                             <p class="jph-roadmap-description">Your step-by-step path to building essential piano skills</p>
                         </div>
-                        <button type="button" class="jph-roadmap-toggle" aria-label="Toggle roadmap" aria-expanded="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-roadmap-chevron">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-                            </svg>
-                        </button>
+                        <div class="jph-roadmap-actions">
+                            <button type="button" class="jph-roadmap-hide" aria-label="Hide roadmap">Hide</button>
+                            <button type="button" class="jph-roadmap-toggle" aria-label="Toggle roadmap" aria-expanded="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="jph-roadmap-chevron">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="jph-roadmap-content">
                         <div class="jph-roadmap-stages">
@@ -2703,7 +2717,7 @@ class JPH_Frontend {
             if (header) {
                 header.addEventListener('click', function(e) {
                     // Don't toggle if clicking directly on the button (it will handle its own click)
-                    if (e.target.closest('.jph-roadmap-toggle')) {
+                    if (e.target.closest('.jph-roadmap-toggle') || e.target.closest('.jph-roadmap-hide')) {
                         return;
                     }
                     toggleRoadmap();
@@ -2810,7 +2824,7 @@ class JPH_Frontend {
                                             </svg>
                                         </div>
                                         <div class="last-lesson-info">
-                                            <a href="/paths" class="last-lesson-link">Choose a Learning Path</a>
+                                            <a href="https://jazzedge.academy/course/30-day-piano-playbook/" class="last-lesson-link">30-Day Piano Playbook</a>
                                             <span class="last-lesson-label">Ready to learn?</span>
                                         </div>
                                     </div>
@@ -2825,7 +2839,7 @@ class JPH_Frontend {
                                         </svg>
                                     </div>
                                     <div class="last-lesson-info">
-                                        <a href="/paths" class="last-lesson-link">Choose a Learning Path</a>
+                                        <a href="https://jazzedge.academy/course/30-day-piano-playbook/" class="last-lesson-link">30-Day Piano Playbook</a>
                                         <span class="last-lesson-label">Ready to learn?</span>
                                     </div>
                                 </div>
@@ -3182,8 +3196,8 @@ class JPH_Frontend {
                                 echo '</select>';
                                 echo '</div>';
                                 
-                                // AI Assistant Button - only show to whitelisted users
-                                if ($can_access_plan) {
+                                // AI Assistant Button - only show to users with AI access
+                                if ($can_access_ai) {
                                     echo '<div class="jph-ai-assistant-button-wrapper" style="margin-top: 15px;">';
                                     echo '<button type="button" id="jph-plan-ai-assistant-btn" class="jph-plan-ai-assistant-btn">';
                                     echo '<span class="jph-ai-icon">';
@@ -3214,7 +3228,7 @@ class JPH_Frontend {
                                 
                                 <div class="search-input-wrapper-prominent">
                                     <?php
-                                    echo do_shortcode('[alm_lesson_search_compact view_all_url="/search" placeholder="Search lessons..." max_items="10"]');
+                                    echo do_shortcode('[alm_lesson_search_compact view_all_url="/search" placeholder="Search lessons..." max_items="10" source="dashboard"]');
                                     ?>
                                 </div>
                                 
@@ -3233,6 +3247,616 @@ class JPH_Frontend {
                 </div>
             </div>
                 <?php endif; ?>
+            
+            <?php
+            // Intensives section - visible to all students
+            $show_intensives = true;
+            
+            if ($show_intensives) {
+                // Ensure $user_id is set as global for je_is_chapter_complete function
+                global $user_id;
+                $user_id = get_current_user_id();
+                
+                $intensives = array();
+                $current_intensive = null;
+                $current_chapters = array();
+                $main_chapter = null;
+                $practice_chapters = array();
+                $intensive_data = array();
+                $intensive_chapters_map = array();
+                
+                if (class_exists('ALM_Database')) {
+                    $database = new ALM_Database();
+                    $lessons_table = $database->get_table_name('lessons');
+                    $chapters_table = $database->get_table_name('chapters');
+                    $today = current_time('Y-m-d');
+                    
+                    $intensives = $wpdb->get_results(
+                        "SELECT ID, lesson_title, lesson_description, post_id, slug, post_date, collection_id
+                         FROM {$lessons_table}
+                         WHERE collection_id = 198
+                         AND (status = 'published' OR status IS NULL OR status = '')
+                         ORDER BY post_date ASC, lesson_title ASC"
+                    );
+                    
+                    foreach ($intensives as $intensive) {
+                        $lesson_url = '';
+                        if (!empty($intensive->post_id)) {
+                            $lesson_url = get_permalink($intensive->post_id);
+                        } elseif (!empty($intensive->slug)) {
+                            $lesson_url = home_url('/lesson/' . $intensive->slug . '/');
+                        }
+                        
+                        $lesson_release_date_full = '';
+                        $lesson_release_date_short = '';
+                        if (!empty($intensive->post_date) && $intensive->post_date !== '0000-00-00') {
+                            $lesson_release_date_full = date('D. M j, Y', strtotime($intensive->post_date));
+                            $lesson_release_date_short = date('D. M j', strtotime($intensive->post_date));
+                        }
+                        
+                        $chapters = $wpdb->get_results($wpdb->prepare(
+                            "SELECT * FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
+                            $intensive->ID
+                        ));
+                        $intensive_chapters_map[$intensive->ID] = $chapters;
+                        
+                        $main = !empty($chapters) ? $chapters[0] : null;
+                        $practice = !empty($chapters) ? array_slice($chapters, 1, 3) : array();
+                        
+                        $build_chapter_payload = function($chapter) use ($lesson_release_date_short, $lesson_url) {
+                            if (!$chapter) {
+                                return null;
+                            }
+                            $release_date = '';
+                            if (!empty($chapter->post_date) && $chapter->post_date !== '0000-00-00') {
+                                $release_date = date('D. M j', strtotime($chapter->post_date));
+                            } elseif (!empty($lesson_release_date_short)) {
+                                $release_date = $lesson_release_date_short;
+                            }
+                            $chapter_url = $lesson_url ? $lesson_url . '?c=' . $chapter->slug : '';
+                            $is_completed = false;
+                            if (function_exists('je_is_chapter_complete')) {
+                                $is_completed = je_is_chapter_complete($chapter->ID);
+                            }
+                            return array(
+                                'title' => stripslashes($chapter->chapter_title),
+                                'release_date' => $release_date,
+                                'url' => $chapter_url,
+                                'completed' => $is_completed,
+                            );
+                        };
+                        
+                        $teacher_name = '';
+                        $teacher_picture_url = '';
+                        if (!empty($intensive->post_id) && function_exists('get_field')) {
+                            $teacher_name = get_field('lesson_teacher', $intensive->post_id);
+                            if (!empty($teacher_name)) {
+                                $teacher = $wpdb->get_row($wpdb->prepare(
+                                    "SELECT * FROM {$wpdb->prefix}alm_teachers WHERE teacher_name = %s",
+                                    $teacher_name
+                                ));
+                                if ($teacher && !empty($teacher->picture_id) && $teacher->picture_id > 0) {
+                                    $picture_url = wp_get_attachment_image_url($teacher->picture_id, 'thumbnail');
+                                    if ($picture_url) {
+                                        $teacher_picture_url = $picture_url;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        $intensive_data[$intensive->ID] = array(
+                            'title' => stripslashes($intensive->lesson_title),
+                            'description' => wp_kses_post(wpautop($intensive->lesson_description)),
+                            'release_date' => $lesson_release_date_full,
+                            'lesson_url' => $lesson_url,
+                            'teacher_name' => $teacher_name,
+                            'teacher_picture' => $teacher_picture_url,
+                            'main' => $build_chapter_payload($main),
+                            'practice' => array_values(array_filter(array_map($build_chapter_payload, $practice))),
+                        );
+                    }
+                    
+                    // Get next Intensives Coaching event for JavaScript data
+                    $next_coaching_for_js = null;
+                    if (function_exists('je_get_events_between') && function_exists('je_ev_local_dt')) {
+                        $now = new DateTimeImmutable('@' . current_time('timestamp'));
+                        $future = $now->modify('+365 days');
+                        $events = je_get_events_between($now, $future, []);
+                        $coaching_events = array_filter($events, function($ev) {
+                            $slugs = wp_get_post_terms($ev->ID, 'event-type', ['fields' => 'slugs']);
+                            if (is_wp_error($slugs) || empty($slugs)) {
+                                $slugs = wp_get_post_terms($ev->ID, 'event_type', ['fields' => 'slugs']);
+                            }
+                            $slugs = is_wp_error($slugs) ? [] : array_map('sanitize_title', (array)$slugs);
+                            return in_array('intensives-coaching', $slugs, true);
+                        });
+                        if (!empty($coaching_events)) {
+                            usort($coaching_events, function($a, $b) {
+                                $ts_a = get_post_meta($a->ID, 'je_event_start', true);
+                                $ts_b = get_post_meta($b->ID, 'je_event_start', true);
+                                $dt_a = je_ev_local_dt($ts_a);
+                                $dt_b = je_ev_local_dt($ts_b);
+                                if (!$dt_a) return 1;
+                                if (!$dt_b) return -1;
+                                return $dt_a->getTimestamp() <=> $dt_b->getTimestamp();
+                            });
+                            $next_event = $coaching_events[0];
+                            $start_raw = get_post_meta($next_event->ID, 'je_event_start', true);
+                            $start_dt = je_ev_local_dt($start_raw);
+                            $next_coaching_for_js = array(
+                                'next_coaching_title' => $next_event->post_title,
+                                'next_coaching_date' => $start_dt ? $start_dt->format('D. M j, Y \a\t gA') : '',
+                                'next_coaching_url' => get_permalink($next_event->ID),
+                                'next_coaching_event' => true,
+                            );
+                        }
+                    }
+                    
+                    if (!empty($intensives)) {
+                        // Default to first intensive for initial PHP render
+                        // JavaScript will override with saved selection from localStorage
+                        $default_intensive = $intensives[0];
+                        $current_intensive = $default_intensive;
+                        
+                        if ($current_intensive) {
+                            $current_chapters = $intensive_chapters_map[$current_intensive->ID] ?? array();
+                            if (!empty($current_chapters)) {
+                                $main_chapter = $current_chapters[0];
+                                $practice_chapters = array_slice($current_chapters, 1, 3);
+                            }
+                        }
+                    }
+                }
+                
+                $current_release_date = '';
+                if ($current_intensive && !empty($current_intensive->post_date) && $current_intensive->post_date !== '0000-00-00') {
+                    $current_release_date = date('D. M j, Y', strtotime($current_intensive->post_date));
+                }
+                
+                $current_lesson_url = '';
+                if ($current_intensive) {
+                    if (!empty($current_intensive->post_id)) {
+                        $current_lesson_url = get_permalink($current_intensive->post_id);
+                    } elseif (!empty($current_intensive->slug)) {
+                        $current_lesson_url = home_url('/lesson/' . $current_intensive->slug . '/');
+                    }
+                }
+                
+                $current_teacher_name = '';
+                $current_teacher_picture_url = '';
+                if ($current_intensive && isset($intensive_data[$current_intensive->ID])) {
+                    $current_teacher_name = $intensive_data[$current_intensive->ID]['teacher_name'] ?? '';
+                    $current_teacher_picture_url = $intensive_data[$current_intensive->ID]['teacher_picture'] ?? '';
+                }
+                
+                // Get next Intensives Coaching event
+                $next_coaching_event = null;
+                $next_coaching_date = '';
+                $next_coaching_title = '';
+                $next_coaching_url = '';
+                
+                if (function_exists('je_get_events_between') && function_exists('je_ev_local_dt')) {
+                    $now = new DateTimeImmutable('@' . current_time('timestamp'));
+                    $future = $now->modify('+365 days');
+                    
+                    // Get all events in the next year
+                    $events = je_get_events_between($now, $future, []);
+                    
+                    // Filter for intensives-coaching event type
+                    $coaching_events = array_filter($events, function($ev) {
+                        $slugs = wp_get_post_terms($ev->ID, 'event-type', ['fields' => 'slugs']);
+                        if (is_wp_error($slugs) || empty($slugs)) {
+                            $slugs = wp_get_post_terms($ev->ID, 'event_type', ['fields' => 'slugs']);
+                        }
+                        $slugs = is_wp_error($slugs) ? [] : array_map('sanitize_title', (array)$slugs);
+                        return in_array('intensives-coaching', $slugs, true);
+                    });
+                    
+                    // Sort by start date and get the first one
+                    if (!empty($coaching_events)) {
+                        usort($coaching_events, function($a, $b) {
+                            $ts_a = get_post_meta($a->ID, 'je_event_start', true);
+                            $ts_b = get_post_meta($b->ID, 'je_event_start', true);
+                            $dt_a = je_ev_local_dt($ts_a);
+                            $dt_b = je_ev_local_dt($ts_b);
+                            if (!$dt_a) return 1;
+                            if (!$dt_b) return -1;
+                            return $dt_a->getTimestamp() <=> $dt_b->getTimestamp();
+                        });
+                        
+                        $next_coaching_event = $coaching_events[0];
+                        $next_coaching_title = $next_coaching_event->post_title;
+                        $next_coaching_url = get_permalink($next_coaching_event->ID);
+                        
+                        // Format the date
+                        $start_raw = get_post_meta($next_coaching_event->ID, 'je_event_start', true);
+                        $start_dt = je_ev_local_dt($start_raw);
+                        if ($start_dt) {
+                            $next_coaching_date = $start_dt->format('D. M j, Y \a\t gA');
+                        }
+                    }
+                }
+            ?>
+            <div class="jph-intensives-section">
+                <div class="intensives-header">
+                    <div>
+                        <h3 class="intensives-title">
+                            6-Week Intensives
+                            <a href="https://jazzedge.academy/intensive" target="_blank" rel="noopener noreferrer" class="intensives-title-link">(what is this?)</a>
+                        </h3>
+                        <a href="https://jazzedge.academy/docs-category/intensives/" target="_blank" rel="noopener noreferrer" class="intensives-support-link">
+                            Need help with Intensives? Click here
+                        </a>
+                    </div>
+                    <div class="intensives-dropdown">
+                        <label for="jph-intensives-select" class="intensives-label">Select Intensive</label>
+                        <select id="jph-intensives-select" class="intensives-select">
+                            <option value="">Select an intensive...</option>
+                            <?php foreach ($intensives as $intensive): ?>
+                                <option value="<?php echo esc_attr($intensive->ID); ?>" <?php echo ($current_intensive && $current_intensive->ID == $intensive->ID) ? 'selected' : ''; ?>>
+                                    <?php echo esc_html(stripslashes($intensive->lesson_title)); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="intensives-body">
+                    <div class="intensives-featured">
+                        <p class="intensives-featured-label">Current Intensive</p>
+                        <h4 class="intensives-featured-title" id="jph-intensives-current-title">
+                            <?php echo esc_html($current_intensive ? $current_intensive->lesson_title : 'Not found'); ?>
+                        </h4>
+                        <?php if (!empty($current_intensive->lesson_description)): ?>
+                            <div class="intensives-featured-description" id="jph-intensives-current-description">
+                                <?php echo wp_kses_post(wpautop($current_intensive->lesson_description)); ?>
+                            </div>
+                        <?php endif; ?>
+                        <div class="intensives-featured-actions">
+                            <button type="button" class="intensives-btn intensives-btn-secondary" id="jph-intensives-feedback-btn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                </svg>
+                                Leave Feedback
+                            </button>
+                            <a href="https://jazzedge.academy/course/6-week-intensives/" class="intensives-btn intensives-btn-primary" id="jph-intensives-current-link" target="_blank" rel="noopener noreferrer">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                                View Lesson
+                            </a>
+                            <button type="button" class="intensives-btn intensives-btn-how-it-works" id="jph-intensives-how-it-works-btn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                How Intensives Work
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="intensives-week">
+                        <div id="jph-intensives-week-container">
+                            <?php if ($main_chapter): ?>
+                                <?php
+                                $main_url = $current_lesson_url ? $current_lesson_url . '?c=' . $main_chapter->slug : '';
+                                $main_release_date = '';
+                            if (!empty($main_chapter->post_date) && $main_chapter->post_date !== '0000-00-00') {
+                                $main_release_date = date('D. M j', strtotime($main_chapter->post_date));
+                            } elseif (!empty($current_intensive->post_date) && $current_intensive->post_date !== '0000-00-00') {
+                                $main_release_date = date('D. M j', strtotime($current_intensive->post_date));
+                                }
+                                ?>
+                            <div class="intensives-main-row">
+                                <?php
+                                $main_is_completed = false;
+                                if (function_exists('je_is_chapter_complete')) {
+                                    $main_is_completed = je_is_chapter_complete($main_chapter->ID);
+                                }
+                                $main_card_class = 'intensives-card' . ($main_is_completed ? ' completed' : '');
+                                ?>
+                                <div class="<?php echo esc_attr($main_card_class); ?>">
+                                    <div class="intensives-card-header">
+                                        <span class="intensives-card-title">Main Lesson</span>
+                                        <?php if ($main_is_completed): ?>
+                                            <span class="intensives-card-completed-icon" title="Completed">
+                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <p class="intensives-card-name"><?php echo esc_html($main_chapter->chapter_title); ?></p>
+                                    <?php if ($main_release_date): ?>
+                                        <p class="intensives-card-release">Releases on <?php echo esc_html($main_release_date); ?></p>
+                                    <?php endif; ?>
+                                    <div class="intensives-card-actions">
+                                        <?php if ($main_url): ?>
+                                        <a href="<?php echo esc_url($main_url); ?>" class="intensives-link" target="_blank" rel="noopener noreferrer">Watch Lesson</a>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php if ($next_coaching_event): ?>
+                                    <div class="intensives-card intensives-coaching-card">
+                                        <div class="intensives-card-header">
+                                            <span class="intensives-card-title">Intensives Coaching</span>
+                                        </div>
+                                        <p class="intensives-card-name"><?php echo esc_html($next_coaching_title); ?></p>
+                                        <?php if ($next_coaching_date): ?>
+                                            <p class="intensives-card-release"><?php echo esc_html($next_coaching_date); ?></p>
+                                        <?php endif; ?>
+                                        <div class="intensives-card-actions">
+                                            <a href="<?php echo esc_url($next_coaching_url); ?>" class="intensives-link" target="_blank" rel="noopener noreferrer">View Event</a>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($practice_chapters)): ?>
+                                <div class="intensives-practice-grid">
+                                    <?php foreach ($practice_chapters as $practice_chapter): ?>
+                                        <?php
+                                        $practice_url = $current_lesson_url ? $current_lesson_url . '?c=' . $practice_chapter->slug : '';
+                                        $practice_release_date = '';
+                                        if (!empty($practice_chapter->post_date) && $practice_chapter->post_date !== '0000-00-00') {
+                                            $practice_release_date = date('D. M j', strtotime($practice_chapter->post_date));
+                                        } elseif (!empty($current_intensive->post_date) && $current_intensive->post_date !== '0000-00-00') {
+                                            $practice_release_date = date('D. M j', strtotime($current_intensive->post_date));
+                                        }
+                                        ?>
+                                        <?php
+                                        $practice_is_completed = false;
+                                        if (function_exists('je_is_chapter_complete')) {
+                                            $practice_is_completed = je_is_chapter_complete($practice_chapter->ID);
+                                        }
+                                        $practice_card_class = 'intensives-card small' . ($practice_is_completed ? ' completed' : '');
+                                        ?>
+                                        <div class="<?php echo esc_attr($practice_card_class); ?>">
+                                            <div class="intensives-card-header">
+                                                <span class="intensives-card-title">Practice Action</span>
+                                                <?php if ($practice_is_completed): ?>
+                                                    <span class="intensives-card-completed-icon" title="Completed">
+                                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                        </svg>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <p class="intensives-card-name"><?php echo esc_html($practice_chapter->chapter_title); ?></p>
+                                            <?php if ($practice_release_date): ?>
+                                                <p class="intensives-card-release">Releases on <?php echo esc_html($practice_release_date); ?></p>
+                                            <?php endif; ?>
+                                            <div class="intensives-card-actions">
+                                                <?php if ($practice_url): ?>
+                                                    <a href="<?php echo esc_url($practice_url); ?>" class="intensives-link" target="_blank" rel="noopener noreferrer">Watch Lesson</a>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Intensives Feedback Modal -->
+            <div id="jph-intensives-feedback-modal" class="jph-modal jph-intensives-feedback-modal" style="display: none;">
+                <div class="jph-modal-overlay"></div>
+                <div class="jph-modal-content">
+                    <div class="jph-modal-header">
+                        <h3 class="jph-modal-title">Intensives Feedback</h3>
+                        <button type="button" class="jph-modal-close" aria-label="Close modal">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="jph-modal-body">
+                        <?php echo do_shortcode('[fluentform id="49"]'); ?>
+                    </div>
+                </div>
+            </div>
+            <!-- How Intensives Work Modal (Coming Soon) -->
+            <div id="jph-intensives-how-it-works-modal" class="jph-modal jph-intensives-how-it-works-modal" style="display: none;">
+                <div class="jph-modal-overlay"></div>
+                <div class="jph-modal-content">
+                    <div class="jph-modal-header">
+                        <h3 class="jph-modal-title">How Intensives Work</h3>
+                        <button type="button" class="jph-modal-close" aria-label="Close modal">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="24" height="24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="jph-modal-body jph-support-modal-body">
+                        <video class="jph-support-video" controls playsinline poster="https://jazzedge.academy/wp-content/uploads/2026/02/intensive-tutorial.jpg">
+                            <source src="https://vz-0696d3da-4b7.b-cdn.net/7c90b024-a9b8-4199-b613-f14858e3a5bd/playlist.m3u8" type="application/x-mpegURL" />
+                        </video>
+                        <div class="jph-support-modal-actions">
+                            <a class="jph-support-action-btn jph-support-action-secondary" href="/support">Read Support Docs</a>
+                            <a class="jph-support-action-btn jph-support-action-primary" href="https://support.jazzedge.com/support/?site=academy" target="_blank" rel="noopener noreferrer">Submit Support Ticket</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+            (function() {
+                var select = document.getElementById('jph-intensives-select');
+                var feedbackBtn = document.getElementById('jph-intensives-feedback-btn');
+                var feedbackModal = document.getElementById('jph-intensives-feedback-modal');
+                var feedbackModalClose = feedbackModal ? feedbackModal.querySelector('.jph-modal-close') : null;
+                var feedbackModalOverlay = feedbackModal ? feedbackModal.querySelector('.jph-modal-overlay') : null;
+                var howItWorksBtn = document.getElementById('jph-intensives-how-it-works-btn');
+                var howItWorksModal = document.getElementById('jph-intensives-how-it-works-modal');
+                var howItWorksModalClose = howItWorksModal ? howItWorksModal.querySelector('.jph-modal-close') : null;
+                var howItWorksModalOverlay = howItWorksModal ? howItWorksModal.querySelector('.jph-modal-overlay') : null;
+                
+                // How Intensives Work modal handlers
+                if (howItWorksBtn && howItWorksModal) {
+                    function closeHowItWorksModal() {
+                        howItWorksModal.style.display = 'none';
+                        document.body.style.overflow = '';
+                        var video = howItWorksModal.querySelector('video');
+                        if (video) {
+                            video.pause();
+                        }
+                    }
+                    howItWorksBtn.addEventListener('click', function() {
+                        howItWorksModal.style.display = 'block';
+                        document.body.style.overflow = 'hidden';
+                    });
+                    if (howItWorksModalClose) {
+                        howItWorksModalClose.addEventListener('click', closeHowItWorksModal);
+                    }
+                    if (howItWorksModalOverlay) {
+                        howItWorksModalOverlay.addEventListener('click', closeHowItWorksModal);
+                    }
+                    document.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape' && howItWorksModal.style.display === 'block') {
+                            closeHowItWorksModal();
+                        }
+                    });
+                }
+                
+                // Feedback modal handlers
+                if (feedbackBtn && feedbackModal) {
+                    feedbackBtn.addEventListener('click', function() {
+                        feedbackModal.style.display = 'block';
+                        document.body.style.overflow = 'hidden';
+                    });
+                    
+                    if (feedbackModalClose) {
+                        feedbackModalClose.addEventListener('click', function() {
+                            feedbackModal.style.display = 'none';
+                            document.body.style.overflow = '';
+                        });
+                    }
+                    
+                    if (feedbackModalOverlay) {
+                        feedbackModalOverlay.addEventListener('click', function() {
+                            feedbackModal.style.display = 'none';
+                            document.body.style.overflow = '';
+                        });
+                    }
+                }
+                
+                if (!select) {
+                    return;
+                }
+                
+                var data = <?php echo wp_json_encode($intensive_data); ?>;
+                var nextCoachingData = <?php echo wp_json_encode($next_coaching_for_js); ?>;
+                var titleEl = document.getElementById('jph-intensives-current-title');
+                var descEl = document.getElementById('jph-intensives-current-description');
+                var linkEl = document.getElementById('jph-intensives-current-link');
+                var weekContainer = document.getElementById('jph-intensives-week-container');
+                
+                // Load saved selection from localStorage
+                var savedIntensiveId = localStorage.getItem('jph_selected_intensive_id');
+                if (savedIntensiveId && data[savedIntensiveId]) {
+                    select.value = savedIntensiveId;
+                }
+                
+                function buildCard(label, item, isSmall) {
+                    if (!item) {
+                        return '';
+                    }
+                    var cardClass = 'intensives-card' + (isSmall ? ' small' : '') + (item.completed ? ' completed' : '');
+                    var releaseHtml = item.release_date ? '<p class="intensives-card-release">Releases on ' + item.release_date + '</p>' : '';
+                    var watchHtml = item.url ? '<a href="' + item.url + '" class="intensives-link" target="_blank" rel="noopener noreferrer">Watch Lesson</a>' : '';
+                    var completedIcon = item.completed ? '<span class="intensives-card-completed-icon" title="Completed"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></span>' : '';
+                    return ''
+                        + '<div class="' + cardClass + '">'
+                        +   '<div class="intensives-card-header">'
+                        +     '<span class="intensives-card-title">' + label + '</span>'
+                        +     completedIcon
+                        +   '</div>'
+                        +   '<p class="intensives-card-name">' + item.title + '</p>'
+                        +   releaseHtml
+                        +   '<div class="intensives-card-actions">' + watchHtml + '</div>'
+                        + '</div>';
+                }
+                
+                function buildCoachingCard(payload) {
+                    if (!payload.next_coaching_event) {
+                        return '';
+                    }
+                    var dateHtml = payload.next_coaching_date ? '<p class="intensives-card-release">' + payload.next_coaching_date + '</p>' : '';
+                    var linkHtml = payload.next_coaching_url ? '<a href="' + payload.next_coaching_url + '" class="intensives-link" target="_blank" rel="noopener noreferrer">View Event</a>' : '';
+                    return ''
+                        + '<div class="intensives-card intensives-coaching-card">'
+                        +   '<div class="intensives-card-header">'
+                        +     '<span class="intensives-card-title">Intensives Coaching</span>'
+                        +   '</div>'
+                        +   '<p class="intensives-card-name">' + payload.next_coaching_title + '</p>'
+                        +   dateHtml
+                        +   '<div class="intensives-card-actions">' + linkHtml + '</div>'
+                        + '</div>';
+                }
+                
+                function updateView() {
+                    var intensiveId = select.value;
+                    if (!intensiveId || !data[intensiveId]) {
+                        return;
+                    }
+                    
+                    // Save selection to localStorage
+                    localStorage.setItem('jph_selected_intensive_id', intensiveId);
+                    
+                    var payload = data[intensiveId];
+                    // Merge coaching data into payload
+                    if (nextCoachingData) {
+                        payload.next_coaching_event = nextCoachingData.next_coaching_event;
+                        payload.next_coaching_title = nextCoachingData.next_coaching_title;
+                        payload.next_coaching_date = nextCoachingData.next_coaching_date;
+                        payload.next_coaching_url = nextCoachingData.next_coaching_url;
+                    }
+                    if (titleEl) {
+                        titleEl.textContent = payload.title || '';
+                    }
+                    if (descEl) {
+                        descEl.innerHTML = payload.description || '';
+                    }
+                    if (linkEl) {
+                        if (payload.lesson_url) {
+                            linkEl.href = payload.lesson_url;
+                            linkEl.style.display = 'inline-flex';
+                        } else {
+                            linkEl.style.display = 'none';
+                        }
+                    }
+                    
+                    if (weekContainer) {
+                        var html = '';
+                        html += '<div class="intensives-main-row">';
+                        html += buildCard('Main Lesson', payload.main, false);
+                        html += buildCoachingCard(payload);
+                        html += '</div>';
+                        if (payload.practice && payload.practice.length) {
+                            html += '<div class="intensives-practice-grid">';
+                            payload.practice.forEach(function(item) {
+                                html += buildCard('Practice Action', item, true);
+                            });
+                            html += '</div>';
+                        }
+                        weekContainer.innerHTML = html;
+                    }
+                }
+                
+                select.addEventListener('change', updateView);
+                
+                // Initialize view with saved selection or default
+                if (savedIntensiveId && data[savedIntensiveId]) {
+                    updateView();
+                } else if (select.value) {
+                    updateView();
+                }
+            })();
+            </script>
+            <?php
+            }
+            ?>
             
             <!-- Credit Purchases Section -->
             <?php
@@ -3368,8 +3992,7 @@ class JPH_Frontend {
                     
                     <!-- Plan Tab -->
                     <div class="jph-tab-pane active" id="plan-tab">
-                        <?php if ($can_access_plan): ?>
-                            <?php
+                        <?php
                             // Get user's plan data
                             $user_plan = $this->database->get_user_plan($user_id);
                             $sessions_this_week = $this->database->get_weekly_session_count($user_id);
@@ -3437,6 +4060,9 @@ class JPH_Frontend {
                                 <div class="jph-plan-section jph-plan-goal">
                                     <div class="jph-plan-goal-header-row">
                                         <h3>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" />
+                                            </svg>
                                             Your 90-Day Piano Goal
                                             <span class="jph-plan-microtip" aria-label="Set a specific, achievable goal for the next 90 days. This helps you stay focused and track your progress. Examples: 'Learn to play 3 jazz standards', 'Master the blues scale in all keys', or 'Complete the beginner improvisation course'. Your changes save automatically when you click away." data-microtip-position="top" data-microtip-size="large" role="tooltip">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
@@ -3514,7 +4140,7 @@ class JPH_Frontend {
                                                         </span>
                                                         <span class="jph-ai-goal-helper-submit-spinner" style="display: none;">
                                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" class="spinner">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.25 21.75h4.992v-.001M2.25 9.348h4.992m-4.992 0v4.992m0-4.992v-4.992m4.992 0h4.992m-4.992 0v4.992m0-4.992v-4.992" />
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                                                             </svg>
                                                         </span>
                                                     </button>
@@ -3567,7 +4193,7 @@ class JPH_Frontend {
                                                         </span>
                                                         <span class="jph-ai-goal-helper-submit-spinner" style="display: none;">
                                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" class="spinner">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.25 21.75h4.992v-.001M2.25 9.348h4.992m-4.992 0v4.992m0-4.992v-4.992m4.992 0h4.992m-4.992 0v4.992m0-4.992v-4.992" />
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                                                             </svg>
                                                         </span>
                                                     </button>
@@ -3580,7 +4206,12 @@ class JPH_Frontend {
                                 
                                 <!-- Community Practice Lounge -->
                                 <div class="jph-plan-section jph-plan-community">
-                                    <h3>🎥 Share Your Progress</h3>
+                                    <h3>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+                                        </svg>
+                                        Share Your Progress
+                                    </h3>
                                     <p class="jph-plan-community-text">Join the Practice Lounge community and share your practice videos! Get feedback, connect with other students, and celebrate your progress together.</p>
                                     <a href="https://jazzedge.academy/community/space/practicelounge/home" target="_blank" rel="noopener" class="jph-plan-community-link">
                                         Visit Practice Lounge →
@@ -3593,7 +4224,7 @@ class JPH_Frontend {
                             <div class="jph-plan-section jph-plan-transformation">
                                 <h3>
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.5 15.75h1.5m-1.5 0-1 3m8.5-3 1 3m0 0-1-3m1 3-1-3m-4.5-2.25h.008v.008H12.75v-.008Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
                                     </svg>
                                     Your Transformation Vision
                                     <span class="jph-plan-microtip" aria-label="Describe your long-term vision for your piano journey. Think about where you want to be in 3 months, 6 months, and 1 year. This is your 'why' - the bigger picture that motivates you. Be specific and aspirational, but realistic. Your changes save automatically when you click away from the text area." data-microtip-position="top" data-microtip-size="large" role="tooltip">
@@ -3620,74 +4251,6 @@ class JPH_Frontend {
                                 <div class="jph-plan-save-status" id="jph-plan-transformation-status"></div>
                                 <p class="jph-plan-subtext">💡 This is about direction and forward momentum - where are you heading?</p>
                             </div>
-                            
-                            <!-- 7-Day Practice Summary -->
-                            <?php
-                            // Get practice stats for last 7 days
-                            global $wpdb;
-                            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
-                            $seven_days_ago = date('Y-m-d H:i:s', strtotime('-7 days', current_time('timestamp')));
-                            
-                            $sessions_count = $wpdb->get_var($wpdb->prepare(
-                                "SELECT COUNT(*) FROM {$sessions_table} WHERE user_id = %d AND created_at >= %s",
-                                $user_id, $seven_days_ago
-                            ));
-                            
-                            $total_minutes = $wpdb->get_var($wpdb->prepare(
-                                "SELECT COALESCE(SUM(duration_minutes), 0) FROM {$sessions_table} WHERE user_id = %d AND created_at >= %s",
-                                $user_id, $seven_days_ago
-                            ));
-                            
-                            $total_minutes = intval($total_minutes);
-                            $sessions_count = intval($sessions_count);
-                            ?>
-                            <div class="jph-plan-section jph-plan-stats-summary">
-                                <h3>
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20" style="display: inline-block; vertical-align: middle; margin-right: 8px;">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                                    </svg>
-                                    Your Practice This Week
-                                </h3>
-                                <div class="jph-plan-stats-grid">
-                                    <div class="jph-plan-stat-item">
-                                        <div class="jph-plan-stat-value"><?php echo esc_html($sessions_count); ?></div>
-                                        <div class="jph-plan-stat-label">Session<?php echo $sessions_count !== 1 ? 's' : ''; ?></div>
-                                    </div>
-                                    <div class="jph-plan-stat-item">
-                                        <div class="jph-plan-stat-value"><?php echo esc_html($total_minutes); ?></div>
-                                        <div class="jph-plan-stat-label">Minute<?php echo $total_minutes !== 1 ? 's' : ''; ?></div>
-                                    </div>
-                                </div>
-                                <?php if ($sessions_count > 0): ?>
-                                    <p class="jph-plan-stats-message">
-                                        <?php
-                                        if ($sessions_count >= 5) {
-                                            echo "🎉 Great job! You're building a strong practice habit!";
-                                        } elseif ($sessions_count >= 3) {
-                                            echo "👍 Keep it up! You're making progress!";
-                                        } else {
-                                            echo "💪 Every session counts! Keep practicing!";
-                                        }
-                                        ?>
-                                    </p>
-                                <?php else: ?>
-                                    <p class="jph-plan-stats-message">🚀 Ready to start? Select your focus above and click Practice!</p>
-                                <?php endif; ?>
-                                <button type="button" id="jph-plan-view-analytics-btn" class="jph-plan-view-analytics-btn">
-                                    View Full Analytics →
-                                </button>
-                            </div>
-                            
-                        <?php else: ?>
-                            <div class="jph-coming-soon" id="jph-coming-soon-debug">
-                                <div class="coming-soon-icon">🚀</div>
-                                <h2>Something Amazing is Coming!</h2>
-                                <p class="coming-soon-subtitle">We're building something special just for you</p>
-                                <div class="coming-soon-cta">
-                                    <p class="excitement-text">✨ Get ready to take your practice to the next level! ✨</p>
-                                </div>
-                            </div>
-                        <?php endif; ?>
                     </div>
                     
                     <!-- Practice Items Tab -->
@@ -4250,6 +4813,12 @@ class JPH_Frontend {
                                                                 <img src="<?php echo esc_url($teacher_picture_url); ?>" alt="<?php echo esc_attr($teacher_name_for_tooltip ?: 'Teacher'); ?>" />
                                                             </div>
                                                             <span><?php echo esc_html($event_teacher); ?></span>
+                                                            <a class="event-view-button" href="<?php echo esc_url($event_permalink); ?>" target="_blank" rel="noopener">
+                                                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3" />
+                                                                </svg>
+                                                                View Event
+                                                            </a>
                                                         </div>
                                                     <?php endif; ?>
                                                 </div>
@@ -4988,39 +5557,143 @@ class JPH_Frontend {
                                     <?php if (!$is_free_member_community && $profile): ?>
                                         <div class="profile-details">
                                             <div class="detail-grid">
-                                                <?php if (!empty($profileSpaces)): ?>
                                                     <div class="detail-item">
                                                         <h6>Community Spaces</h6>
                                                         <div class="spaces-grid">
-                                                            <?php foreach ($profileSpaces as $space): ?>
-                                                                <a href="<?php echo esc_url('https://jazzedge.academy/community/space/' . ($space->slug ?? 'space-' . $space->id) . '/home'); ?>" target="_blank" class="space-card">
-                                                                    <div class="space-icon">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-                                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                                                                        </svg>
-                                                                    </div>
-                                                                    <div class="space-info">
-                                                                        <span class="space-title"><?php echo esc_html($space->title ?? 'Untitled Space'); ?></span>
-                                                                        <span class="space-visit">Visit Space</span>
-                                                                    </div>
-                                                                </a>
-                                                            <?php endforeach; ?>
+                                                            <a href="https://jazzedge.academy/community/space/start-here/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Start Here</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/say-hello/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Say Hello</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/tcilive/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">TCI Live</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/practicelounge/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Practice Lounge</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/lessonhelpquestions/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Lesson Help &amp; Questions</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/postyourperformances/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Post Your Performances</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/geartalk/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Gear Talk</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/coffeechat/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Coffee Chat</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/monthlychallenge/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Monthly Challenge</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/winsprogress/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Wins &amp; Progress</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/communitythoughts/home" target="_blank" class="space-card">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Community Thoughts?</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
+                                                            <a href="https://jazzedge.academy/community/space/cocktailpiano/home" target="_blank" class="space-card" style="border: 2px solid #f04e23;">
+                                                                <div class="space-icon">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"></path>
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="space-info">
+                                                                    <span class="space-title">Cocktail Piano Intensive</span>
+                                                                    <span class="space-visit">Visit Space</span>
+                                                                </div>
+                                                            </a>
                                                         </div>
                                                     </div>
-                                                <?php else: ?>
-                                                    <div class="detail-item">
-                                                        <h6>Community Spaces</h6>
-                                                        <div class="no-spaces-card">
-                                                            <div class="no-spaces-icon">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-                                                                </svg>
-                                                            </div>
-                                                            <p>No spaces joined yet</p>
-                                                            <a href="https://jazzedge.academy/community/" target="_blank" class="jph-btn jph-btn-secondary">Explore Spaces</a>
-                                                        </div>
-                                                    </div>
-                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     <?php elseif (!$is_free_member_community): ?>
@@ -5293,6 +5966,15 @@ class JPH_Frontend {
                                     <div class="shield-info-item">
                                         <h5>💎 Cost & Limits</h5>
                                         <p>Each shield costs 50 gems. You can hold a maximum of 3 shields at once for optimal protection.</p>
+                                    </div>
+
+                                    <div class="shield-info-item">
+                                        <h5>🛡️ Auto-Save Streak (Optional)</h5>
+                                        <p>If you have no shields, you can opt in to automatically spend 50 gems to save a one-day streak break.</p>
+                                        <label class="jph-toggle-row">
+                                            <input type="checkbox" id="auto-gem-streak-toggle" <?php echo !empty($dashboard_prefs['auto_gem_streak_save']) ? 'checked' : ''; ?>>
+                                            <span>Auto-use 50 gems when no shields are available</span>
+                                        </label>
                                     </div>
                                     
                                     <div class="shield-info-item">
@@ -5704,6 +6386,7 @@ class JPH_Frontend {
                             </div>
                             <div class="practice-history-header">
                                 <div class="practice-history-header-item">Date</div>
+                                <div class="practice-history-header-item center mobile-hidden">Time</div>
                                 <div class="practice-history-header-item">Item</div>
                                 <div class="practice-history-header-item center">Duration</div>
                                 <div class="practice-history-header-item center mobile-hidden">How it felt</div>
@@ -5835,6 +6518,44 @@ class JPH_Frontend {
                         </ul>
                     </div>
                 </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="jph-streak-explainer-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content">
+                <div class="jph-modal-header">
+                    <h3 style="color: #ffffff;"><?php esc_html_e('Your Streak Explained', 'academy-practice-hub'); ?></h3>
+                    <span class="jph-close" id="jph-streak-explainer-close">&times;</span>
+                </div>
+                <div class="jph-modal-body">
+                    <p>Your streak counts consecutive calendar days with practice. If you miss a day, the streak only continues if a shield or auto-save gem is used (one per missed day).</p>
+                    <p><strong>Timezone used:</strong> <?php echo esc_html($streak_timezone); ?>. Sessions near midnight can count toward the next day in this timezone.</p>
+                    <ul>
+                        <li><strong>Current streak:</strong> <?php echo esc_html($user_stats['current_streak']); ?> days</li>
+                        <li><strong>Longest streak:</strong> <?php echo esc_html($user_stats['longest_streak']); ?> days</li>
+                        <li><strong>Last practice date:</strong> <?php echo esc_html($user_stats['last_practice_date'] ?? 'N/A'); ?></li>
+                        <li><strong>Shields remaining:</strong> <?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></li>
+                        <li><strong>Auto-save (gems):</strong> <?php echo !empty($dashboard_prefs['auto_gem_streak_save']) ? 'On' : 'Off'; ?>
+                            <span class="jph-streak-auto-save-hint" aria-label="You can turn this on/off in the Badges tab under Shield Protection." data-microtip-position="top" role="tooltip">ⓘ</span>
+                        </li>
+                    </ul>
+
+                    <?php if ($streak_debug_updated): ?>
+                        <p><strong>Last recalculation:</strong> <?php echo esc_html($streak_debug_updated); ?></p>
+                    <?php endif; ?>
+
+                    <p><strong>Missing practice dates:</strong> <?php echo esc_html($streak_missing_count); ?></p>
+                    <?php if (!empty($streak_missing_all)): ?>
+                        <div class="jph-streak-missing-details">
+                            <button type="button" class="jph-streak-missing-toggle" aria-expanded="false">Show missing dates</button>
+                            <div class="jph-streak-missing-list" hidden><?php echo esc_html(implode(', ', $streak_missing_all)); ?></div>
+                        </div>
+                    <?php endif; ?>
+
+                    <p><strong>Shields used (last calc):</strong> <?php echo esc_html($streak_shields_used); ?></p>
+                    <p><strong>Gems used (last calc):</strong> <?php echo esc_html($streak_gems_used); ?><?php if ($streak_gems_spent): ?> (<?php echo esc_html($streak_gems_spent); ?> gems)<?php endif; ?></p>
+                    <p>If your streak feels lower than expected, check the missing dates above—each missed date lowers the streak by 1 unless a shield or auto-save gem was used.</p>
                 </div>
             </div>
         </div>
@@ -6969,6 +7690,9 @@ class JPH_Frontend {
             z-index: 1000;
             pointer-events: auto;
             white-space: nowrap;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
         }
         
         .jph-support-pill:hover {
@@ -6978,6 +7702,127 @@ class JPH_Frontend {
             color: white;
             text-decoration: none;
         }
+
+        .jph-support-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .jph-support-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(2px);
+        }
+
+        .jph-support-modal-content {
+            position: relative;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: min(900px, 92vw);
+            max-height: 90vh;
+            overflow: hidden;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .jph-support-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .jph-support-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .jph-support-modal-close {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            color: #64748b;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease;
+        }
+
+        .jph-support-modal-close:hover {
+            color: #0f172a;
+        }
+
+        .jph-support-modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .jph-support-video {
+            width: 100%;
+            max-height: 60vh;
+            border-radius: 12px;
+            background: #000000;
+        }
+
+        .jph-support-modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .jph-support-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+        .jph-support-action-primary {
+            background: #f04e23;
+            color: #ffffff;
+        }
+
+        .jph-support-action-primary:hover {
+            background: #e0451f;
+            color: #ffffff;
+        }
+
+        .jph-support-action-secondary {
+            background: #ffffff;
+            color: #0f172a;
+            border-color: #e5e7eb;
+        }
+
+        .jph-support-action-secondary:hover {
+            border-color: #cbd5f5;
+            color: #0f172a;
+        }
         
         @media (max-width: 768px) {
             .jph-support-pill {
@@ -6986,6 +7831,18 @@ class JPH_Frontend {
                 transform: translateX(-50%);
                 padding: 5px 12px;
                 font-size: 10px;
+            }
+
+            .jph-support-modal-content {
+                width: 94vw;
+            }
+
+            .jph-support-modal-actions {
+                justify-content: stretch;
+            }
+
+            .jph-support-action-btn {
+                width: 100%;
             }
         }
         
@@ -7485,6 +8342,10 @@ class JPH_Frontend {
             color: #64748b;
             line-height: 1.5;
         }
+
+        .credit-purchases-unused {
+            display: none;
+        }
         
         .credit-purchases-count strong,
         .credit-purchases-unused strong {
@@ -7520,6 +8381,464 @@ class JPH_Frontend {
         
         .credit-purchases-button:active {
             transform: translateY(0);
+        }
+
+        /* Intensives Section */
+        .jph-intensives-section {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px 32px;
+            margin: 20px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 2px solid #f04e23;
+        }
+
+        .intensives-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            margin-bottom: 20px;
+            padding: 20px 24px;
+            background: #e5e7eb;
+            border-radius: 12px;
+            margin-left: -32px;
+            margin-right: -32px;
+            margin-top: -24px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .intensives-title {
+            margin: 0 0 6px 0;
+            font-size: 22px;
+            font-weight: 700;
+            color: #004555;
+        }
+
+        .intensives-title-link {
+            font-size: 14px;
+            font-weight: 400;
+            color: #64748b;
+            text-decoration: none;
+            margin-left: 8px;
+            transition: color 0.2s ease;
+        }
+
+        .intensives-title-link:hover {
+            color: #239B90;
+            text-decoration: underline;
+        }
+
+        .intensives-support-link {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #f04e23;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3);
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            pointer-events: auto;
+            white-space: nowrap;
+        }
+
+        .intensives-support-link:hover {
+            transform: translateX(-50%) translateY(-2px);
+            box-shadow: 0 6px 16px rgba(240, 78, 35, 0.4);
+            background: #e0451f;
+            color: white;
+            text-decoration: none;
+        }
+
+        @media (max-width: 768px) {
+            .intensives-support-link {
+                top: -8px;
+                left: 50%;
+                transform: translateX(-50%);
+                padding: 5px 12px;
+                font-size: 10px;
+            }
+            
+            .intensives-support-link:hover {
+                transform: translateX(-50%) translateY(-2px);
+            }
+        }
+
+        .intensives-subtitle {
+            margin: 0;
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .intensives-dropdown {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .intensives-label {
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .intensives-select {
+            min-width: 240px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #d6dde8;
+            font-size: 14px;
+            color: #1f2937;
+            background: #ffffff;
+        }
+
+        .intensives-body {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+            gap: 24px;
+        }
+
+        .intensives-featured {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .intensives-featured-label {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .intensives-featured-title {
+            margin: 0 0 12px 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #004555;
+        }
+
+        .intensives-featured-description {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.5;
+        }
+
+        .intensives-featured-description p {
+            margin: 0 0 8px 0;
+        }
+
+        .intensives-featured-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .intensives-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            width: 100%;
+        }
+
+        .intensives-btn svg {
+            flex-shrink: 0;
+        }
+
+        .intensives-btn-primary {
+            background: #239B90;
+            color: #ffffff;
+        }
+
+        .intensives-btn-primary:hover {
+            background: #1d7f75;
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+        }
+
+        .intensives-btn-secondary {
+            background: #ffffff;
+            border: 1px solid #d1d5db;
+            color: #374151;
+        }
+
+        .intensives-btn-secondary:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+            color: #1f2937;
+        }
+
+        .intensives-btn-how-it-works {
+            background: #f04e23;
+            color: #ffffff;
+        }
+
+        .intensives-btn-how-it-works:hover {
+            background: #d9431a;
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3);
+        }
+
+        .intensives-teacher {
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+        }
+
+        .intensives-teacher-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+
+        .intensives-teacher-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .intensives-teacher-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e2e8f0;
+        }
+
+        .intensives-teacher-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        /* Intensives Feedback Modal Styling */
+        .jph-intensives-feedback-modal .jph-modal-content {
+            margin-top: 80px;
+        }
+
+        .jph-intensives-feedback-modal .jph-modal-header {
+            background: linear-gradient(135deg, #004555 0%, #006666 100%);
+            color: white;
+            padding: 24px 24px 24px 24px;
+            border-radius: 12px 12px 0 0;
+            margin: 0;
+        }
+
+        .jph-intensives-feedback-modal .jph-modal-header h3 {
+            color: #ffffff;
+        }
+
+        .jph-intensives-feedback-modal .jph-modal-close {
+            color: #ffffff;
+        }
+
+        .jph-intensives-feedback-modal .jph-modal-close:hover {
+            color: #e5e7eb;
+        }
+
+        .jph-intensives-how-it-works-modal .jph-modal-content {
+            margin-top: 80px;
+        }
+
+        .jph-intensives-how-it-works-modal .jph-modal-header {
+            background: #f04e23;
+            color: white;
+            padding: 24px;
+            border-radius: 12px 12px 0 0;
+            margin: 0;
+        }
+
+        .jph-intensives-how-it-works-modal .jph-modal-header h3 {
+            color: #ffffff;
+        }
+
+        .jph-intensives-how-it-works-modal .jph-modal-body {
+            padding: 24px;
+        }
+
+        .intensives-week-title {
+            margin: 0 0 12px 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #004555;
+        }
+
+        .intensives-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 12px;
+        }
+
+        .intensives-card.completed {
+            border-color: #f04e23;
+            border-width: 2px;
+        }
+
+        .intensives-card.small {
+            margin-bottom: 0;
+        }
+
+        .intensives-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .intensives-card-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .intensives-card-completed-icon {
+            display: inline-flex;
+            align-items: center;
+            color: #f04e23;
+            flex-shrink: 0;
+        }
+
+        .intensives-card-completed-icon svg {
+            display: block;
+        }
+
+        .intensives-card-name {
+            margin: 0 0 12px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .intensives-card-release {
+            margin: 0 0 12px 0;
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .intensives-main-row {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        .intensives-teacher-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .intensives-coaching-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .intensives-coaching-card .intensives-card-header {
+            background: #f04e23;
+            color: #ffffff;
+            padding: 12px 16px;
+            margin: -16px -16px 8px -16px;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .intensives-coaching-card .intensives-card-title {
+            color: #ffffff;
+        }
+
+        .intensives-card-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .intensives-link {
+            font-size: 13px;
+            font-weight: 600;
+            color: #239B90;
+            text-decoration: none;
+        }
+
+        .intensives-practice-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        @media (max-width: 1100px) {
+            .intensives-body {
+                grid-template-columns: 1fr;
+            }
+
+            .intensives-main-row {
+                grid-template-columns: 1fr;
+            }
+
+            .intensives-practice-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 900px) {
+            .intensives-header {
+                flex-direction: column;
+                align-items: stretch;
+                margin-left: -24px;
+                margin-right: -24px;
+                margin-top: -24px;
+                padding: 16px 20px;
+            }
+
+            .intensives-dropdown {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .intensives-select,
+            .intensives-button {
+                width: 100%;
+            }
+
+            .intensives-practice-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
         /* Responsive: Stack on mobile */
@@ -8298,6 +9617,41 @@ class JPH_Frontend {
             line-height: 1.5;
             font-weight: 400;
         }
+
+        .jph-roadmap-video-wrapper {
+            padding: 24px 32px 0 32px;
+        }
+
+        .jph-roadmap-video {
+            width: 100%;
+            max-height: 420px;
+            border-radius: 14px;
+            background: #000000;
+        }
+        
+        .jph-roadmap-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        
+        .jph-roadmap-hide {
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #374151;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .jph-roadmap-hide:hover {
+            background: #f3f4f6;
+            border-color: #cbd5e1;
+        }
         
         .jph-roadmap-toggle {
             background: none;
@@ -8660,6 +10014,99 @@ class JPH_Frontend {
             font-size: 1.1em;
             font-weight: 600;
             color: #666;
+        }
+
+        .stat-label-with-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-label-with-icon .jph-streak-explainer-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            color: #666;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .stat-label-with-icon .jph-streak-explainer-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            display: block;
+        }
+
+        .stat-label-with-icon .jph-streak-explainer-fallback {
+            display: none;
+            font-weight: 700;
+            font-size: 14px;
+            line-height: 1;
+            color: #666;
+        }
+
+        .stat-label-with-icon .jph-streak-explainer-btn svg[width="0"],
+        .stat-label-with-icon .jph-streak-explainer-btn svg[height="0"] {
+            display: none;
+        }
+
+        .stat-label-with-icon .jph-streak-explainer-btn:not(:has(svg)) .jph-streak-explainer-fallback,
+        .stat-label-with-icon .jph-streak-explainer-btn svg[style*="display: none"] + .jph-streak-explainer-fallback {
+            display: inline;
+        }
+
+        #jph-streak-explainer-modal .jph-modal-content {
+            max-width: 900px;
+        }
+
+        .jph-streak-missing-details {
+            margin-top: 8px;
+        }
+
+        .jph-streak-missing-details .jph-streak-missing-toggle {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            padding: 6px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #1f2937;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .jph-streak-missing-details .jph-streak-missing-toggle:hover {
+            background: #e5e7eb;
+            border-color: #9ca3af;
+        }
+
+        .jph-streak-missing-details .jph-streak-missing-toggle:focus {
+            outline: 2px solid #94a3b8;
+            outline-offset: 2px;
+        }
+
+        .jph-streak-missing-list {
+            margin-top: 6px;
+            line-height: 1.5;
+            color: #555;
+        }
+
+        .jph-streak-auto-save-hint {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-left: 6px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            color: #374151;
+            font-size: 11px;
+            font-weight: 700;
         }
         
         .jph-btn-secondary {
@@ -9968,17 +11415,6 @@ class JPH_Frontend {
                 width: 40% !important;
             }
             
-            /* Additional mobile-specific adjustments for practice history */
-            .practice-history-item .practice-history-item-content:nth-child(4),
-            .practice-history-item .practice-history-item-content:nth-child(5) {
-                display: none !important;
-            }
-            
-            .practice-history-header .practice-history-header-item:nth-child(4),
-            .practice-history-header .practice-history-header-item:nth-child(5) {
-                display: none !important;
-            }
-            
             /* Hide mobile-hidden elements on mobile */
             .mobile-hidden {
                 display: none !important;
@@ -10848,6 +12284,37 @@ class JPH_Frontend {
             font-size: 0.85rem;
         }
 
+        .event-view-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: #f04e23;
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-decoration: none;
+            line-height: 1;
+            width: 100%;
+            max-width: 140px;
+            box-shadow: 0 4px 10px rgba(240, 78, 35, 0.25);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .event-view-button svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .event-view-button:hover {
+            background: #e0451f;
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(240, 78, 35, 0.35);
+        }
+
         .event-types {
             display: flex;
             gap: 6px;
@@ -11318,7 +12785,7 @@ class JPH_Frontend {
         
         .practice-history-header {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 2fr 1fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 15px 0;
             border-bottom: 2px solid #e8f5f4;
@@ -11329,7 +12796,7 @@ class JPH_Frontend {
         
         .practice-history-item {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 2fr 1fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 15px 0;
             border-bottom: 1px solid #f0f0f0;
@@ -14896,124 +16363,6 @@ class JPH_Frontend {
             }
         }
         
-        /* Coming Soon Section */
-        .jph-coming-soon {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fffe 100%);
-            border-radius: 20px;
-            padding: 60px 40px;
-            text-align: center;
-            box-shadow: 0 10px 40px rgba(0, 69, 85, 0.1);
-            border: 2px solid #e8f5f4;
-            margin: 20px 0;
-        }
-        
-        .coming-soon-icon {
-            font-size: 80px;
-            margin-bottom: 20px;
-            animation: pulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
-        }
-        
-        .jph-coming-soon h2 {
-            font-size: 2.5em;
-            color: #004555;
-            margin: 0 0 10px 0;
-            font-weight: 700;
-        }
-        
-        .coming-soon-subtitle {
-            font-size: 1.3em;
-            color: #666;
-            margin: 0 0 40px 0;
-        }
-        
-        .coming-soon-features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-            margin: 40px 0;
-        }
-        
-        .feature-item {
-            background: white;
-            padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 5px 20px rgba(0, 69, 85, 0.08);
-            border: 2px solid #e8f5f4;
-            transition: all 0.3s ease;
-        }
-        
-        .feature-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0, 69, 85, 0.15);
-            border-color: #239B90;
-        }
-        
-        .feature-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        
-        .feature-item h3 {
-            font-size: 1.3em;
-            color: #004555;
-            margin: 0 0 10px 0;
-            font-weight: 600;
-        }
-        
-        .feature-item p {
-            color: #666;
-            margin: 0;
-            line-height: 1.6;
-        }
-        
-        .coming-soon-cta {
-            margin-top: 40px;
-            padding: 30px;
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-            border-radius: 16px;
-            border: 2px solid #f39c12;
-        }
-        
-        .excitement-text {
-            font-size: 1.4em;
-            color: #d35400;
-            margin: 0;
-            font-weight: 600;
-            text-shadow: 0 2px 4px rgba(211, 84, 0, 0.2);
-        }
-        
-        @media (max-width: 768px) {
-            .jph-coming-soon {
-                padding: 40px 20px;
-            }
-            
-            .jph-coming-soon h2 {
-                font-size: 2em;
-            }
-            
-            .coming-soon-subtitle {
-                font-size: 1.1em;
-            }
-            
-            .coming-soon-features {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            
-            .excitement-text {
-                font-size: 1.2em;
-            }
-        }
-        
         /* PLAN Tab Content Styles */
         .jph-plan-ai-assistant-header {
             margin-bottom: 25px;
@@ -15703,75 +17052,298 @@ class JPH_Frontend {
             font-style: italic;
         }
         
-        .jph-plan-stats-summary {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border: 2px solid #e8f5f4;
-        }
-        
-        .jph-plan-stats-grid {
+        .jph-plan-stats-reminder-wrapper {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            margin: 20px 0;
+            margin-bottom: 30px;
         }
         
-        .jph-plan-stat-item {
-            text-align: center;
-            padding: 15px;
+        @media (max-width: 768px) {
+            .jph-plan-stats-reminder-wrapper {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .jph-plan-reminder-notification {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe5e5 100%);
+            border: 2px solid #fecaca;
+        }
+        
+        .jph-reminder-settings-btn {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s ease;
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            vertical-align: middle;
+        }
+        
+        .jph-reminder-settings-btn:hover {
+            color: #239B90;
+            transform: rotate(90deg);
+        }
+        
+        .jph-plan-reminder-notification h3 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .jph-reminder-settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .jph-reminder-settings-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(2px);
+        }
+        
+        .jph-reminder-settings-modal-content {
+            position: relative;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            z-index: 1;
         }
         
-        .jph-plan-stat-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: #239B90;
-            line-height: 1;
+        .jph-reminder-settings-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .jph-reminder-settings-modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        
+        .jph-reminder-settings-modal-close {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .jph-reminder-settings-modal-close:hover {
+            color: #0f172a;
+        }
+        
+        .jph-reminder-settings-modal-body {
+            padding: 24px;
+        }
+        
+        .jph-reminder-settings-field {
+            margin-bottom: 24px;
+        }
+        
+        .jph-reminder-settings-field:last-child {
+            margin-bottom: 0;
+        }
+        
+        .jph-reminder-settings-field label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #0f172a;
             margin-bottom: 8px;
         }
         
-        .jph-plan-stat-label {
-            font-size: 14px;
-            color: #666;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .jph-reminder-settings-field label[for="jph-reminder-settings-enabled"] {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
         }
         
-        .jph-plan-stats-message {
-            margin: 15px 0;
-            padding: 12px;
-            background: white;
+        .jph-reminder-settings-field input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #239B90;
+        }
+        
+        .jph-reminder-settings-threshold-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        
+        .jph-reminder-settings-threshold-input input[type="number"] {
+            width: 80px;
+            padding: 10px 12px;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
-            font-size: 15px;
-            color: #2A3940;
+            font-size: 16px;
+            font-weight: 600;
             text-align: center;
-            font-weight: 500;
+            transition: all 0.2s ease;
         }
         
-        .jph-plan-view-analytics-btn {
-            width: 100%;
+        .jph-reminder-settings-threshold-input input[type="number"]:focus {
+            outline: none;
+            border-color: #239B90;
+            box-shadow: 0 0 0 3px rgba(35, 155, 144, 0.1);
+        }
+        
+        .jph-reminder-settings-threshold-input span {
+            font-size: 16px;
+            color: #64748b;
+        }
+        
+        .jph-reminder-settings-email {
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            margin-top: 8px;
+        }
+        
+        .jph-reminder-settings-email strong {
+            color: #0f172a;
+            font-size: 15px;
+        }
+        
+        .jph-reminder-settings-email-note {
+            margin: 8px 0 0 0;
+            font-size: 12px;
+            color: #64748b;
+            font-style: italic;
+        }
+        
+        .jph-reminder-settings-modal-footer {
+            display: flex;
+            gap: 12px;
+            padding: 20px 24px;
+            border-top: 1px solid #e2e8f0;
+            justify-content: flex-end;
+        }
+        
+        .jph-reminder-settings-cancel,
+        .jph-reminder-settings-save {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+        
+        .jph-reminder-settings-cancel {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        .jph-reminder-settings-cancel:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        
+        .jph-reminder-settings-save {
             background: #239B90;
             color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 10px;
         }
         
-        .jph-plan-view-analytics-btn:hover {
+        .jph-reminder-settings-save:hover {
             background: #1d7a70;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
         }
         
-        .jph-plan-view-analytics-btn:active {
-            transform: translateY(0);
+        .jph-reminder-settings-save:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .jph-reminder-settings-status {
+            padding: 12px 24px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+        
+        .jph-reminder-settings-status.success {
+            display: block;
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .jph-reminder-settings-status.error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .jph-reminder-alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+        
+        .jph-reminder-alert-warning {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+        }
+        
+        .jph-reminder-alert-info {
+            background: #dbeafe;
+            border: 1px solid #60a5fa;
+        }
+        
+        .jph-reminder-alert-disabled {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+        }
+        
+        .jph-reminder-alert-title {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        
+        .jph-reminder-alert-message {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.5;
+        }
+        
+        .jph-reminder-alert-subtext {
+            margin: 0;
+            font-size: 12px;
+            color: #64748b;
+            font-style: italic;
         }
         
         .jph-plan-community-text {
@@ -16194,6 +17766,9 @@ class JPH_Frontend {
             
             // Initialize feedback modal
             initFeedbackModal();
+
+            // Initialize support video modal
+            initSupportModal();
             
             // Initialize clean neuroscience tips
             initNeuroscienceTips();
@@ -16209,8 +17784,41 @@ class JPH_Frontend {
             
             // Initialize tab functionality
             initTabs();
+
+            function initSupportModal() {
+                var $modal = $('#jph-support-modal');
+                var $open = $('#jph-support-pill-btn');
+                var $close = $modal.find('.jph-support-modal-close, .jph-support-modal-overlay');
+
+                if (!$modal.length || !$open.length) {
+                    return;
+                }
+
+                function closeModal() {
+                    $modal.fadeOut(200);
+                    var video = $modal.find('video').get(0);
+                    if (video) {
+                        video.pause();
+                    }
+                }
+
+                $open.on('click', function(e) {
+                    e.preventDefault();
+                    $modal.fadeIn(200);
+                });
+
+                $close.on('click', function(e) {
+                    e.preventDefault();
+                    closeModal();
+                });
+
+                $(document).on('keydown', function(e) {
+                    if (e.key === 'Escape' && $modal.is(':visible')) {
+                        closeModal();
+                    }
+                });
+            }
             
-            <?php if ($can_access_plan): ?>
             // Initialize PLAN Tab
             function initPlanTab() {
                 
@@ -16721,39 +18329,172 @@ class JPH_Frontend {
                 });
             }
             
-            // Practice Reminder Settings
+            // Practice Reminder Settings Modal
+            var $reminderSettingsBtn = $('#jph-reminder-settings-btn');
+            var $reminderSettingsModal = $('#jph-reminder-settings-modal');
+            var $reminderSettingsOverlay = $reminderSettingsModal.find('.jph-reminder-settings-modal-overlay');
+            var $reminderSettingsClose = $reminderSettingsModal.find('.jph-reminder-settings-modal-close, .jph-reminder-settings-cancel');
+            var $reminderSettingsSave = $reminderSettingsModal.find('.jph-reminder-settings-save');
+            var $reminderSettingsEnabled = $('#jph-reminder-settings-enabled');
+            var $reminderSettingsThreshold = $('#jph-reminder-settings-threshold');
+            var $reminderSettingsThresholdWrapper = $('#jph-reminder-settings-threshold-wrapper');
+            var $reminderSettingsStatus = $('#jph-reminder-settings-status');
+            
+            // Open modal
+            if ($reminderSettingsBtn.length) {
+                $reminderSettingsBtn.on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $reminderSettingsModal.fadeIn(200);
+                    $('body').css('overflow', 'hidden');
+                });
+            }
+            
+            // Close modal
+            function closeReminderSettingsModal() {
+                $reminderSettingsModal.fadeOut(200);
+                $('body').css('overflow', '');
+                $reminderSettingsStatus.removeClass('success error').hide();
+            }
+            
+            if ($reminderSettingsClose.length) {
+                $reminderSettingsClose.on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeReminderSettingsModal();
+                });
+            }
+            
+            if ($reminderSettingsOverlay.length) {
+                $reminderSettingsOverlay.on('click', function(e) {
+                    if (e.target === this) {
+                        closeReminderSettingsModal();
+                    }
+                });
+            }
+            
+            // Toggle reminder enabled/disabled in modal
+            if ($reminderSettingsEnabled.length) {
+                $reminderSettingsEnabled.on('change', function() {
+                    var isEnabled = $(this).is(':checked');
+                    if (isEnabled) {
+                        $reminderSettingsThresholdWrapper.css({
+                            'opacity': '1',
+                            'pointer-events': 'auto'
+                        });
+                    } else {
+                        $reminderSettingsThresholdWrapper.css({
+                            'opacity': '0.5',
+                            'pointer-events': 'none'
+                        });
+                    }
+                });
+            }
+            
+            // Validate threshold input
+            if ($reminderSettingsThreshold.length) {
+                $reminderSettingsThreshold.on('change', function() {
+                    var value = parseInt($(this).val());
+                    if (isNaN(value) || value < 5) {
+                        $(this).val(5);
+                    } else if (value > 14) {
+                        $(this).val(14);
+                    }
+                });
+            }
+            
+            // Save settings
+            if ($reminderSettingsSave.length) {
+                $reminderSettingsSave.on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    var enabled = $reminderSettingsEnabled.is(':checked') ? 1 : 0;
+                    var threshold = parseInt($reminderSettingsThreshold.val());
+                    if (isNaN(threshold) || threshold < 5) {
+                        threshold = 5;
+                    } else if (threshold > 14) {
+                        threshold = 14;
+                    }
+                    
+                    $reminderSettingsSave.prop('disabled', true).text('Saving...');
+                    $reminderSettingsStatus.removeClass('success error').hide();
+                    
+                    $.ajax({
+                        url: '<?php echo rest_url('aph/v1/plan/reminder-settings'); ?>',
+                        method: 'PUT',
+                        headers: {
+                            'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>',
+                            'Content-Type': 'application/json'
+                        },
+                        data: JSON.stringify({
+                            reminder_enabled: enabled,
+                            reminder_threshold_days: threshold
+                        }),
+                        success: function(response) {
+                            if (response.success) {
+                                $reminderSettingsStatus.addClass('success').text('Settings saved successfully!').show();
+                                setTimeout(function() {
+                                    closeReminderSettingsModal();
+                                    location.reload(); // Reload to show updated settings
+                                }, 1000);
+                            } else {
+                                $reminderSettingsStatus.addClass('error').text('Failed to save settings. Please try again.').show();
+                                $reminderSettingsSave.prop('disabled', false).text('Save Settings');
+                            }
+                        },
+                        error: function() {
+                            $reminderSettingsStatus.addClass('error').text('Failed to save settings. Please try again.').show();
+                            $reminderSettingsSave.prop('disabled', false).text('Save Settings');
+                        }
+                    });
+                });
+            }
+            
+            // Close on Escape key
+            $(document).on('keydown', function(e) {
+                if (e.key === 'Escape' && $reminderSettingsModal.is(':visible')) {
+                    closeReminderSettingsModal();
+                }
+            });
+            
+            // Practice Reminder Settings (from settings section below)
             var $reminderEnabled = $('#jph-reminder-enabled');
             var $reminderThreshold = $('#jph-reminder-threshold-days');
             var $reminderThresholdWrapper = $('#jph-reminder-threshold-wrapper');
             var reminderTimeout;
             
             // Toggle reminder enabled/disabled
-            $reminderEnabled.on('change', function() {
-                var isEnabled = $(this).is(':checked');
-                if (isEnabled) {
-                    $reminderThresholdWrapper.css({
-                        'opacity': '1',
-                        'pointer-events': 'auto'
-                    });
-                } else {
-                    $reminderThresholdWrapper.css({
-                        'opacity': '0.5',
-                        'pointer-events': 'none'
-                    });
-                }
-                saveReminderSettings();
-            });
+            if ($reminderEnabled.length) {
+                $reminderEnabled.on('change', function() {
+                    var isEnabled = $(this).is(':checked');
+                    if (isEnabled) {
+                        $reminderThresholdWrapper.css({
+                            'opacity': '1',
+                            'pointer-events': 'auto'
+                        });
+                    } else {
+                        $reminderThresholdWrapper.css({
+                            'opacity': '0.5',
+                            'pointer-events': 'none'
+                        });
+                    }
+                    saveReminderSettings();
+                });
+            }
             
             // Save reminder settings on threshold change
-            $reminderThreshold.on('change', function() {
-                var value = parseInt($(this).val());
-                if (value < 1) {
-                    $(this).val(1);
-                } else if (value > 14) {
-                    $(this).val(14);
-                }
-                saveReminderSettings();
-            });
+            if ($reminderThreshold.length) {
+                $reminderThreshold.on('change', function() {
+                    var value = parseInt($(this).val());
+                    if (value < 1) {
+                        $(this).val(1);
+                    } else if (value > 14) {
+                        $(this).val(14);
+                    }
+                    saveReminderSettings();
+                });
+            }
             
             // Debounced save function
             function saveReminderSettings() {
@@ -16857,7 +18598,6 @@ class JPH_Frontend {
             
             // Initialize PLAN tab
             initPlanTab();
-            <?php endif; ?>
             
             // Handle #jpc anchor on page load
             if (window.location.hash === '#jpc') {
@@ -16896,6 +18636,7 @@ class JPH_Frontend {
             
             // Initialize dashboard settings
             initDashboardSettings();
+            initRoadmapHideButtons();
             loadAndApplyPreferences();
             
             // Initialize notification popup
@@ -17296,6 +19037,24 @@ class JPH_Frontend {
                 }
             }
             
+            const defaultDashboardPreferences = {
+                stats: true,
+                roadmap: true,
+                search_section: true,
+                repertoire_section: true,
+                tab_shield: true,
+                tab_badges: true,
+                tab_analytics: true,
+                auto_gem_streak_save: true,
+                dark_mode: false,
+                bg_color: '#ffffff',
+                accent_color: '#004555',
+                theme: 'default',
+                color_palette: 'default'
+            };
+            
+            let dashboardPreferences = null;
+
             // Load current dashboard preferences
             function loadDashboardPreferences() {
                 $.ajax({
@@ -17307,6 +19066,7 @@ class JPH_Frontend {
                     success: function(response) {
                         if (response.success && response.preferences) {
                             const prefs = response.preferences;
+                            dashboardPreferences = prefs;
                             $('#setting-stats').prop('checked', prefs.stats !== false);
                             $('#setting-roadmap').prop('checked', prefs.roadmap !== false);
                             $('#setting-search-section').prop('checked', prefs.search_section !== false);
@@ -17314,6 +19074,7 @@ class JPH_Frontend {
                             $('#setting-tab-shield').prop('checked', prefs.tab_shield !== false);
                             $('#setting-tab-badges').prop('checked', prefs.tab_badges !== false);
                             $('#setting-tab-analytics').prop('checked', prefs.tab_analytics !== false);
+                            $('#auto-gem-streak-toggle').prop('checked', prefs.auto_gem_streak_save === true);
                             
                             // Load theme preferences
                             $('#setting-dark-mode').prop('checked', prefs.dark_mode === true);
@@ -17351,12 +19112,82 @@ class JPH_Frontend {
                     success: function(response) {
                         if (response.success && response.preferences) {
                             const prefs = response.preferences;
+                            dashboardPreferences = prefs;
                             updateDashboardVisibility(prefs);
                             applyDashboardTheme(prefs);
                             if (prefs.color_palette) {
                                 applyColorPalette(prefs.color_palette);
                             }
+                            $('#auto-gem-streak-toggle').prop('checked', prefs.auto_gem_streak_save === true);
                         }
+                    }
+                });
+            }
+            
+            function initRoadmapHideButtons() {
+                $(document).on('click', '.jph-roadmap-hide', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    updateRoadmapVisibilityPreference(false);
+                });
+            }
+            
+            function updateRoadmapVisibilityPreference(isVisible) {
+                const applyAndSave = function(existingPreferences) {
+                    const preferences = $.extend({}, defaultDashboardPreferences, existingPreferences, {
+                        roadmap: isVisible
+                    });
+                    
+                    $('#setting-roadmap').prop('checked', isVisible);
+                    updateDashboardVisibility(preferences);
+                    
+                    $.ajax({
+                        url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(preferences),
+                        beforeSend: function(xhr) {
+                            xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                dashboardPreferences = response.preferences || preferences;
+                                updateDashboardVisibility(dashboardPreferences);
+                                if (typeof showMessage === 'function') {
+                                    showMessage('Roadmap hidden. You can re-enable it in Dashboard Settings.', 'success');
+                                }
+                            } else if (typeof showMessage === 'function') {
+                                showMessage('Error saving roadmap preference. Please try again.', 'error');
+                            }
+                        },
+                        error: function() {
+                            if (typeof showMessage === 'function') {
+                                showMessage('Error saving roadmap preference. Please try again.', 'error');
+                            }
+                        }
+                    });
+                };
+                
+                if (dashboardPreferences) {
+                    applyAndSave(dashboardPreferences);
+                    return;
+                }
+                
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
+                    method: 'GET',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success && response.preferences) {
+                            applyAndSave(response.preferences);
+                        } else {
+                            applyAndSave({});
+                        }
+                    },
+                    error: function() {
+                        applyAndSave({});
                     }
                 });
             }
@@ -17469,8 +19300,19 @@ class JPH_Frontend {
                         },
                         success: function(response) {
                             if (response.success) {
+                                let message = '✓ Stats recalculated successfully!';
+                                const shieldsUsed = response.streak
+                                    && response.streak.streak_update
+                                    && typeof response.streak.streak_update.shields_used === 'number'
+                                    ? response.streak.streak_update.shields_used
+                                    : 0;
+                                if (shieldsUsed > 0) {
+                                    message += ' Shields used: ' + shieldsUsed + '.';
+                                }
+                                message += ' Refreshing page...';
+                                
                                 // Show success message briefly, then refresh page
-                                showMessage('✓ Stats recalculated successfully! Refreshing page...', 'success');
+                                showMessage(message, 'success');
                                 
                                 // Refresh page after a short delay to show the message
                                 setTimeout(function() {
@@ -17584,6 +19426,7 @@ class JPH_Frontend {
                     tab_shield: $('#setting-tab-shield').is(':checked'),
                     tab_badges: $('#setting-tab-badges').is(':checked'),
                     tab_analytics: $('#setting-tab-analytics').is(':checked'),
+                    auto_gem_streak_save: $('#auto-gem-streak-toggle').is(':checked'),
                     dark_mode: $('#setting-dark-mode').is(':checked'),
                     bg_color: $('#setting-bg-color').val(),
                     accent_color: $('#setting-accent-color').val(),
@@ -17611,6 +19454,7 @@ class JPH_Frontend {
                             if (preferences.color_palette) {
                                 applyColorPalette(preferences.color_palette);
                             }
+                            dashboardPreferences = preferences;
                             
                             // Show success message
                             showMessage('Dashboard settings saved successfully!', 'success');
@@ -17627,6 +19471,60 @@ class JPH_Frontend {
                     },
                     error: function() {
                         showMessage('Error saving settings. Please try again.', 'error');
+                    }
+                });
+            }
+
+            function saveAutoGemStreakPreference(isEnabled) {
+                const postPreferences = function(preferences) {
+                    preferences.auto_gem_streak_save = !!isEnabled;
+                    $.ajax({
+                        url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(preferences),
+                        beforeSend: function(xhr) {
+                            xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                dashboardPreferences = preferences;
+                                showMessage('Auto-save streak preference updated.', 'success');
+                            } else {
+                                showMessage('Error saving preference. Please try again.', 'error');
+                                $('#auto-gem-streak-toggle').prop('checked', !isEnabled);
+                            }
+                        },
+                        error: function() {
+                            showMessage('Error saving preference. Please try again.', 'error');
+                            $('#auto-gem-streak-toggle').prop('checked', !isEnabled);
+                        }
+                    });
+                };
+
+                if (dashboardPreferences) {
+                    postPreferences({ ...dashboardPreferences });
+                    return;
+                }
+
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
+                    method: 'GET',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success && response.preferences) {
+                            dashboardPreferences = response.preferences;
+                            postPreferences({ ...dashboardPreferences });
+                        } else {
+                            showMessage('Error saving preference. Please try again.', 'error');
+                            $('#auto-gem-streak-toggle').prop('checked', !isEnabled);
+                        }
+                    },
+                    error: function() {
+                        showMessage('Error saving preference. Please try again.', 'error');
+                        $('#auto-gem-streak-toggle').prop('checked', !isEnabled);
                     }
                 });
             }
@@ -17870,6 +19768,7 @@ class JPH_Frontend {
             initPracticeSessionHandlers();
             initShieldHandlers();
             initStatsHandlers();
+            initStreakExplainerModal();
             initDisplayNameHandlers();
             
             
@@ -17956,6 +19855,45 @@ class JPH_Frontend {
                 }
                 return notes.substring(0, maxLength) + '...';
             }
+
+            function formatSessionDateTime(session) {
+                let dateObj = null;
+                if (session.created_at_utc) {
+                    const utcIso = session.created_at_utc.replace(' ', 'T') + 'Z';
+                    dateObj = new Date(utcIso);
+                } else if (session.created_at) {
+                    const localIso = session.created_at.replace(' ', 'T');
+                    dateObj = new Date(localIso);
+                }
+
+                if (!dateObj || isNaN(dateObj.getTime())) {
+                    return { date: 'Unknown', time: '' };
+                }
+
+                const timezone = session.user_timezone_at_session || '';
+                const dateOptions = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+                const timeOptions = { hour: 'numeric', minute: '2-digit' };
+
+                let dateFormatter;
+                let timeFormatter;
+                if (timezone) {
+                    try {
+                        dateFormatter = new Intl.DateTimeFormat(undefined, { ...dateOptions, timeZone: timezone });
+                        timeFormatter = new Intl.DateTimeFormat(undefined, { ...timeOptions, timeZone: timezone });
+                    } catch (e) {
+                        dateFormatter = new Intl.DateTimeFormat(undefined, dateOptions);
+                        timeFormatter = new Intl.DateTimeFormat(undefined, timeOptions);
+                    }
+                } else {
+                    dateFormatter = new Intl.DateTimeFormat(undefined, dateOptions);
+                    timeFormatter = new Intl.DateTimeFormat(undefined, timeOptions);
+                }
+
+                return {
+                    date: dateFormatter.format(dateObj),
+                    time: timeFormatter.format(dateObj)
+                };
+            }
             
             // Display practice history
             function displayPracticeHistory(sessions, hasMore = false) {
@@ -17964,7 +19902,7 @@ class JPH_Frontend {
                     html = '<div class="no-sessions">No practice sessions found.</div>';
                 } else {
                     sessions.forEach(session => {
-                        const date = new Date(session.created_at).toLocaleDateString();
+                        const formattedDateTime = formatSessionDateTime(session);
                         const score = parseInt(session.sentiment_score, 10);
                         const sentimentIconMap = {
                             1: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>',
@@ -17994,7 +19932,8 @@ class JPH_Frontend {
                     
                     html += `
                             <div class="practice-history-item">
-                                <div class="practice-history-item-content">${date}</div>
+                                <div class="practice-history-item-content">${formattedDateTime.date}</div>
+                                ${!isMobile ? `<div class="practice-history-item-content center">${formattedDateTime.time}</div>` : ''}
                                 <div class="practice-history-item-content">${session.item_name}</div>
                                 <div class="practice-history-item-content center">${session.duration_minutes} min</div>
                                 ${!isMobile ? `<div class="practice-history-item-content center">${sentiment}</div>` : ''}
@@ -19811,6 +21750,11 @@ class JPH_Frontend {
                     
                     alert(`Insufficient gems! You have ${gemBalance} 💎 but need ${cost} 💎. You need ${needed} more gems to purchase a shield.`);
                 });
+
+                jQuery(document).on('change', '#auto-gem-streak-toggle', function() {
+                    const isEnabled = jQuery(this).is(':checked');
+                    saveAutoGemStreakPreference(isEnabled);
+                });
             }
             
             
@@ -19836,6 +21780,37 @@ class JPH_Frontend {
                 $(window).on('click', function(event) {
                     if (event.target.id === 'jph-stats-explanation-modal') {
                         $('#jph-stats-explanation-modal').hide();
+                    }
+                });
+            }
+
+            function initStreakExplainerModal() {
+                const modal = $('#jph-streak-explainer-modal');
+                const closeBtn = $('#jph-streak-explainer-close');
+                const missingToggle = $('.jph-streak-missing-toggle');
+                
+                $('.jph-streak-explainer-btn').on('click', function() {
+                    modal.show();
+                });
+                
+                closeBtn.on('click', function() {
+                    modal.hide();
+                });
+
+                missingToggle.on('click', function() {
+                    const $toggle = $(this);
+                    const $list = $toggle.next('.jph-streak-missing-list');
+                    const isExpanded = $toggle.attr('aria-expanded') === 'true';
+                    $toggle.attr('aria-expanded', String(!isExpanded));
+                    $toggle.text(isExpanded ? 'Show missing dates' : 'Hide missing dates');
+                    if ($list.length) {
+                        $list.prop('hidden', isExpanded);
+                    }
+                });
+                
+                $(window).on('click', function(event) {
+                    if (event.target.id === 'jph-streak-explainer-modal') {
+                        modal.hide();
                     }
                 });
             }
@@ -24775,10 +26750,10 @@ Leaderboard Status:
         
         // Get all community spaces (excluding space_group and sidebar_link types)
         $spaces = $wpdb->get_results("
-            SELECT id, title, type 
+            SELECT id, title, type, slug
             FROM {$wpdb->prefix}fcom_spaces 
-            WHERE type IN ('community') 
-            AND status = 'published'
+            WHERE (type IN ('community') AND status = 'published')
+            OR slug = 'cocktailpiano'
             ORDER BY id ASC
         ");
         

@@ -40,8 +40,12 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Confirmation dialogs for destructive actions
+    // Confirmation dialogs for destructive actions (skip elements that already have their own onclick confirm)
     $('a[href*="delete"], button[data-action="delete"]').on('click', function(e) {
+        var onclick = $(this).attr('onclick') || '';
+        if (onclick.indexOf('confirm') !== -1) {
+            return; // Already has its own confirm, don't add a second one
+        }
         if (!confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
             e.preventDefault();
             return false;
@@ -829,6 +833,92 @@ jQuery(document).ready(function($) {
                 } else {
                     console.error('AJAX error:', response);
                     $status.html('<span style="color: #dc3232; font-weight: bold;">❌ ' + (response.data && response.data.message ? response.data.message : 'Error generating description') + '</span>');
+                }
+                
+                $button.prop('disabled', false);
+                $button.html(originalText);
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX error:', status, error, xhr);
+                var errorMsg = 'AJAX error occurred';
+                if (status === 'timeout') {
+                    errorMsg = 'Request timed out. Please try again.';
+                } else if (xhr.responseText) {
+                    try {
+                        var errorResponse = JSON.parse(xhr.responseText);
+                        if (errorResponse.data && errorResponse.data.message) {
+                            errorMsg = errorResponse.data.message;
+                        }
+                    } catch(e) {
+                        // Ignore parse errors
+                    }
+                }
+                $status.html('<span style="color: #dc3232; font-weight: bold;">❌ ' + errorMsg + '</span>');
+                $button.prop('disabled', false);
+                $button.html(originalText);
+            }
+        });
+    });
+    
+    // Handle AI description expansion
+    $(document).on('click', '#alm-expand-description', function(e) {
+        e.preventDefault();
+        
+        var $button = $(this);
+        var lessonId = $button.data('lesson-id');
+        var $status = $('#alm-expand-description-status');
+        var $textarea = $('#lesson_description');
+        var currentDescription = $textarea.val().trim();
+        
+        if (!lessonId) {
+            console.error('No lesson ID found');
+            $status.html('<span style="color: #dc3232; font-weight: bold;">❌ Error: No lesson ID</span>');
+            return;
+        }
+        
+        if (!currentDescription) {
+            $status.html('<span style="color: #dc3232; font-weight: bold;">❌ Please enter a description first to expand.</span>');
+            return;
+        }
+        
+        // Store original button text
+        var originalText = $button.html();
+        
+        // Update button and show status
+        $button.prop('disabled', true);
+        $button.html('<span class="spinner" style="float: none; margin: 0 5px 0 0; visibility: visible;"></span> Expanding...');
+        $status.html('<span style="color: #2271b1; font-weight: bold;">⏳ Expanding description with AI... This may take 10-30 seconds.</span>');
+        
+        $.ajax({
+            url: alm_admin.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'alm_expand_lesson_description',
+                lesson_id: lessonId,
+                current_description: currentDescription,
+                nonce: alm_admin.nonce
+            },
+            timeout: 60000, // 60 second timeout
+            success: function(response) {
+                
+                if (response.success) {
+                    // Replace existing description with expanded one
+                    $textarea.val(response.data.description);
+                    $status.html('<span style="color: #46b450; font-weight: bold;">✅ ' + response.data.message + '</span>');
+                    
+                    // Highlight the textarea briefly to show it was updated
+                    $textarea.css('background-color', '#d4edda');
+                    setTimeout(function() {
+                        $textarea.css('background-color', '');
+                    }, 2000);
+                    
+                    // Clear status after 5 seconds
+                    setTimeout(function() {
+                        $status.html('');
+                    }, 5000);
+                } else {
+                    console.error('AJAX error:', response);
+                    $status.html('<span style="color: #dc3232; font-weight: bold;">❌ ' + (response.data && response.data.message ? response.data.message : 'Error expanding description') + '</span>');
                 }
                 
                 $button.prop('disabled', false);

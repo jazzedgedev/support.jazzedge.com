@@ -16,6 +16,7 @@ class JPH_Admin_Pages {
         add_action('admin_menu', array($this, 'add_admin_menu'), 999);
         add_action('admin_head', array($this, 'add_menu_badge_styles'));
         add_action('admin_menu', array($this, 'update_grade_jpc_menu_badge'), 1000);
+        add_action('wp_ajax_jph_test_reminders', array($this, 'ajax_test_reminders'));
     }
     
     /**
@@ -372,6 +373,21 @@ class JPH_Admin_Pages {
             </div>
         </div>
         
+        <!-- View Student History Modal -->
+        <div id="jph-view-history-modal" class="jph-modal" style="display: none;">
+            <div class="jph-modal-content" style="max-width: 990px;">
+                <div class="jph-modal-header">
+                    <h2>🕒 Student Viewing History</h2>
+                    <button class="jph-modal-close" onclick="closeViewHistoryModal()">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+                <div class="jph-modal-body" id="jph-view-history-content">
+                    <div class="jph-loading">Loading viewing history...</div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Bulk Fix Stats Modal -->
         <div id="jph-bulk-fix-modal" class="jph-modal" style="display: none;">
             <div class="jph-modal-content" style="max-width: 600px;">
@@ -702,6 +718,26 @@ class JPH_Admin_Pages {
             return `${month}/${day}/${year}`;
         }
         
+        function formatDateTime(dateTimeString) {
+            if (!dateTimeString) return 'N/A';
+            
+            const normalized = dateTimeString.replace(' ', 'T');
+            const date = new Date(normalized);
+            if (isNaN(date.getTime())) {
+                return dateTimeString;
+            }
+            
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const year = date.getFullYear();
+            const hours24 = date.getHours();
+            const hours = (hours24 % 12) || 12;
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            const ampm = hours24 >= 12 ? 'PM' : 'AM';
+            
+            return `${month}/${day}/${year} ${hours}:${minutes} ${ampm}`;
+        }
+        
         function loadStudentsStats() {
             fetch('<?php echo rest_url('aph/v1/students/stats'); ?>', {
                 method: 'GET',
@@ -808,10 +844,12 @@ class JPH_Admin_Pages {
                     <td>${student.gems_balance || 0}</td>
                     <td>
                         <button type="button" class="button button-small" onclick="viewStudent(${student.ID})">View</button>
+                        <button type="button" class="button button-small" onclick="viewStudentHistory(${student.ID})">View History</button>
                         <button type="button" class="button button-small" onclick="editStudentStats(${student.ID})">Edit</button>
                         <button type="button" class="button button-small" onclick="fixStudentStreak(${student.ID}, this)" title="Recalculate streak from practice sessions">🔧 Fix Streak</button>
                         <button type="button" class="button button-small" onclick="fixStudentLevel(${student.ID}, this)" title="Recalculate level from total XP">⭐ Fix Level</button>
-                        <button type="button" class="button button-small" onclick="copyStudentDebugData(${student.ID}, this)" title="Copy all debug data to clipboard">🐛 Debug</button>
+                        <button type="button" class="button button-small" onclick="copyStudentDebugData(${student.ID}, this)" title="Copy debug data to clipboard (limited sessions)">🐛 Debug</button>
+                        <button type="button" class="button button-small" onclick="copyStudentPracticeHistory(${student.ID}, this)" title="Copy full practice history to clipboard">📋 History</button>
                     </td>
                 </tr>
             `;
@@ -863,6 +901,63 @@ class JPH_Admin_Pages {
             .catch(error => {
                 console.error('Error loading student:', error);
                 content.innerHTML = '<p>Error loading student details</p>';
+            });
+        }
+        
+        function viewStudentHistory(userId) {
+            const modal = document.getElementById('jph-view-history-modal');
+            const content = document.getElementById('jph-view-history-content');
+            
+            modal.style.display = 'flex';
+            content.innerHTML = '<div class="jph-loading">Loading viewing history...</div>';
+            
+            fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}/viewing-history?limit=25`, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.history && data.history.length > 0) {
+                    const rows = data.history.map(item => {
+                        const title = item.title || 'Untitled';
+                        const collection = item.collection_title || 'N/A';
+                        const viewLink = item.post_url ? `<a href="${item.post_url}" target="_blank" rel="noopener noreferrer">View Lesson</a>` : 'N/A';
+                        return `
+                            <tr>
+                                <td>${formatDateTime(item.datetime)}</td>
+                                <td>${title}</td>
+                                <td>${collection}</td>
+                                <td>${item.type || 'lesson'}</td>
+                                <td>${viewLink}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                    
+                    content.innerHTML = `
+                        <table class="jph-students-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Lesson Title</th>
+                                    <th>Collection</th>
+                                    <th>Type</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    content.innerHTML = '<p>No viewing history found.</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading viewing history:', error);
+                content.innerHTML = '<p>Error loading viewing history.</p>';
             });
         }
         
@@ -1157,9 +1252,53 @@ class JPH_Admin_Pages {
                 alert('Error getting debug data: ' + error.message);
             }
         }
+
+        async function copyStudentPracticeHistory(userId, btn) {
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`<?php echo rest_url('aph/v1/students/'); ?>${userId}/practice-history`, {
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const historyText = JSON.stringify(data, null, 2);
+                    await navigator.clipboard.writeText(historyText);
+
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+
+                    alert('Full practice history copied to clipboard!');
+                } else {
+                    throw new Error(data.message || 'Failed to get practice history');
+                }
+            } catch (error) {
+                console.error('Practice history error:', error);
+                btn.textContent = 'Error';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 2000);
+                alert('Error getting practice history: ' + error.message);
+            }
+        }
         
         function closeViewStudentModal() {
             document.getElementById('jph-view-student-modal').style.display = 'none';
+        }
+        
+        function closeViewHistoryModal() {
+            document.getElementById('jph-view-history-modal').style.display = 'none';
         }
         
         function closeEditStudentModal() {
@@ -4617,6 +4756,29 @@ Remember: Plain text only, no formatting.');
         
         $current_page_id = get_option('jph_practice_hub_page_id', '');
         $current_quota_limit = get_option('jph_ai_quota_limit', 50000);
+        $current_reminder_tag = get_option('jph_reminder_fluentcrm_tag', 'Practice Reminder');
+        $current_cooldown_days = get_option('jph_reminder_cooldown_days', 5);
+        
+        // Handle FluentCRM tag setting save
+        if (isset($_POST['jph_reminder_tag_submit']) && isset($_POST['jph_reminder_tag_nonce']) && wp_verify_nonce($_POST['jph_reminder_tag_nonce'], 'jph_reminder_tag_action')) {
+            $reminder_tag = sanitize_text_field($_POST['jph_reminder_fluentcrm_tag'] ?? 'Practice Reminder');
+            update_option('jph_reminder_fluentcrm_tag', $reminder_tag);
+            $current_reminder_tag = $reminder_tag;
+            echo '<div class="notice notice-success"><p>FluentCRM reminder tag saved successfully!</p></div>';
+        }
+        
+        // Handle cooldown days setting save
+        if (isset($_POST['jph_cooldown_days_submit']) && isset($_POST['jph_cooldown_days_nonce']) && wp_verify_nonce($_POST['jph_cooldown_days_nonce'], 'jph_cooldown_days_action')) {
+            $cooldown_days = intval($_POST['jph_reminder_cooldown_days'] ?? 5);
+            if ($cooldown_days >= 1 && $cooldown_days <= 30) {
+                update_option('jph_reminder_cooldown_days', $cooldown_days);
+                $current_cooldown_days = $cooldown_days;
+                echo '<div class="notice notice-success"><p>Reminder cooldown days saved successfully!</p></div>';
+            } else {
+                echo '<div class="notice notice-error"><p>Cooldown days must be between 1 and 30.</p></div>';
+            }
+        }
+
         ?>
         <div class="wrap">
             <h1>⚙️ Practice Hub Settings</h1>
@@ -4663,6 +4825,392 @@ Remember: Plain text only, no formatting.');
                     </form>
                 </div>
                 
+                <!-- Practice Reminder Settings -->
+                <div class="jph-settings-section jph-reminder-settings">
+                    <h2>🔔 Practice Reminder Settings</h2>
+                    <p>Configure FluentCRM integration for practice reminders.</p>
+                    
+                    <form method="post" action="">
+                        <?php wp_nonce_field('jph_reminder_tag_action', 'jph_reminder_tag_nonce'); ?>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="jph_reminder_fluentcrm_tag">FluentCRM Reminder Tag</label>
+                                </th>
+                                <td>
+                                    <?php
+                                    // Get FluentCRM tags
+                                    $fluentcrm_tags = array();
+                                    $fluentcrm_available = function_exists('fluentCrmApi');
+                                    
+                                    if ($fluentcrm_available) {
+                                        try {
+                                            // Try API first
+                                            $tags = fluentCrmApi('tags')->all();
+                                            if ($tags && is_array($tags) && count($tags) > 0) {
+                                                foreach ($tags as $tag) {
+                                                    $tag_title = is_object($tag) ? $tag->title : (is_array($tag) ? ($tag['title'] ?? '') : '');
+                                                    if ($tag_title) {
+                                                        $fluentcrm_tags[$tag_title] = $tag_title;
+                                                    }
+                                                }
+                                            }
+                                        } catch (Exception $e) {
+                                            // API failed, try database directly
+                                        }
+                                    }
+                                    
+                                    // If no tags from API, query database directly
+                                    if (empty($fluentcrm_tags)) {
+                                        global $wpdb;
+                                        $tags_table = $wpdb->prefix . 'fc_tags';
+                                        
+                                        // Check if table exists
+                                        $table_exists = $wpdb->get_var($wpdb->prepare(
+                                            "SHOW TABLES LIKE %s",
+                                            $tags_table
+                                        ));
+                                        
+                                        if ($table_exists) {
+                                            $db_tags = $wpdb->get_results(
+                                                "SELECT id, title FROM {$tags_table} ORDER BY title ASC",
+                                                ARRAY_A
+                                            );
+                                            
+                                            if ($db_tags && is_array($db_tags)) {
+                                                foreach ($db_tags as $tag) {
+                                                    if (!empty($tag['title'])) {
+                                                        $fluentcrm_tags[$tag['title']] = $tag['title'];
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Sort tags alphabetically
+                                    ksort($fluentcrm_tags);
+                                    ?>
+                                    
+                                    <?php if ($fluentcrm_available && !empty($fluentcrm_tags)): ?>
+                                        <select name="jph_reminder_fluentcrm_tag" id="jph_reminder_fluentcrm_tag" style="width: 300px;">
+                                            <option value="">-- Select a Tag --</option>
+                                            <?php foreach ($fluentcrm_tags as $tag_title): ?>
+                                                <option value="<?php echo esc_attr($tag_title); ?>" <?php selected($current_reminder_tag, $tag_title); ?>>
+                                                    <?php echo esc_html($tag_title); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <p class="description">
+                                            Select the FluentCRM tag that will be applied when a practice reminder is triggered.
+                                            <br><small>Set up your email automation in FluentCRM to trigger when this tag is applied.</small>
+                                        </p>
+                                    <?php elseif (!$fluentcrm_available): ?>
+                                        <input type="text" name="jph_reminder_fluentcrm_tag" id="jph_reminder_fluentcrm_tag" 
+                                               value="<?php echo esc_attr($current_reminder_tag); ?>" 
+                                               style="width: 300px;" />
+                                        <p class="description">
+                                            <strong>FluentCRM is not available.</strong> Enter a tag name manually. The tag will be created automatically in FluentCRM when reminders are triggered.
+                                        </p>
+                                    <?php else: ?>
+                                        <input type="text" name="jph_reminder_fluentcrm_tag" id="jph_reminder_fluentcrm_tag" 
+                                               value="<?php echo esc_attr($current_reminder_tag); ?>" 
+                                               style="width: 300px;" />
+                                        <p class="description">
+                                            <strong>No FluentCRM tags found.</strong> Enter a tag name manually. The tag will be created automatically in FluentCRM when reminders are triggered.
+                                        </p>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <?php submit_button('Save Reminder Tag', 'primary', 'jph_reminder_tag_submit'); ?>
+                    </form>
+                    
+                    <form method="post" action="" style="margin-top: 20px;">
+                        <?php wp_nonce_field('jph_cooldown_days_action', 'jph_cooldown_days_nonce'); ?>
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="jph_reminder_cooldown_days">Global Cooldown Days</label>
+                                </th>
+                                <td>
+                                    <input type="number" name="jph_reminder_cooldown_days" id="jph_reminder_cooldown_days" 
+                                           value="<?php echo esc_attr($current_cooldown_days); ?>" 
+                                           min="1" max="30" style="width: 100px;" />
+                                    <p class="description">
+                                        Set the default cooldown period for all users. Users can only receive reminders at most once every X days.
+                                        <br><small>This setting affects all users. Current value: <strong><?php echo esc_html($current_cooldown_days); ?> days</strong></small>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        <?php submit_button('Save Cooldown Days', 'secondary', 'jph_cooldown_days_submit'); ?>
+                    </form>
+                </div>
+
+                
+                <!-- Practice Reminder Status -->
+                <div class="jph-settings-section jph-reminder-status">
+                    <h2>🔍 Practice Reminder System Status</h2>
+                    <p>Check if the reminder system is working correctly.</p>
+                    
+                    <?php
+                    global $wpdb;
+                    require_once plugin_dir_path(__FILE__) . '../includes/class-database.php';
+                    $database = new JPH_Database();
+                    
+                    // Check cron status
+                    $next_run = wp_next_scheduled('jph_daily_practice_reminder_check');
+                    $cron_scheduled = $next_run !== false;
+                    
+                    // Check FluentCRM availability
+                    $fluentcrm_available = function_exists('fluentCrmApi');
+                    
+                    // Get configured tag
+                    $reminder_tag = get_option('jph_reminder_fluentcrm_tag', 'Practice Reminder');
+                    
+                    // Get user statistics
+                    $table_name = $wpdb->prefix . 'jph_user_plans';
+                    $users_with_reminders = $wpdb->get_var(
+                        "SELECT COUNT(*) FROM {$table_name} WHERE reminder_enabled = 1"
+                    );
+                    
+                    // Get users eligible for reminders (past threshold, not in cooldown)
+                    $wp_timezone = wp_timezone();
+                    $now = current_time('mysql');
+                    $now_date = new DateTime($now, $wp_timezone);
+                    $now_start = clone $now_date;
+                    $now_start->setTime(0, 0, 0);
+                    
+                    $eligible_users = array();
+                    $all_users = $wpdb->get_results(
+                        "SELECT user_id, reminder_enabled, reminder_threshold_days, last_practiced_date, 
+                                last_reminder_sent, reminder_cooldown_days
+                         FROM {$table_name}
+                         WHERE reminder_enabled = 1"
+                    );
+                    
+                    foreach ($all_users as $user_data) {
+                        $threshold = intval($user_data->reminder_threshold_days);
+                        $cooldown = intval($user_data->reminder_cooldown_days);
+                        $last_practiced = $user_data->last_practiced_date;
+                        $last_reminder = $user_data->last_reminder_sent;
+                        
+                        // Calculate days since last practice
+                        if ($last_practiced) {
+                            $last_practiced_date = new DateTime($last_practiced, $wp_timezone);
+                            $last_practiced_start = clone $last_practiced_date;
+                            $last_practiced_start->setTime(0, 0, 0);
+                            $days_since = $now_start->diff($last_practiced_start)->days;
+                        } else {
+                            $days_since = 999; // Never practiced
+                        }
+                        
+                        // Check if eligible
+                        $eligible = false;
+                        $reason = '';
+                        
+                        if ($days_since < $threshold) {
+                            $reason = "Only {$days_since} day(s) since practice (needs {$threshold})";
+                        } elseif ($last_reminder) {
+                            $last_reminder_date = new DateTime($last_reminder, $wp_timezone);
+                            $last_reminder_start = clone $last_reminder_date;
+                            $last_reminder_start->setTime(0, 0, 0);
+                            $days_since_reminder = $now_start->diff($last_reminder_start)->days;
+                            
+                            if ($days_since_reminder < $cooldown) {
+                                $reason = "In cooldown period ({$days_since_reminder}/{$cooldown} days)";
+                            } else {
+                                $eligible = true;
+                                $reason = "Eligible - {$days_since} days since practice";
+                            }
+                        } else {
+                            $eligible = true;
+                            $reason = "Eligible - {$days_since} days since practice";
+                        }
+                        
+                        if ($eligible) {
+                            $user = get_user_by('ID', $user_data->user_id);
+                            if ($user) {
+                                $eligible_users[] = array(
+                                    'user_id' => $user_data->user_id,
+                                    'email' => $user->user_email,
+                                    'name' => $user->display_name,
+                                    'days_since' => $days_since,
+                                    'threshold' => $threshold
+                                );
+                            }
+                        }
+                    }
+                    
+                    // Get recent logs
+                    $view_all = isset($_GET['view_all_logs']) && $_GET['view_all_logs'] == '1';
+                    $log_limit = $view_all ? 100 : 10;
+                    $logs = $database->get_reminder_logs($log_limit); // Last entries
+                    ?>
+                    
+                    <div class="jph-reminder-status-container" style="margin-top: 20px;">
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">System Status</th>
+                                <td>
+                                    <ul style="list-style: none; padding: 0; margin: 0;">
+                                        <li style="margin-bottom: 8px;">
+                                            <strong>FluentCRM:</strong> 
+                                            <?php if ($fluentcrm_available): ?>
+                                                <span style="color: green;">✓ Available</span>
+                                            <?php else: ?>
+                                                <span style="color: red;">✗ Not Available</span>
+                                            <?php endif; ?>
+                                        </li>
+                                        <li style="margin-bottom: 8px;">
+                                            <strong>Cron Job:</strong> 
+                                            <?php if ($cron_scheduled): ?>
+                                                <span style="color: green;">✓ Scheduled</span>
+                                                <?php if ($next_run): ?>
+                                                    <br><small>Next run: <?php echo esc_html(date('Y-m-d H:i:s', $next_run)); ?> (<?php echo human_time_diff($next_run, current_time('timestamp')); ?> from now)</small>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span style="color: red;">✗ Not Scheduled</span>
+                                            <?php endif; ?>
+                                            <?php 
+                                            $disable_wp_cron = defined('DISABLE_WP_CRON') && DISABLE_WP_CRON;
+                                            ?>
+                                            <br><small>WordPress Cron: <?php echo $disable_wp_cron ? '<span style="color: orange;">Disabled</span> (using Alternate Cron or external)' : '<span style="color: #666;">Enabled</span> (requires page visits)'; ?></small>
+                                        </li>
+                                        <li style="margin-bottom: 8px;">
+                                            <strong>External Cron URL:</strong>
+                                            <?php
+                                            $cron_secret = get_option('jph_reminder_cron_secret_key', '');
+                                            if (empty($cron_secret)) {
+                                                // Generate one if it doesn't exist
+                                                $cron_secret = wp_generate_password(32, false);
+                                                update_option('jph_reminder_cron_secret_key', $cron_secret);
+                                            }
+                                            $cron_url = rest_url('aph/v1/reminders/trigger-cron?key=' . $cron_secret);
+                                            ?>
+                                            <br><code style="font-size: 11px; word-break: break-all;"><?php echo esc_html($cron_url); ?></code>
+                                            <br><small>Use this URL with an external cron service (e.g., cron-job.org, EasyCron) to trigger reminders at 9 AM daily</small>
+                                        </li>
+                                        <li style="margin-bottom: 8px;">
+                                            <strong>Reminder Tag:</strong> 
+                                            <code><?php echo esc_html($reminder_tag); ?></code>
+                                        </li>
+                                        <li style="margin-bottom: 8px;">
+                                            <strong>Users with Reminders Enabled:</strong> 
+                                            <?php echo esc_html($users_with_reminders); ?>
+                                        </li>
+                                        <li style="margin-bottom: 8px;">
+                                            <strong>Users Currently Eligible:</strong> 
+                                            <strong style="color: <?php echo count($eligible_users) > 0 ? 'orange' : 'green'; ?>;">
+                                                <?php echo count($eligible_users); ?>
+                                            </strong>
+                                            <?php if (count($eligible_users) > 0): ?>
+                                                <br><small>These users will receive reminder tags on the next cron run (9 AM daily)</small>
+                                            <?php endif; ?>
+                                        </li>
+                                    </ul>
+                                    <p style="margin-top: 15px;">
+                                        <button type="button" id="jph-test-reminders-now" class="button button-secondary">
+                                            Test Reminders Now
+                                        </button>
+                                        <span id="jph-test-reminders-status" style="margin-left: 10px;"></span>
+                                    </p>
+                                    <p style="margin-top: 10px;">
+                                        <strong>Debug Specific User:</strong><br>
+                                        <input type="text" id="jph-debug-user-input" placeholder="User ID or Email" style="width: 200px; margin-top: 5px;">
+                                        <button type="button" id="jph-debug-user-btn" class="button button-secondary" style="margin-left: 5px;">
+                                            Check User
+                                        </button>
+                                        <div id="jph-debug-user-result" style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px; display: none;"></div>
+                                    </p>
+                                </td>
+                            </tr>
+                            <?php if (count($eligible_users) > 0): ?>
+                            <tr>
+                                <th scope="row">Eligible Users</th>
+                                <td>
+                                    <table class="wp-list-table widefat fixed" style="margin-top: 10px;">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 80px;">ID</th>
+                                                <th style="width: 200px;">Email</th>
+                                                <th style="width: 150px;">Name</th>
+                                                <th style="width: 100px;">Days Since</th>
+                                                <th style="width: 100px;">Threshold</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach (array_slice($eligible_users, 0, 20) as $eligible): ?>
+                                                <tr>
+                                                    <td><?php echo esc_html($eligible['user_id']); ?></td>
+                                                    <td><?php echo esc_html($eligible['email']); ?></td>
+                                                    <td><?php echo esc_html($eligible['name']); ?></td>
+                                                    <td><?php echo esc_html($eligible['days_since']); ?></td>
+                                                    <td><?php echo esc_html($eligible['threshold']); ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                    <?php if (count($eligible_users) > 20): ?>
+                                        <p><small>Showing first 20 of <?php echo count($eligible_users); ?> eligible users</small></p>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Practice Reminder Logs -->
+                <div class="jph-settings-section jph-reminder-logs">
+                    <h2>📋 Practice Reminder Logs</h2>
+                    <p>View a running list of students who have received practice reminder tags.</p>
+                    
+                    <div class="jph-reminder-logs-container" style="margin-top: 20px;">
+                        <?php if (empty($logs)): ?>
+                            <p style="color: #666; font-style: italic;">No reminder logs yet. Logs will appear here when reminder tags are applied to students.</p>
+                        <?php else: ?>
+                            <table class="wp-list-table widefat fixed striped">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 150px;">Date</th>
+                                        <th style="width: 100px;">User ID</th>
+                                        <th style="width: 200px;">Email</th>
+                                        <th style="width: 200px;">Name</th>
+                                        <th style="width: 150px;">Tag Name</th>
+                                        <th style="width: 100px;">Days Since Practice</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($logs as $log): ?>
+                                        <tr>
+                                            <td><?php echo esc_html(date('Y-m-d H:i:s', strtotime($log['created_at']))); ?></td>
+                                            <td><?php echo esc_html($log['user_id']); ?></td>
+                                            <td><?php echo esc_html($log['user_email']); ?></td>
+                                            <td><?php echo esc_html($log['user_name'] ?: 'N/A'); ?></td>
+                                            <td><?php echo esc_html($log['tag_name']); ?></td>
+                                            <td><?php echo $log['days_since_practice'] !== null ? esc_html($log['days_since_practice']) : 'N/A'; ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <p style="margin-top: 10px;">
+                                <?php if (!$view_all): ?>
+                                    <a href="<?php echo admin_url('admin.php?page=aph-settings&view_all_logs=1'); ?>" class="button">
+                                        View All Logs (Last 100)
+                                    </a>
+                                <?php else: ?>
+                                    <a href="<?php echo admin_url('admin.php?page=aph-settings'); ?>" class="button">
+                                        Show Recent Logs (Last 10)
+                                    </a>
+                                <?php endif; ?>
+                            </p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
                 <!-- AI Quota Settings -->
                 <div class="jph-settings-section jph-ai-settings">
                     <h2>🤖 AI Analysis Quota Settings</h2>
@@ -4692,6 +5240,124 @@ Remember: Plain text only, no formatting.');
                         <?php submit_button('Save Settings', 'primary', 'jph_settings_submit'); ?>
                     </form>
                 </div>
+                
+                <script>
+                (function($) {
+                    $(document).ready(function() {
+                        var $button = $('#jph-test-reminders-now');
+                        var $status = $('#jph-test-reminders-status');
+                        
+                        if ($button.length === 0) {
+                            console.error('Test Reminders button not found');
+                            return;
+                        }
+                        
+                        $button.on('click', function(e) {
+                            e.preventDefault();
+                            
+                            $button.prop('disabled', true).text('Testing...');
+                            $status.html('<span style="color: #666;">Running reminder check...</span>');
+                            
+                            $.ajax({
+                                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                                type: 'POST',
+                                data: {
+                                    action: 'jph_test_reminders',
+                                    nonce: '<?php echo wp_create_nonce('jph_test_reminders'); ?>'
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        $status.html('<span style="color: green;">✓ ' + response.data.message + '</span>');
+                                        if (response.data.logs_count > 0) {
+                                            $status.append('<br><small style="color: #666;">Check the reminder logs below to see which users received tags.</small>');
+                                        }
+                                        // Reload page after 2 seconds to show updated logs and status
+                                        setTimeout(function() {
+                                            location.reload();
+                                        }, 2000);
+                                    } else {
+                                        $status.html('<span style="color: red;">✗ ' + (response.data.message || 'Failed to run reminder check') + '</span>');
+                                        $button.prop('disabled', false).text('Test Reminders Now');
+                                    }
+                                },
+                                error: function(xhr, status, error) {
+                                    console.error('Reminder test error:', xhr, status, error);
+                                    var errorMsg = 'Network error. Please try again.';
+                                    if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                                        errorMsg = xhr.responseJSON.data.message;
+                                    }
+                                    $status.html('<span style="color: red;">✗ ' + errorMsg + '</span>');
+                                    $button.prop('disabled', false).text('Test Reminders Now');
+                                }
+                            }); // End $.ajax
+                        }); // End $button.on('click')
+                        
+                        // Debug user button
+                        $('#jph-debug-user-btn').on('click', function(e) {
+                            e.preventDefault();
+                            var $button = $(this);
+                            var $result = $('#jph-debug-user-result');
+                            var input = $('#jph-debug-user-input').val().trim();
+                            
+                            if (!input) {
+                                alert('Please enter a User ID or Email');
+                                return;
+                            }
+                            
+                            $button.prop('disabled', true).text('Checking...');
+                            $result.hide();
+                            
+                            var param = isNaN(input) ? 'email=' + encodeURIComponent(input) : 'user_id=' + input;
+                            
+                            $.ajax({
+                                url: '<?php echo rest_url('aph/v1/reminders/debug-user'); ?>?' + param,
+                                method: 'GET',
+                                headers: {
+                                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        var data = response;
+                                        var html = '<h4>User: ' + data.user_name + ' (' + data.user_email + ')</h4>';
+                                        html += '<table class="widefat" style="margin-top: 10px;">';
+                                        html += '<tr><th style="width: 200px;">Setting</th><th>Value</th></tr>';
+                                        html += '<tr><td>Reminder Enabled</td><td>' + (data.reminder_enabled ? '✓ Yes' : '✗ No') + '</td></tr>';
+                                        html += '<tr><td>Threshold Days</td><td>' + data.reminder_threshold_days + '</td></tr>';
+                                        html += '<tr><td>Cooldown Days</td><td>' + data.reminder_cooldown_days + '</td></tr>';
+                                        html += '<tr><td>Last Practiced</td><td>' + (data.last_practiced_date || 'Never') + '</td></tr>';
+                                        html += '<tr><td>Days Since Practice</td><td><strong>' + data.days_since_practice + '</strong></td></tr>';
+                                        html += '<tr><td>Last Reminder Sent</td><td>' + (data.last_reminder_sent || 'Never') + '</td></tr>';
+                                        if (data.days_since_reminder !== null) {
+                                            html += '<tr><td>Days Since Reminder</td><td>' + data.days_since_reminder + '</td></tr>';
+                                        }
+                                        html += '<tr><td>Meets Threshold</td><td>' + (data.meets_threshold ? '✓ Yes' : '✗ No') + '</td></tr>';
+                                        html += '<tr><td>In Cooldown</td><td>' + (data.in_cooldown ? '✓ Yes' : '✗ No') + '</td></tr>';
+                                        html += '<tr><td><strong>Eligible</strong></td><td><strong style="color: ' + (data.eligible ? 'green' : 'red') + ';">' + (data.eligible ? '✓ YES' : '✗ NO') + '</strong></td></tr>';
+                                        if (data.reason_not_eligible) {
+                                            html += '<tr><td>Reason</td><td style="color: red;">' + data.reason_not_eligible + '</td></tr>';
+                                        }
+                                        html += '<tr><td>Reminder Tag</td><td><code>' + data.reminder_tag + '</code></td></tr>';
+                                        html += '<tr><td>Next Cron Run</td><td>' + (data.cron_next_run || 'Not scheduled') + '</td></tr>';
+                                        html += '</table>';
+                                        $result.html(html).show();
+                                    } else {
+                                        $result.html('<p style="color: red;">Error: ' + (response.message || 'Unknown error') + '</p>').show();
+                                    }
+                                    $button.prop('disabled', false).text('Check User');
+                                },
+                                error: function(xhr) {
+                                    var errorMsg = 'Network error';
+                                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                                        errorMsg = xhr.responseJSON.message;
+                                    }
+                                    $result.html('<p style="color: red;">Error: ' + errorMsg + '</p>').show();
+                                    $button.prop('disabled', false).text('Check User');
+                                }
+                            });
+                        });
+                    }); // End $(document).ready
+                })(jQuery); // End IIFE
+                </script>
                 
                 <!-- Complete Plugin Backup & Restore Section -->
                 <div class="jph-settings-section jph-backup-section">
@@ -8090,5 +8756,48 @@ Keep practicing! 🎵`;
         }
         </script>
         <?php
+    }
+    
+    /**
+     * AJAX handler to test reminders
+     */
+    public function ajax_test_reminders() {
+        // Check nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'jph_test_reminders')) {
+            wp_send_json_error(array('message' => 'Invalid security token'));
+            return;
+        }
+        
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        // Manually trigger the reminder check
+        if (!function_exists('jph_check_and_send_practice_reminders')) {
+            wp_send_json_error(array('message' => 'Reminder function not found'));
+            return;
+        }
+        
+        // Run the reminder check
+        jph_check_and_send_practice_reminders();
+        
+        // Get recent logs to show what happened
+        require_once plugin_dir_path(__FILE__) . '../includes/class-database.php';
+        $database = new JPH_Database();
+        $recent_logs = $database->get_reminder_logs(5);
+        
+        $message = 'Reminder check completed successfully.';
+        if (!empty($recent_logs)) {
+            $message .= ' ' . count($recent_logs) . ' reminder tag(s) were applied. Check the logs below for details.';
+        } else {
+            $message .= ' No eligible users found at this time.';
+        }
+        
+        wp_send_json_success(array(
+            'message' => $message,
+            'logs_count' => count($recent_logs)
+        ));
     }
 }

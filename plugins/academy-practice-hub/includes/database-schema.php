@@ -197,12 +197,24 @@ class APH_Database_Schema {
                     'type' => 'DATETIME',
                     'default' => 'CURRENT_TIMESTAMP',
                     'description' => 'When session was logged'
+                ),
+                'created_at_utc' => array(
+                    'type' => 'DATETIME',
+                    'null' => true,
+                    'description' => 'UTC timestamp for session logging'
+                ),
+                'user_timezone_at_session' => array(
+                    'type' => 'VARCHAR',
+                    'length' => 64,
+                    'null' => true,
+                    'description' => 'User timezone at time of session'
                 )
             ),
             'indexes' => array(
                 'user_id' => array('user_id'),
                 'practice_item_id' => array('practice_item_id'),
                 'created_at' => array('created_at'),
+                'created_at_utc' => array('created_at_utc'),
                 'user_date' => array('user_id', 'created_at'),
                 'session_hash' => array('session_hash')
             ),
@@ -1002,6 +1014,37 @@ class APH_Database_Schema {
         $wpdb->query("CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON {$favorites_table} (user_id)");
         $wpdb->query("CREATE INDEX IF NOT EXISTS idx_favorites_title ON {$favorites_table} (title)");
         
+        return true;
+    }
+
+    /**
+     * Add timezone columns to practice_sessions table if missing
+     */
+    public static function add_practice_session_timezone_columns() {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'jph_practice_sessions';
+
+        $columns = $wpdb->get_col("DESCRIBE {$table_name}");
+        $alter_statements = array();
+
+        if (!in_array('created_at_utc', $columns, true)) {
+            $alter_statements[] = "ADD COLUMN `created_at_utc` DATETIME NULL COMMENT 'UTC timestamp for session logging'";
+        }
+
+        if (!in_array('user_timezone_at_session', $columns, true)) {
+            $alter_statements[] = "ADD COLUMN `user_timezone_at_session` VARCHAR(64) NULL COMMENT 'User timezone at time of session'";
+        }
+
+        if (!empty($alter_statements)) {
+            $sql = "ALTER TABLE `{$table_name}` " . implode(', ', $alter_statements);
+            $result = $wpdb->query($sql);
+            if ($result === false) {
+                error_log("Failed to add practice session timezone columns: " . $wpdb->last_error);
+                return false;
+            }
+        }
+
         return true;
     }
 }

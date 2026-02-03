@@ -165,6 +165,12 @@ class ALM_Frontend_Library {
                     </div>
                 </div>
             </div>
+
+            <div class="alm-library-video">
+                <video id="alm-essentials-library-video" class="alm-library-video-player" controls playsinline preload="metadata" poster="https://jazzedge.academy/wp-content/uploads/2026/01/essentials-tutorial-1.jpg">
+                    <source src="https://vz-0696d3da-4b7.b-cdn.net/a5e57f45-3c4d-4b22-abcd-9d8ea666be69/playlist.m3u8" type="application/x-mpegURL" />
+                </video>
+            </div>
             
             <?php if ($available > 0): ?>
             <div class="alm-library-selection-section">

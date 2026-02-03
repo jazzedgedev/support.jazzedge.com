@@ -141,6 +141,15 @@ class JPH_Database {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'jph_practice_sessions';
+        $created_at = current_time('mysql');
+        $created_at_utc = current_time('mysql', true);
+        $user_timezone = '';
+        if (class_exists('APH_Gamification')) {
+            $user_timezone = APH_Gamification::get_user_timezone_string($user_id);
+        }
+        if (empty($user_timezone)) {
+            $user_timezone = wp_timezone_string();
+        }
         
         $result = $wpdb->insert(
             $table_name,
@@ -152,9 +161,11 @@ class JPH_Database {
                 'improvement_detected' => $improvement_detected ? 1 : 0,
                 'notes' => $notes,
                 'session_hash' => md5(uniqid(rand(), true)),
-                'created_at' => current_time('mysql')
+                'created_at' => $created_at,
+                'created_at_utc' => $created_at_utc,
+                'user_timezone_at_session' => $user_timezone
             ),
-            array('%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s')
+            array('%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s')
         );
         
         return $result ? $wpdb->insert_id : new WP_Error('insert_failed', 'Failed to log practice session');

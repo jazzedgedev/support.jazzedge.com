@@ -147,14 +147,23 @@ class Jazzedge_Docs_Post_Type {
     public function render_settings_meta_box($post) {
         wp_nonce_field('jazzedge_doc_settings', 'jazzedge_doc_settings_nonce');
         
-        
         $featured = get_post_meta($post->ID, '_jazzedge_doc_featured', true);
+        $menu_order = $post->menu_order ? $post->menu_order : 0;
         ?>
         <p>
             <label>
                 <input type="checkbox" name="jazzedge_doc_featured" value="yes" <?php checked($featured, 'yes'); ?>>
                 <?php _e('Featured Doc', 'jazzedge-docs'); ?>
             </label>
+        </p>
+        <p>
+            <label for="menu_order">
+                <strong><?php _e('Order:', 'jazzedge-docs'); ?></strong><br>
+                <input type="number" name="menu_order" id="menu_order" value="<?php echo esc_attr($menu_order); ?>" min="0" step="1" style="width: 100px;">
+            </label>
+            <span class="description" style="display: block; margin-top: 5px;">
+                <?php _e('Lower numbers appear first. Use this to prioritize important documents.', 'jazzedge-docs'); ?>
+            </span>
         </p>
         <?php
     }
@@ -309,6 +318,16 @@ class Jazzedge_Docs_Post_Type {
         
         $featured = isset($_POST['jazzedge_doc_featured']) ? 'yes' : 'no';
         update_post_meta($post_id, '_jazzedge_doc_featured', $featured);
+        
+        // Save menu_order (for document ordering)
+        if (isset($_POST['menu_order'])) {
+            $menu_order = intval($_POST['menu_order']);
+            $post_data = array(
+                'ID' => $post_id,
+                'menu_order' => $menu_order
+            );
+            wp_update_post($post_data);
+        }
         
         // Save related docs
         if (isset($_POST['jazzedge_doc_related']) && is_array($_POST['jazzedge_doc_related'])) {

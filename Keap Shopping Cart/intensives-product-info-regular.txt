@@ -1,0 +1,28 @@
+<div id="essentialsContainer">
+  <div class="essentials-left">
+    <h3>Included with This Intensive:</h3>
+    <p>Join a focused 6-week program designed to help you master a specific jazz standard through structured lessons, guided practice, and live coaching support. This isn't just another lesson—it's a complete learning experience that takes you from knowing chords to making music.</p>
+    <ul>
+      <li><strong>Full 6-Week Program:</strong> Complete structured curriculum released over 6 weeks, taking you step-by-step through the arrangement process.</li>
+      <li><strong>Lessons + Practice Actions:</strong> Weekly teaching lessons plus short Practice Action videos released throughout the week. Practice with Willie—just play along!</li>
+      <li><strong>Live Coaching Session:</strong> One live group coaching session during the 6 weeks with musical feedback and clarity. Get your questions answered and receive personalized guidance.</li>
+      <li><strong>Community Support:</strong> Dedicated private community space. Post practice clips and get feedback from the community throughout the 6 weeks.</li>
+      <li><strong>3-Step Learning Process:</strong> Master the arrangement through our proven method: Outer Notes (Foundation) → Root-7 Shells (Stability) → Adding the 3rd + Downbeat Awareness (Musicality).</li>
+    </ul>
+  </div>
+  <div class="essentials-right">
+    <h3>One-Time Purchase Details</h3>
+    <p><strong>This is a one-time purchase.</strong> You'll pay $247 for full access to this 6-week intensive program.</p>
+    <p><strong>What You Get:</strong> Full access to the 6-week intensive program including all lessons, Practice Actions, live coaching session, and community access during the active 6-week period.</p>
+    <p>You can access your intensive materials at any time in your <strong>Account Area</strong>.</p>
+    
+    <h3>14-Day Money-Back Guarantee</h3>
+    <p>We offer a <strong>14-day money-back guarantee</strong> on your purchase. If you're not satisfied within the first 14 days, you're eligible for a full refund.</p>
+    <p><strong>Important:</strong> Refund requests must be made within 14 days of purchase. After 14 days, all sales are final.</p>
+    <p>For complete terms and conditions, please visit our <a href="https://jazzedge.academy/terms/" target="_blank">Terms & Conditions page</a>.</p>
+    
+    <h3>Premier Members</h3>
+    <p><strong>All Intensives are included with Premier Membership at no additional cost.</strong> If you're a Premier member, you automatically get access to all 6 intensives throughout the year. <a href="https://jazzedge.academy/join/" target="_blank">Learn more about Premier Membership</a>.</p>
+  </div>
+</div>
+

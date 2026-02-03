@@ -48,8 +48,11 @@ class ALM_Database {
             'notification_reads' => $wpdb->prefix . 'alm_notification_reads',
             'promotional_banners' => $wpdb->prefix . 'alm_promotional_banners',
             'faqs' => $wpdb->prefix . 'alm_faqs',
+            'faq_categories' => $wpdb->prefix . 'alm_faq_categories',
             'teachers' => $wpdb->prefix . 'alm_teachers',
-            'starter_plan' => $wpdb->prefix . 'alm_starter_plan'
+            'starter_plan' => $wpdb->prefix . 'alm_starter_plan',
+            'intensives' => $wpdb->prefix . 'alm_intensives',
+            'search_logs' => $wpdb->prefix . 'alm_search_logs'
         );
     }
     
@@ -72,8 +75,11 @@ class ALM_Database {
         $this->create_notification_reads_table();
         $this->create_promotional_banners_table();
         $this->create_faqs_table();
+        $this->create_faq_categories_table();
         $this->create_teachers_table();
         $this->create_starter_plan_table();
+        $this->create_intensives_table();
+        $this->create_search_logs_table();
         
         // Insert default FAQs if table is empty
         $this->insert_default_faqs();
@@ -95,6 +101,9 @@ class ALM_Database {
         
         // Check and add sample_chapter_id column if it doesn't exist
         $this->check_and_add_sample_chapter_id();
+
+        // Check and add keap_tag_id column if it doesn't exist
+        $this->check_and_add_keap_tag_id();
         
         // Check and add chapter_id column to transcripts table if it doesn't exist
         $this->check_and_add_chapter_id_column();
@@ -125,6 +134,12 @@ class ALM_Database {
         
         // Ensure notifications table has a show_popup column
         $this->check_and_add_notification_popup_column();
+        
+        // Ensure search_logs table exists (for existing installations)
+        $this->ensure_search_logs_table();
+
+        // Ensure essentials selections table has grants_paused column
+        $this->check_and_add_essentials_pause_column();
     }
     
     /**
@@ -212,6 +227,18 @@ class ALM_Database {
         $sample_chapter_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'sample_chapter_id'");
         if (empty($sample_chapter_columns)) {
             $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN sample_chapter_id int(11) DEFAULT 0 AFTER sample_video_url");
+        }
+    }
+
+    /**
+     * Check and add keap_tag_id column to lessons table
+     */
+    public function check_and_add_keap_tag_id() {
+        $lessons_table = $this->tables['lessons'];
+        
+        $tag_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'keap_tag_id'");
+        if (empty($tag_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN keap_tag_id int(11) DEFAULT 0 AFTER membership_level, ADD KEY keap_tag_id (keap_tag_id)");
         }
     }
     
@@ -307,6 +334,7 @@ class ALM_Database {
                 song_lesson char(1) DEFAULT 'n',
                 slug varchar(255) DEFAULT '',
                 membership_level int(11) DEFAULT 2,
+                keap_tag_id int(11) DEFAULT 0,
                 lesson_level enum('beginner','intermediate','advanced','pro') DEFAULT 'intermediate',
                 lesson_tags varchar(500) DEFAULT '',
                 lesson_style varchar(500) DEFAULT '',
@@ -318,6 +346,7 @@ class ALM_Database {
                 KEY lesson_title (lesson_title),
                 KEY song_lesson (song_lesson),
                 KEY membership_level (membership_level),
+                KEY keap_tag_id (keap_tag_id),
                 KEY lesson_level (lesson_level)
             ) $charset_collate;";
         
@@ -656,6 +685,7 @@ class ALM_Database {
             last_granted_date date DEFAULT NULL,
             next_grant_date date DEFAULT NULL,
             available_count int(11) DEFAULT 0,
+            grants_paused tinyint(1) DEFAULT 0,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY unique_user_id (user_id),
@@ -698,6 +728,22 @@ class ALM_Database {
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+    }
+
+    /**
+     * Ensure essentials selections table has grants_paused column
+     */
+    private function check_and_add_essentials_pause_column() {
+        $selections_table = $this->tables['essentials_selections'];
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$selections_table}'") === $selections_table;
+        if (!$table_exists) {
+            return;
+        }
+
+        $columns = $this->wpdb->get_results("SHOW COLUMNS FROM $selections_table LIKE 'grants_paused'");
+        if (empty($columns)) {
+            $this->wpdb->query("ALTER TABLE $selections_table ADD COLUMN grants_paused tinyint(1) DEFAULT 0 AFTER available_count");
+        }
     }
 
     /**
@@ -823,6 +869,52 @@ class ALM_Database {
     }
     
     /**
+     * Create FAQ categories table
+     */
+    private function create_faq_categories_table() {
+        $table_name = $this->tables['faq_categories'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            category_name varchar(100) NOT NULL,
+            display_order int(11) DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY category_name (category_name),
+            KEY display_order (display_order)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        
+        // Migrate existing categories from FAQs table if categories table is empty
+        $existing_categories = $this->wpdb->get_col(
+            "SELECT DISTINCT category FROM {$this->tables['faqs']} WHERE category IS NOT NULL AND category != ''"
+        );
+        
+        if (!empty($existing_categories)) {
+            foreach ($existing_categories as $cat) {
+                // Check if category already exists in categories table
+                $exists = $this->wpdb->get_var($this->wpdb->prepare(
+                    "SELECT COUNT(*) FROM $table_name WHERE category_name = %s",
+                    $cat
+                ));
+                
+                if ($exists == 0) {
+                    $this->wpdb->insert(
+                        $table_name,
+                        array('category_name' => $cat),
+                        array('%s')
+                    );
+                }
+            }
+        }
+    }
+    
+    /**
      * Create teachers table
      */
     private function create_teachers_table() {
@@ -882,6 +974,124 @@ class ALM_Database {
             KEY lesson_title (lesson_title),
             KEY chapter_id (chapter_id),
             KEY chapter_order (chapter_order)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    /**
+     * Create intensives table
+     */
+    private function create_intensives_table() {
+        $table_name = $this->tables['intensives'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            title varchar(255) NOT NULL,
+            song_name varchar(255) DEFAULT '',
+            description text,
+            start_date date DEFAULT NULL,
+            end_date date DEFAULT NULL,
+            order_form_url varchar(500) DEFAULT '',
+            retail_price decimal(10,2) DEFAULT NULL,
+            sale_price decimal(10,2) DEFAULT NULL,
+            skill_level varchar(20) DEFAULT 'beg',
+            display_order int(11) DEFAULT 0,
+            is_active tinyint(1) DEFAULT 1,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            KEY title (title),
+            KEY start_date (start_date),
+            KEY end_date (end_date),
+            KEY is_active (is_active),
+            KEY display_order (display_order),
+            KEY skill_level (skill_level)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        
+        // Check and add skill_level column if it doesn't exist (for existing installations)
+        $this->check_and_add_intensive_skill_level_column();
+        
+        // Check and add song_name column if it doesn't exist (for existing installations)
+        $this->check_and_add_intensive_song_name_column();
+        
+        // Check and add pricing columns if they don't exist (for existing installations)
+        $this->check_and_add_intensive_pricing_columns();
+    }
+    
+    /**
+     * Check and add skill_level column to intensives table
+     */
+    private function check_and_add_intensive_skill_level_column() {
+        $table_name = $this->tables['intensives'];
+        
+        // Check if column exists
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+        
+        if (!in_array('skill_level', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN skill_level varchar(20) DEFAULT 'beg' AFTER order_form_url");
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD KEY skill_level (skill_level)");
+        }
+    }
+    
+    /**
+     * Check and add song_name column to intensives table
+     */
+    private function check_and_add_intensive_song_name_column() {
+        $table_name = $this->tables['intensives'];
+        
+        // Check if column exists
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+        
+        if (!in_array('song_name', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN song_name varchar(255) DEFAULT '' AFTER title");
+        }
+    }
+    
+    /**
+     * Check and add pricing columns to intensives table
+     */
+    private function check_and_add_intensive_pricing_columns() {
+        $table_name = $this->tables['intensives'];
+        
+        // Check if columns exist
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+        
+        if (!in_array('retail_price', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN retail_price decimal(10,2) DEFAULT NULL AFTER order_form_url");
+        }
+        
+        if (!in_array('sale_price', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN sale_price decimal(10,2) DEFAULT NULL AFTER retail_price");
+        }
+    }
+    
+    /**
+     * Create search logs table
+     */
+    private function create_search_logs_table() {
+        $table_name = $this->tables['search_logs'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) DEFAULT NULL,
+            search_query varchar(255) NOT NULL,
+            search_source enum('dashboard','shortcode') DEFAULT 'dashboard',
+            results_count int(11) DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            KEY user_id (user_id),
+            KEY search_query (search_query),
+            KEY search_source (search_source),
+            KEY created_at (created_at)
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -1037,6 +1247,20 @@ class ALM_Database {
         $status_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'status'");
         if (empty($status_columns)) {
             $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN status enum('published','draft','archived') DEFAULT 'published' AFTER sample_chapter_id, ADD KEY status (status)");
+        }
+    }
+    
+    /**
+     * Ensure search_logs table exists (for existing installations)
+     */
+    private function ensure_search_logs_table() {
+        $table_name = $this->tables['search_logs'];
+        
+        // Check if table exists
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") == $table_name;
+        if (!$table_exists) {
+            // Create the table
+            $this->create_search_logs_table();
         }
     }
     

@@ -68,18 +68,27 @@ class Jazzedge_Docs_Shortcodes {
             'category' => '',
             'category_id' => '',
             'limit' => -1,
-            'orderby' => 'date',
+            'orderby' => array('menu_order' => 'ASC', 'date' => 'DESC'),
             'order' => 'DESC',
             'featured' => '',
             'layout' => 'grid',
             'columns' => 3
         ), $atts);
         
+        // Build orderby - prioritize menu_order, then use specified orderby
+        $orderby = sanitize_text_field($atts['orderby']);
+        $order = sanitize_text_field($atts['order']);
+        
+        // Create orderby array - menu_order first, then specified field
+        $orderby_array = array('menu_order' => 'ASC');
+        if ($orderby && $orderby !== 'menu_order') {
+            $orderby_array[$orderby] = $order ?: 'DESC';
+        }
+        
         $args = array(
             'post_type' => 'jazzedge_doc',
             'posts_per_page' => intval($atts['limit']),
-            'orderby' => sanitize_text_field($atts['orderby']),
-            'order' => sanitize_text_field($atts['order']),
+            'orderby' => $orderby_array,
             'post_status' => 'publish'
         );
         
@@ -341,7 +350,7 @@ class Jazzedge_Docs_Shortcodes {
                     'terms' => $category->term_id
                 )
             ),
-            'orderby' => 'date',
+            'orderby' => array('menu_order' => 'ASC', 'date' => 'DESC'),
             'order' => 'DESC'
         );
         $docs_query = new WP_Query($docs_args);
@@ -586,7 +595,7 @@ class Jazzedge_Docs_Shortcodes {
                     'terms' => $category->term_id
                 )
             ),
-            'orderby' => 'date',
+            'orderby' => array('menu_order' => 'ASC', 'date' => 'DESC'),
             'order' => 'DESC'
         );
         

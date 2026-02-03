@@ -40,6 +40,9 @@ function aph_activate() {
     
     // Add leaderboard columns to existing tables
     APH_Database_Schema::add_leaderboard_columns();
+
+    // Add timezone columns to practice sessions table
+    APH_Database_Schema::add_practice_session_timezone_columns();
     
     // Add email tracking column
     APH_Database_Schema::add_email_tracking_column();
@@ -98,18 +101,204 @@ new JPH_REST_API();
 // Initialize Admin Pages
 new JPH_Admin_Pages();
 
+// Ensure timezone columns exist for practice sessions
+add_action('init', 'jph_ensure_practice_session_timezone_columns');
+function jph_ensure_practice_session_timezone_columns() {
+    APH_Database_Schema::add_practice_session_timezone_columns();
+}
+
 // Initialize Practice Reminder System
 add_action('init', 'jph_init_practice_reminders');
 function jph_init_practice_reminders() {
     // Schedule daily reminder check if not already scheduled
     if (!wp_next_scheduled('jph_daily_practice_reminder_check')) {
-        // Schedule to run daily at 9 AM
-        wp_schedule_event(strtotime('today 9:00'), 'daily', 'jph_daily_practice_reminder_check');
+        // Calculate next 9 AM - if it's already past 9 AM today, schedule for tomorrow
+        $now = current_time('timestamp');
+        $today_9am = strtotime('today 9:00');
+        
+        // If it's already past 9 AM today, schedule for tomorrow at 9 AM
+        // Otherwise, schedule for today at 9 AM
+        $first_run = ($now >= $today_9am) ? strtotime('tomorrow 9:00') : $today_9am;
+        
+        wp_schedule_event($first_run, 'daily', 'jph_daily_practice_reminder_check');
+    }
+}
+
+// Initialize daily streak recalculation
+add_action('init', 'jph_init_daily_streak_recalc');
+function jph_init_daily_streak_recalc() {
+    if (!wp_next_scheduled('jph_daily_streak_recalc')) {
+        $now = current_time('timestamp');
+        $wp_timezone = wp_timezone();
+        $today_date = wp_date('Y-m-d', $now, $wp_timezone);
+        $today_2am_dt = new DateTime($today_date . ' 02:00:00', $wp_timezone);
+        $today_2am = $today_2am_dt->getTimestamp();
+        $first_run = ($now >= $today_2am)
+            ? $today_2am_dt->modify('+1 day')->getTimestamp()
+            : $today_2am;
+        wp_schedule_event($first_run, 'daily', 'jph_daily_streak_recalc');
     }
 }
 
 // Hook into the scheduled event
+add_action('jph_daily_streak_recalc', 'jph_run_daily_streak_recalc');
+
+/**
+ * Recalculate streaks in daily batches to avoid timeouts.
+ */
+function jph_run_daily_streak_recalc() {
+    global $wpdb;
+
+    $stats_table = $wpdb->prefix . 'jph_user_stats';
+    $batch_size = 200;
+    $offset = (int) get_option('aph_streak_recalc_offset', 0);
+
+    $user_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT user_id FROM {$stats_table} ORDER BY user_id ASC LIMIT %d OFFSET %d",
+        $batch_size,
+        $offset
+    ));
+
+    if (empty($user_ids)) {
+        update_option('aph_streak_recalc_offset', 0);
+        return;
+    }
+
+    $gamification = new APH_Gamification();
+    foreach ($user_ids as $user_id) {
+        $gamification->update_streak((int) $user_id, false);
+    }
+
+    update_option('aph_streak_recalc_offset', $offset + $batch_size);
+}
+
+// Initialize practice session timezone backfill
+add_action('init', 'jph_init_practice_session_timezone_backfill');
+function jph_init_practice_session_timezone_backfill() {
+    if (get_option('jph_practice_session_timezone_backfill_complete')) {
+        return;
+    }
+
+    if (!wp_next_scheduled('jph_backfill_practice_session_timezones')) {
+        wp_schedule_single_event(time() + 60, 'jph_backfill_practice_session_timezones');
+    }
+}
+
+add_action('jph_backfill_practice_session_timezones', 'jph_run_practice_session_timezone_backfill');
+function jph_run_practice_session_timezone_backfill() {
+    global $wpdb;
+
+    $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+    $batch_size = 500;
+    $last_id = (int) get_option('jph_practice_session_backfill_last_id', 0);
+    $wp_timezone = wp_timezone();
+    $utc_timezone = new DateTimeZone('UTC');
+
+    $sessions = $wpdb->get_results($wpdb->prepare(
+        "SELECT id, user_id, created_at, created_at_utc, user_timezone_at_session
+         FROM {$sessions_table}
+         WHERE id > %d
+         ORDER BY id ASC
+         LIMIT %d",
+        $last_id,
+        $batch_size
+    ), ARRAY_A);
+
+    if (empty($sessions)) {
+        update_option('jph_practice_session_timezone_backfill_complete', 1);
+        delete_option('jph_practice_session_backfill_last_id');
+        return;
+    }
+
+    foreach ($sessions as $session) {
+        $session_id = (int) $session['id'];
+        $user_id = (int) $session['user_id'];
+
+        $updates = array();
+        $formats = array();
+
+        if (empty($session['created_at_utc']) && !empty($session['created_at'])) {
+            $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+            $session_datetime->setTimezone($utc_timezone);
+            $updates['created_at_utc'] = $session_datetime->format('Y-m-d H:i:s');
+            $formats[] = '%s';
+        }
+
+        if (empty($session['user_timezone_at_session'])) {
+            $timezone_string = get_user_meta($user_id, 'aph_user_timezone', true);
+            if (!empty($timezone_string)) {
+                try {
+                    new DateTimeZone($timezone_string);
+                } catch (Exception $e) {
+                    $timezone_string = '';
+                }
+            }
+            if (empty($timezone_string)) {
+                $timezone_string = wp_timezone_string();
+            }
+            $updates['user_timezone_at_session'] = $timezone_string;
+            $formats[] = '%s';
+        }
+
+        if (!empty($updates)) {
+            $wpdb->update(
+                $sessions_table,
+                $updates,
+                array('id' => $session_id),
+                $formats,
+                array('%d')
+            );
+        }
+
+        $last_id = $session_id;
+    }
+
+    update_option('jph_practice_session_backfill_last_id', $last_id);
+    wp_schedule_single_event(time() + 60, 'jph_backfill_practice_session_timezones');
+}
+
+// Hook into the scheduled event
 add_action('jph_daily_practice_reminder_check', 'jph_check_and_send_practice_reminders');
+
+// Allow manual trigger via URL for external cron services
+// Usage: https://yoursite.com/wp-json/aph/v1/reminders/trigger-cron?key=YOUR_SECRET_KEY
+add_action('rest_api_init', function() {
+    register_rest_route('aph/v1', '/reminders/trigger-cron', array(
+        'methods' => 'GET',
+        'callback' => 'jph_trigger_reminder_check_via_api',
+        'permission_callback' => '__return_true' // We'll check the key instead
+    ));
+});
+
+/**
+ * Trigger reminder check via REST API (for external cron services)
+ */
+function jph_trigger_reminder_check_via_api($request) {
+    // Get secret key from settings or use a default
+    $secret_key = get_option('jph_reminder_cron_secret_key', '');
+    
+    // If no key is set, generate one and save it
+    if (empty($secret_key)) {
+        $secret_key = wp_generate_password(32, false);
+        update_option('jph_reminder_cron_secret_key', $secret_key);
+    }
+    
+    $provided_key = $request->get_param('key');
+    
+    // Verify the key
+    if (empty($provided_key) || $provided_key !== $secret_key) {
+        return new WP_Error('unauthorized', 'Invalid or missing secret key', array('status' => 401));
+    }
+    
+    // Run the reminder check
+    jph_check_and_send_practice_reminders();
+    
+    return rest_ensure_response(array(
+        'success' => true,
+        'message' => 'Reminder check completed',
+        'timestamp' => current_time('mysql')
+    ));
+}
 
 /**
  * Check and send practice reminders
@@ -117,14 +306,22 @@ add_action('jph_daily_practice_reminder_check', 'jph_check_and_send_practice_rem
 function jph_check_and_send_practice_reminders() {
     global $wpdb;
     
+    error_log('JPH Practice Reminders: Cron job started at ' . current_time('mysql'));
+    
     // Check if FluentCRM is available
     if (!function_exists('fluentCrmApi')) {
-        error_log('JPH Practice Reminders: FluentCRM not available');
+        error_log('JPH Practice Reminders: ERROR - FluentCRM not available');
         return;
     }
     
     $table_name = $wpdb->prefix . 'jph_user_plans';
     $now = current_time('mysql');
+    $wp_timezone = wp_timezone();
+    $now_date = new DateTime($now, $wp_timezone);
+    $now_start = clone $now_date;
+    $now_start->setTime(0, 0, 0);
+    
+    error_log('JPH Practice Reminders: Current time: ' . $now . ' (WordPress timezone: ' . $wp_timezone->getName() . ')');
     
     // Get all users with reminders enabled
     $users = $wpdb->get_results($wpdb->prepare(
@@ -135,42 +332,78 @@ function jph_check_and_send_practice_reminders() {
          AND (last_practiced_date IS NOT NULL OR reminder_threshold_days > 0)"
     ));
     
+    error_log('JPH Practice Reminders: Found ' . count($users) . ' users with reminders enabled');
+    
     if (empty($users)) {
+        error_log('JPH Practice Reminders: No users found, exiting');
         return;
     }
     
     $reminders_sent = 0;
     $errors = 0;
+    $skipped_threshold = 0;
+    $skipped_cooldown = 0;
+    $skipped_no_user = 0;
+    
+    // Get global cooldown from admin settings (default 5)
+    $global_cooldown = get_option('jph_reminder_cooldown_days', 5);
     
     foreach ($users as $user_data) {
         $user_id = intval($user_data->user_id);
         $threshold = intval($user_data->reminder_threshold_days);
-        $cooldown = intval($user_data->reminder_cooldown_days);
+        // Use user's individual cooldown if set, otherwise use global cooldown
+        $cooldown = intval($user_data->reminder_cooldown_days) ?: $global_cooldown;
         $last_practiced = $user_data->last_practiced_date;
         $last_reminder = $user_data->last_reminder_sent;
         
-        // Calculate days since last practice
+        // Ensure threshold is at least 5 days
+        if ($threshold < 5) {
+            // Update user's threshold to minimum 5
+            $wpdb->update(
+                $table_name,
+                array('reminder_threshold_days' => 5),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+            $threshold = 5;
+            error_log("JPH Practice Reminders: Updated user {$user_id} threshold from {$user_data->reminder_threshold_days} to 5 (minimum required)");
+        }
+        
+        error_log("JPH Practice Reminders: Checking user {$user_id} - threshold: {$threshold}, cooldown: {$cooldown}, last_practiced: {$last_practiced}, last_reminder: {$last_reminder}");
+        
+        // Calculate days since last practice using WordPress timezone
         if ($last_practiced) {
-            $last_practiced_date = new DateTime($last_practiced);
-            $now_date = new DateTime($now);
-            $days_since = $now_date->diff($last_practiced_date)->days;
+            $last_practiced_date = new DateTime($last_practiced, $wp_timezone);
+            $last_practiced_start = clone $last_practiced_date;
+            $last_practiced_start->setTime(0, 0, 0);
+            $days_since = $now_start->diff($last_practiced_start)->days;
         } else {
             // User has never practiced, use a large number
             $days_since = 999;
         }
         
+        error_log("JPH Practice Reminders: User {$user_id} - days since practice: {$days_since}, threshold: {$threshold}");
+        
         // Check if threshold is met
         if ($days_since < $threshold) {
+            error_log("JPH Practice Reminders: User {$user_id} - SKIPPED: Only {$days_since} days since practice (needs {$threshold})");
+            $skipped_threshold++;
             continue; // Not enough days, skip
         }
         
         // Check cooldown period
         if ($last_reminder) {
-            $last_reminder_date = new DateTime($last_reminder);
-            $now_date = new DateTime($now);
-            $days_since_reminder = $now_date->diff($last_reminder_date)->days;
+            $last_reminder_date = new DateTime($last_reminder, $wp_timezone);
+            $last_reminder_start = clone $last_reminder_date;
+            $last_reminder_start->setTime(0, 0, 0);
+            $days_since_reminder = $now_start->diff($last_reminder_start)->days;
+            
+            error_log("JPH Practice Reminders: User {$user_id} - days since last reminder: {$days_since_reminder}, cooldown: {$cooldown}");
             
             if ($days_since_reminder < $cooldown) {
+                error_log("JPH Practice Reminders: User {$user_id} - SKIPPED: In cooldown period ({$days_since_reminder}/{$cooldown} days)");
+                $skipped_cooldown++;
                 continue; // Still in cooldown, skip
             }
         }
@@ -178,12 +411,17 @@ function jph_check_and_send_practice_reminders() {
         // Get user email
         $user = get_user_by('ID', $user_id);
         if (!$user || !$user->user_email) {
+            error_log("JPH Practice Reminders: User {$user_id} - SKIPPED: User not found or no email");
+            $skipped_no_user++;
             continue;
         }
         
+        // Get configured tag from settings
+        $reminder_tag = get_option('jph_reminder_fluentcrm_tag', 'Practice Reminder');
+        error_log("JPH Practice Reminders: User {$user_id} ({$user->user_email}) - ELIGIBLE: Applying tag '{$reminder_tag}'");
+        
         // Apply FluentCRM tag
-        $tag_name = "Practice Reminder - Day {$days_since}";
-        $result = jph_apply_fluentcrm_reminder_tag($user_id, $user->user_email, $tag_name, $days_since);
+        $result = jph_apply_fluentcrm_reminder_tag($user_id, $user->user_email, $reminder_tag, $days_since);
         
         if ($result['success']) {
             // Update last_reminder_sent
@@ -196,14 +434,14 @@ function jph_check_and_send_practice_reminders() {
             );
             
             $reminders_sent++;
-            error_log("JPH Practice Reminders: Sent reminder to user {$user_id} ({$user->user_email}) - {$days_since} days since last practice");
+            error_log("JPH Practice Reminders: ✓ SUCCESS - Sent reminder to user {$user_id} ({$user->user_email}) - {$days_since} days since last practice");
         } else {
             $errors++;
-            error_log("JPH Practice Reminders: Failed to send reminder to user {$user_id}: {$result['message']}");
+            error_log("JPH Practice Reminders: ✗ FAILED - Could not send reminder to user {$user_id} ({$user->user_email}): {$result['message']}");
         }
     }
     
-    error_log("JPH Practice Reminders: Processed {$reminders_sent} reminders, {$errors} errors");
+    error_log("JPH Practice Reminders: COMPLETE - Sent: {$reminders_sent}, Errors: {$errors}, Skipped (threshold): {$skipped_threshold}, Skipped (cooldown): {$skipped_cooldown}, Skipped (no user): {$skipped_no_user}");
 }
 
 /**
@@ -239,24 +477,81 @@ function jph_apply_fluentcrm_reminder_tag($user_id, $user_email, $tag_name, $day
             );
         }
         
-        // Get or create tag
-        $tag = fluentCrmApi('tags')->getOrCreate($tag_name);
+        // Get tag ID by looking up the tag by name
+        $tag_id = null;
         
-        if (!$tag) {
+        // First, try to find existing tag by name
+        $all_tags = fluentCrmApi('tags')->all();
+        if ($all_tags && is_array($all_tags)) {
+            foreach ($all_tags as $t) {
+                $t_title = is_object($t) ? $t->title : (is_array($t) ? ($t['title'] ?? '') : '');
+                if ($t_title === $tag_name) {
+                    $tag_id = is_object($t) ? $t->id : (is_array($t) ? ($t['id'] ?? null) : null);
+                    break;
+                }
+            }
+        }
+        
+        // If tag doesn't exist, create it
+        if (!$tag_id) {
+            $tag = fluentCrmApi('tags')->getOrCreate($tag_name);
+            if ($tag) {
+                $tag_id = is_object($tag) ? $tag->id : (is_array($tag) ? ($tag['id'] ?? null) : null);
+            }
+        }
+        
+        // Fallback: query database directly if API fails
+        if (!$tag_id) {
+            global $wpdb;
+            $tags_table = $wpdb->prefix . 'fc_tags';
+            $db_tag = $wpdb->get_row($wpdb->prepare(
+                "SELECT id FROM {$tags_table} WHERE title = %s LIMIT 1",
+                $tag_name
+            ));
+            
+            if ($db_tag) {
+                $tag_id = $db_tag->id;
+            } else {
+                $wpdb->insert(
+                    $tags_table,
+                    array(
+                        'title' => $tag_name,
+                        'slug' => sanitize_title($tag_name),
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%s', '%s', '%s')
+                );
+                $tag_id = $wpdb->insert_id;
+            }
+        }
+        
+        if (!$tag_id) {
             return array(
                 'success' => false,
-                'message' => 'Could not create FluentCRM tag'
+                'message' => 'Could not get or create FluentCRM tag'
             );
         }
         
         // Apply tag to contact
-        $contact->attachTags(array($tag->id));
+        $contact->attachTags(array($tag_id));
         
-        // Also apply a general "Practice Reminder" tag for easier automation
-        $general_tag = fluentCrmApi('tags')->getOrCreate('Practice Reminder');
-        if ($general_tag) {
-            $contact->attachTags(array($general_tag->id));
+        // Log the reminder tag application
+        $user = get_user_by('ID', $user_id);
+        $user_name = '';
+        if ($user) {
+            $first_name = get_user_meta($user_id, 'first_name', true);
+            $last_name = get_user_meta($user_id, 'last_name', true);
+            if ($first_name || $last_name) {
+                $user_name = trim($first_name . ' ' . $last_name);
+            } else {
+                $user_name = $user->display_name ?: $user->user_login;
+            }
         }
+        
+        // Get database instance and log
+        require_once plugin_dir_path(__FILE__) . 'includes/class-database.php';
+        $database = new JPH_Database();
+        $database->log_reminder_tag($user_id, $user_email, $user_name, $tag_name, $days_since);
         
         return array(
             'success' => true,

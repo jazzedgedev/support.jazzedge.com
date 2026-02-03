@@ -145,6 +145,8 @@
     align-items: center;
     gap: 12px;
     font-size: 14px;
+    flex-wrap: wrap;
+    row-gap: 6px;
 }
 
 .alm-duration {
@@ -889,6 +891,22 @@
     font-weight: 600;
 }
 
+.alm-coming-soon-badge {
+    background: #fff3cd;
+    color: #856404;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.alm-release-date {
+    color: #495057;
+    font-size: 12px;
+    font-weight: 500;
+}
+
 .alm-restricted-link {
     cursor: not-allowed;
     pointer-events: none;
@@ -905,6 +923,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-direction: column;
 }
 
 .alm-video-placeholder h3 {
@@ -919,6 +938,16 @@
     color: #212529;
     margin: 0 0 20px 0;
     font-weight: 500;
+}
+
+.alm-coming-soon-notice {
+    background: #fff3cd;
+    border: 1px solid #ffe69c;
+    color: #664d03;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 0 0 20px 0;
+    font-size: 14px;
 }
 
 .alm-chapters-container {

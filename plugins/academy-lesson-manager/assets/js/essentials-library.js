@@ -6,6 +6,7 @@
     'use strict';
     
     $(document).ready(function() {
+        initEssentialsLibraryVideo();
         
         // Handle "Add to Library" button clicks
         $('.alm-add-to-library').on('click', function(e) {
@@ -127,6 +128,34 @@
             $(this).closest('form').submit();
         });
     });
+
+    /**
+     * Initialize Essentials Library video (HLS)
+     */
+    function initEssentialsLibraryVideo() {
+        var video = document.getElementById('alm-essentials-library-video');
+        if (!video) {
+            return;
+        }
+
+        var source = video.querySelector('source');
+        var videoUrl = source ? source.getAttribute('src') : '';
+        if (!videoUrl) {
+            return;
+        }
+
+        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+            var hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: false
+            });
+            hls.loadSource(videoUrl);
+            hls.attachMedia(video);
+            video.hls = hls;
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoUrl;
+        }
+    }
     
     /**
      * Open sample video modal

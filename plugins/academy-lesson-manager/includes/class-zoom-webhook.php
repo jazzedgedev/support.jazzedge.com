@@ -127,7 +127,7 @@ class ALM_Zoom_Webhook {
             return array('success' => false, 'error' => $error, 'debug' => $debug);
         }
         
-        // Extract collection ID and zoom identifier from title (format: {id123|willie-coaching})
+        // Extract collection ID and zoom identifier from title (format: {id123|willie-coaching} or {id123|willie-coaching|teacher})
         $collection_id = $this->extract_collection_id($title);
         $zoom_identifier = $this->extract_zoom_identifier($title);
         
@@ -142,7 +142,7 @@ class ALM_Zoom_Webhook {
         $debug['steps'][] = array('step' => 'payload_parsing', 'status' => 'passed', 'data' => $debug['parsed']);
         
         if (empty($collection_id)) {
-            $error = 'Could not extract collection ID from title. Expected format: {id123|willie-coaching}. Title: ' . $title;
+            $error = 'Could not extract collection ID from title. Expected format: {id123|willie-coaching} or {id123|willie-coaching|teacher}. Title: ' . $title;
             $debug['error'] = $error;
             $debug['steps'][] = array('step' => 'collection_extraction', 'status' => 'failed', 'message' => $error);
             $this->add_debug_log($debug);
@@ -150,7 +150,7 @@ class ALM_Zoom_Webhook {
         }
         
         if (empty($zoom_identifier)) {
-            $error = 'Could not extract zoom identifier from title. Expected format: {id123|willie-coaching}. Title: ' . $title;
+            $error = 'Could not extract zoom identifier from title. Expected format: {id123|willie-coaching} or {id123|willie-coaching|teacher}. Title: ' . $title;
             $debug['error'] = $error;
             $debug['steps'][] = array('step' => 'zoom_identifier_extraction', 'status' => 'failed', 'message' => $error);
             $this->add_debug_log($debug);
@@ -193,13 +193,23 @@ class ALM_Zoom_Webhook {
             $debug['steps'][] = array('step' => 'update_vimeo_id', 'status' => 'skipped', 'reason' => 'dry_run');
         }
         
-        // Step 5: Check if auto-migrate is enabled
+        // Step 5: Check if event was already converted - if so, ensure chapter exists/updated
+        $existing_lesson_id = get_post_meta($event->ID, '_converted_to_alm_lesson_id', true);
+        
+        if (!empty($existing_lesson_id) && !$dry_run) {
+            // Event already converted - ensure chapter exists and is updated with Vimeo ID
+            $chapter_result = $this->ensure_chapter_for_lesson($existing_lesson_id, $vimeo_id, $vtt_content, $event->ID);
+            if ($chapter_result['success']) {
+                $debug['steps'][] = array('step' => 'update_existing_chapter', 'status' => 'completed', 'chapter_id' => $chapter_result['chapter_id']);
+            } else {
+                $debug['steps'][] = array('step' => 'update_existing_chapter', 'status' => 'failed', 'error' => $chapter_result['error']);
+            }
+        }
+        
+        // Step 6: Check if auto-migrate is enabled
         $auto_migrate = get_option('alm_zoom_webhook_auto_migrate', false);
         
         if ($auto_migrate && !$dry_run) {
-            // Check if already converted
-            $existing_lesson_id = get_post_meta($event->ID, '_converted_to_alm_lesson_id', true);
-            
             if (empty($existing_lesson_id)) {
                 // Trigger migration (pass VTT content)
                 $migration_result = $this->migrate_event_to_collection($event->ID, $collection_id, $vimeo_id, $vtt_content);
@@ -215,15 +225,7 @@ class ALM_Zoom_Webhook {
                     $debug['steps'][] = array('step' => 'migration', 'status' => 'failed', 'error' => $migration_result['error']);
                 }
             } else {
-                // Event already converted - try to save VTT to existing chapter
-                if (!empty($vtt_content)) {
-                    $vtt_result = $this->save_vtt_to_existing_chapter($existing_lesson_id, $vtt_content);
-                    if ($vtt_result['success']) {
-                        $debug['steps'][] = array('step' => 'save_vtt_to_existing', 'status' => 'completed', 'chapter_id' => $vtt_result['chapter_id']);
-                    } else {
-                        $debug['steps'][] = array('step' => 'save_vtt_to_existing', 'status' => 'failed', 'error' => $vtt_result['error']);
-                    }
-                }
+                // Event already converted - chapter was updated in Step 5
                 $debug['migration'] = array('skipped' => 'already_converted', 'existing_lesson_id' => $existing_lesson_id);
                 $debug['steps'][] = array('step' => 'migration', 'status' => 'skipped', 'reason' => 'already_converted');
             }
@@ -246,13 +248,13 @@ class ALM_Zoom_Webhook {
     }
     
     /**
-     * Extract collection ID from title (format: {id123|willie-coaching})
+     * Extract collection ID from title (format: {id123|willie-coaching} or {id123|willie-coaching|teacher})
      * 
      * @param string $title Title containing collection ID and zoom identifier
      * @return int|null Collection ID or null if not found
      */
     private function extract_collection_id($title) {
-        // Look for pattern {id123|willie-coaching} where left side of pipe is collection ID
+        // Look for pattern {id123|willie-coaching} or {id123|willie-coaching|teacher} where left side of first pipe is collection ID
         if (preg_match('/\{id\s*(\d+)\s*\|\s*[^}]+\}/i', $title, $matches)) {
             return intval($matches[1]);
         }
@@ -260,7 +262,7 @@ class ALM_Zoom_Webhook {
     }
     
     /**
-     * Extract zoom identifier from title (format: {id123|willie-coaching})
+     * Extract zoom identifier from title (format: {id123|willie-coaching} or {id123|willie-coaching|teacher})
      * 
      * @param string $title Title containing collection ID and zoom identifier
      * @return string|null Zoom identifier or null if not found
@@ -269,8 +271,9 @@ class ALM_Zoom_Webhook {
         // Valid identifiers: willie-coaching, willie-special, willie-community, paul-class
         $valid_identifiers = array('willie-coaching', 'willie-special', 'willie-community', 'paul-class');
         
-        // Look for pattern {id123|willie-coaching} where right side of pipe is zoom identifier
-        if (preg_match('/\{id\s*\d+\s*\|\s*([^}]+)\}/i', $title, $matches)) {
+        // Look for pattern {id123|willie-coaching} or {id123|willie-coaching|teacher}
+        // Capture only the second part (zoom identifier), ignoring optional third part (teacher)
+        if (preg_match('/\{id\s*\d+\s*\|\s*([^|}]+)(?:\s*\|\s*[^}]+)?\}/i', $title, $matches)) {
             $identifier = strtolower(trim($matches[1]));
             
             // Check if it's a valid zoom identifier
@@ -934,6 +937,156 @@ class ALM_Zoom_Webhook {
         }
         
         return $result;
+    }
+    
+    /**
+     * Ensure chapter exists for lesson and update/create it with Vimeo ID
+     * 
+     * @param int $lesson_id Lesson ID
+     * @param int $vimeo_id Vimeo ID
+     * @param string $vtt_content Optional VTT content
+     * @param int $event_id Event ID (for getting lesson title and Bunny URL)
+     * @return array Result with success status and chapter_id
+     */
+    private function ensure_chapter_for_lesson($lesson_id, $vimeo_id, $vtt_content = '', $event_id = 0) {
+        // Get lesson info
+        $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT ID, lesson_title FROM {$this->lessons_table} WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            return array('success' => false, 'error' => 'Lesson not found');
+        }
+        
+        // Get lesson title - use event title if available, otherwise use lesson title
+        $chapter_title = $lesson->lesson_title;
+        if ($event_id) {
+            $event = get_post($event_id);
+            if ($event) {
+                $chapter_title = $this->get_formatted_lesson_title($event_id, $event->post_title);
+            }
+        }
+        
+        // Check if chapter already exists
+        $existing_chapter = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT ID, vimeo_id FROM {$this->chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC LIMIT 1",
+            $lesson_id
+        ));
+        
+        // Get Bunny URL from event if available
+        $bunny_url = '';
+        if ($event_id) {
+            $bunny_url = get_post_meta($event_id, 'je_event_bunny_url', true);
+        }
+        
+        // Get Vimeo duration if we have a Vimeo ID
+        $chapter_duration = 0;
+        if (!empty($vimeo_id)) {
+            require_once ALM_PLUGIN_DIR . 'includes/class-vimeo-api.php';
+            $vimeo_api = new ALM_Vimeo_API();
+            $vimeo_duration = $vimeo_api->get_video_duration($vimeo_id);
+            if ($vimeo_duration !== false && $vimeo_duration > 0) {
+                $chapter_duration = intval($vimeo_duration);
+            }
+        }
+        
+        if ($existing_chapter) {
+            // Update existing chapter with Vimeo ID and Bunny URL
+            $update_data = array(
+                'vimeo_id' => intval($vimeo_id),
+                'duration' => $chapter_duration,
+                'updated_at' => current_time('mysql')
+            );
+            
+            // Update Bunny URL if provided
+            if (!empty($bunny_url)) {
+                $update_data['bunny_url'] = sanitize_text_field($bunny_url);
+            }
+            
+            // Only update title if it's different (to preserve custom titles)
+            if ($chapter_title !== $lesson->lesson_title) {
+                $update_data['chapter_title'] = $chapter_title;
+            }
+            
+            // Build format array based on what we're updating
+            $format = array('%d', '%d', '%s'); // vimeo_id, duration, updated_at
+            if (isset($update_data['bunny_url'])) {
+                $format[] = '%s'; // bunny_url
+            }
+            if (isset($update_data['chapter_title'])) {
+                $format[] = '%s'; // chapter_title
+            }
+            
+            $this->wpdb->update(
+                $this->chapters_table,
+                $update_data,
+                array('ID' => $existing_chapter->ID),
+                $format,
+                array('%d')
+            );
+            
+            $chapter_id = $existing_chapter->ID;
+            
+            // Save VTT if provided
+            if (!empty($vtt_content)) {
+                $this->save_vtt_transcript($chapter_id, $lesson_id, $vtt_content);
+            }
+            
+            // Update lesson duration from chapter
+            if ($chapter_duration > 0) {
+                $this->wpdb->update(
+                    $this->lessons_table,
+                    array('duration' => $chapter_duration),
+                    array('ID' => $lesson_id),
+                    array('%d'),
+                    array('%d')
+                );
+            }
+            
+            return array('success' => true, 'chapter_id' => $chapter_id, 'action' => 'updated');
+        } else {
+            // Create new chapter
+            $chapter_data = array(
+                'lesson_id' => $lesson_id,
+                'chapter_title' => $chapter_title,
+                'menu_order' => 1,
+                'vimeo_id' => intval($vimeo_id),
+                'youtube_id' => '',
+                'bunny_url' => !empty($bunny_url) ? sanitize_text_field($bunny_url) : '',
+                'duration' => $chapter_duration,
+                'free' => 'n',
+                'slug' => sanitize_title($chapter_title),
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            );
+            
+            $result = $this->wpdb->insert($this->chapters_table, $chapter_data);
+            
+            if ($result === false) {
+                return array('success' => false, 'error' => 'Failed to create chapter');
+            }
+            
+            $chapter_id = $this->wpdb->insert_id;
+            
+            // Save VTT if provided
+            if (!empty($vtt_content)) {
+                $this->save_vtt_transcript($chapter_id, $lesson_id, $vtt_content);
+            }
+            
+            // Update lesson duration from chapter
+            if ($chapter_duration > 0) {
+                $this->wpdb->update(
+                    $this->lessons_table,
+                    array('duration' => $chapter_duration),
+                    array('ID' => $lesson_id),
+                    array('%d'),
+                    array('%d')
+                );
+            }
+            
+            return array('success' => true, 'chapter_id' => $chapter_id, 'action' => 'created');
+        }
     }
     
     /**

@@ -376,4 +376,29 @@ class ALM_Helpers {
             $lesson_id
         ));
     }
+    
+    /**
+     * Check if a release date has passed (checks at midnight ET/EST)
+     * 
+     * @param string $release_date Release date in YYYY-MM-DD format
+     * @return bool True if the release date has passed, false otherwise
+     */
+    public static function is_release_date_passed($release_date) {
+        if (empty($release_date) || $release_date === '0000-00-00' || $release_date === '0000-00-00 00:00:00') {
+            return true; // If no release date set, consider it released
+        }
+        
+        try {
+            // Create DateTime for midnight ET on release date
+            $release_et = new DateTime($release_date . ' 00:00:00', new DateTimeZone('America/New_York'));
+            // Get current time in ET
+            $now_et = new DateTime('now', new DateTimeZone('America/New_York'));
+            
+            // Check if current ET time is >= release time in ET
+            return $now_et >= $release_et;
+        } catch (Exception $e) {
+            // Fallback to simple date comparison if timezone conversion fails
+            return current_time('Y-m-d') >= $release_date;
+        }
+    }
 }

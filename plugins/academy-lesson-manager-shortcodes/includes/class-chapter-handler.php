@@ -28,7 +28,7 @@ class ALM_Chapter_Handler {
         
         // Get all chapters for this lesson, ordered by menu_order
         $chapters = $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT ID, slug, chapter_title, menu_order 
+            "SELECT ID, slug, chapter_title, menu_order, post_date 
              FROM {$this->wpdb->prefix}alm_chapters 
              WHERE lesson_id = %d 
              ORDER BY menu_order ASC",
@@ -107,7 +107,7 @@ class ALM_Chapter_Handler {
      */
     public function get_chapter_navigation($lesson_id, $current_chapter_id) {
         $chapters = $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT ID, slug, chapter_title, menu_order 
+            "SELECT ID, slug, chapter_title, menu_order, post_date 
              FROM {$this->wpdb->prefix}alm_chapters 
              WHERE lesson_id = %d 
              ORDER BY menu_order ASC",
@@ -150,15 +150,47 @@ class ALM_Chapter_Handler {
     
     /**
      * Get all chapters for a lesson with metadata
+     * Returns all chapters - release date checking is done in display logic
      */
     public function get_lesson_chapters($lesson_id) {
-        return $this->wpdb->get_results($this->wpdb->prepare(
-            "SELECT ID, slug, chapter_title, menu_order, duration, bunny_url, youtube_id, vimeo_id
+        $chapters = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT ID, slug, chapter_title, menu_order, duration, bunny_url, youtube_id, vimeo_id, post_date
              FROM {$this->wpdb->prefix}alm_chapters 
              WHERE lesson_id = %d 
              ORDER BY menu_order ASC",
             $lesson_id
         ));
+        
+        return $chapters;
+    }
+    
+    /**
+     * Check if a chapter is released
+     * 
+     * @param object $chapter Chapter object with post_date
+     * @param string $lesson_post_date Lesson's post_date as fallback
+     * @return bool True if released, false otherwise
+     */
+    public function is_chapter_released($chapter, $lesson_post_date = '') {
+        $is_admin = current_user_can('manage_options');
+        if ($is_admin) {
+            return true; // Admins can always see chapters
+        }
+        
+        // Use chapter's post_date if set, otherwise fall back to lesson's post_date
+        $release_date = '';
+        if (!empty($chapter->post_date) && $chapter->post_date !== '0000-00-00') {
+            $release_date = $chapter->post_date;
+        } elseif (!empty($lesson_post_date) && $lesson_post_date !== '0000-00-00') {
+            $release_date = $lesson_post_date;
+        }
+        
+        // If no release date, consider it released
+        if (empty($release_date)) {
+            return true;
+        }
+        
+        return ALM_Helpers::is_release_date_passed($release_date);
     }
     
     /**

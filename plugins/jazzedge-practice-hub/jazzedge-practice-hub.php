@@ -13267,35 +13267,6 @@ class JazzEdge_Practice_Hub {
     /**
      * Student Dashboard Shortcode
      */
-    /**
-     * Check if current user can access PLAN tab (test users only)
-     */
-    private function user_can_access_plan_tab() {
-        $user_id = get_current_user_id();
-        if (!$user_id || $user_id === 0) {
-            return false;
-        }
-        
-        // Check if enabled for all users (production mode)
-        $enable_for_all = get_option('aaa_enable_for_all', false);
-        if ($enable_for_all) {
-            return true;
-        }
-        
-        // Check if user is in test whitelist
-        $test_user_ids = get_option('aaa_test_user_ids', '');
-        if (empty($test_user_ids)) {
-            return false;
-        }
-        
-        // Parse comma-separated user IDs
-        $whitelist = array_map('trim', explode(',', $test_user_ids));
-        $whitelist = array_map('absint', $whitelist); // Sanitize
-        $whitelist = array_filter($whitelist); // Remove empty values
-        
-        return in_array($user_id, $whitelist, true);
-    }
-    
     public function shortcode_student_dashboard($atts) {
         // Only show to logged-in users
         if (!is_user_logged_in()) {
@@ -13303,7 +13274,6 @@ class JazzEdge_Practice_Hub {
         }
         
         $user_id = get_current_user_id();
-        $can_access_plan = $this->user_can_access_plan_tab();
         $database = new JPH_Database();
         
         // Get user's practice items
@@ -13482,7 +13452,6 @@ class JazzEdge_Practice_Hub {
                 <?php endif; ?>
             </div>
             
-            <?php if ($can_access_plan): ?>
             <!-- Tabbed Navigation -->
             <div class="jph-tabs-container">
                 <div class="jph-tabs-nav">
@@ -13797,10 +13766,8 @@ class JazzEdge_Practice_Hub {
                 </div>
             </div>
             
-            <?php if ($can_access_plan): ?>
                 </div> <!-- End practice-tab -->
             </div> <!-- End jph-tabs-container -->
-            <?php endif; ?>
             
             <!-- Practice Logging Modal -->
             <div id="jph-log-modal" class="jph-modal" style="display: none;">
@@ -18613,14 +18580,11 @@ class JazzEdge_Practice_Hub {
                     });
                 });
                 
-                <?php if ($can_access_plan): ?>
                 // PLAN Tab Functionality
                 initPlanTab();
-                <?php endif; ?>
             });
         }
         
-        <?php if ($can_access_plan): ?>
         // Initialize PLAN Tab
         function initPlanTab() {
             // Tab switching
@@ -18833,7 +18797,6 @@ class JazzEdge_Practice_Hub {
                 }
             });
         }
-        <?php endif; ?>
         
         // Start initialization
         // Initialize Streak Shield & Recovery system

@@ -157,8 +157,19 @@ class Keap_Reports {
             update_option('keap_reports_api_key', '');
         }
         
-        // Clear any cached schedules
+        // Enable auto-fetch by default if not set
+        if (get_option('keap_reports_auto_fetch_enabled') === false) {
+            update_option('keap_reports_auto_fetch_enabled', 1);
+        }
+        
+        // Set default schedule frequency to daily if not set
+        if (get_option('keap_reports_schedule_frequency') === false) {
+            update_option('keap_reports_schedule_frequency', 'daily');
+        }
+        
+        // Clear any cached schedules (will be recreated on next admin page load)
         wp_clear_scheduled_hook('keap_reports_fetch_scheduled');
+        wp_clear_scheduled_hook('keap_reports_fetch_daily_subscriptions');
     }
     
     /**

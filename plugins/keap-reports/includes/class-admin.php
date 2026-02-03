@@ -56,7 +56,12 @@ class Keap_Reports_Admin {
         add_action('wp_ajax_keap_reports_import_csv', array($this, 'ajax_import_csv'));
         add_action('wp_ajax_keap_reports_save_product', array($this, 'ajax_save_product'));
         add_action('wp_ajax_keap_reports_delete_product', array($this, 'ajax_delete_product'));
-        add_action('wp_ajax_keap_reports_scan_tag_mismatches', array($this, 'ajax_scan_tag_mismatches'));
+        add_action('wp_ajax_keap_reports_get_subscription_chart_data', array($this, 'ajax_get_subscription_chart_data'));
+        add_action('wp_ajax_keap_reports_check_duplicates', array($this, 'ajax_check_duplicates'));
+        add_action('wp_ajax_keap_reports_clear_duplicates', array($this, 'ajax_clear_duplicates'));
+        add_action('wp_ajax_keap_reports_trigger_cron', array($this, 'ajax_trigger_cron'));
+        add_action('wp_ajax_keap_reports_reschedule_cron', array($this, 'ajax_reschedule_cron'));
+        add_action('wp_ajax_keap_reports_bulk_action', array($this, 'ajax_bulk_action'));
     }
     
     /**
@@ -68,7 +73,7 @@ class Keap_Reports_Admin {
             'Keap Reports',
             'manage_options',
             'keap-reports',
-            array($this, 'render_display_page'),
+            array($this, 'render_dashboard_page'),
             'dashicons-chart-line',
             30
         );
@@ -84,8 +89,8 @@ class Keap_Reports_Admin {
         
         add_submenu_page(
             'keap-reports',
-            'Product Subscriptions',
-            'Product Subscriptions',
+            'Subscriptions',
+            'Subscriptions',
             'manage_options',
             'keap-reports-subscriptions',
             array($this, 'render_subscriptions_page')
@@ -102,8 +107,8 @@ class Keap_Reports_Admin {
         
         add_submenu_page(
             'keap-reports',
-            'Product Management',
-            'Product Management',
+            'Products',
+            'Products',
             'manage_options',
             'keap-reports-products',
             array($this, 'render_products_page')
@@ -116,15 +121,6 @@ class Keap_Reports_Admin {
             'manage_options',
             'keap-reports-settings',
             array($this, 'render_settings_page')
-        );
-        
-        add_submenu_page(
-            'keap-reports',
-            'Tag Audit',
-            'Tag Audit',
-            'manage_options',
-            'keap-reports-tag-audit',
-            array($this, 'render_tag_audit_page')
         );
         
         add_submenu_page(
@@ -153,6 +149,9 @@ class Keap_Reports_Admin {
             'default' => 'monthly'
         ));
         
+        register_setting('keap_reports_settings', 'keap_reports_logging_level', array(
+            'default' => 'light'
+        ));
         register_setting('keap_reports_settings', 'keap_reports_debug_enabled', array(
             'type' => 'boolean',
             'sanitize_callback' => 'rest_sanitize_boolean',
@@ -249,9 +248,11 @@ class Keap_Reports_Admin {
             // Only remove potentially dangerous characters, but keep alphanumeric, hyphens, underscores
             $api_key = preg_replace('/[^a-zA-Z0-9\-_]/', '', $api_key);
             
-            $schedule_frequency = isset($_POST['keap_reports_schedule_frequency']) ? sanitize_text_field($_POST['keap_reports_schedule_frequency']) : 'monthly';
+            $schedule_frequency = isset($_POST['keap_reports_schedule_frequency']) ? sanitize_text_field($_POST['keap_reports_schedule_frequency']) : 'daily';
             $debug_enabled = isset($_POST['keap_reports_debug_enabled']) ? 1 : 0;
+            $logging_level = isset($_POST['keap_reports_logging_level']) ? sanitize_text_field($_POST['keap_reports_logging_level']) : 'light';
             $auto_fetch_enabled = isset($_POST['keap_reports_auto_fetch_enabled']) ? 1 : 0;
+            $daily_fetch_time = isset($_POST['keap_reports_daily_fetch_time']) ? sanitize_text_field($_POST['keap_reports_daily_fetch_time']) : '08:00';
             
             // Get iSDK credentials (for XML-RPC saved searches)
             $app_name = isset($_POST['keap_reports_app_name']) ? sanitize_text_field($_POST['keap_reports_app_name']) : '';
@@ -261,15 +262,17 @@ class Keap_Reports_Admin {
             $result = update_option('keap_reports_api_key', $api_key);
             update_option('keap_reports_schedule_frequency', $schedule_frequency);
             update_option('keap_reports_debug_enabled', $debug_enabled);
+            update_option('keap_reports_logging_level', $logging_level);
             update_option('keap_reports_auto_fetch_enabled', $auto_fetch_enabled);
+            update_option('keap_reports_daily_fetch_time', $daily_fetch_time);
             update_option('keap_reports_app_name', $app_name);
             update_option('keap_reports_app_key', $app_key);
             
             // Handle cron scheduling based on auto_fetch setting
             $cron = new Keap_Reports_Cron($this->reports);
             if ($auto_fetch_enabled) {
-                // Reschedule cron if frequency changed
-                $cron->reschedule($schedule_frequency);
+                // Reschedule cron with new time
+                $cron->reschedule_daily($daily_fetch_time);
             } else {
                 // Clear all scheduled events if auto-fetch is disabled
                 $cron->clear_scheduled_events();
@@ -301,9 +304,11 @@ class Keap_Reports_Admin {
         
         // Get current settings
         $api_key = get_option('keap_reports_api_key', '');
-        $schedule_frequency = get_option('keap_reports_schedule_frequency', 'monthly');
+        $schedule_frequency = get_option('keap_reports_schedule_frequency', 'daily');
         $debug_enabled = get_option('keap_reports_debug_enabled', false);
+        $logging_level = get_option('keap_reports_logging_level', 'light');
         $auto_fetch_enabled = get_option('keap_reports_auto_fetch_enabled', 1);
+        $daily_fetch_time = get_option('keap_reports_daily_fetch_time', '08:00');
         $app_name = get_option('keap_reports_app_name', 'ft217'); // Default to ft217
         $app_key = get_option('keap_reports_app_key', '');
         $cron = new Keap_Reports_Cron($this->reports);
@@ -384,22 +389,37 @@ class Keap_Reports_Admin {
                         </tr>
                         <tr>
                             <th scope="row">
-                                <label for="keap_reports_debug_enabled">Enable Debug Logging</label>
+                                <label for="keap_reports_logging_level">Logging Level</label>
                             </th>
-                        <td>
-                            <label>
-                                <input type="checkbox" 
-                                       id="keap_reports_debug_enabled" 
-                                       name="keap_reports_debug_enabled" 
-                                       value="1" 
-                                       <?php checked($debug_enabled, true); ?> />
-                                Enable debug logging for troubleshooting
-                            </label>
-                            <p class="description">
-                                When enabled, all API requests will be logged to the WordPress debug log. Make sure WordPress debug logging is enabled in wp-config.php.
-                            </p>
-                        </td>
-                    </tr>
+                            <td>
+                                <select id="keap_reports_logging_level" name="keap_reports_logging_level">
+                                    <option value="light" <?php selected($logging_level, 'light'); ?>>Light (Essential Only)</option>
+                                    <option value="verbose" <?php selected($logging_level, 'verbose'); ?>>Verbose (All Logs)</option>
+                                </select>
+                                <p class="description">
+                                    <strong>Light:</strong> Only logs errors, warnings, cron executions, and essential info. Saves database space.<br>
+                                    <strong>Verbose:</strong> Logs all debug information including API request details, data processing steps, etc.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="keap_reports_debug_enabled">Enable WordPress Debug Log</label>
+                            </th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" 
+                                           id="keap_reports_debug_enabled" 
+                                           name="keap_reports_debug_enabled" 
+                                           value="1" 
+                                           <?php checked($debug_enabled, true); ?> />
+                                    Also log to WordPress error_log
+                                </label>
+                                <p class="description">
+                                    When enabled, logs will also be written to WordPress error_log (requires WP_DEBUG_LOG in wp-config.php).
+                                </p>
+                            </td>
+                        </tr>
                     <tr>
                         <th scope="row">
                             <label>Test Connection</label>
@@ -474,7 +494,8 @@ class Keap_Reports_Admin {
                                 <span style="color: #00a32a;">✓ Scheduled</span>
                                 <p class="description">
                                     Next run: <strong><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_run)); ?></strong>
-                                    (<?php echo human_time_diff($next_run, current_time('timestamp')); ?> from now)
+                                    (<?php echo human_time_diff($next_run, current_time('timestamp', true)); ?> from now)
+                                    <br><small style="color: #646970;">Timezone: <?php echo esc_html(wp_timezone_string()); ?></small>
                                 </p>
                             <?php else: ?>
                                 <span style="color: #d63638;">✗ Not Scheduled</span>
@@ -489,7 +510,8 @@ class Keap_Reports_Admin {
                                 <span style="color: #00a32a;">✓ Scheduled</span>
                                 <p class="description">
                                     Next run: <strong><?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_daily_run)); ?></strong>
-                                    (<?php echo human_time_diff($next_daily_run, current_time('timestamp')); ?> from now)
+                                    (<?php echo human_time_diff($next_daily_run, current_time('timestamp', true)); ?> from now)
+                                    <br><small style="color: #646970;">Timezone: <?php echo esc_html(wp_timezone_string()); ?></small>
                                 </p>
                             <?php else: ?>
                                 <span style="color: #d63638;">✗ Not Scheduled</span>
@@ -596,17 +618,69 @@ class Keap_Reports_Admin {
         // Handle form submission
         if (isset($_POST['keap_reports_save_report']) && check_admin_referer('keap_reports_save_report')) {
             // Validate required fields first
-            if (empty($_POST['report_name']) || empty($_POST['keap_report_id']) || empty($_POST['report_uuid'])) {
-                echo '<div class="notice notice-error is-dismissible"><p>Failed to save report. All fields (Name, Report ID, and UUID) are required.</p></div>';
+            if (empty($_POST['keap_report_id']) || empty($_POST['report_year']) || empty($_POST['report_month'])) {
+                echo '<div class="notice notice-error is-dismissible"><p>Failed to save report. Report ID, Year, and Month are required.</p></div>';
             } else {
+                // Auto-generate report name from month/year
+                $report_year = absint($_POST['report_year']);
+                $report_month = absint($_POST['report_month']);
+                $report_type = sanitize_text_field($_POST['report_type']);
+                
+                // Generate name based on report type
+                // Map old types to new types for backward compatibility
+                $old_type = $report_type;
+                if ($report_type === 'sales') {
+                    $report_type = 'monthly_revenue';
+                } elseif ($report_type === 'paid_starter') {
+                    $report_type = 'count';
+                } elseif ($report_type === 'intensives') {
+                    $report_type = 'count_revenue';
+                }
+                
+                // Check for title override - always allow override for all report types
+                $title_override = isset($_POST['report_title_override']) ? trim(sanitize_text_field($_POST['report_title_override'])) : '';
+                
+                // If title override is provided, use it; otherwise auto-generate
+                if (!empty($title_override)) {
+                    $auto_name = $title_override;
+                } else {
+                    // Auto-generate based on report type
+                    if ($report_type === 'monthly_revenue') {
+                        // Monthly Revenue: auto-generate from month/year
+                        $month_name = date('F', mktime(0, 0, 0, $report_month, 1));
+                        $auto_name = $month_name . ' ' . $report_year . ' Sales';
+                    } elseif ($report_type === 'count') {
+                        // Count: auto-generate based on old type for backward compatibility
+                        if ($old_type === 'paid_starter') {
+                            $auto_name = 'Paid Starter Signups';
+                        } else {
+                            $auto_name = 'Count Report';
+                        }
+                    } elseif ($report_type === 'count_revenue') {
+                        // Count/Revenue: auto-generate based on old type for backward compatibility
+                        if ($old_type === 'intensives') {
+                            $auto_name = 'Intensives';
+                        } else {
+                            $auto_name = 'Count/Revenue Report';
+                        }
+                    } else {
+                        // Fallback
+                        $month_name = date('F', mktime(0, 0, 0, $report_month, 1));
+                        $auto_name = $month_name . ' ' . $report_year . ' Sales';
+                    }
+                }
+                
                 $report_data = array(
                     'id' => isset($_POST['report_id']) ? absint($_POST['report_id']) : 0,
-                    'name' => sanitize_text_field($_POST['report_name']),
+                    'name' => $auto_name,
                     'report_id' => absint($_POST['keap_report_id']),
-                    'report_uuid' => sanitize_text_field($_POST['report_uuid']),
-                    'report_type' => sanitize_text_field($_POST['report_type']),
+                    'report_uuid' => isset($_POST['report_uuid']) && !empty($_POST['report_uuid']) ? sanitize_text_field($_POST['report_uuid']) : null,
+                    'report_type' => $report_type,
                     'filter_product_id' => isset($_POST['filter_product_id']) ? sanitize_text_field($_POST['filter_product_id']) : '',
-                    'is_active' => isset($_POST['is_active']) ? 1 : 0
+                    'report_year' => $report_year,
+                    'report_month' => $report_month,
+                    'is_active' => isset($_POST['is_active']) ? 1 : 0,
+                    'show_on_dashboard' => isset($_POST['show_on_dashboard']) ? 1 : 0
                 );
                 
                 $result = $this->database->save_report($report_data);
@@ -631,6 +705,22 @@ class Keap_Reports_Admin {
         // Get all reports
         $reports = $this->database->get_reports();
         
+        // Debug: Check if query is working
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'keap_reports';
+        $direct_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+        
+        // If get_reports() is empty but we have reports in DB, try a simpler query
+        if (empty($reports) && $direct_count > 0) {
+            error_log('Keap Reports: get_reports() returned empty but DB has ' . $direct_count . ' reports. Trying fallback query.');
+            // Fallback: simple query without complex sorting
+            $reports = $wpdb->get_results(
+                "SELECT * FROM {$table_name} ORDER BY name ASC",
+                ARRAY_A
+            );
+            $reports = $reports ? $reports : array();
+        }
+        
         // Get report to edit
         $edit_report = null;
         if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['report_id'])) {
@@ -640,6 +730,16 @@ class Keap_Reports_Admin {
         ?>
         <div class="wrap">
             <h1>Manage Reports</h1>
+            
+            <?php
+            // Debug output (remove after testing)
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                global $wpdb;
+                $table_name = $wpdb->prefix . 'keap_reports';
+                $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+                echo '<!-- Debug: Reports count: ' . $count . ', get_reports() returned: ' . count($reports) . ' -->';
+            }
+            ?>
             
             <h2><?php echo $edit_report ? 'Edit Report' : 'Add New Report'; ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=keap-reports-manage')); ?>">
@@ -651,21 +751,47 @@ class Keap_Reports_Admin {
                 <table class="form-table">
                     <tr>
                         <th scope="row">
-                            <label for="report_name">Report Name</label>
+                            <label for="report_year">Report Year <span style="color: red;">*</span></label>
                         </th>
                         <td>
-                            <input type="text" 
-                                   id="report_name" 
-                                   name="report_name" 
-                                   value="<?php echo $edit_report ? esc_attr($edit_report['name']) : ''; ?>" 
-                                   class="regular-text" 
-                                   required />
-                            <p class="description">Display name for this report (e.g., "Dec 25 Sales")</p>
+                            <select id="report_year" name="report_year" required>
+                                <option value="">-- Select Year --</option>
+                                <?php
+                                $current_year = intval(date('Y'));
+                                $selected_year = $edit_report && isset($edit_report['report_year']) ? intval($edit_report['report_year']) : null;
+                                for ($y = $current_year - 2; $y <= $current_year + 1; $y++):
+                                    ?>
+                                    <option value="<?php echo $y; ?>" <?php selected($selected_year, $y); ?>><?php echo $y; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                            <p class="description">The year this report represents (required)</p>
                         </td>
                     </tr>
                     <tr>
                         <th scope="row">
-                            <label for="keap_report_id">Keap Report ID</label>
+                            <label for="report_month">Report Month <span style="color: red;">*</span></label>
+                        </th>
+                        <td>
+                            <select id="report_month" name="report_month" required>
+                                <option value="">-- Select Month --</option>
+                                <?php
+                                $selected_month = $edit_report && isset($edit_report['report_month']) ? intval($edit_report['report_month']) : null;
+                                $months = array(
+                                    1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April',
+                                    5 => 'May', 6 => 'June', 7 => 'July', 8 => 'August',
+                                    9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+                                );
+                                foreach ($months as $num => $name):
+                                    ?>
+                                    <option value="<?php echo $num; ?>" <?php selected($selected_month, $num); ?>><?php echo $name; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description">The month this report represents (required). Report name will be auto-generated as "Month Year Sales" (or "Paid Starter Signups" for paid starter reports)</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="keap_report_id">Keap Report ID <span style="color: red;">*</span></label>
                         </th>
                         <td>
                             <input type="number" 
@@ -679,45 +805,28 @@ class Keap_Reports_Admin {
                     </tr>
                     <tr>
                         <th scope="row">
-                            <label for="keap_report_url">Keap Report URL</label>
-                        </th>
-                        <td>
-                            <input type="text" 
-                                   id="keap_report_url" 
-                                   name="keap_report_url" 
-                                   value="" 
-                                   class="regular-text" 
-                                   placeholder="Paste Keap report URL here to auto-fill UUID" />
-                            <button type="button" id="extract-uuid-btn" class="button button-small">Extract UUID</button>
-                            <p class="description">Paste the full Keap report URL and click "Extract UUID" to automatically fill the UUID field below</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="report_uuid">Report UUID</label>
-                        </th>
-                        <td>
-                            <input type="text" 
-                                   id="report_uuid" 
-                                   name="report_uuid" 
-                                   value="<?php echo $edit_report ? esc_attr($edit_report['report_uuid']) : ''; ?>" 
-                                   class="regular-text" 
-                                   required />
-                            <p class="description">The UUID from Keap (e.g., "a5c1a584-4311-4a71-b1f8-bd52f638de8d") - or paste URL above to auto-extract</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
                             <label for="report_type">Report Type</label>
                         </th>
                         <td>
                             <select id="report_type" name="report_type">
-                                <option value="sales" <?php echo ($edit_report && $edit_report['report_type'] === 'sales') ? 'selected' : ''; ?>>Sales</option>
-                                <option value="memberships" <?php echo ($edit_report && $edit_report['report_type'] === 'memberships') ? 'selected' : ''; ?>>Memberships</option>
-                                <option value="subscriptions" <?php echo ($edit_report && $edit_report['report_type'] === 'subscriptions') ? 'selected' : ''; ?>>Subscriptions</option>
-                                <option value="custom" <?php echo (!$edit_report || $edit_report['report_type'] === 'custom') ? 'selected' : ''; ?>>Custom</option>
+                                <option value="monthly_revenue" <?php echo ($edit_report && in_array($edit_report['report_type'], array('sales', 'monthly_revenue'))) ? 'selected' : ''; ?>>Monthly Revenue</option>
+                                <option value="count" <?php echo ($edit_report && in_array($edit_report['report_type'], array('paid_starter', 'count'))) ? 'selected' : ''; ?>>Count</option>
+                                <option value="count_revenue" <?php echo ($edit_report && in_array($edit_report['report_type'], array('intensives', 'count_revenue'))) ? 'selected' : ''; ?>>Count/Revenue</option>
                             </select>
                             <p class="description">Type of report (affects how data is aggregated)</p>
+                        </td>
+                    </tr>
+                    <tr id="title-override-row">
+                        <th scope="row">
+                            <label for="report_title_override">Report Title</label>
+                        </th>
+                        <td>
+                            <input type="text" 
+                                   id="report_title_override" 
+                                   name="report_title_override" 
+                                   value="<?php echo $edit_report && isset($edit_report['name']) ? esc_attr($edit_report['name']) : ''; ?>" 
+                                   class="regular-text" />
+                            <p class="description">Optional: Override the auto-generated title. Leave blank to use auto-generated title based on report type.</p>
                         </td>
                     </tr>
                     <tr id="product-filter-row" style="<?php echo ($edit_report && $edit_report['report_type'] === 'subscriptions') ? '' : 'display: none;'; ?>">
@@ -749,6 +858,22 @@ class Keap_Reports_Admin {
                             </label>
                         </td>
                     </tr>
+                    <tr id="show-dashboard-row" style="<?php echo ($edit_report && in_array($edit_report['report_type'], array('intensives'))) ? '' : 'display: none;'; ?>">
+                        <th scope="row">
+                            <label for="show_on_dashboard">Show on Dashboard</label>
+                        </th>
+                        <td>
+                            <label>
+                                <input type="checkbox" 
+                                       id="show_on_dashboard" 
+                                       name="show_on_dashboard" 
+                                       value="1" 
+                                       <?php checked($edit_report && isset($edit_report['show_on_dashboard']) && $edit_report['show_on_dashboard'], true); ?> />
+                                Display this report's data as a KPI card on the dashboard
+                            </label>
+                            <p class="description">When enabled, this report will show as a card on the dashboard with orders and revenue.</p>
+                        </td>
+                    </tr>
                 </table>
                 
                 <input type="submit" name="keap_reports_save_report" class="button button-primary" value="<?php echo $edit_report ? 'Update Report' : 'Add Report'; ?>" />
@@ -758,44 +883,82 @@ class Keap_Reports_Admin {
             </form>
             
             <h2>Existing Reports</h2>
+            
+            <div class="tablenav top">
+                <div class="alignleft actions bulkactions">
+                    <select name="bulk_action" id="bulk-action-selector">
+                        <option value="">Bulk Actions</option>
+                        <option value="activate">Enable Auto-Fetch</option>
+                        <option value="deactivate">Disable Auto-Fetch</option>
+                    </select>
+                    <input type="button" id="do-bulk-action" class="button action" value="Apply" />
+                </div>
+            </div>
+            
+            <style>
+                .wp-list-table th.column-actions,
+                .wp-list-table td.column-actions {
+                    width: 280px !important;
+                    min-width: 280px;
+                }
+                .wp-list-table th.check-column,
+                .wp-list-table td.check-column {
+                    width: 2.2em;
+                }
+            </style>
+            
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
+                        <th class="check-column"><input type="checkbox" id="cb-select-all" /></th>
                         <th>Name</th>
                         <th>Report ID</th>
                         <th>Type</th>
+                        <th>Month/Year</th>
                         <th>Status</th>
                         <th>Last Fetch</th>
-                        <th>Actions</th>
+                        <th class="column-actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($reports)): ?>
                         <tr>
-                            <td colspan="6">No reports configured yet.</td>
+                            <td colspan="8">No reports configured yet.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($reports as $report): ?>
                             <?php
-                            $current_year = intval(date('Y'));
-                            $current_month = intval(date('n'));
-                            $last_data = $this->database->get_report_data($report['id'], $current_year, $current_month);
+                            // Get the most recent fetch time across all months
+                            $last_fetch_time = $this->database->get_last_fetch_time($report['id']);
                             ?>
                             <tr>
+                                <th scope="row" class="check-column">
+                                    <input type="checkbox" name="report_ids[]" value="<?php echo esc_attr($report['id']); ?>" class="report-checkbox" />
+                                </th>
                                 <td><strong><?php echo esc_html($report['name']); ?></strong></td>
                                 <td><?php echo esc_html($report['report_id']); ?></td>
                                 <td><?php echo esc_html(ucfirst($report['report_type'])); ?></td>
+                                <td>
+                                    <?php 
+                                    if (!empty($report['report_year']) && !empty($report['report_month'])) {
+                                        $month_name = date('M', mktime(0, 0, 0, $report['report_month'], 1));
+                                        echo esc_html($month_name . ' ' . $report['report_year']);
+                                    } else {
+                                        echo '<span style="color: gray;">Not set</span>';
+                                    }
+                                    ?>
+                                </td>
                                 <td><?php echo $report['is_active'] ? '<span style="color: green;">Active</span>' : '<span style="color: gray;">Inactive</span>'; ?></td>
                                 <td>
                                     <?php 
-                                    if ($last_data && $last_data['fetched_at']) {
-                                        echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_data['fetched_at'])));
+                                    if ($last_fetch_time) {
+                                        echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_fetch_time)));
                                     } else {
                                         echo '<span style="color: gray;">Never</span>';
                                     }
                                     ?>
                                 </td>
-                                <td>
+                                <td class="column-actions">
                                     <a href="<?php echo esc_url(admin_url('admin.php?page=keap-reports-manage&action=edit&report_id=' . $report['id'])); ?>" class="button button-small">Edit</a>
                                     <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=keap-reports-manage&action=delete&report_id=' . $report['id']), 'delete_report_' . $report['id'])); ?>" 
                                        class="button button-small" 
@@ -814,88 +977,93 @@ class Keap_Reports_Admin {
         
         <script type="text/javascript">
         jQuery(document).ready(function($) {
-            // Extract UUID from Keap URL
-            $('#extract-uuid-btn').on('click', function() {
-                var url = $('#keap_report_url').val().trim();
+                // Show/hide fields based on report type
+                function toggleReportTypeFields() {
+                    var reportType = $('#report_type').val();
+                    
+                    // Hide product filter (no longer used)
+                    $('#product-filter-row').hide();
+                    
+                    // Title override is always shown for all report types
+                    $('#title-override-row').show();
+                    
+                    // Show/hide "Show on Dashboard" row for count and count_revenue
+                    if (reportType === 'count' || reportType === 'count_revenue') {
+                        $('#show-dashboard-row').show();
+                    } else {
+                        $('#show-dashboard-row').hide();
+                    }
+                }
                 
-                if (!url) {
-                    alert('Please paste a Keap report URL first.');
+                // Keep old function name for compatibility
+                function toggleProductFilter() {
+                    toggleReportTypeFields();
+                }
+            
+            $('#report_type').on('change', toggleReportTypeFields);
+            toggleReportTypeFields(); // Run on page load
+            
+            // Select all checkbox functionality
+            $('#cb-select-all').on('change', function() {
+                $('.report-checkbox').prop('checked', $(this).prop('checked'));
+            });
+            
+            // Update select all checkbox when individual checkboxes change
+            $('.report-checkbox').on('change', function() {
+                var total = $('.report-checkbox').length;
+                var checked = $('.report-checkbox:checked').length;
+                $('#cb-select-all').prop('checked', total === checked);
+            });
+            
+            // Bulk actions
+            $('#do-bulk-action').on('click', function() {
+                var action = $('#bulk-action-selector').val();
+                var selectedReports = $('.report-checkbox:checked').map(function() {
+                    return $(this).val();
+                }).get();
+                
+                if (!action) {
+                    alert('Please select a bulk action.');
                     return;
                 }
                 
-                try {
-                    // Parse the URL to extract reportStateId
-                    var urlObj = new URL(url);
-                    var reportStateId = urlObj.searchParams.get('reportStateId');
-                    
-                    if (reportStateId) {
-                        var $uuidField = $('#report_uuid');
-                        $uuidField.val(reportStateId);
-                        $uuidField.focus().blur(); // Trigger change events
-                        $('#keap_report_url').val('').attr('placeholder', 'UUID extracted! Paste another URL if needed.');
-                        // Use setTimeout to ensure value is set before alert
-                        setTimeout(function() {
-                            alert('UUID extracted successfully: ' + reportStateId);
-                            // Verify it's still there after alert
-                            if ($uuidField.val() !== reportStateId) {
-                                $uuidField.val(reportStateId);
-                            }
-                        }, 10);
-                    } else {
-                        // Try alternative parsing if URL parsing doesn't work
-                        var match = url.match(/reportStateId=([a-f0-9\-]+)/i);
-                        if (match && match[1]) {
-                            var $uuidField = $('#report_uuid');
-                            $uuidField.val(match[1]);
-                            $uuidField.focus().blur(); // Trigger change events
-                            $('#keap_report_url').val('').attr('placeholder', 'UUID extracted! Paste another URL if needed.');
-                            setTimeout(function() {
-                                alert('UUID extracted successfully: ' + match[1]);
-                                if ($uuidField.val() !== match[1]) {
-                                    $uuidField.val(match[1]);
-                                }
-                            }, 10);
+                if (selectedReports.length === 0) {
+                    alert('Please select at least one report.');
+                    return;
+                }
+                
+                var actionText = action === 'activate' ? 'enable auto-fetch for' : 'disable auto-fetch for';
+                if (!confirm('Are you sure you want to ' + actionText + ' ' + selectedReports.length + ' report(s)?')) {
+                    return;
+                }
+                
+                var $btn = $(this);
+                $btn.prop('disabled', true).val('Processing...');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_bulk_action',
+                        nonce: '<?php echo wp_create_nonce('keap_reports_bulk_action'); ?>',
+                        bulk_action: action,
+                        report_ids: selectedReports
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert(response.data.message);
+                            location.reload();
                         } else {
-                            alert('Could not find reportStateId in the URL. Please check the URL and try again.');
+                            alert('Error: ' + (response.data.message || 'Unknown error occurred'));
+                            $btn.prop('disabled', false).val('Apply');
                         }
+                    },
+                    error: function() {
+                        alert('An error occurred while processing the bulk action.');
+                        $btn.prop('disabled', false).val('Apply');
                     }
-                } catch (e) {
-                    // Fallback: try regex parsing
-                    var match = url.match(/reportStateId=([a-f0-9\-]+)/i);
-                    if (match && match[1]) {
-                        $('#report_uuid').val(match[1]);
-                        $('#keap_report_url').val('').attr('placeholder', 'UUID extracted! Paste another URL if needed.');
-                        alert('UUID extracted successfully: ' + match[1]);
-                    } else {
-                        alert('Error parsing URL. Please make sure you pasted a valid Keap report URL.');
-                    }
-                }
+                });
             });
-            
-            // Auto-extract on paste if URL field has focus
-            $('#keap_report_url').on('paste', function() {
-                var $field = $(this);
-                setTimeout(function() {
-                    var url = $field.val().trim();
-                    if (url && url.indexOf('reportStateId=') !== -1) {
-                        // Auto-extract after paste
-                        $('#extract-uuid-btn').trigger('click');
-                    }
-                }, 100);
-            });
-            
-            // Show/hide product filter based on report type
-            function toggleProductFilter() {
-                var reportType = $('#report_type').val();
-                if (reportType === 'subscriptions') {
-                    $('#product-filter-row').show();
-                } else {
-                    $('#product-filter-row').hide();
-                }
-            }
-            
-            $('#report_type').on('change', toggleProductFilter);
-            toggleProductFilter(); // Run on page load
             
             $('.fetch-report-btn').on('click', function() {
                 var $btn = $(this);
@@ -945,8 +1113,16 @@ class Keap_Reports_Admin {
         $year = isset($_GET['year']) ? absint($_GET['year']) : intval(date('Y'));
         $month = isset($_GET['month']) ? absint($_GET['month']) : intval(date('n'));
         
-        // Get all reports data for this period
-        $reports_data = $this->reports->get_all_reports_data($year, $month);
+        // Check if user wants to see specific month or latest data
+        $show_specific_month = isset($_GET['year']) || isset($_GET['month']);
+        
+        if ($show_specific_month) {
+            // Get all reports data for the selected period
+            $reports_data = $this->reports->get_all_reports_data($year, $month);
+        } else {
+            // Get latest data for each report (regardless of month)
+            $reports_data = $this->database->get_all_reports_latest_data();
+        }
         
         ?>
         <div class="wrap">
@@ -1001,15 +1177,32 @@ class Keap_Reports_Admin {
                     <?php else: ?>
                         <?php foreach ($reports_data as $report): ?>
                             <?php
-                            $comparison = $this->reports->get_monthly_comparison($report['id'], $year, $month);
+                            if ($show_specific_month) {
+                                // Use the selected month/year for comparison
+                                $data_year = $year;
+                                $data_month = $month;
+                            } else {
+                                // Use the month/year from the fetched data
+                                $data_year = isset($report['data_year']) ? intval($report['data_year']) : $year;
+                                $data_month = isset($report['data_month']) ? intval($report['data_month']) : $month;
+                            }
+                            
+                            // Get comparison data for the actual data month
+                            $comparison = $this->reports->get_monthly_comparison($report['id'], $data_year, $data_month);
                             $current_value = $comparison['current'];
                             $previous_value = $comparison['previous'];
                             $change = $comparison['change'];
                             $change_percent = $comparison['change_percent'];
                             $ytd = $comparison['ytd'];
+                            
+                            // If showing latest data, show which month it's for
+                            $month_label = '';
+                            if (!$show_specific_month && isset($report['data_year']) && isset($report['data_month'])) {
+                                $month_label = ' (' . date('M Y', mktime(0, 0, 0, $report['data_month'], 1, $report['data_year'])) . ')';
+                            }
                             ?>
                             <tr>
-                                <td><strong><?php echo esc_html($report['name']); ?></strong></td>
+                                <td><strong><?php echo esc_html($report['name']); ?><?php echo esc_html($month_label); ?></strong></td>
                                 <td><?php echo esc_html(ucfirst($report['report_type'])); ?></td>
                                 <td><strong><?php echo esc_html($this->reports->format_value($current_value, $report['report_type'])); ?></strong></td>
                                 <td><?php echo esc_html($this->reports->format_value($previous_value, $report['report_type'])); ?></td>
@@ -1143,7 +1336,7 @@ class Keap_Reports_Admin {
                 </div>
                 
                 <div style="margin-bottom: 15px;">
-                    <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=keap-reports-logs')); ?>" style="display: inline-block; margin-right: 10px;" onsubmit="return confirm('Are you sure you want to clear old logs? This action cannot be undone.');">
+                    <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=keap-reports-logs')); ?>" style="display: inline-block; margin-right: 10px;">
                         <?php wp_nonce_field('keap_reports_clear_logs'); ?>
                         <label>
                             Clear logs older than:
@@ -1158,7 +1351,7 @@ class Keap_Reports_Admin {
                         <input type="submit" name="clear_logs" class="button" value="Clear Old Logs" />
                     </form>
                     
-                    <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=keap-reports-logs')); ?>" style="display: inline-block;" onsubmit="return confirm('Are you sure you want to delete ALL logs? This action cannot be undone!');">
+                    <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=keap-reports-logs')); ?>" style="display: inline-block;">
                         <?php wp_nonce_field('keap_reports_clear_all_logs'); ?>
                         <input type="submit" name="clear_all_logs" class="button button-secondary" value="Clear All Logs" style="color: #d63638;" />
                     </form>
@@ -1215,10 +1408,21 @@ class Keap_Reports_Admin {
                                     <?php if (!empty($log['context'])): 
                                         $context = json_decode($log['context'], true);
                                         if ($context && is_array($context)):
+                                            $context_json = json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                                            $context_text = print_r($context, true);
                                     ?>
                                         <details>
                                             <summary style="cursor: pointer; color: #2271b1;">View Context</summary>
-                                            <pre style="background: #f0f0f1; padding: 10px; margin-top: 5px; border-radius: 3px; font-size: 11px; max-height: 200px; overflow: auto;"><?php echo esc_html(print_r($context, true)); ?></pre>
+                                            <div style="position: relative; margin-top: 5px;">
+                                                <button type="button" class="button button-small copy-context-btn" 
+                                                        style="position: absolute; top: 5px; right: 5px; z-index: 10;"
+                                                        data-context-json='<?php echo esc_attr($context_json); ?>'
+                                                        data-context-text='<?php echo esc_attr($context_text); ?>'
+                                                        title="Copy context to clipboard">
+                                                    <span class="dashicons dashicons-clipboard" style="font-size: 14px; width: 14px; height: 14px;"></span> Copy
+                                                </button>
+                                                <pre style="background: #f0f0f1; padding: 10px; margin-top: 5px; border-radius: 3px; font-size: 11px; max-height: 200px; overflow: auto; padding-right: 80px;"><?php echo esc_html($context_text); ?></pre>
+                                            </div>
                                         </details>
                                     <?php 
                                         endif;
@@ -1234,6 +1438,44 @@ class Keap_Reports_Admin {
         
         <script type="text/javascript">
         jQuery(document).ready(function($) {
+            // Copy individual context button
+            $('.copy-context-btn').on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                var $btn = $(this);
+                // Use attr() instead of data() to get the raw string value
+                // data() tries to parse JSON, which causes [object Object] issue
+                var contextText = $btn.attr('data-context-text');
+                var contextJson = $btn.attr('data-context-json');
+                
+                // Prefer text format (print_r) as it's more readable
+                var textToCopy = contextText || contextJson || '';
+                
+                // Create temporary textarea
+                var $temp = $('<textarea>');
+                $('body').append($temp);
+                $temp.val(textToCopy).select();
+                
+                try {
+                    var success = document.execCommand('copy');
+                    if (success) {
+                        var originalHtml = $btn.html();
+                        $btn.html('<span class="dashicons dashicons-yes" style="color: #00a32a; font-size: 14px; width: 14px; height: 14px;"></span> Copied!');
+                        setTimeout(function() {
+                            $btn.html(originalHtml);
+                        }, 2000);
+                    } else {
+                        alert('Failed to copy. Please select and copy manually.');
+                    }
+                } catch (err) {
+                    // Fallback: show in alert or prompt
+                    prompt('Copy this text:', textToCopy);
+                }
+                
+                $temp.remove();
+            });
+            
             $('#copy-logs-btn').on('click', function() {
                 var $btn = $(this);
                 var $status = $('#copy-status');
@@ -1334,212 +1576,1078 @@ class Keap_Reports_Admin {
     }
     
     /**
-     * Render dashboard page
+     * Render dashboard page - Marketer-focused metrics
      */
     public function render_dashboard_page() {
         if (!current_user_can('manage_options')) {
             return;
         }
         
-        // Get date filters
-        $period = isset($_GET['period']) ? sanitize_text_field($_GET['period']) : 'day';
-        $product_id = isset($_GET['product_id']) ? sanitize_text_field($_GET['product_id']) : '';
-        $start_date = isset($_GET['start_date']) ? sanitize_text_field($_GET['start_date']) : date('Y-m-d', strtotime('-30 days'));
-        $end_date = isset($_GET['end_date']) ? sanitize_text_field($_GET['end_date']) : date('Y-m-d');
+        // Get current period
+        $current_year = intval(date('Y'));
+        $current_month = intval(date('n'));
+        $last_month = $current_month - 1;
+        $last_month_year = $current_year;
+        if ($last_month < 1) {
+            $last_month = 12;
+            $last_month_year = $current_year - 1;
+        }
         
-        // Get subscription aggregates
-        $aggregates = $this->database->get_subscription_aggregates($product_id, $period, $start_date, $end_date);
+        // Get all active reports (exclude count and count_revenue - they're tracked separately for KPIs only)
+        $all_reports = $this->database->get_reports(true);
+        $reports = array_filter($all_reports, function($report) {
+            $type = isset($report['report_type']) ? $report['report_type'] : '';
+            // Map old types for backward compatibility
+            if ($type === 'paid_starter') $type = 'count';
+            if ($type === 'intensives') $type = 'count_revenue';
+            // Exclude count and count_revenue from revenue calculations
+            return !in_array($type, array('count', 'count_revenue'));
+        });
         
-        // Get all products for filter dropdown
-        $products = $this->database->get_products();
+        // Get count and count_revenue reports that should show on dashboard
+        $dashboard_reports = array_filter($all_reports, function($report) {
+            $type = isset($report['report_type']) ? $report['report_type'] : '';
+            // Map old types
+            if ($type === 'paid_starter') $type = 'count';
+            if ($type === 'intensives') $type = 'count_revenue';
+            return in_array($type, array('count', 'count_revenue')) 
+                && isset($report['show_on_dashboard']) && $report['show_on_dashboard'] == 1;
+        });
         
-        // Get latest daily snapshot
-        $latest_snapshot = $this->database->get_daily_subscription($product_id);
+        // Calculate total revenue metrics
+        $total_current_revenue = 0;
+        $total_last_revenue = 0;
+        $total_current_orders = 0;
+        $total_last_orders = 0;
+        $total_ytd_revenue = 0;
+        $total_ytd_orders = 0;
+        
+        $reports_data = array();
+        foreach ($reports as $report) {
+            $comparison = $this->reports->get_monthly_comparison($report['id'], $current_year, $current_month);
+            $reports_data[] = array_merge($report, $comparison);
+            
+            $total_current_revenue += isset($comparison['current_revenue']) ? $comparison['current_revenue'] : 0;
+            $total_last_revenue += isset($comparison['previous_revenue']) ? $comparison['previous_revenue'] : 0;
+            $total_current_orders += isset($comparison['current_orders']) ? $comparison['current_orders'] : 0;
+            $total_last_orders += isset($comparison['previous_orders']) ? $comparison['previous_orders'] : 0;
+            $total_ytd_revenue += isset($comparison['ytd']) ? $comparison['ytd'] : 0;
+            $total_ytd_orders += isset($comparison['ytd_orders']) ? $comparison['ytd_orders'] : 0;
+        }
+        
+        $revenue_change = $total_current_revenue - $total_last_revenue;
+        $revenue_change_percent = $total_last_revenue > 0 ? ($revenue_change / $total_last_revenue) * 100 : 0;
+        $orders_change = $total_current_orders - $total_last_orders;
+        $orders_change_percent = $total_last_orders > 0 ? ($orders_change / $total_last_orders) * 100 : 0;
+        
+        // Same month last year (for comparison that matches Revenue Trend chart "Last Year")
+        $last_year = $current_year - 1;
+        $total_last_year_revenue = 0;
+        foreach ($reports as $report) {
+            $ly_comparison = $this->reports->get_monthly_comparison($report['id'], $last_year, $current_month);
+            $total_last_year_revenue += isset($ly_comparison['current_revenue']) ? $ly_comparison['current_revenue'] : 0;
+        }
+        $revenue_change_vs_last_year = $total_current_revenue - $total_last_year_revenue;
+        $revenue_change_vs_last_year_percent = $total_last_year_revenue > 0 ? ($revenue_change_vs_last_year / $total_last_year_revenue) * 100 : 0;
+        $last_year_month_name = date('M Y', mktime(0, 0, 0, $current_month, 1, $last_year));
+        
+        // Get subscription metrics - sum across all products for latest date
+        $subscription_count = $this->database->get_total_active_subscriptions();
+        
+        // Get last month subscription for comparison - use the last day of last month
+        $last_month_date = new DateTime();
+        $last_month_date->modify('last day of last month');
+        $last_month_subscription = $this->database->get_total_active_subscriptions_for_date(
+            intval($last_month_date->format('Y')),
+            intval($last_month_date->format('n')),
+            intval($last_month_date->format('j'))
+        );
+        $subscription_change = $subscription_count - $last_month_subscription;
+        $subscription_change_percent = $last_month_subscription > 0 ? ($subscription_change / $last_month_subscription) * 100 : 0;
+        
+        // Get free trial signups comparison
+        $trial_comparison = $this->database->get_free_trial_comparison(48);
+        
+        // Get cron status
+        $next_report_run = $this->cron ? $this->cron->get_next_run_time() : false;
+        $next_subscription_run = $this->cron ? $this->cron->get_next_daily_subscription_run_time() : false;
+        $auto_fetch_enabled = get_option('keap_reports_auto_fetch_enabled', 1);
+        
+        // Get chart filter settings
+        $chart_period = isset($_GET['chart_period']) ? sanitize_text_field($_GET['chart_period']) : date('Y');
+        $chart_view = isset($_GET['chart_view']) ? sanitize_text_field($_GET['chart_view']) : 'monthly';
+        $chart_compare = isset($_GET['chart_compare']) ? sanitize_text_field($_GET['chart_compare']) : 'lastyear';
+        
+        // Get starter signups chart filter settings
+        $starter_chart_period = isset($_GET['starter_chart_period']) ? sanitize_text_field($_GET['starter_chart_period']) : '12months';
+        $starter_chart_view = isset($_GET['starter_chart_view']) ? sanitize_text_field($_GET['starter_chart_view']) : 'monthly';
+        $starter_chart_compare = isset($_GET['starter_chart_compare']) ? sanitize_text_field($_GET['starter_chart_compare']) : 'none';
+        
+        // Get revenue history for chart based on filter
+        $revenue_history = $this->get_revenue_history_data($reports, $chart_period, $chart_view, $chart_compare);
+        
+        // Get starter signups history for chart (both free and paid)
+        $starter_history = $this->get_starter_signups_history_data($starter_chart_period, $starter_chart_view, $starter_chart_compare);
+        
+        // Get current month free and paid starter signups for KPI cards
+        $current_year = intval(date('Y'));
+        $current_month = intval(date('n'));
+        $free_starter_current = $this->database->get_free_trial_signups(48, 'month', $current_year, $current_month);
+        $paid_starter_current = $this->database->get_starter_signups('paid_starter', $current_year, $current_month);
+        
+        // Get previous month for comparison
+        $prev_month = $current_month - 1;
+        $prev_year = $current_year;
+        if ($prev_month < 1) {
+            $prev_month = 12;
+            $prev_year = $current_year - 1;
+        }
+        $free_starter_prev = $this->database->get_free_trial_signups(48, 'month', $prev_year, $prev_month);
+        $paid_starter_prev = $this->database->get_starter_signups('paid_starter', $prev_year, $prev_month);
+        
+        // Calculate changes
+        $free_starter_change = $free_starter_current['count'] - $free_starter_prev['count'];
+        $free_starter_change_percent = $free_starter_prev['count'] > 0 ? ($free_starter_change / $free_starter_prev['count']) * 100 : ($free_starter_change > 0 ? 100 : 0);
+        
+        $paid_starter_change = $paid_starter_current['count'] - $paid_starter_prev['count'];
+        $paid_starter_change_percent = $paid_starter_prev['count'] > 0 ? ($paid_starter_change / $paid_starter_prev['count']) * 100 : ($paid_starter_change > 0 ? 100 : 0);
         
         ?>
         <div class="wrap">
-            <h1>Keap Reports Dashboard</h1>
+            <h1>Business Performance Dashboard</h1>
             
-            <div class="keap-reports-filters" style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
-                <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>">
-                    <input type="hidden" name="page" value="keap-reports">
-                    <table class="form-table">
-                        <tr>
-                            <th><label for="period">View Period</label></th>
-                            <td>
-                                <select name="period" id="period">
-                                    <option value="day" <?php selected($period, 'day'); ?>>Daily</option>
-                                    <option value="week" <?php selected($period, 'week'); ?>>Weekly</option>
-                                    <option value="month" <?php selected($period, 'month'); ?>>Monthly</option>
-                                </select>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><label for="product_id">Filter by Product</label></th>
-                            <td>
-                                <select name="product_id" id="product_id">
-                                    <option value="">All Products</option>
-                                    <?php foreach ($products as $product): ?>
-                                        <option value="<?php echo esc_attr($product['product_id']); ?>" <?php selected($product_id, $product['product_id']); ?>>
-                                            <?php echo esc_html($product['product_name']); ?> (<?php echo esc_html($product['product_id']); ?>)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><label for="start_date">Start Date</label></th>
-                            <td><input type="date" name="start_date" id="start_date" value="<?php echo esc_attr($start_date); ?>"></td>
-                        </tr>
-                        <tr>
-                            <th><label for="end_date">End Date</label></th>
-                            <td><input type="date" name="end_date" id="end_date" value="<?php echo esc_attr($end_date); ?>"></td>
-                        </tr>
-                    </table>
-                    <p class="submit">
-                        <input type="submit" class="button button-primary" value="Apply Filters">
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=keap-reports')); ?>" class="button">Reset</a>
-                    </p>
-                </form>
-            </div>
+            <style>
+                .keap-dashboard-kpi {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    margin: 20px 0;
+                }
+                .keap-kpi-card {
+                    background: #fff;
+                    border: 1px solid #ccd0d4;
+                    border-left: 4px solid #2271b1;
+                    padding: 20px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                }
+                .keap-kpi-card.revenue { border-left-color: #00a32a; }
+                .keap-kpi-card.orders { border-left-color: #2271b1; }
+                .keap-kpi-card.subscriptions { border-left-color: #d63638; }
+                .keap-kpi-card.trials { border-left-color: #8c8f94; }
+                .keap-kpi-card.paid-starter { border-left-color: #646970; }
+                .keap-kpi-card.intensives { border-left-color: #d63638; }
+                .keap-kpi-card.ytd { border-left-color: #f0b849; }
+                .keap-kpi-label {
+                    font-size: 14px;
+                    color: #646970;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 8px;
+                }
+                .keap-kpi-value {
+                    font-size: 32px;
+                    font-weight: 600;
+                    color: #1d2327;
+                    margin-bottom: 8px;
+                }
+                .keap-kpi-change {
+                    font-size: 14px;
+                    font-weight: 500;
+                }
+                .keap-kpi-change.positive { color: #00a32a; }
+                .keap-kpi-change.negative { color: #d63638; }
+                .keap-dashboard-section {
+                    background: #fff;
+                    border: 1px solid #ccd0d4;
+                    padding: 20px;
+                    margin: 20px 0;
+                }
+                .keap-dashboard-section h2 {
+                    margin-top: 0;
+                    border-bottom: 1px solid #ccd0d4;
+                    padding-bottom: 10px;
+                }
+                .keap-status-badge {
+                    display: inline-block;
+                    padding: 4px 8px;
+                    border-radius: 3px;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+                .keap-status-badge.success {
+                    background: #00a32a;
+                    color: #fff;
+                }
+                .keap-status-badge.warning {
+                    background: #f0b849;
+                    color: #1d2327;
+                }
+                .keap-status-badge.error {
+                    background: #d63638;
+                    color: #fff;
+                }
+                .keap-dashboard-section table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 15px;
+                    background: #fff;
+                }
+                .keap-dashboard-section table thead {
+                    background: #f6f7f7;
+                }
+                .keap-dashboard-section table th {
+                    padding: 12px 15px;
+                    text-align: left;
+                    font-weight: 600;
+                    border-bottom: 2px solid #c3c4c7;
+                    color: #1d2327;
+                }
+                .keap-dashboard-section table td {
+                    padding: 12px 15px;
+                    border-bottom: 1px solid #dcdcde;
+                    color: #2c3338;
+                }
+                .keap-dashboard-section table tbody tr:nth-child(even) {
+                    background: #f9f9f9;
+                }
+                .keap-dashboard-section table tbody tr:nth-child(odd) {
+                    background: #fff;
+                }
+                .keap-dashboard-section table tbody tr:hover {
+                    background: #f0f6fc !important;
+                }
+                .keap-dashboard-section table tbody tr:last-child td {
+                    border-bottom: none;
+                }
+            </style>
             
-            <div class="keap-reports-status" style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
-                <h2>Daily Subscription Fetch Status</h2>
-                <table class="form-table">
-                    <?php
-                    // Get cron status
-                    $next_run_time = $this->cron ? $this->cron->get_next_daily_subscription_run_time() : false;
-                    $is_scheduled = $this->cron ? $this->cron->is_daily_subscription_scheduled() : false;
-                    $last_fetch_time = $this->database->get_last_daily_subscription_fetch_time();
+            <!-- KPI Cards -->
+            <div class="keap-dashboard-kpi">
+                <div class="keap-kpi-card revenue">
+                    <div class="keap-kpi-label">This Month Revenue</div>
+                    <div class="keap-kpi-value">$<?php echo number_format($total_current_revenue, 2); ?></div>
+                    <div class="keap-kpi-change <?php echo $revenue_change_vs_last_year >= 0 ? 'positive' : 'negative'; ?>">
+                        <?php echo $revenue_change_vs_last_year >= 0 ? '↑' : '↓'; ?> 
+                        $<?php echo number_format(abs($revenue_change_vs_last_year), 2); ?>
+                        (<?php echo number_format(abs($revenue_change_vs_last_year_percent), 1); ?>%)
+                        vs <?php echo esc_html($last_year_month_name); ?>
+                    </div>
+                    <div class="keap-kpi-change keap-kpi-change-secondary <?php echo $revenue_change >= 0 ? 'positive' : 'negative'; ?>" style="font-size: 0.85em; margin-top: 4px; opacity: 0.9;">
+                        <?php echo $revenue_change >= 0 ? '↑' : '↓'; ?> 
+                        $<?php echo number_format(abs($revenue_change), 2); ?> (<?php echo number_format(abs($revenue_change_percent), 1); ?>%) vs last month
+                    </div>
+                </div>
+                
+                <div class="keap-kpi-card orders">
+                    <div class="keap-kpi-label">This Month Orders</div>
+                    <div class="keap-kpi-value"><?php echo number_format($total_current_orders); ?></div>
+                    <div class="keap-kpi-change <?php echo $orders_change >= 0 ? 'positive' : 'negative'; ?>">
+                        <?php echo $orders_change >= 0 ? '↑' : '↓'; ?> 
+                        <?php echo number_format(abs($orders_change_percent), 1); ?>% 
+                        vs last month
+                    </div>
+                </div>
+                
+                <div class="keap-kpi-card subscriptions">
+                    <div class="keap-kpi-label">Active Subscriptions</div>
+                    <div class="keap-kpi-value"><?php echo number_format($subscription_count); ?></div>
+                    <div class="keap-kpi-change <?php echo $subscription_change >= 0 ? 'positive' : 'negative'; ?>">
+                        <?php echo $subscription_change >= 0 ? '↑' : '↓'; ?> 
+                        <?php echo number_format(abs($subscription_change_percent), 1); ?>% 
+                        vs last month
+                    </div>
+                </div>
+                
+                <div class="keap-kpi-card trials">
+                    <div class="keap-kpi-label">Free Trial Signups</div>
+                    <div class="keap-kpi-value"><?php echo number_format($trial_comparison['current']); ?></div>
+                    <div class="keap-kpi-change <?php echo $trial_comparison['change'] >= 0 ? 'positive' : 'negative'; ?>">
+                        <?php echo $trial_comparison['change'] >= 0 ? '↑' : '↓'; ?> 
+                        <?php echo number_format(abs($trial_comparison['change_percent']), 1); ?>% 
+                        vs last month
+                    </div>
+                </div>
+                
+                <div class="keap-kpi-card paid-starter">
+                    <div class="keap-kpi-label">Paid Starter Signups</div>
+                    <div class="keap-kpi-value"><?php echo number_format($paid_starter_current['count']); ?></div>
+                    <div class="keap-kpi-change <?php echo $paid_starter_change >= 0 ? 'positive' : 'negative'; ?>">
+                        <?php echo $paid_starter_change >= 0 ? '↑' : '↓'; ?> 
+                        <?php echo number_format(abs($paid_starter_change_percent), 1); ?>% 
+                        vs last month
+                    </div>
+                </div>
+                
+                <?php
+                // Display dashboard reports that have show_on_dashboard enabled
+                foreach ($dashboard_reports as $dashboard_report) {
+                    $dashboard_comparison = $this->reports->get_monthly_comparison($dashboard_report['id'], $current_year, $current_month);
+                    $dashboard_current_orders = $dashboard_comparison['current_orders'];
+                    $dashboard_current_revenue = $dashboard_comparison['current_revenue'];
+                    $dashboard_prev_orders = $dashboard_comparison['previous_orders'];
+                    $dashboard_prev_revenue = $dashboard_comparison['previous_revenue'];
                     
-                    // Format next run time
-                    $next_run_display = 'Not scheduled';
-                    $next_run_status = 'warning';
-                    if ($next_run_time) {
-                        $next_run_timestamp = $next_run_time;
-                        $next_run_display = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_run_timestamp);
-                        $next_run_status = 'success';
-                    }
+                    $dashboard_orders_change = $dashboard_current_orders - $dashboard_prev_orders;
+                    $dashboard_orders_change_percent = $dashboard_prev_orders > 0 ? ($dashboard_orders_change / $dashboard_prev_orders) * 100 : ($dashboard_orders_change > 0 ? 100 : 0);
                     
-                    // Format last fetch time
-                    $last_fetch_display = 'Never';
-                    $last_fetch_status = 'warning';
-                    if ($last_fetch_time) {
-                        $last_fetch_timestamp = strtotime($last_fetch_time . ' UTC');
-                        $last_fetch_display = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $last_fetch_timestamp);
-                        $time_diff = time() - $last_fetch_timestamp;
-                        if ($time_diff < 86400) { // Less than 24 hours
-                            $last_fetch_status = 'success';
-                        } elseif ($time_diff < 172800) { // Less than 48 hours
-                            $last_fetch_status = 'warning';
-                        } else {
-                            $last_fetch_status = 'error';
-                        }
+                    $dashboard_revenue_change = $dashboard_current_revenue - $dashboard_prev_revenue;
+                    $dashboard_revenue_change_percent = $dashboard_prev_revenue > 0 ? ($dashboard_revenue_change / $dashboard_prev_revenue) * 100 : ($dashboard_revenue_change > 0 ? 100 : 0);
+                    
+                    // Determine card type based on report type
+                    $card_type = 'intensives';
+                    $report_type = isset($dashboard_report['report_type']) ? $dashboard_report['report_type'] : '';
+                    if ($report_type === 'count' || $report_type === 'paid_starter') {
+                        $card_type = 'count';
                     }
                     ?>
+                    <div class="keap-kpi-card <?php echo esc_attr($card_type); ?>">
+                        <div class="keap-kpi-label"><?php echo esc_html($dashboard_report['name']); ?></div>
+                        <?php if ($report_type === 'count_revenue' || $report_type === 'intensives'): ?>
+                            <div class="keap-kpi-value"><?php echo number_format($dashboard_current_orders); ?> orders</div>
+                            <div class="keap-kpi-value" style="font-size: 20px; margin-top: 5px;">$<?php echo number_format($dashboard_current_revenue, 2); ?></div>
+                            <div class="keap-kpi-change <?php echo $dashboard_orders_change >= 0 ? 'positive' : 'negative'; ?>">
+                                <?php echo $dashboard_orders_change >= 0 ? '↑' : '↓'; ?> 
+                                <?php echo number_format(abs($dashboard_orders_change_percent), 1); ?>% 
+                                vs last month
+                            </div>
+                        <?php else: ?>
+                            <div class="keap-kpi-value"><?php echo number_format($dashboard_current_orders); ?></div>
+                            <div class="keap-kpi-change <?php echo $dashboard_orders_change >= 0 ? 'positive' : 'negative'; ?>">
+                                <?php echo $dashboard_orders_change >= 0 ? '↑' : '↓'; ?> 
+                                <?php echo number_format(abs($dashboard_orders_change_percent), 1); ?>% 
+                                vs last month
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php } ?>
+                
+                <div class="keap-kpi-card ytd">
+                    <div class="keap-kpi-label">Year-to-Date Revenue</div>
+                    <div class="keap-kpi-value">$<?php echo number_format($total_ytd_revenue, 2); ?></div>
+                    <div class="keap-kpi-change">
+                        <?php echo number_format($total_ytd_orders); ?> orders
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Revenue Trend Chart -->
+            <div class="keap-dashboard-section">
+                <h2>Revenue Trend</h2>
+                
+                <!-- Chart Filters -->
+                <div style="margin-bottom: 20px; padding: 15px; background: #f6f7f7; border-radius: 4px;">
+                    <form method="get" action="" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+                        <input type="hidden" name="page" value="keap-reports">
+                        <?php if (isset($_GET['sort'])): ?>
+                            <input type="hidden" name="sort" value="<?php echo esc_attr($_GET['sort']); ?>">
+                            <input type="hidden" name="order" value="<?php echo esc_attr($_GET['order']); ?>">
+                        <?php endif; ?>
+                        
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <strong>Period:</strong>
+                            <select name="chart_period" onchange="this.form.submit()">
+                                <option value="<?php echo date('Y'); ?>" <?php selected($chart_period, date('Y')); ?>><?php echo date('Y'); ?></option>
+                                <option value="30days" <?php selected($chart_period, '30days'); ?>>Last 30 Days</option>
+                                <option value="60days" <?php selected($chart_period, '60days'); ?>>Last 60 Days</option>
+                                <option value="90days" <?php selected($chart_period, '90days'); ?>>Last 90 Days</option>
+                                <option value="12months" <?php selected($chart_period, '12months'); ?>>Last 12 Months</option>
+                                <option value="2025" <?php selected($chart_period, '2025'); ?>>2025</option>
+                                <option value="2026" <?php selected($chart_period, '2026'); ?>>2026</option>
+                                <option value="2027" <?php selected($chart_period, '2027'); ?>>2027</option>
+                                <option value="2028" <?php selected($chart_period, '2028'); ?>>2028</option>
+                            </select>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <strong>View:</strong>
+                            <select name="chart_view" onchange="this.form.submit()">
+                                <option value="monthly" <?php selected($chart_view, 'monthly'); ?>>Monthly</option>
+                                <option value="quarterly" <?php selected($chart_view, 'quarterly'); ?>>Quarterly</option>
+                            </select>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <strong>Compare:</strong>
+                            <select name="chart_compare" onchange="this.form.submit()">
+                                <option value="lastyear" <?php selected($chart_compare, 'lastyear'); ?>>Last Year</option>
+                                <option value="none" <?php selected($chart_compare, 'none'); ?>>None</option>
+                                <option value="quarter" <?php selected($chart_compare, 'quarter'); ?>>Same Quarter Last Year</option>
+                                <option value="month" <?php selected($chart_compare, 'month'); ?>>Same Month Last Year</option>
+                            </select>
+                        </label>
+                    </form>
+                </div>
+                
+                <canvas id="revenueChart" style="max-height: 400px;"></canvas>
+            </div>
+            
+            <!-- Starter Signups Section -->
+            <div class="keap-dashboard-section" style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #ddd;">
+                <h1 style="margin-bottom: 20px;">Starter Signups</h1>
+                
+                <!-- KPI Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div class="keap-kpi-card">
+                        <div class="keap-kpi-label">Free Starter Signups (This Month)</div>
+                        <div class="keap-kpi-value"><?php echo number_format($free_starter_current['count']); ?></div>
+                        <div class="keap-kpi-change <?php echo $free_starter_change >= 0 ? 'positive' : 'negative'; ?>">
+                            <?php echo $free_starter_change >= 0 ? '↑' : '↓'; ?> 
+                            <?php echo number_format(abs($free_starter_change_percent), 1); ?>% 
+                            vs last month
+                        </div>
+                    </div>
+                    
+                    <div class="keap-kpi-card">
+                        <div class="keap-kpi-label">Paid Starter Signups (This Month)</div>
+                        <div class="keap-kpi-value"><?php echo number_format($paid_starter_current['count']); ?></div>
+                        <div class="keap-kpi-change <?php echo $paid_starter_change >= 0 ? 'positive' : 'negative'; ?>">
+                            <?php echo $paid_starter_change >= 0 ? '↑' : '↓'; ?> 
+                            <?php echo number_format(abs($paid_starter_change_percent), 1); ?>% 
+                            vs last month
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Starter Signups Chart -->
+                <h2>Starter Signups Trend</h2>
+                
+                <!-- Chart Filters -->
+                <div style="margin-bottom: 20px; padding: 15px; background: #f6f7f7; border-radius: 4px;">
+                    <form method="get" action="" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+                        <input type="hidden" name="page" value="keap-reports">
+                        <?php if (isset($_GET['sort'])): ?>
+                            <input type="hidden" name="sort" value="<?php echo esc_attr($_GET['sort']); ?>">
+                            <input type="hidden" name="order" value="<?php echo esc_attr($_GET['order']); ?>">
+                        <?php endif; ?>
+                        <?php if (isset($_GET['chart_period'])): ?>
+                            <input type="hidden" name="chart_period" value="<?php echo esc_attr($_GET['chart_period']); ?>">
+                            <input type="hidden" name="chart_view" value="<?php echo esc_attr($_GET['chart_view']); ?>">
+                            <input type="hidden" name="chart_compare" value="<?php echo esc_attr($_GET['chart_compare']); ?>">
+                        <?php endif; ?>
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <strong>Period:</strong>
+                            <select name="starter_chart_period" onchange="this.form.submit()">
+                                <option value="30days" <?php selected($starter_chart_period, '30days'); ?>>Last 30 Days</option>
+                                <option value="60days" <?php selected($starter_chart_period, '60days'); ?>>Last 60 Days</option>
+                                <option value="90days" <?php selected($starter_chart_period, '90days'); ?>>Last 90 Days</option>
+                                <option value="12months" <?php selected($starter_chart_period, '12months'); ?>>Last 12 Months</option>
+                                <option value="2025" <?php selected($starter_chart_period, '2025'); ?>>2025</option>
+                                <option value="2026" <?php selected($starter_chart_period, '2026'); ?>>2026</option>
+                                <option value="2027" <?php selected($starter_chart_period, '2027'); ?>>2027</option>
+                                <option value="2028" <?php selected($starter_chart_period, '2028'); ?>>2028</option>
+                            </select>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <strong>View:</strong>
+                            <select name="starter_chart_view" onchange="this.form.submit()">
+                                <option value="monthly" <?php selected($starter_chart_view, 'monthly'); ?>>Monthly</option>
+                                <option value="quarterly" <?php selected($starter_chart_view, 'quarterly'); ?>>Quarterly</option>
+                                <option value="yearly" <?php selected($starter_chart_view, 'yearly'); ?>>Yearly</option>
+                            </select>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <strong>Compare:</strong>
+                            <select name="starter_chart_compare" onchange="this.form.submit()">
+                                <option value="none" <?php selected($starter_chart_compare, 'none'); ?>>None</option>
+                                <option value="lastyear" <?php selected($starter_chart_compare, 'lastyear'); ?>>Last Year</option>
+                                <option value="quarter" <?php selected($starter_chart_compare, 'quarter'); ?>>Same Quarter Last Year</option>
+                                <option value="month" <?php selected($starter_chart_compare, 'month'); ?>>Same Month Last Year</option>
+                            </select>
+                        </label>
+                    </form>
+                </div>
+                
+                <!-- Chart Legend with Toggle -->
+                <div style="margin-bottom: 15px; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
+                    <strong>Show/Hide:</strong>
+                    <label style="margin-left: 15px; cursor: pointer;">
+                        <input type="checkbox" id="toggle-free-starter" checked> Free Starter Signups
+                    </label>
+                    <label style="margin-left: 15px; cursor: pointer;">
+                        <input type="checkbox" id="toggle-paid-starter" checked> Paid Starter Signups
+                    </label>
+                </div>
+                
+                <canvas id="starterSignupsChart" style="max-height: 400px;"></canvas>
+            </div>
+            
+            <!-- Sales Performance Table -->
+            <div class="keap-dashboard-section">
+                <h2>Sales Performance by Report</h2>
+                <?php
+                // Get all reports data for display (exclude count and count_revenue - they're only for KPIs)
+                $all_reports_data = $this->database->get_all_reports_latest_data();
+                $display_reports_data = array_filter($all_reports_data, function($report) {
+                    $type = isset($report['report_type']) ? $report['report_type'] : '';
+                    // Map old types for backward compatibility
+                    if ($type === 'paid_starter') $type = 'count';
+                    if ($type === 'intensives') $type = 'count_revenue';
+                    // Exclude count and count_revenue from Sales Performance table
+                    return !in_array($type, array('count', 'count_revenue'));
+                });
+                
+                // Process and prepare data with YTD calculations
+                $processed_reports = array();
+                global $wpdb;
+                $data_table = $wpdb->prefix . 'keap_report_data';
+                
+                foreach ($display_reports_data as $report) {
+                    $data_year = isset($report['data_year']) ? intval($report['data_year']) : $current_year;
+                    $data_month = isset($report['data_month']) ? intval($report['data_month']) : $current_month;
+                    
+                    // Get the current month revenue
+                    $comparison = $this->reports->get_monthly_comparison($report['id'], $data_year, $data_month);
+                    $current_value = $comparison['current'];
+                    
+                    // Calculate YTD: Sum ALL revenue reports for the same year from January through the current month
+                    // This sums across all report_ids for the year, not just this one report
+                    // Exclude count and count_revenue reports - they're only for KPI/metrics, not revenue
+                    $reports_table = $wpdb->prefix . 'keap_reports';
+                    $ytd_result = $wpdb->get_var($wpdb->prepare(
+                        "SELECT COALESCE(SUM(d.total_amt_sold), 0) 
+                        FROM {$data_table} d
+                        INNER JOIN {$reports_table} r ON d.report_id = r.id
+                        WHERE d.`year` = %d AND d.`month` <= %d 
+                        AND r.report_type NOT IN ('count', 'count_revenue', 'paid_starter', 'intensives')",
+                        $data_year,
+                        $data_month
+                    ));
+                    $ytd = floatval($ytd_result);
+                    
+                    $processed_reports[] = array(
+                        'name' => $report['name'],
+                        'revenue' => $current_value,
+                        'ytd' => $ytd,
+                        'fetched_at' => isset($report['fetched_at']) ? $report['fetched_at'] : null,
+                        'data_year' => $data_year,
+                        'data_month' => $data_month,
+                        'sort_date' => mktime(0, 0, 0, $data_month, 1, $data_year) // For sorting by date
+                    );
+                }
+                
+                // Handle sorting
+                $sort_by = isset($_GET['sort']) ? sanitize_text_field($_GET['sort']) : 'date';
+                $sort_order = isset($_GET['order']) && $_GET['order'] === 'asc' ? 'asc' : 'desc';
+                
+                usort($processed_reports, function($a, $b) use ($sort_by, $sort_order) {
+                    if ($sort_by === 'revenue') {
+                        $result = $a['revenue'] <=> $b['revenue'];
+                    } elseif ($sort_by === 'name') {
+                        $result = strcmp($a['name'], $b['name']);
+                    } else { // date
+                        $result = $a['sort_date'] <=> $b['sort_date'];
+                    }
+                    return $sort_order === 'asc' ? $result : -$result;
+                });
+                ?>
+                <?php if (empty($processed_reports)): ?>
+                    <p>No reports configured or no data available.</p>
+                <?php else: ?>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>
+                                    <a href="?page=keap-reports&sort=date&order=<?php echo $sort_by === 'date' && $sort_order === 'desc' ? 'asc' : 'desc'; ?>" style="text-decoration: none; color: inherit;">
+                                        Report Name
+                                        <?php if ($sort_by === 'date'): ?>
+                                            <?php echo $sort_order === 'desc' ? '↓' : '↑'; ?>
+                                        <?php else: ?>
+                                            (by date)
+                                        <?php endif; ?>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?page=keap-reports&sort=revenue&order=<?php echo $sort_by === 'revenue' && $sort_order === 'asc' ? 'desc' : 'asc'; ?>" style="text-decoration: none; color: inherit;">
+                                        Revenue
+                                        <?php if ($sort_by === 'revenue'): ?>
+                                            <?php echo $sort_order === 'asc' ? '↑' : '↓'; ?>
+                                        <?php endif; ?>
+                                    </a>
+                                </th>
+                                <th>YTD</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($processed_reports as $report): ?>
+                                <tr>
+                                    <td><strong><?php echo esc_html($report['name']); ?></strong></td>
+                                    <td><strong>$<?php echo number_format($report['revenue'], 2); ?></strong></td>
+                                    <td><strong>$<?php echo number_format($report['ytd'], 2); ?></strong></td>
+                                    <td>
+                                        <?php 
+                                        if (!empty($report['fetched_at'])) {
+                                            echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($report['fetched_at'])));
+                                        } else {
+                                            echo '<span style="color: gray;">Never</span>';
+                                        }
+                                        ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+            
+            <!-- Auto-Fetch Status -->
+            <div class="keap-dashboard-section">
+                <h2>Automatic Data Fetching Status</h2>
+                <table class="form-table">
                     <tr>
-                        <th scope="row">Cron Status</th>
+                        <th scope="row">Auto-Fetch Enabled</th>
                         <td>
-                            <?php if ($is_scheduled): ?>
-                                <span style="color: #00a32a;">✓ Scheduled</span>
+                            <?php if ($auto_fetch_enabled): ?>
+                                <span class="keap-status-badge success">✓ Enabled</span>
                             <?php else: ?>
-                                <span style="color: #d63638;">✗ Not Scheduled</span>
-                                <p class="description">The daily fetch may not run automatically. Visit any admin page to trigger scheduling.</p>
+                                <span class="keap-status-badge error">✗ Disabled</span>
+                                <p class="description">Enable auto-fetch in <a href="<?php echo admin_url('admin.php?page=keap-reports-settings'); ?>">Settings</a> to automatically fetch reports.</p>
                             <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row">Next Scheduled Run</th>
+                        <th scope="row">Saved Reports Fetch</th>
                         <td>
-                            <strong><?php echo esc_html($next_run_display); ?></strong>
-                            <?php if ($next_run_time): ?>
-                                <p class="description">(<?php echo human_time_diff($next_run_time, current_time('timestamp')); ?> from now)</p>
+                            <?php if ($next_report_run): ?>
+                                <span class="keap-status-badge success">✓ Scheduled</span>
+                                <p class="description">Next run: <?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_report_run); ?> 
+                                (<?php echo human_time_diff($next_report_run, current_time('timestamp', true)); ?> from now)
+                                <br><small style="color: #646970;">Timezone: <?php echo esc_html(wp_timezone_string()); ?></small></p>
+                                <p style="margin-top: 10px;">
+                                    <button type="button" class="button button-small trigger-cron-btn" data-hook="keap_reports_fetch_scheduled" data-name="Saved Reports Fetch">Run Now (Test)</button>
+                                    <button type="button" class="button button-small reschedule-cron-btn" data-hook="keap_reports_fetch_scheduled" data-name="Saved Reports Fetch">Reschedule</button>
+                                </p>
+                            <?php else: ?>
+                                <span class="keap-status-badge warning">Not Scheduled</span>
+                                <p class="description">Visit <a href="<?php echo admin_url('admin.php?page=keap-reports-settings'); ?>">Settings</a> to enable.</p>
                             <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row">Last Successful Fetch</th>
+                        <th scope="row">Subscription Reports Fetch</th>
                         <td>
-                            <strong><?php echo esc_html($last_fetch_display); ?></strong>
-                            <?php if ($last_fetch_time): ?>
-                                <?php 
-                                $time_diff = time() - strtotime($last_fetch_time . ' UTC');
-                                $time_ago = human_time_diff(strtotime($last_fetch_time . ' UTC'), current_time('timestamp'));
-                                ?>
-                                <p class="description">(<?php echo $time_ago; ?> ago)</p>
+                            <?php if ($next_subscription_run): ?>
+                                <span class="keap-status-badge success">✓ Scheduled</span>
+                                <p class="description">Next run: <?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $next_subscription_run); ?> 
+                                (<?php echo human_time_diff($next_subscription_run, current_time('timestamp', true)); ?> from now)
+                                <br><small style="color: #646970;">Timezone: <?php echo esc_html(wp_timezone_string()); ?></small></p>
+                                <p style="margin-top: 10px;">
+                                    <button type="button" class="button button-small trigger-cron-btn" data-hook="keap_reports_fetch_daily_subscriptions" data-name="Subscription Reports Fetch">Run Now (Test)</button>
+                                    <button type="button" class="button button-small reschedule-cron-btn" data-hook="keap_reports_fetch_daily_subscriptions" data-name="Subscription Reports Fetch">Reschedule</button>
+                                </p>
                             <?php else: ?>
-                                <p class="description">Click "Fetch Daily Subscriptions Now" to get started.</p>
+                                <span class="keap-status-badge warning">Not Scheduled</span>
+                                <p class="description">Visit <a href="<?php echo admin_url('admin.php?page=keap-reports-settings'); ?>">Settings</a> to enable.</p>
                             <?php endif; ?>
                         </td>
                     </tr>
                 </table>
+                
+                <?php if (defined('DISABLE_WP_CRON') && DISABLE_WP_CRON): ?>
+                <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 12px; margin-top: 20px;">
+                    <strong>ℹ️ WP Engine Cron:</strong> The <code>DISABLE_WP_CRON</code> constant is set to <code>true</code>, which is normal for WP Engine hosting. 
+                    WP Engine uses their "Better WP Cron" system to handle scheduled events, so your cron jobs will run automatically through their system.
+                    <br><br>
+                    <strong>Note:</strong> The "Paused" status shown in the WP-Cron plugin interface is just a UI state in that plugin - it doesn't affect whether your events actually run. 
+                    Your events are properly scheduled (as shown by the "Next run" times above) and will execute via WP Engine's cron system.
+                </div>
+                <?php endif; ?>
+                
+                <h3 style="margin-top: 30px;">Recent Cron Execution Log</h3>
+                <div style="background: #f9f9f9; padding: 15px; border: 1px solid #ddd; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+                    <?php
+                    $cron_logs = $this->database->get_logs(50, null);
+                    $cron_entries = array();
+                    
+                    // Filter for CRON entries - check both possible field names
+                    foreach ($cron_logs as $log) {
+                        $message = isset($log['message']) ? $log['message'] : (isset($log['log_message']) ? $log['log_message'] : '');
+                        if (strpos($message, 'CRON:') === 0) {
+                            $cron_entries[] = $log;
+                        }
+                    }
+                    
+                    if (empty($cron_entries)) {
+                        echo '<p style="color: #666; margin: 0;">No cron executions logged yet.</p>';
+                        echo '<p style="color: #999; font-size: 11px; margin-top: 5px;">Total logs in database: ' . count($cron_logs) . '</p>';
+                    } else {
+                        foreach (array_slice($cron_entries, 0, 10) as $log) {
+                            $time = date('M j, Y g:i:s A', strtotime($log['created_at']));
+                            $level = isset($log['log_level']) ? $log['log_level'] : (isset($log['level']) ? $log['level'] : 'info');
+                            $message = isset($log['log_message']) ? $log['log_message'] : (isset($log['message']) ? $log['message'] : '');
+                            
+                            $level_color = '#666';
+                            if ($level === 'error') {
+                                $level_color = '#d63638';
+                            } elseif ($level === 'warning') {
+                                $level_color = '#dba617';
+                            } elseif ($level === 'info') {
+                                $level_color = '#00a32a';
+                            }
+                            echo '<div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #ddd;">';
+                            echo '<span style="color: #666;">[' . esc_html($time) . ']</span> ';
+                            echo '<span style="color: ' . esc_attr($level_color) . '; font-weight: bold;">[' . strtoupper(esc_html($level)) . ']</span> ';
+                            echo '<span>' . esc_html($message) . '</span>';
+                            echo '</div>';
+                        }
+                    }
+                    ?>
+                </div>
             </div>
             
-            <div class="keap-reports-actions" style="margin: 20px 0;">
-                <button type="button" id="fetch-daily-subscriptions-btn" class="button button-primary">Fetch Daily Subscriptions Now</button>
-                <span id="fetch-status" style="margin-left: 10px;"></span>
-            </div>
+        </div>
+        
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Trigger cron manually
+            $('.trigger-cron-btn').on('click', function() {
+                var $btn = $(this);
+                var hook = $btn.data('hook');
+                var name = $btn.data('name');
+                
+                if (!confirm('Are you sure you want to manually trigger "' + name + '" now? This will run the cron job immediately.')) {
+                    return;
+                }
+                
+                $btn.prop('disabled', true).text('Running...');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_trigger_cron',
+                        hook: hook,
+                        nonce: '<?php echo wp_create_nonce('keap_reports_trigger_cron'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert('Cron job triggered successfully! Check the log above for results.');
+                            location.reload();
+                        } else {
+                            alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                            $btn.prop('disabled', false).text('Run Now (Test)');
+                        }
+                    },
+                    error: function() {
+                        alert('Error triggering cron job. Please try again.');
+                        $btn.prop('disabled', false).text('Run Now (Test)');
+                    }
+                });
+            });
             
-            <h2>Active Subscriptions by Product</h2>
-            <table class="wp-list-table widefat fixed striped">
-                <thead>
-                    <tr>
-                        <th>Product ID</th>
-                        <th>Product Name</th>
-                        <th>Period</th>
-                        <th>Avg Count</th>
-                        <th>Max Count</th>
-                        <th>Min Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($aggregates)): ?>
-                        <tr>
-                            <td colspan="6">No data found for the selected period. Try fetching daily subscriptions first.</td>
-                        </tr>
-                    <?php else: ?>
-                        <?php 
-                        $grouped = array();
-                        foreach ($aggregates as $agg) {
-                            $key = $agg['product_id'];
-                            if (!isset($grouped[$key])) {
-                                $grouped[$key] = array(
-                                    'product_id' => $agg['product_id'],
-                                    'product_name' => '',
-                                    'periods' => array()
-                                );
-                                $product = $this->database->get_product($agg['product_id']);
-                                if ($product) {
-                                    $grouped[$key]['product_name'] = $product['product_name'];
+            // Reschedule cron
+            $('.reschedule-cron-btn').on('click', function() {
+                var $btn = $(this);
+                var hook = $btn.data('hook');
+                var name = $btn.data('name');
+                
+                if (!confirm('Are you sure you want to reschedule "' + name + '"? This will clear and recreate the scheduled event.')) {
+                    return;
+                }
+                
+                $btn.prop('disabled', true).text('Rescheduling...');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_reschedule_cron',
+                        hook: hook,
+                        nonce: '<?php echo wp_create_nonce('keap_reports_reschedule_cron'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert('Cron job rescheduled successfully!');
+                            location.reload();
+                        } else {
+                            alert('Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                            $btn.prop('disabled', false).text('Reschedule');
+                        }
+                    },
+                    error: function() {
+                        alert('Error rescheduling cron job. Please try again.');
+                        $btn.prop('disabled', false).text('Reschedule');
+                    }
+                });
+            });
+        });
+        </script>
+        
+        <!-- Chart.js -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Revenue Trend Chart
+            const ctx = document.getElementById('revenueChart');
+            if (ctx) {
+                try {
+                    const chartData = <?php echo json_encode($revenue_history); ?>;
+                    console.log('Chart data:', chartData);
+                    
+                    // Handle both old format (array) and new format (object with data key)
+                    let revenueData, compareData, hasCompare;
+                    
+                    if (Array.isArray(chartData)) {
+                        // Old format - direct array
+                        revenueData = chartData;
+                        compareData = [];
+                        hasCompare = false;
+                    } else if (chartData && chartData.data) {
+                        // New format - object with data key
+                        revenueData = chartData.data;
+                        compareData = chartData.compare || [];
+                        hasCompare = chartData.has_compare || false;
+                    } else {
+                        console.error('Invalid chart data format:', chartData);
+                        revenueData = [];
+                        compareData = [];
+                        hasCompare = false;
+                    }
+                    
+                    if (!revenueData || revenueData.length === 0) {
+                        console.warn('No revenue data available');
+                        ctx.parentElement.innerHTML += '<p style="color: #d63638; padding: 20px;">No data available for the selected period.</p>';
+                        return;
+                    }
+                    
+                    const datasets = [{
+                        label: 'Revenue ($)',
+                        data: revenueData.map(d => d.revenue || 0),
+                        borderColor: '#00a32a',
+                        backgroundColor: 'rgba(0, 163, 42, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }];
+                    
+                if (hasCompare && compareData.length > 0) {
+                    let compareLabel = 'Previous Period ($)';
+                    const chartCompare = '<?php echo esc_js($chart_compare); ?>';
+                    if (chartCompare === 'lastyear') {
+                        compareLabel = 'Last Year ($)';
+                    } else if (chartCompare === 'quarter') {
+                        compareLabel = 'Same Quarter Last Year ($)';
+                    } else if (chartCompare === 'month') {
+                        compareLabel = 'Same Month Last Year ($)';
+                    }
+                    
+                    datasets.push({
+                        label: compareLabel,
+                        data: compareData.map(d => d.revenue || 0),
+                        borderColor: '#646970',
+                        backgroundColor: 'rgba(100, 105, 112, 0.1)',
+                        borderDash: [5, 5],
+                        tension: 0.4,
+                        fill: false
+                    });
+                }
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: revenueData.map(d => d.month || ''),
+                            datasets: datasets
+                        },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.dataset.label + ': $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                        
+                                        // Add orders count if available
+                                        const dataIndex = context.dataIndex;
+                                        if (context.dataset.label === 'Revenue ($)' && revenueData[dataIndex] && revenueData[dataIndex].orders !== undefined) {
+                                            return [
+                                                label,
+                                                'Orders: ' + revenueData[dataIndex].orders.toLocaleString('en-US')
+                                            ];
+                                        } else if (hasCompare && compareData.length > 0 && context.dataset.label !== 'Revenue ($)') {
+                                            // For comparison data, try to get orders from compareData
+                                            if (compareData[dataIndex] && compareData[dataIndex].orders !== undefined) {
+                                                return [
+                                                    label,
+                                                    'Orders: ' + compareData[dataIndex].orders.toLocaleString('en-US')
+                                                ];
+                                            }
+                                        }
+                                        
+                                        return label;
+                                    }
                                 }
                             }
-                            $grouped[$key]['periods'][] = $agg;
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                } catch (error) {
+                    console.error('Error rendering chart:', error);
+                    if (ctx && ctx.parentElement) {
+                        ctx.parentElement.innerHTML += '<p style="color: #d63638; padding: 20px;">Error loading chart: ' + error.message + '</p>';
+                    }
+                }
+            }
+            
+            // Starter Signups Chart
+            const starterCtx = document.getElementById('starterSignupsChart');
+            if (starterCtx) {
+                try {
+                    const starterChartData = <?php echo json_encode($starter_history); ?>;
+                    console.log('Starter chart data:', starterChartData);
+                    
+                    let starterData, starterCompareData, starterHasCompare;
+                    
+                    if (starterChartData && starterChartData.data) {
+                        starterData = starterChartData.data;
+                        starterCompareData = starterChartData.compare || [];
+                        starterHasCompare = starterChartData.has_compare || false;
+                    } else {
+                        console.error('Invalid starter chart data format:', starterChartData);
+                        starterData = [];
+                        starterCompareData = [];
+                        starterHasCompare = false;
+                    }
+                    
+                    if (!starterData || starterData.length === 0) {
+                        console.warn('No starter signups data available');
+                        starterCtx.parentElement.innerHTML += '<p style="color: #d63638; padding: 20px;">No data available for the selected period.</p>';
+                        return;
+                    }
+                    
+                    const starterDatasets = [
+                        {
+                            label: 'Free Starter Signups',
+                            data: starterData.map(d => d.free_signups || 0),
+                            borderColor: '#2271b1',
+                            backgroundColor: 'rgba(34, 113, 177, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            hidden: false
+                        },
+                        {
+                            label: 'Paid Starter Signups',
+                            data: starterData.map(d => d.paid_signups || 0),
+                            borderColor: '#8c8f94',
+                            backgroundColor: 'rgba(140, 143, 148, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            hidden: false
+                        }
+                    ];
+                    
+                    if (starterHasCompare && starterCompareData.length > 0) {
+                        let compareLabel = 'Previous Period';
+                        const starterChartCompare = '<?php echo esc_js($starter_chart_compare); ?>';
+                        if (starterChartCompare === 'lastyear') {
+                            compareLabel = 'Last Year';
+                        } else if (starterChartCompare === 'quarter') {
+                            compareLabel = 'Same Quarter Last Year';
+                        } else if (starterChartCompare === 'month') {
+                            compareLabel = 'Same Month Last Year';
                         }
                         
-                        foreach ($grouped as $product_id => $data):
-                            $avg_total = 0;
-                            $max_total = 0;
-                            $min_total = 0;
-                            foreach ($data['periods'] as $p) {
-                                $avg_total += floatval($p['avg_count']);
-                                $max_total = max($max_total, floatval($p['max_count']));
-                                $min_total = $min_total == 0 ? floatval($p['min_count']) : min($min_total, floatval($p['min_count']));
+                        starterDatasets.push({
+                            label: compareLabel + ' (Free)',
+                            data: starterCompareData.map(d => d.free_signups || 0),
+                            borderColor: '#2271b1',
+                            backgroundColor: 'rgba(34, 113, 177, 0.05)',
+                            borderDash: [5, 5],
+                            tension: 0.4,
+                            fill: false,
+                            hidden: false
+                        });
+                        
+                        starterDatasets.push({
+                            label: compareLabel + ' (Paid)',
+                            data: starterCompareData.map(d => d.paid_signups || 0),
+                            borderColor: '#8c8f94',
+                            backgroundColor: 'rgba(140, 143, 148, 0.05)',
+                            borderDash: [5, 5],
+                            tension: 0.4,
+                            fill: false,
+                            hidden: false
+                        });
+                    }
+                    
+                    const starterChart = new Chart(starterCtx, {
+                        type: 'line',
+                        data: {
+                            labels: starterData.map(d => d.month || ''),
+                            datasets: starterDatasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.dataset.label + ': ' + context.parsed.y.toLocaleString('en-US');
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1,
+                                        callback: function(value) {
+                                            return value.toLocaleString();
+                                        }
+                                    }
+                                }
                             }
-                            $avg_total = count($data['periods']) > 0 ? $avg_total / count($data['periods']) : 0;
-                        ?>
-                            <tr>
-                                <td><?php echo esc_html($product_id); ?></td>
-                                <td><strong><?php echo esc_html($data['product_name'] ?: 'Unknown Product'); ?></strong></td>
-                                <td><?php echo esc_html(ucfirst($period)); ?></td>
-                                <td><?php echo number_format($avg_total, 0); ?></td>
-                                <td><?php echo number_format($max_total, 0); ?></td>
-                                <td><?php echo number_format($min_total, 0); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                        }
+                    });
+                    
+                    // Toggle functionality
+                    $('#toggle-free-starter').on('change', function() {
+                        const isChecked = $(this).is(':checked');
+                        starterChart.setDatasetVisibility(0, isChecked);
+                        if (starterHasCompare && starterCompareData.length > 0) {
+                            starterChart.setDatasetVisibility(2, isChecked);
+                        }
+                        starterChart.update();
+                    });
+                    
+                    $('#toggle-paid-starter').on('change', function() {
+                        const isChecked = $(this).is(':checked');
+                        starterChart.setDatasetVisibility(1, isChecked);
+                        if (starterHasCompare && starterCompareData.length > 0) {
+                            starterChart.setDatasetVisibility(3, isChecked);
+                        }
+                        starterChart.update();
+                    });
+                } catch (error) {
+                    console.error('Error rendering starter chart:', error);
+                    if (starterCtx && starterCtx.parentElement) {
+                        starterCtx.parentElement.innerHTML += '<p style="color: #d63638; padding: 20px;">Error loading chart: ' + error.message + '</p>';
+                    }
+                }
+            }
+        });
+        </script>
         
         <script type="text/javascript">
         jQuery(document).ready(function($) {
@@ -1632,15 +2740,485 @@ class Keap_Reports_Admin {
     }
     
     /**
-     * Render subscriptions page (detailed view)
+     * Render subscriptions page (detailed view with charts)
      */
     public function render_subscriptions_page() {
         if (!current_user_can('manage_options')) {
             return;
         }
         
-        // This can be a more detailed view if needed
-        $this->render_dashboard_page();
+        // Get filter parameters
+        $product_id = isset($_GET['product_id']) ? sanitize_text_field($_GET['product_id']) : '';
+        $period = isset($_GET['period']) ? sanitize_text_field($_GET['period']) : '30'; // 7, 30, or 90 days
+        
+        // Calculate date range
+        $end_date = date('Y-m-d');
+        $start_date = date('Y-m-d', strtotime("-{$period} days"));
+        
+        // Get all products for filter dropdown
+        $products = $this->database->get_products();
+        
+        // Get latest total (sum of all products for today or most recent day)
+        $latest_total = $this->database->get_total_subscriptions_count();
+        
+        // Get chart data via AJAX (will be loaded dynamically)
+        
+        ?>
+        <div class="wrap">
+            <h1>Subscriptions Analytics</h1>
+            
+            <!-- Manual Fetch Section -->
+            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
+                <h2 style="margin-top: 0;">Daily Subscription Fetch</h2>
+                <p>Manually fetch today's subscription snapshot. This will update or create today's data for all products.</p>
+                <button type="button" id="fetch-daily-subscriptions-btn" class="button button-primary">Fetch Today's Subscriptions</button>
+                <span id="fetch-status" style="margin-left: 10px;"></span>
+            </div>
+            
+            <!-- Running Total Card -->
+            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4; border-left: 4px solid #2271b1;">
+                <h2 style="margin-top: 0;">Total Active Subscriptions</h2>
+                <div style="font-size: 48px; font-weight: bold; color: #2271b1; margin: 10px 0;" id="total-subscriptions-count">
+                    <?php echo number_format($latest_total); ?>
+                </div>
+                <p style="color: #666; margin: 0;">Across all products (as of latest snapshot)</p>
+            </div>
+            
+            <!-- Filters -->
+            <div class="keap-reports-filters" style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
+                <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" id="subscriptions-filter-form">
+                    <input type="hidden" name="page" value="keap-reports-subscriptions">
+                    <table class="form-table">
+                        <tr>
+                            <th><label for="product_id">Filter by Product/Membership</label></th>
+                            <td>
+                                <select name="product_id" id="product_id" style="width: 300px;">
+                                    <option value="">All Products (Total)</option>
+                                    <?php foreach ($products as $product): ?>
+                                        <option value="<?php echo esc_attr($product['product_id']); ?>" <?php selected($product_id, $product['product_id']); ?>>
+                                            <?php echo esc_html($product['product_name']); ?> (ID: <?php echo esc_html($product['product_id']); ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="period">Time Period</label></th>
+                            <td>
+                                <select name="period" id="period">
+                                    <option value="7" <?php selected($period, '7'); ?>>Last 7 Days</option>
+                                    <option value="30" <?php selected($period, '30'); ?>>Last 30 Days</option>
+                                    <option value="90" <?php selected($period, '90'); ?>>Last 90 Days</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                    <p class="submit">
+                        <input type="submit" class="button button-primary" value="Update Chart">
+                    </p>
+                </form>
+            </div>
+            
+            <!-- Chart Container -->
+            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
+                <h2>Subscription Trends</h2>
+                <div style="position: relative; height: 400px;">
+                    <canvas id="subscriptions-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Data Table -->
+            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
+                <h2>Daily Subscription Data</h2>
+                <div id="subscriptions-table-container">
+                    <p>Loading data...</p>
+                </div>
+            </div>
+            
+            <!-- Duplicate Management -->
+            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
+                <h2>Duplicate Management</h2>
+                <p>Check for and clear duplicate entries for a specific date. Duplicates can occur if the fetch runs multiple times on the same day.</p>
+                <table class="form-table">
+                    <tr>
+                        <th><label for="duplicate-date">Date to Check/Clear</label></th>
+                        <td>
+                            <input type="date" id="duplicate-date" value="<?php echo date('Y-m-d'); ?>" style="width: 200px;">
+                            <button type="button" id="check-duplicates-btn" class="button">Check for Duplicates</button>
+                            <button type="button" id="clear-duplicates-btn" class="button button-secondary" style="display: none;">Clear Duplicates for This Date</button>
+                            <span id="duplicate-status" style="margin-left: 10px;"></span>
+                        </td>
+                    </tr>
+                </table>
+                <div id="duplicate-results" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+        
+        <!-- Chart.js Library -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+        
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            let subscriptionsChart = null;
+            
+            // Load chart data
+            function loadChartData() {
+                const productId = $('#product_id').val();
+                const period = $('#period').val();
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_get_subscription_chart_data',
+                        nonce: '<?php echo wp_create_nonce('keap_reports_get_subscription_chart_data'); ?>',
+                        product_id: productId,
+                        period: period
+                    },
+                    success: function(response) {
+                        if (response.success && response.data) {
+                            updateChart(response.data);
+                            updateTable(response.data);
+                            // Always update total - it's now always the overall total (not filtered)
+                            // The AJAX handler now always returns the overall total regardless of filter
+                            updateTotal(response.data.total);
+                        } else {
+                            $('#subscriptions-table-container').html('<p style="color: red;">Error loading data: ' + (response.data && response.data.message ? response.data.message : 'Unknown error') + '</p>');
+                        }
+                    },
+                    error: function() {
+                        $('#subscriptions-table-container').html('<p style="color: red;">Error loading chart data. Please try again.</p>');
+                    }
+                });
+            }
+            
+            function updateChart(data) {
+                const ctx = document.getElementById('subscriptions-chart').getContext('2d');
+                
+                // Destroy existing chart if it exists
+                if (subscriptionsChart) {
+                    subscriptionsChart.destroy();
+                }
+                
+                subscriptionsChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: data.product_name || 'Total Active Subscriptions',
+                            data: data.values,
+                            borderColor: 'rgb(34, 113, 177)',
+                            backgroundColor: 'rgba(34, 113, 177, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    precision: 0
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function updateTable(data) {
+                if (!data.table_data || data.table_data.length === 0) {
+                    $('#subscriptions-table-container').html('<p>No data available for the selected period.</p>');
+                    return;
+                }
+                
+                let html = '<table class="wp-list-table widefat fixed striped">';
+                html += '<thead><tr>';
+                html += '<th>Date</th>';
+                html += '<th style="text-align: right;">Active Subscriptions</th>';
+                html += '<th style="text-align: right;">Total Change</th>';
+                html += '<th>Change Breakdown by Product</th>';
+                html += '</tr></thead><tbody>';
+                
+                let previousValue = null;
+                data.table_data.forEach(function(row) {
+                    const change = previousValue !== null ? row.count - previousValue : null;
+                    const changeClass = change !== null ? (change > 0 ? 'color: green; font-weight: bold;' : change < 0 ? 'color: red; font-weight: bold;' : '') : '';
+                    const changeText = change !== null ? (change > 0 ? '+' + change : change) : '-';
+                    
+                    // Build product breakdown
+                    let breakdownHtml = '';
+                    if (row.product_changes && row.product_changes.length > 0) {
+                        // Show top 5 increases and top 5 decreases
+                        const increases = row.product_changes.filter(p => p.change > 0).slice(0, 5);
+                        const decreases = row.product_changes.filter(p => p.change < 0).slice(0, 5);
+                        
+                        if (increases.length > 0 || decreases.length > 0) {
+                            breakdownHtml += '<div style="font-size: 11px; line-height: 1.6;">';
+                            
+                            if (increases.length > 0) {
+                                breakdownHtml += '<div style="margin-bottom: 4px;"><strong style="color: #00a32a;">↑ Increases:</strong></div>';
+                                increases.forEach(function(p) {
+                                    breakdownHtml += '<div style="color: #00a32a; margin-left: 10px; margin-bottom: 4px;">';
+                                    breakdownHtml += '<span style="font-weight: bold;">+' + p.change + '</span> ';
+                                    breakdownHtml += '<span style="color: #666;">' + p.product_name + '</span>';
+                                    breakdownHtml += ' <span style="color: #999;">(' + p.previous + ' → ' + p.current + ')</span>';
+                                    
+                                    // Show new subscriptions (students who subscribed)
+                                    if (p.new_subscriptions && p.new_subscriptions.length > 0) {
+                                        breakdownHtml += '<div style="margin-left: 20px; margin-top: 2px; font-size: 10px;">';
+                                        p.new_subscriptions.forEach(function(sub) {
+                                            const name = sub.name || 'Unknown';
+                                            const email = sub.email || '';
+                                            breakdownHtml += '<div style="color: #666;">';
+                                            breakdownHtml += '<span style="font-weight: 500;">' + name + '</span>';
+                                            if (email) {
+                                                breakdownHtml += ' <span style="color: #999;">(' + email + ')</span>';
+                                            }
+                                            breakdownHtml += '</div>';
+                                        });
+                                        breakdownHtml += '</div>';
+                                    }
+                                    
+                                    breakdownHtml += '</div>';
+                                });
+                            }
+                            
+                            if (decreases.length > 0) {
+                                breakdownHtml += '<div style="margin-top: 6px;"><strong style="color: #d63638;">↓ Decreases:</strong></div>';
+                                decreases.forEach(function(p) {
+                                    breakdownHtml += '<div style="color: #d63638; margin-left: 10px; margin-bottom: 4px;">';
+                                    breakdownHtml += '<span style="font-weight: bold;">' + p.change + '</span> ';
+                                    breakdownHtml += '<span style="color: #666;">' + p.product_name + '</span>';
+                                    breakdownHtml += ' <span style="color: #999;">(' + p.previous + ' → ' + p.current + ')</span>';
+                                    
+                                    // Show cancelled subscriptions (students who cancelled)
+                                    if (p.cancelled_subscriptions && p.cancelled_subscriptions.length > 0) {
+                                        breakdownHtml += '<div style="margin-left: 20px; margin-top: 2px; font-size: 10px;">';
+                                        p.cancelled_subscriptions.forEach(function(sub) {
+                                            const name = sub.name || 'Unknown';
+                                            const email = sub.email || '';
+                                            breakdownHtml += '<div style="color: #666;">';
+                                            breakdownHtml += '<span style="font-weight: 500;">' + name + '</span>';
+                                            if (email) {
+                                                breakdownHtml += ' <span style="color: #999;">(' + email + ')</span>';
+                                            }
+                                            breakdownHtml += '</div>';
+                                        });
+                                        breakdownHtml += '</div>';
+                                    }
+                                    
+                                    breakdownHtml += '</div>';
+                                });
+                            }
+                            
+                            // Show count of additional changes if there are more
+                            const totalChanges = row.product_changes.length;
+                            const shownChanges = increases.length + decreases.length;
+                            if (totalChanges > shownChanges) {
+                                breakdownHtml += '<div style="margin-top: 4px; color: #666; font-style: italic;">';
+                                breakdownHtml += '+ ' + (totalChanges - shownChanges) + ' more product change' + (totalChanges - shownChanges > 1 ? 's' : '');
+                                breakdownHtml += '</div>';
+                            }
+                            
+                            breakdownHtml += '</div>';
+                        } else {
+                            breakdownHtml = '<span style="color: #999;">No product changes</span>';
+                        }
+                    } else if (change === null) {
+                        breakdownHtml = '<span style="color: #999;">First day (no comparison)</span>';
+                    } else if (change === 0) {
+                        breakdownHtml = '<span style="color: #999;">No change</span>';
+                    } else {
+                        breakdownHtml = '<span style="color: #999;">Product data not available</span>';
+                    }
+                    
+                    html += '<tr>';
+                    html += '<td><strong>' + row.date + '</strong></td>';
+                    html += '<td style="text-align: right;"><strong>' + row.count.toLocaleString() + '</strong></td>';
+                    html += '<td style="text-align: right; ' + changeClass + '">' + changeText + '</td>';
+                    html += '<td style="max-width: 400px;">' + breakdownHtml + '</td>';
+                    html += '</tr>';
+                    
+                    previousValue = row.count;
+                });
+                
+                html += '</tbody></table>';
+                $('#subscriptions-table-container').html(html);
+            }
+            
+            function updateTotal(total) {
+                $('#total-subscriptions-count').text(total.toLocaleString());
+            }
+            
+            // Load data on page load
+            loadChartData();
+            
+            // Reload on filter change
+            $('#subscriptions-filter-form').on('submit', function(e) {
+                e.preventDefault();
+                loadChartData();
+            });
+            
+            // Manual fetch button
+            $('#fetch-daily-subscriptions-btn').on('click', function(e) {
+                e.preventDefault();
+                var $btn = $(this);
+                var $status = $('#fetch-status');
+                $btn.prop('disabled', true).text('Fetching...');
+                $status.css('color', '#666').text('Fetching today\'s subscriptions... This may take a minute.');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    timeout: 300000, // 5 minutes
+                    data: {
+                        action: 'keap_reports_fetch_daily_subscriptions',
+                        nonce: '<?php echo wp_create_nonce('keap_reports_fetch_daily_subscriptions'); ?>'
+                    },
+                    success: function(response) {
+                        if (response && response.success) {
+                            $status.css('color', 'green').text('✓ ' + (response.data && response.data.message ? response.data.message : 'Success'));
+                            setTimeout(function() {
+                                loadChartData(); // Reload chart data
+                                updateTotal(response.data && response.data.total ? response.data.total : 0);
+                            }, 1000);
+                        } else {
+                            var errorMsg = response && response.data && response.data.message ? response.data.message : 'Unknown error';
+                            $status.css('color', 'red').text('✗ ' + errorMsg);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        var errorMsg = '✗ Error fetching subscriptions';
+                        if (status === 'timeout') {
+                            errorMsg = '✗ Request timed out. The API call may be taking too long.';
+                        } else if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                            errorMsg += ': ' + xhr.responseJSON.data.message;
+                        }
+                        $status.css('color', 'red').text(errorMsg);
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).text('Fetch Today\'s Subscriptions');
+                    }
+                });
+            });
+            
+            // Check for duplicates
+            $('#check-duplicates-btn').on('click', function(e) {
+                e.preventDefault();
+                var date = $('#duplicate-date').val();
+                if (!date) {
+                    alert('Please select a date');
+                    return;
+                }
+                
+                var $btn = $(this);
+                var $status = $('#duplicate-status');
+                $btn.prop('disabled', true).text('Checking...');
+                $status.text('');
+                $('#duplicate-results').html('');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_check_duplicates',
+                        nonce: '<?php echo wp_create_nonce('keap_reports_check_duplicates'); ?>',
+                        date: date
+                    },
+                    success: function(response) {
+                        if (response.success && response.data) {
+                            var html = '<div style="margin-top: 10px;">';
+                            if (response.data.has_duplicates) {
+                                html += '<p style="color: #d63638;"><strong>Duplicates Found:</strong> ' + response.data.duplicate_count + ' duplicate entries for ' + date + '</p>';
+                                html += '<p>Total unique product entries: ' + response.data.unique_count + '</p>';
+                                html += '<p>Total duplicate entries: ' + response.data.duplicate_count + '</p>';
+                                $('#clear-duplicates-btn').show();
+                            } else {
+                                html += '<p style="color: #00a32a;"><strong>No duplicates found</strong> for ' + date + '</p>';
+                                html += '<p>Total entries: ' + response.data.unique_count + '</p>';
+                                $('#clear-duplicates-btn').hide();
+                            }
+                            html += '</div>';
+                            $('#duplicate-results').html(html);
+                            $status.css('color', 'green').text('✓ Check complete');
+                        } else {
+                            $status.css('color', 'red').text('✗ Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                        }
+                    },
+                    error: function() {
+                        $status.css('color', 'red').text('✗ Error checking for duplicates');
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).text('Check for Duplicates');
+                    }
+                });
+            });
+            
+            // Clear duplicates
+            $('#clear-duplicates-btn').on('click', function(e) {
+                e.preventDefault();
+                var date = $('#duplicate-date').val();
+                if (!date) {
+                    alert('Please select a date');
+                    return;
+                }
+                
+                if (!confirm('Are you sure you want to clear duplicate entries for ' + date + '? This will keep only the most recent entry for each product.')) {
+                    return;
+                }
+                
+                var $btn = $(this);
+                var $status = $('#duplicate-status');
+                $btn.prop('disabled', true).text('Clearing...');
+                $status.text('');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_clear_duplicates',
+                        nonce: '<?php echo wp_create_nonce('keap_reports_clear_duplicates'); ?>',
+                        date: date
+                    },
+                    success: function(response) {
+                        if (response.success && response.data) {
+                            $status.css('color', 'green').text('✓ ' + (response.data.message || 'Duplicates cleared successfully'));
+                            $('#clear-duplicates-btn').hide();
+                            $('#duplicate-results').html('<p style="color: #00a32a;">Duplicates cleared. ' + response.data.deleted_count + ' duplicate entries removed.</p>');
+                            // Reload chart data
+                            setTimeout(function() {
+                                loadChartData();
+                            }, 1000);
+                        } else {
+                            $status.css('color', 'red').text('✗ Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error'));
+                        }
+                    },
+                    error: function() {
+                        $status.css('color', 'red').text('✗ Error clearing duplicates');
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).text('Clear Duplicates for This Date');
+                    }
+                });
+            });
+        });
+        </script>
+        <?php
     }
     
     /**
@@ -1716,7 +3294,7 @@ class Keap_Reports_Admin {
         
         ?>
         <div class="wrap">
-            <h1>Product Management</h1>
+            <h1>Products</h1>
             
             <h2><?php echo $edit_product ? 'Edit Product' : 'Add New Product'; ?></h2>
             <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=keap-reports-products')); ?>">
@@ -2060,210 +3638,1152 @@ class Keap_Reports_Admin {
     }
     
     /**
-     * Render Tag Audit page
+     * AJAX handler for getting subscription chart data
      */
-    public function render_tag_audit_page() {
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-        
-        // Get access tags from Academy Manager settings
-        $keap_tags = get_option('alm_keap_tags', array());
-        $all_tag_ids = array();
-        foreach ($keap_tags as $level => $tags_string) {
-            if (!empty($tags_string)) {
-                $tag_ids = array_map('trim', explode(',', $tags_string));
-                $all_tag_ids = array_merge($all_tag_ids, $tag_ids);
-            }
-        }
-        $all_tag_ids = array_unique(array_filter($all_tag_ids));
-        
-        ?>
-        <div class="wrap">
-            <h1>Tag Audit - Membership Mismatches</h1>
-            <p class="description">Find students whose membership is inactive but they still have access tags.</p>
-            
-            <div class="keap-reports-actions" style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
-                <h2>Access Tags Configuration</h2>
-                <p>Found <strong><?php echo count($all_tag_ids); ?></strong> access tag ID(s) configured:</p>
-                <ul>
-                    <?php foreach ($keap_tags as $level => $tags_string): ?>
-                        <?php if (!empty($tags_string)): ?>
-                            <li><strong><?php echo esc_html(ucfirst(str_replace('_', ' ', $level))); ?>:</strong> <?php echo esc_html($tags_string); ?></li>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </ul>
-                <p><a href="<?php echo esc_url(admin_url('admin.php?page=academy-manager-settings&tab=keap-tags')); ?>" target="_blank">Edit Access Tags Settings</a></p>
-            </div>
-            
-            <div class="keap-reports-actions" style="margin: 20px 0;">
-                <button type="button" id="scan-tag-mismatches-btn" class="button button-primary button-large">Scan for Mismatches</button>
-                <span id="scan-status" style="margin-left: 10px;"></span>
-                <p class="description" style="margin-top: 10px;">This will scan all contacts with access tags and check their subscription status. This may take several minutes.</p>
-            </div>
-            
-            <div id="scan-results" style="display: none;">
-                <h2>Scan Results</h2>
-                <div id="scan-summary" style="background: #fff; padding: 15px; margin: 20px 0; border: 1px solid #ccd0d4;"></div>
-                <table id="mismatches-table" class="wp-list-table widefat fixed striped" style="display: none;">
-                    <thead>
-                        <tr>
-                            <th>Contact ID</th>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Access Tags</th>
-                            <th>Subscription Status</th>
-                            <th>Active</th>
-                            <th>Expired</th>
-                            <th>Total</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="mismatches-tbody">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <script type="text/javascript">
-        jQuery(document).ready(function($) {
-            $('#scan-tag-mismatches-btn').on('click', function() {
-                var $btn = $(this);
-                var $status = $('#scan-status');
-                var $results = $('#scan-results');
-                var $table = $('#mismatches-table');
-                var $tbody = $('#mismatches-tbody');
-                var $summary = $('#scan-summary');
-                
-                $btn.prop('disabled', true).text('Scanning...');
-                $status.css('color', '#666').text('Scanning contacts... This may take several minutes.');
-                $results.hide();
-                $tbody.empty();
-                
-                $.ajax({
-                    url: ajaxurl,
-                    type: 'POST',
-                    timeout: 600000, // 10 minutes timeout
-                    data: {
-                        action: 'keap_reports_scan_tag_mismatches',
-                        nonce: '<?php echo wp_create_nonce('keap_reports_scan_tag_mismatches'); ?>'
-                    },
-                    beforeSend: function() {
-                        console.log('Keap Reports: Starting tag mismatch scan...');
-                    },
-                    success: function(response) {
-                        console.log('Keap Reports: Scan response received:', response);
-                        
-                        if (response && response.success) {
-                            $status.css('color', 'green').text('✓ ' + response.data.message);
-                            
-                            if (response.data.mismatches && response.data.mismatches.length > 0) {
-                                $results.show();
-                                $summary.html(
-                                    '<h3>Summary</h3>' +
-                                    '<p><strong>Contacts Checked:</strong> ' + response.data.contacts_checked + '</p>' +
-                                    '<p><strong>Mismatches Found:</strong> ' + response.data.total_mismatches + '</p>'
-                                );
-                                
-                                $table.show();
-                                
-                                $.each(response.data.mismatches, function(index, mismatch) {
-                                    var row = '<tr>';
-                                    row += '<td>' + mismatch.contact_id + '</td>';
-                                    row += '<td><strong>' + (mismatch.name || 'N/A') + '</strong></td>';
-                                    row += '<td>' + (mismatch.email || 'N/A') + '</td>';
-                                    row += '<td>' + (mismatch.access_tags ? mismatch.access_tags.join(', ') : 'N/A') + '</td>';
-                                    row += '<td>' + mismatch.subscription_status + '</td>';
-                                    row += '<td>' + (mismatch.has_active ? 'Yes (' + mismatch.active_count + ')' : 'No') + '</td>';
-                                    row += '<td>' + (mismatch.has_expired ? 'Yes (' + mismatch.expired_count + ')' : 'No') + '</td>';
-                                    row += '<td>' + mismatch.subscription_count + '</td>';
-                                    row += '<td><a href="https://app.infusionsoft.com/core/Contact/manageContact.jsp?view=edit&ID=' + mismatch.contact_id + '" target="_blank" class="button button-small">View in Keap</a></td>';
-                                    row += '</tr>';
-                                    $tbody.append(row);
-                                });
-                            } else {
-                                $results.show();
-                                $summary.html(
-                                    '<h3>No Mismatches Found</h3>' +
-                                    '<p>All contacts with access tags have active subscriptions.</p>' +
-                                    '<p><strong>Contacts Checked:</strong> ' + response.data.contacts_checked + '</p>'
-                                );
-                            }
-                        } else {
-                            var errorMsg = response && response.data && response.data.message ? response.data.message : 'Unknown error';
-                            $status.css('color', 'red').text('✗ ' + errorMsg);
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Keap Reports: Scan Error:', xhr);
-                        var errorMsg = '✗ Error scanning contacts';
-                        if (status === 'timeout') {
-                            errorMsg = '✗ Request timed out. The scan may be taking too long. Check logs for details.';
-                        } else if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
-                            errorMsg += ': ' + xhr.responseJSON.data.message;
-                        }
-                        $status.css('color', 'red').text(errorMsg);
-                    },
-                    complete: function() {
-                        console.log('Keap Reports: Scan request completed');
-                        $btn.prop('disabled', false).text('Scan for Mismatches');
-                    }
-                });
-            });
-        });
-        </script>
-        <?php
-    }
-    
     /**
-     * AJAX handler for scanning tag mismatches
+     * AJAX handler for manually triggering a cron job
      */
-    public function ajax_scan_tag_mismatches() {
-        // Set longer execution time for API calls
-        set_time_limit(600); // 10 minutes
+    public function ajax_trigger_cron() {
+        check_ajax_referer('keap_reports_trigger_cron', 'nonce');
         
-        // Log the request
-        $this->database->add_log('AJAX: Tag mismatch scan requested', 'info');
-        
-        // Check nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'keap_reports_scan_tag_mismatches')) {
-            $this->database->add_log('AJAX: Nonce verification failed', 'error');
-            wp_send_json_error(array('message' => 'Security check failed. Please refresh the page and try again.'));
-            return;
-        }
-        
-        // Check permissions
         if (!current_user_can('manage_options')) {
-            $this->database->add_log('AJAX: Insufficient permissions', 'error');
             wp_send_json_error(array('message' => 'Insufficient permissions'));
             return;
         }
         
-        try {
-            $result = $this->reports->scan_tag_mismatches();
-            
-            if ($result['success']) {
-                $this->database->add_log('AJAX: Tag mismatch scan completed successfully', 'info');
-                wp_send_json_success($result);
-            } else {
-                $this->database->add_log('AJAX: Tag mismatch scan failed: ' . (isset($result['message']) ? $result['message'] : 'Unknown error'), 'error');
-                wp_send_json_error($result);
-            }
-        } catch (Exception $e) {
-            $error_message = 'Exception: ' . $e->getMessage();
-            $this->database->add_log('AJAX: Exception during tag mismatch scan: ' . $error_message, 'error', array(
-                'exception' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ));
-            wp_send_json_error(array('message' => $error_message));
-        } catch (Error $e) {
-            $error_message = 'Fatal Error: ' . $e->getMessage();
-            $this->database->add_log('AJAX: Fatal error during tag mismatch scan: ' . $error_message, 'error', array(
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ));
-            wp_send_json_error(array('message' => $error_message));
+        $hook = isset($_POST['hook']) ? sanitize_text_field($_POST['hook']) : '';
+        
+        if (empty($hook)) {
+            wp_send_json_error(array('message' => 'No hook specified'));
+            return;
         }
+        
+        // Trigger the cron hook manually
+        do_action($hook);
+        
+        $this->database->add_log(sprintf('CRON: Manually triggered %s', $hook), 'info');
+        
+        wp_send_json_success(array('message' => 'Cron job triggered successfully'));
+    }
+    
+    /**
+     * AJAX handler for rescheduling a cron job
+     */
+    public function ajax_reschedule_cron() {
+        check_ajax_referer('keap_reports_reschedule_cron', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $hook = isset($_POST['hook']) ? sanitize_text_field($_POST['hook']) : '';
+        
+        if (empty($hook)) {
+            wp_send_json_error(array('message' => 'No hook specified'));
+            return;
+        }
+        
+        $cron = new Keap_Reports_Cron($this->reports);
+        
+        // Clear existing schedule
+        wp_clear_scheduled_hook($hook);
+        
+        // Reschedule based on hook type
+        if ($hook === 'keap_reports_fetch_scheduled') {
+            $frequency = get_option('keap_reports_schedule_frequency', 'daily');
+            $timezone = get_option('timezone_string');
+            if (empty($timezone)) {
+                $timezone = 'America/New_York';
+            }
+            
+            $now = new DateTime('now', new DateTimeZone($timezone));
+            $scheduled_time = clone $now;
+            $scheduled_time->setTime(3, 0, 0);
+            
+            if ($now >= $scheduled_time) {
+                $scheduled_time->modify('+1 day');
+            }
+            
+            wp_schedule_event($scheduled_time->getTimestamp(), $frequency, $hook);
+            $this->database->add_log(sprintf('CRON: Rescheduled %s for %s', $hook, $scheduled_time->format('Y-m-d H:i:s')), 'info');
+        } elseif ($hook === 'keap_reports_fetch_daily_subscriptions') {
+            $timezone = get_option('timezone_string');
+            if (empty($timezone)) {
+                $timezone = 'America/New_York';
+            }
+            
+            $now = new DateTime('now', new DateTimeZone($timezone));
+            $scheduled_time = clone $now;
+            $scheduled_time->setTime(2, 0, 0);
+            
+            if ($now >= $scheduled_time) {
+                $scheduled_time->modify('+1 day');
+            }
+            
+            wp_schedule_event($scheduled_time->getTimestamp(), 'daily', $hook);
+            $this->database->add_log(sprintf('CRON: Rescheduled %s for %s', $hook, $scheduled_time->format('Y-m-d H:i:s')), 'info');
+        }
+        
+        wp_send_json_success(array('message' => 'Cron job rescheduled successfully'));
+    }
+    
+    public function ajax_get_subscription_chart_data() {
+        check_ajax_referer('keap_reports_get_subscription_chart_data', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $product_id = isset($_POST['product_id']) ? sanitize_text_field($_POST['product_id']) : '';
+        $period = isset($_POST['period']) ? absint($_POST['period']) : 30;
+        
+        // Calculate date range
+        $end_date = date('Y-m-d');
+        $start_date = date('Y-m-d', strtotime("-{$period} days"));
+        
+        // Get subscription data
+        $data = $this->database->get_daily_subscriptions_range($product_id, $start_date, $end_date);
+        
+        // Get product name if filtering by product
+        $product_name = 'Total Active Subscriptions';
+        if ($product_id) {
+            $product = $this->database->get_product($product_id);
+            if ($product) {
+                $product_name = $product['product_name'] . ' Subscriptions';
+            }
+        }
+        
+        // Process data for chart
+        $labels = array();
+        $values = array();
+        $table_data = array();
+        
+        // Group by date and product, storing product-level data
+        $daily_data = array(); // date => array('total' => count, 'products' => array(product_id => count))
+        foreach ($data as $row) {
+            $date_key = sprintf('%04d-%02d-%02d', $row['year'], $row['month'], $row['day']);
+            if (!isset($daily_data[$date_key])) {
+                $daily_data[$date_key] = array(
+                    'total' => 0,
+                    'products' => array()
+                );
+            }
+            $product_id = $row['product_id'];
+            $count = intval($row['active_count']);
+            $daily_data[$date_key]['total'] += $count;
+            $daily_data[$date_key]['products'][$product_id] = $count;
+        }
+        
+        // Sort by date
+        ksort($daily_data);
+        
+        // Build chart data and calculate product-level changes
+        $previous_day_products = array();
+        foreach ($daily_data as $date => $day_info) {
+            $labels[] = date('M j', strtotime($date));
+            $values[] = $day_info['total'];
+            
+            // Calculate product-level changes
+            $product_changes = array();
+            if (!empty($previous_day_products)) {
+                // Get date parts for current and previous day
+                $date_parts = explode('-', $date);
+                $current_year = intval($date_parts[0]);
+                $current_month = intval($date_parts[1]);
+                $current_day = intval($date_parts[2]);
+                
+                // Get previous day date
+                $prev_date = date('Y-m-d', strtotime($date . ' -1 day'));
+                $prev_parts = explode('-', $prev_date);
+                $prev_year = intval($prev_parts[0]);
+                $prev_month = intval($prev_parts[1]);
+                $prev_day = intval($prev_parts[2]);
+                
+                // Compare with previous day
+                foreach ($day_info['products'] as $prod_id => $current_count) {
+                    $previous_count = isset($previous_day_products[$prod_id]) ? $previous_day_products[$prod_id] : 0;
+                    $change = $current_count - $previous_count;
+                    if ($change != 0) {
+                        $product = $this->database->get_product($prod_id);
+                        $current_product_name = $product ? $product['product_name'] : 'Product ' . $prod_id;
+                        
+                        // Get subscription details for current and previous day
+                        $current_details = $this->database->get_subscription_details($prod_id, $current_year, $current_month, $current_day);
+                        $previous_details = $this->database->get_subscription_details($prod_id, $prev_year, $prev_month, $prev_day);
+                        
+                        // Create maps of subscription IDs
+                        $current_sub_ids = array();
+                        $current_contacts = array();
+                        foreach ($current_details as $detail) {
+                            $sub_id = $detail['subscription_id'];
+                            $current_sub_ids[$sub_id] = true;
+                            $current_contacts[] = array(
+                                'name' => $detail['contact_name'],
+                                'email' => $detail['contact_email'],
+                                'contact_id' => $detail['contact_id']
+                            );
+                        }
+                        
+                        $previous_sub_ids = array();
+                        $previous_contacts = array();
+                        foreach ($previous_details as $detail) {
+                            $sub_id = $detail['subscription_id'];
+                            $previous_sub_ids[$sub_id] = true;
+                            $previous_contacts[] = array(
+                                'name' => $detail['contact_name'],
+                                'email' => $detail['contact_email'],
+                                'contact_id' => $detail['contact_id']
+                            );
+                        }
+                        
+                        // Find new subscriptions (in current but not in previous)
+                        $new_subscriptions = array();
+                        foreach ($current_details as $detail) {
+                            if (!isset($previous_sub_ids[$detail['subscription_id']])) {
+                                $new_subscriptions[] = array(
+                                    'name' => $detail['contact_name'],
+                                    'email' => $detail['contact_email'],
+                                    'contact_id' => $detail['contact_id']
+                                );
+                            }
+                        }
+                        
+                        // Find cancelled subscriptions (in previous but not in current)
+                        $cancelled_subscriptions = array();
+                        foreach ($previous_details as $detail) {
+                            if (!isset($current_sub_ids[$detail['subscription_id']])) {
+                                $cancelled_subscriptions[] = array(
+                                    'name' => $detail['contact_name'],
+                                    'email' => $detail['contact_email'],
+                                    'contact_id' => $detail['contact_id']
+                                );
+                            }
+                        }
+                        
+                        $product_changes[] = array(
+                            'product_id' => $prod_id,
+                            'product_name' => $current_product_name,
+                            'change' => $change,
+                            'current' => $current_count,
+                            'previous' => $previous_count,
+                            'new_subscriptions' => $new_subscriptions,
+                            'cancelled_subscriptions' => $cancelled_subscriptions
+                        );
+                    }
+                }
+                
+                // Also check for products that existed yesterday but not today (decreased to 0)
+                foreach ($previous_day_products as $prod_id => $previous_count) {
+                    if (!isset($day_info['products'][$prod_id])) {
+                        $product = $this->database->get_product($prod_id);
+                        $current_product_name = $product ? $product['product_name'] : 'Product ' . $prod_id;
+                        
+                        // Get cancelled subscriptions
+                        $previous_details = $this->database->get_subscription_details($prod_id, $prev_year, $prev_month, $prev_day);
+                        $cancelled_subscriptions = array();
+                        foreach ($previous_details as $detail) {
+                            $cancelled_subscriptions[] = array(
+                                'name' => $detail['contact_name'],
+                                'email' => $detail['contact_email'],
+                                'contact_id' => $detail['contact_id']
+                            );
+                        }
+                        
+                        $product_changes[] = array(
+                            'product_id' => $prod_id,
+                            'product_name' => $current_product_name,
+                            'change' => -$previous_count,
+                            'current' => 0,
+                            'previous' => $previous_count,
+                            'new_subscriptions' => array(),
+                            'cancelled_subscriptions' => $cancelled_subscriptions
+                        );
+                    }
+                }
+            }
+            
+            // Sort by absolute change (biggest changes first)
+            usort($product_changes, function($a, $b) {
+                return abs($b['change']) - abs($a['change']);
+            });
+            
+            $table_data[] = array(
+                'date' => date('Y-m-d', strtotime($date)),
+                'count' => $day_info['total'],
+                'product_changes' => $product_changes
+            );
+            
+            // Store current day's products for next iteration
+            $previous_day_products = $day_info['products'];
+        }
+        
+        // Get latest total - always get overall total (not filtered by product_id)
+        // This ensures the total displayed is always the sum across all products
+        $total = $this->database->get_total_subscriptions_count(null);
+        
+        // If filtering by a specific product, also get that product's total for reference
+        $product_total = null;
+        if ($product_id) {
+            $product_total = $this->database->get_total_subscriptions_count($product_id);
+        }
+        
+        wp_send_json_success(array(
+            'labels' => $labels,
+            'values' => $values,
+            'table_data' => $table_data,
+            'product_name' => $product_name,
+            'total' => $total, // Always overall total
+            'product_total' => $product_total, // Product-specific total if filtering
+            'period' => $period,
+            'product_id' => $product_id
+        ));
+    }
+    
+    /**
+     * AJAX handler for checking duplicates
+     */
+    public function ajax_check_duplicates() {
+        check_ajax_referer('keap_reports_check_duplicates', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
+        if (empty($date)) {
+            wp_send_json_error(array('message' => 'Date is required'));
+            return;
+        }
+        
+        $date_parts = explode('-', $date);
+        if (count($date_parts) !== 3) {
+            wp_send_json_error(array('message' => 'Invalid date format'));
+            return;
+        }
+        
+        $year = intval($date_parts[0]);
+        $month = intval($date_parts[1]);
+        $day = intval($date_parts[2]);
+        
+        $result = $this->database->check_duplicate_subscriptions($year, $month, $day);
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * AJAX handler for clearing duplicates
+     */
+    public function ajax_clear_duplicates() {
+        check_ajax_referer('keap_reports_clear_duplicates', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
+        if (empty($date)) {
+            wp_send_json_error(array('message' => 'Date is required'));
+            return;
+        }
+        
+        $date_parts = explode('-', $date);
+        if (count($date_parts) !== 3) {
+            wp_send_json_error(array('message' => 'Invalid date format'));
+            return;
+        }
+        
+        $year = intval($date_parts[0]);
+        $month = intval($date_parts[1]);
+        $day = intval($date_parts[2]);
+        
+        $result = $this->database->clear_duplicate_subscriptions($year, $month, $day);
+        
+        if ($result['success']) {
+            wp_send_json_success(array(
+                'message' => 'Duplicates cleared successfully',
+                'deleted_count' => $result['deleted_count']
+            ));
+        } else {
+            wp_send_json_error(array('message' => $result['message']));
+        }
+    }
+    
+    /**
+     * Handle bulk actions for reports
+     */
+    public function ajax_bulk_action() {
+        check_ajax_referer('keap_reports_bulk_action', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+        
+        $bulk_action = isset($_POST['bulk_action']) ? sanitize_text_field($_POST['bulk_action']) : '';
+        $report_ids = isset($_POST['report_ids']) ? array_map('absint', $_POST['report_ids']) : array();
+        
+        if (empty($bulk_action)) {
+            wp_send_json_error(array('message' => 'No action specified'));
+            return;
+        }
+        
+        if (empty($report_ids)) {
+            wp_send_json_error(array('message' => 'No reports selected'));
+            return;
+        }
+        
+        $updated_count = 0;
+        $is_active = ($bulk_action === 'activate') ? 1 : 0;
+        
+        foreach ($report_ids as $report_id) {
+            $report = $this->database->get_report($report_id);
+            if ($report) {
+                $report['is_active'] = $is_active;
+                // Ensure id is set for update
+                if (!isset($report['id'])) {
+                    $report['id'] = $report_id;
+                }
+                $result = $this->database->save_report($report);
+                if ($result) {
+                    $updated_count++;
+                } else {
+                    error_log('Keap Reports: Failed to update report ID ' . $report_id . '. Error: ' . (isset($GLOBALS['wpdb']) ? $GLOBALS['wpdb']->last_error : 'Unknown'));
+                }
+            } else {
+                error_log('Keap Reports: Report ID ' . $report_id . ' not found');
+            }
+        }
+        
+        if ($updated_count > 0) {
+            $action_text = $bulk_action === 'activate' ? 'enabled' : 'disabled';
+            wp_send_json_success(array(
+                'message' => sprintf('Successfully %s auto-fetch for %d report(s).', $action_text, $updated_count)
+            ));
+        } else {
+            wp_send_json_error(array('message' => 'No reports were updated'));
+        }
+    }
+    
+    /**
+     * Get revenue history data based on filters
+     */
+    private function get_revenue_history_data($reports, $period, $view, $compare) {
+        $data = array();
+        $compare_data = array();
+        
+        // Determine date range based on period
+        $start_date = new DateTime();
+        $end_date = new DateTime();
+        
+        if ($period === '30days') {
+            $start_date->modify('-30 days');
+        } elseif ($period === '60days') {
+            $start_date->modify('-60 days');
+        } elseif ($period === '90days') {
+            $start_date->modify('-90 days');
+        } elseif ($period === '12months') {
+            $start_date->modify('-12 months');
+        } elseif (in_array($period, array('2025', '2026', '2027', '2028'))) {
+            $year = intval($period);
+            $start_date = new DateTime("$year-01-01");
+            $end_date = new DateTime("$year-12-31");
+        }
+        
+        // Generate data points based on view type
+        if ($view === 'quarterly') {
+            // Quarterly view
+            $current = clone $start_date;
+            while ($current <= $end_date) {
+                $quarter = ceil($current->format('n') / 3);
+                $year = intval($current->format('Y'));
+                $quarter_label = "Q$quarter $year";
+                
+                // Sum all months in this quarter
+                $quarter_revenue = 0;
+                $quarter_orders = 0;
+                for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                    foreach ($reports as $report) {
+                        $month_data = $this->database->get_report_data($report['id'], $year, $m);
+                        if ($month_data) {
+                            $quarter_revenue += floatval($month_data['total_amt_sold']);
+                            $quarter_orders += intval($month_data['num_orders']);
+                        }
+                    }
+                }
+                
+                $data[] = array(
+                    'month' => $quarter_label,
+                    'revenue' => $quarter_revenue,
+                    'orders' => $quarter_orders,
+                    'year' => $year,
+                    'quarter' => $quarter
+                );
+                
+                // Move to next quarter
+                $current->modify('+3 months');
+                $current->modify('first day of this month');
+            }
+        } else {
+            // Monthly view
+            $current = clone $start_date;
+            $current->modify('first day of this month');
+            $end_date->modify('last day of this month');
+            
+            while ($current <= $end_date) {
+                $year = intval($current->format('Y'));
+                $month = intval($current->format('n'));
+                $month_name = $current->format('M Y');
+                
+                $month_revenue = 0;
+                $month_orders = 0;
+                foreach ($reports as $report) {
+                    $month_data = $this->database->get_report_data($report['id'], $year, $month);
+                    if ($month_data) {
+                        $month_revenue += floatval($month_data['total_amt_sold']);
+                        $month_orders += intval($month_data['num_orders']);
+                    }
+                }
+                
+                $data[] = array(
+                    'month' => $month_name,
+                    'revenue' => $month_revenue,
+                    'orders' => $month_orders,
+                    'year' => $year,
+                    'month_num' => $month
+                );
+                
+                $current->modify('+1 month');
+            }
+        }
+        
+        // Generate comparison data if needed
+        if ($compare === 'lastyear') {
+            // Compare entire period to same period last year
+            $compare_start = clone $start_date;
+            $compare_start->modify('-1 year');
+            $compare_end = clone $end_date;
+            $compare_end->modify('-1 year');
+            
+            $current = clone $compare_start;
+            if ($view === 'quarterly') {
+                while ($current <= $compare_end) {
+                    $quarter = ceil($current->format('n') / 3);
+                    $year = intval($current->format('Y'));
+                    $quarter_label = "Q$quarter $year";
+                    
+                    $quarter_revenue = 0;
+                    $quarter_orders = 0;
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        foreach ($reports as $report) {
+                            $month_data = $this->database->get_report_data($report['id'], $year, $m);
+                            if ($month_data) {
+                                $quarter_revenue += floatval($month_data['total_amt_sold']);
+                                $quarter_orders += intval($month_data['num_orders']);
+                            }
+                        }
+                    }
+                    
+                    $compare_data[] = array(
+                        'month' => $quarter_label,
+                        'revenue' => $quarter_revenue,
+                        'orders' => $quarter_orders
+                    );
+                    
+                    $current->modify('+3 months');
+                    $current->modify('first day of this month');
+                }
+            } else {
+                $current->modify('first day of this month');
+                $compare_end->modify('last day of this month');
+                
+                while ($current <= $compare_end) {
+                    $year = intval($current->format('Y'));
+                    $month = intval($current->format('n'));
+                    $month_name = $current->format('M Y');
+                    
+                    $month_revenue = 0;
+                    $month_orders = 0;
+                    foreach ($reports as $report) {
+                        $month_data = $this->database->get_report_data($report['id'], $year, $month);
+                        if ($month_data) {
+                            $month_revenue += floatval($month_data['total_amt_sold']);
+                            $month_orders += intval($month_data['num_orders']);
+                        }
+                    }
+                    
+                    $compare_data[] = array(
+                        'month' => $month_name,
+                        'revenue' => $month_revenue,
+                        'orders' => $month_orders
+                    );
+                    
+                    $current->modify('+1 month');
+                }
+            }
+        } elseif ($compare === 'quarter') {
+            // Compare each period to same quarter last year
+            foreach ($data as $data_point) {
+                $compare_year = $data_point['year'] - 1;
+                $compare_revenue = 0;
+                $compare_orders = 0;
+                
+                if ($view === 'quarterly') {
+                    // For quarterly view, compare to same quarter last year
+                    $quarter = $data_point['quarter'];
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        foreach ($reports as $report) {
+                            $month_data = $this->database->get_report_data($report['id'], $compare_year, $m);
+                            if ($month_data) {
+                                $compare_revenue += floatval($month_data['total_amt_sold']);
+                                $compare_orders += intval($month_data['num_orders']);
+                            }
+                        }
+                    }
+                } else {
+                    // For monthly view, compare to same month last year
+                    $month = $data_point['month_num'];
+                    foreach ($reports as $report) {
+                        $month_data = $this->database->get_report_data($report['id'], $compare_year, $month);
+                        if ($month_data) {
+                            $compare_revenue += floatval($month_data['total_amt_sold']);
+                            $compare_orders += intval($month_data['num_orders']);
+                        }
+                    }
+                }
+                
+                $compare_data[] = array(
+                    'month' => $data_point['month'],
+                    'revenue' => $compare_revenue,
+                    'orders' => $compare_orders
+                );
+            }
+        } elseif ($compare === 'month') {
+            // Compare each month to same month last year
+            foreach ($data as $data_point) {
+                $compare_year = $data_point['year'] - 1;
+                $compare_revenue = 0;
+                $compare_orders = 0;
+                
+                if ($view === 'quarterly') {
+                    // For quarterly view, still compare quarter to same quarter last year
+                    $quarter = $data_point['quarter'];
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        foreach ($reports as $report) {
+                            $month_data = $this->database->get_report_data($report['id'], $compare_year, $m);
+                            if ($month_data) {
+                                $compare_revenue += floatval($month_data['total_amt_sold']);
+                                $compare_orders += intval($month_data['num_orders']);
+                            }
+                        }
+                    }
+                } else {
+                    // For monthly view, compare to same month last year
+                    $month = $data_point['month_num'];
+                    foreach ($reports as $report) {
+                        $month_data = $this->database->get_report_data($report['id'], $compare_year, $month);
+                        if ($month_data) {
+                            $compare_revenue += floatval($month_data['total_amt_sold']);
+                            $compare_orders += intval($month_data['num_orders']);
+                        }
+                    }
+                }
+                
+                $compare_data[] = array(
+                    'month' => $data_point['month'],
+                    'revenue' => $compare_revenue,
+                    'orders' => $compare_orders
+                );
+            }
+        }
+        
+        return array(
+            'data' => $data,
+            'compare' => $compare_data,
+            'has_compare' => !empty($compare_data)
+        );
+    }
+    
+    /**
+     * Get free trial signups history data for chart
+     * 
+     * @param string $period Period filter (30days, 60days, 90days, 12months, or year)
+     * @param string $view View type (monthly, quarterly)
+     * @param string $compare Comparison type (none, lastyear, quarter, month)
+     * @return array Chart data with labels and values
+     */
+    private function get_trial_signups_history_data($period, $view, $compare) {
+        $data = array();
+        $compare_data = array();
+        
+        // Determine date range based on period
+        $start_date = new DateTime();
+        $end_date = new DateTime();
+        
+        if ($period === '30days') {
+            $start_date->modify('-30 days');
+        } elseif ($period === '60days') {
+            $start_date->modify('-60 days');
+        } elseif ($period === '90days') {
+            $start_date->modify('-90 days');
+        } elseif ($period === '12months') {
+            $start_date->modify('-12 months');
+        } elseif (in_array($period, array('2025', '2026', '2027', '2028'))) {
+            $year = intval($period);
+            $start_date = new DateTime("$year-01-01");
+            $end_date = new DateTime("$year-12-31");
+        }
+        
+        // Generate data points based on view type
+        if ($view === 'quarterly') {
+            // Quarterly view
+            $current = clone $start_date;
+            $current->modify('first day of this month');
+            while ($current <= $end_date) {
+                $quarter = ceil($current->format('n') / 3);
+                $year = intval($current->format('Y'));
+                $quarter_label = "Q$quarter $year";
+                
+                // Sum all months in this quarter
+                $quarter_signups = 0;
+                for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                    $month_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
+                    $quarter_signups += $month_data['count'];
+                }
+                
+                $data[] = array(
+                    'month' => $quarter_label,
+                    'signups' => $quarter_signups,
+                    'year' => $year,
+                    'quarter' => $quarter
+                );
+                
+                // Move to next quarter
+                $current->modify('+3 months');
+                $current->modify('first day of this month');
+            }
+        } else {
+            // Monthly view
+            $current = clone $start_date;
+            $current->modify('first day of this month');
+            $end_date->modify('last day of this month');
+            
+            while ($current <= $end_date) {
+                $year = intval($current->format('Y'));
+                $month = intval($current->format('n'));
+                $month_name = $current->format('M Y');
+                
+                $month_data = $this->database->get_free_trial_signups(48, 'month', $year, $month);
+                $month_signups = $month_data['count'];
+                
+                $data[] = array(
+                    'month' => $month_name,
+                    'signups' => $month_signups,
+                    'year' => $year,
+                    'month_num' => $month
+                );
+                
+                $current->modify('+1 month');
+            }
+        }
+        
+        // Generate comparison data if needed
+        if ($compare === 'lastyear') {
+            // Compare entire period to same period last year
+            $compare_start = clone $start_date;
+            $compare_start->modify('-1 year');
+            $compare_end = clone $end_date;
+            $compare_end->modify('-1 year');
+            
+            $current = clone $compare_start;
+            if ($view === 'quarterly') {
+                $current->modify('first day of this month');
+                while ($current <= $compare_end) {
+                    $quarter = ceil($current->format('n') / 3);
+                    $year = intval($current->format('Y'));
+                    $quarter_label = "Q$quarter $year";
+                    
+                    $quarter_signups = 0;
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        $month_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
+                        $quarter_signups += $month_data['count'];
+                    }
+                    
+                    $compare_data[] = array(
+                        'month' => $quarter_label,
+                        'signups' => $quarter_signups
+                    );
+                    
+                    $current->modify('+3 months');
+                    $current->modify('first day of this month');
+                }
+            } else {
+                $current->modify('first day of this month');
+                $compare_end->modify('last day of this month');
+                
+                while ($current <= $compare_end) {
+                    $year = intval($current->format('Y'));
+                    $month = intval($current->format('n'));
+                    $month_name = $current->format('M Y');
+                    
+                    $month_data = $this->database->get_free_trial_signups(48, 'month', $year, $month);
+                    $month_signups = $month_data['count'];
+                    
+                    $compare_data[] = array(
+                        'month' => $month_name,
+                        'signups' => $month_signups
+                    );
+                    
+                    $current->modify('+1 month');
+                }
+            }
+        } elseif ($compare === 'quarter') {
+            // Compare each period to same quarter last year
+            foreach ($data as $data_point) {
+                $compare_year = $data_point['year'] - 1;
+                $compare_signups = 0;
+                
+                if ($view === 'quarterly') {
+                    // For quarterly view, compare to same quarter last year
+                    $quarter = $data_point['quarter'];
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        $month_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $m);
+                        $compare_signups += $month_data['count'];
+                    }
+                } else {
+                    // For monthly view, compare to same month last year
+                    $month = $data_point['month_num'];
+                    $month_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $month);
+                    $compare_signups = $month_data['count'];
+                }
+                
+                $compare_data[] = array(
+                    'month' => $data_point['month'],
+                    'signups' => $compare_signups
+                );
+            }
+        } elseif ($compare === 'month') {
+            // Compare each month to same month last year
+            foreach ($data as $data_point) {
+                $compare_year = $data_point['year'] - 1;
+                $compare_signups = 0;
+                
+                if ($view === 'quarterly') {
+                    // For quarterly view, still compare quarter to same quarter last year
+                    $quarter = $data_point['quarter'];
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        $month_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $m);
+                        $compare_signups += $month_data['count'];
+                    }
+                } else {
+                    // For monthly view, compare to same month last year
+                    $month = $data_point['month_num'];
+                    $month_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $month);
+                    $compare_signups = $month_data['count'];
+                }
+                
+                $compare_data[] = array(
+                    'month' => $data_point['month'],
+                    'signups' => $compare_signups
+                );
+            }
+        }
+        
+        return array(
+            'data' => $data,
+            'compare' => $compare_data,
+            'has_compare' => !empty($compare_data)
+        );
+    }
+    
+    /**
+     * Get starter signups history data for chart (both free and paid)
+     * 
+     * @param string $period Period filter (30days, 60days, 90days, 12months, or year)
+     * @param string $view View type (monthly, quarterly, yearly)
+     * @param string $compare Comparison type (none, lastyear, quarter, month)
+     * @return array Chart data with labels and values
+     */
+    private function get_starter_signups_history_data($period, $view, $compare) {
+        $data = array();
+        $compare_data = array();
+        
+        // Determine date range based on period
+        $start_date = new DateTime();
+        $end_date = new DateTime();
+        
+        if ($period === '30days') {
+            $start_date->modify('-30 days');
+        } elseif ($period === '60days') {
+            $start_date->modify('-60 days');
+        } elseif ($period === '90days') {
+            $start_date->modify('-90 days');
+        } elseif ($period === '12months') {
+            $start_date->modify('-12 months');
+        } elseif (in_array($period, array('2025', '2026', '2027', '2028'))) {
+            $year = intval($period);
+            $start_date = new DateTime("$year-01-01");
+            $end_date = new DateTime("$year-12-31");
+        }
+        
+        // Generate data points based on view type
+        if ($view === 'yearly') {
+            // Yearly view
+            $current = clone $start_date;
+            $current->modify('first day of January');
+            $end_date->modify('last day of December');
+            
+            while ($current <= $end_date) {
+                $year = intval($current->format('Y'));
+                $year_label = $year;
+                
+                // Sum all months in this year
+                $year_free = 0;
+                $year_paid = 0;
+                for ($m = 1; $m <= 12; $m++) {
+                    $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
+                    $paid_data = $this->database->get_starter_signups('paid_starter', $year, $m);
+                    $year_free += $free_data['count'];
+                    $year_paid += $paid_data['count'];
+                }
+                
+                $data[] = array(
+                    'month' => $year_label,
+                    'free_signups' => $year_free,
+                    'paid_signups' => $year_paid,
+                    'year' => $year
+                );
+                
+                $current->modify('+1 year');
+            }
+        } elseif ($view === 'quarterly') {
+            // Quarterly view
+            $current = clone $start_date;
+            $current->modify('first day of this month');
+            while ($current <= $end_date) {
+                $quarter = ceil($current->format('n') / 3);
+                $year = intval($current->format('Y'));
+                $quarter_label = "Q$quarter $year";
+                
+                // Sum all months in this quarter
+                $quarter_free = 0;
+                $quarter_paid = 0;
+                for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                    $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
+                    $paid_data = $this->database->get_starter_signups('paid_starter', $year, $m);
+                    $quarter_free += $free_data['count'];
+                    $quarter_paid += $paid_data['count'];
+                }
+                
+                $data[] = array(
+                    'month' => $quarter_label,
+                    'free_signups' => $quarter_free,
+                    'paid_signups' => $quarter_paid,
+                    'year' => $year,
+                    'quarter' => $quarter
+                );
+                
+                // Move to next quarter
+                $current->modify('+3 months');
+                $current->modify('first day of this month');
+            }
+        } else {
+            // Monthly view
+            $current = clone $start_date;
+            $current->modify('first day of this month');
+            $end_date->modify('last day of this month');
+            
+            while ($current <= $end_date) {
+                $year = intval($current->format('Y'));
+                $month = intval($current->format('n'));
+                $month_name = $current->format('M Y');
+                
+                $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $month);
+                $paid_data = $this->database->get_starter_signups('paid_starter', $year, $month);
+                
+                $data[] = array(
+                    'month' => $month_name,
+                    'free_signups' => $free_data['count'],
+                    'paid_signups' => $paid_data['count'],
+                    'year' => $year,
+                    'month_num' => $month
+                );
+                
+                $current->modify('+1 month');
+            }
+        }
+        
+        // Generate comparison data if needed
+        if ($compare === 'lastyear') {
+            // Compare entire period to same period last year
+            $compare_start = clone $start_date;
+            $compare_start->modify('-1 year');
+            $compare_end = clone $end_date;
+            $compare_end->modify('-1 year');
+            
+            $current = clone $compare_start;
+            if ($view === 'yearly') {
+                $current->modify('first day of January');
+                $compare_end->modify('last day of December');
+                
+                while ($current <= $compare_end) {
+                    $year = intval($current->format('Y'));
+                    $year_label = $year;
+                    
+                    $year_free = 0;
+                    $year_paid = 0;
+                    for ($m = 1; $m <= 12; $m++) {
+                        $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
+                        $paid_data = $this->database->get_starter_signups('paid_starter', $year, $m);
+                        $year_free += $free_data['count'];
+                        $year_paid += $paid_data['count'];
+                    }
+                    
+                    $compare_data[] = array(
+                        'month' => $year_label,
+                        'free_signups' => $year_free,
+                        'paid_signups' => $year_paid
+                    );
+                    
+                    $current->modify('+1 year');
+                }
+            } elseif ($view === 'quarterly') {
+                $current->modify('first day of this month');
+                while ($current <= $compare_end) {
+                    $quarter = ceil($current->format('n') / 3);
+                    $year = intval($current->format('Y'));
+                    $quarter_label = "Q$quarter $year";
+                    
+                    $quarter_free = 0;
+                    $quarter_paid = 0;
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
+                        $paid_data = $this->database->get_starter_signups('paid_starter', $year, $m);
+                        $quarter_free += $free_data['count'];
+                        $quarter_paid += $paid_data['count'];
+                    }
+                    
+                    $compare_data[] = array(
+                        'month' => $quarter_label,
+                        'free_signups' => $quarter_free,
+                        'paid_signups' => $quarter_paid
+                    );
+                    
+                    $current->modify('+3 months');
+                    $current->modify('first day of this month');
+                }
+            } else {
+                $current->modify('first day of this month');
+                $compare_end->modify('last day of this month');
+                
+                while ($current <= $compare_end) {
+                    $year = intval($current->format('Y'));
+                    $month = intval($current->format('n'));
+                    $month_name = $current->format('M Y');
+                    
+                    $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $month);
+                    $paid_data = $this->database->get_starter_signups('paid_starter', $year, $month);
+                    
+                    $compare_data[] = array(
+                        'month' => $month_name,
+                        'free_signups' => $free_data['count'],
+                        'paid_signups' => $paid_data['count']
+                    );
+                    
+                    $current->modify('+1 month');
+                }
+            }
+        } elseif ($compare === 'quarter') {
+            // Compare each period to same quarter last year
+            foreach ($data as $data_point) {
+                $compare_year = $data_point['year'] - 1;
+                $compare_free = 0;
+                $compare_paid = 0;
+                
+                if ($view === 'yearly') {
+                    for ($m = 1; $m <= 12; $m++) {
+                        $free_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $m);
+                        $paid_data = $this->database->get_starter_signups('paid_starter', $compare_year, $m);
+                        $compare_free += $free_data['count'];
+                        $compare_paid += $paid_data['count'];
+                    }
+                } elseif ($view === 'quarterly') {
+                    $quarter = $data_point['quarter'];
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        $free_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $m);
+                        $paid_data = $this->database->get_starter_signups('paid_starter', $compare_year, $m);
+                        $compare_free += $free_data['count'];
+                        $compare_paid += $paid_data['count'];
+                    }
+                } else {
+                    $month = $data_point['month_num'];
+                    $free_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $month);
+                    $paid_data = $this->database->get_starter_signups('paid_starter', $compare_year, $month);
+                    $compare_free = $free_data['count'];
+                    $compare_paid = $paid_data['count'];
+                }
+                
+                $compare_data[] = array(
+                    'month' => $data_point['month'],
+                    'free_signups' => $compare_free,
+                    'paid_signups' => $compare_paid
+                );
+            }
+        } elseif ($compare === 'month') {
+            // Compare each month to same month last year
+            foreach ($data as $data_point) {
+                $compare_year = $data_point['year'] - 1;
+                $compare_free = 0;
+                $compare_paid = 0;
+                
+                if ($view === 'yearly') {
+                    for ($m = 1; $m <= 12; $m++) {
+                        $free_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $m);
+                        $paid_data = $this->database->get_starter_signups('paid_starter', $compare_year, $m);
+                        $compare_free += $free_data['count'];
+                        $compare_paid += $paid_data['count'];
+                    }
+                } elseif ($view === 'quarterly') {
+                    $quarter = $data_point['quarter'];
+                    for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
+                        $free_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $m);
+                        $paid_data = $this->database->get_starter_signups('paid_starter', $compare_year, $m);
+                        $compare_free += $free_data['count'];
+                        $compare_paid += $paid_data['count'];
+                    }
+                } else {
+                    $month = $data_point['month_num'];
+                    $free_data = $this->database->get_free_trial_signups(48, 'month', $compare_year, $month);
+                    $paid_data = $this->database->get_starter_signups('paid_starter', $compare_year, $month);
+                    $compare_free = $free_data['count'];
+                    $compare_paid = $paid_data['count'];
+                }
+                
+                $compare_data[] = array(
+                    'month' => $data_point['month'],
+                    'free_signups' => $compare_free,
+                    'paid_signups' => $compare_paid
+                );
+            }
+        }
+        
+        return array(
+            'data' => $data,
+            'compare' => $compare_data,
+            'has_compare' => !empty($compare_data)
+        );
+    }
+    
+    /**
+     * Get individual report history data based on filters
+     * Similar to get_revenue_history_data but for a single report
+     */
+    private function get_individual_report_history_data($reports, $period, $view, $compare) {
+        // Use the same logic as get_revenue_history_data but for a single report
+        return $this->get_revenue_history_data($reports, $period, $view, $compare);
     }
 }
 

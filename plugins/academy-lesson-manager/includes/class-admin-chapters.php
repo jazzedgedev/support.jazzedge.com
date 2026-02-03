@@ -189,7 +189,7 @@ class ALM_Admin_Chapters {
      */
     private function render_search_form($search) {
         echo '<div class="alm-search-form">';
-        echo '<form method="post" action="">';
+        echo '<form method="post" action="" enctype="multipart/form-data">';
         echo '<p class="search-box">';
         echo '<label class="screen-reader-text" for="chapter-search-input">' . __('Search Chapters:', 'academy-lesson-manager') . '</label>';
         echo '<input type="search" id="chapter-search-input" name="search" value="' . esc_attr($search) . '" placeholder="' . __('Search chapters...', 'academy-lesson-manager') . '" />';
@@ -345,6 +345,27 @@ class ALM_Admin_Chapters {
             echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
         }
         echo '</select>';
+        echo '</td>';
+        echo '</tr>';
+        
+        // Get lesson's post_date for default value
+        $lesson_post_date = '';
+        if ($lesson_id > 0) {
+            $lessons_table = $this->database->get_table_name('lessons');
+            $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT post_date FROM {$lessons_table} WHERE ID = %d",
+                $lesson_id
+            ));
+            if ($lesson && !empty($lesson->post_date) && $lesson->post_date !== '0000-00-00') {
+                $lesson_post_date = $lesson->post_date;
+            }
+        }
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="post_date">' . __('Release Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="date" id="post_date" name="post_date" value="' . esc_attr($lesson_post_date) . '" class="regular-text" />';
+        echo '<p class="description">' . __('Defaults to lesson release date. Leave empty to use lesson release date.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
         echo '</tbody>';
@@ -632,6 +653,29 @@ class ALM_Admin_Chapters {
         echo '</td>';
         echo '</tr>';
         
+        // Get lesson's post_date for default value if chapter doesn't have one
+        $chapter_post_date = '';
+        if (!empty($chapter->post_date) && $chapter->post_date !== '0000-00-00') {
+            $chapter_post_date = $chapter->post_date;
+        } elseif ($chapter->lesson_id > 0) {
+            $lessons_table = $this->database->get_table_name('lessons');
+            $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT post_date FROM {$lessons_table} WHERE ID = %d",
+                $chapter->lesson_id
+            ));
+            if ($lesson && !empty($lesson->post_date) && $lesson->post_date !== '0000-00-00') {
+                $chapter_post_date = $lesson->post_date;
+            }
+        }
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="post_date">' . __('Release Date', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="date" id="post_date" name="post_date" value="' . esc_attr($chapter_post_date) . '" class="regular-text" />';
+        echo '<p class="description">' . __('Defaults to lesson release date. Leave empty to use lesson release date.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
         echo '<tr>';
         echo '<th scope="row">' . __('Created', 'academy-lesson-manager') . '</th>';
         echo '<td>' . ALM_Helpers::format_date($chapter->created_at) . '</td>';
@@ -725,6 +769,22 @@ class ALM_Admin_Chapters {
         // Handle MP3 file upload
         $mp3_file_url = $this->handle_mp3_upload();
         
+        // Get release date - default to lesson's post_date if not provided
+        $post_date = '';
+        if (!empty($_POST['post_date'])) {
+            $post_date = sanitize_text_field($_POST['post_date']);
+        } else {
+            // Get lesson's post_date as default
+            $lessons_table = $this->database->get_table_name('lessons');
+            $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT post_date FROM {$lessons_table} WHERE ID = %d",
+                $lesson_id
+            ));
+            if ($lesson && !empty($lesson->post_date) && $lesson->post_date !== '0000-00-00') {
+                $post_date = $lesson->post_date;
+            }
+        }
+        
         $data = array(
             'lesson_id' => $lesson_id,
             'chapter_title' => $chapter_title,
@@ -736,6 +796,7 @@ class ALM_Admin_Chapters {
             'duration' => intval($_POST['duration']),
             'free' => sanitize_text_field($_POST['free']),
             'slug' => $slug,
+            'post_date' => $post_date,
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql')
         );
@@ -774,8 +835,21 @@ class ALM_Admin_Chapters {
         
         // Handle MP3 file upload (only if new file uploaded)
         $mp3_file_url = $this->handle_mp3_upload($chapter_id);
-        if ($mp3_file_url !== null) {
-            $data['mp3_file_url'] = $mp3_file_url;
+        
+        // Get release date - default to lesson's post_date if not provided
+        $post_date = '';
+        if (!empty($_POST['post_date'])) {
+            $post_date = sanitize_text_field($_POST['post_date']);
+        } else {
+            // Get lesson's post_date as default
+            $lessons_table = $this->database->get_table_name('lessons');
+            $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT post_date FROM {$lessons_table} WHERE ID = %d",
+                $lesson_id
+            ));
+            if ($lesson && !empty($lesson->post_date) && $lesson->post_date !== '0000-00-00') {
+                $post_date = $lesson->post_date;
+            }
         }
         
         $data = array(
@@ -788,6 +862,7 @@ class ALM_Admin_Chapters {
             'duration' => intval($_POST['duration']),
             'free' => sanitize_text_field($_POST['free']),
             'slug' => $slug,
+            'post_date' => $post_date,
             'updated_at' => current_time('mysql')
         );
         
@@ -795,7 +870,7 @@ class ALM_Admin_Chapters {
             $data['mp3_file_url'] = $mp3_file_url;
         }
         
-        $format = array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s');
+        $format = array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s');
         if ($mp3_file_url !== null) {
             $format[] = '%s';
         }
@@ -1045,15 +1120,20 @@ class ALM_Admin_Chapters {
      * @return string|null File URL on success, null if no file uploaded
      */
     private function handle_mp3_upload($chapter_id = null) {
-        if (!isset($_FILES['mp3_file']) || $_FILES['mp3_file']['error'] !== UPLOAD_ERR_OK) {
-            // No file uploaded or error - return null for updates, empty string for creates
-            if ($chapter_id !== null) {
-                return null; // Keep existing file
-            }
-            return ''; // No file for new chapter
+        if (!isset($_FILES['mp3_file'])) {
+            return $chapter_id !== null ? null : '';
         }
         
         $file = $_FILES['mp3_file'];
+        
+        if ($file['error'] === UPLOAD_ERR_NO_FILE) {
+            return $chapter_id !== null ? null : '';
+        }
+        
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $error_message = $this->get_upload_error_message($file['error']);
+            wp_die(sprintf(__('MP3 upload failed: %s', 'academy-lesson-manager'), $error_message));
+        }
         
         // Validate file type
         $allowed_types = array('audio/mpeg', 'audio/mp3');
@@ -1100,6 +1180,32 @@ class ALM_Admin_Chapters {
         }
         
         return $filename;
+    }
+
+    /**
+     * Get a readable upload error message.
+     *
+     * @param int $error_code PHP upload error code.
+     * @return string
+     */
+    private function get_upload_error_message($error_code) {
+        $max_upload_size = size_format(wp_max_upload_size());
+        
+        switch ($error_code) {
+            case UPLOAD_ERR_INI_SIZE:
+            case UPLOAD_ERR_FORM_SIZE:
+                return sprintf(__('File exceeds maximum upload size (%s).', 'academy-lesson-manager'), $max_upload_size);
+            case UPLOAD_ERR_PARTIAL:
+                return __('File was only partially uploaded.', 'academy-lesson-manager');
+            case UPLOAD_ERR_NO_TMP_DIR:
+                return __('Missing a temporary folder on the server.', 'academy-lesson-manager');
+            case UPLOAD_ERR_CANT_WRITE:
+                return __('Failed to write file to disk.', 'academy-lesson-manager');
+            case UPLOAD_ERR_EXTENSION:
+                return __('A PHP extension stopped the file upload.', 'academy-lesson-manager');
+            default:
+                return __('Unknown upload error.', 'academy-lesson-manager');
+        }
     }
     
     /**

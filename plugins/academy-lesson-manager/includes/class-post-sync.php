@@ -51,12 +51,20 @@ class ALM_Post_Sync {
             $lesson->collection_id
         ));
         
+        $post_date = $lesson->post_date ? $lesson->post_date . ' 00:00:00' : current_time('mysql');
+        // Ensure WP post stays published even if lesson release date is in the future
+        if (strtotime($post_date) > current_time('timestamp')) {
+            $post_date = current_time('mysql');
+        }
+        $post_status = 'publish';
+        
         $post_data = array(
             'post_title' => stripslashes($lesson->lesson_title),
             'post_content' => stripslashes($lesson->lesson_description),
-            'post_status' => 'publish',
+            'post_status' => $post_status,
             'post_type' => 'lesson',
-            'post_date' => $lesson->post_date ? $lesson->post_date . ' 00:00:00' : current_time('mysql'),
+            'post_date' => $post_date,
+            'post_date_gmt' => get_gmt_from_date($post_date),
             'post_modified' => current_time('mysql'),
             'post_name' => $lesson->slug ?: sanitize_title($lesson->lesson_title)
         );

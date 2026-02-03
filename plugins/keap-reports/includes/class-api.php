@@ -210,9 +210,28 @@ class Keap_Reports_API {
      * @param array $context Additional context
      */
     private function log_debug($message, $level = 'debug', $context = array()) {
+        $logging_level = get_option('keap_reports_logging_level', 'light');
         $debug_enabled = get_option('keap_reports_debug_enabled', false);
         
-        // Always log to database if we have database instance
+        // In light mode, only log errors and warnings from API
+        if ($logging_level === 'light' && $level === 'debug') {
+            // Skip debug logs in light mode
+            if ($debug_enabled) {
+                error_log('[Keap Reports API DEBUG] ' . $message);
+            }
+            return;
+        }
+        
+        // In light mode, skip verbose info logs (but keep errors/warnings)
+        if ($logging_level === 'light' && $level === 'info') {
+            // Only log essential API info (errors, warnings are handled above)
+            if ($debug_enabled) {
+                error_log('[Keap Reports API INFO] ' . $message);
+            }
+            return;
+        }
+        
+        // Always log to database if we have database instance (for verbose mode or errors/warnings)
         if ($this->database) {
             $this->database->add_log('[API] ' . $message, $level, $context);
         }
@@ -1109,12 +1128,17 @@ class Keap_Reports_API {
         
         // Try XML-RPC via iSDK first (works on WP Engine)
         $xmlrpc_result = $this->fetch_saved_search_data_xmlrpc($report_id, $is_manual);
-        if (!is_wp_error($xmlrpc_result)) {
-            $this->log_debug('Successfully fetched saved search results via XML-RPC/iSDK');
+        if (!is_wp_error($xmlrpc_result) && !empty($xmlrpc_result)) {
+            $this->log_debug('Successfully fetched saved search results via XML-RPC/iSDK (' . count($xmlrpc_result) . ' results)');
             return $xmlrpc_result;
         }
         
-        $this->log_debug('XML-RPC fetch failed, falling back to REST API: ' . $xmlrpc_result->get_error_message());
+        // If XML-RPC returned empty or error, fall back to REST API
+        if (is_wp_error($xmlrpc_result)) {
+            $this->log_debug('XML-RPC fetch failed, falling back to REST API: ' . $xmlrpc_result->get_error_message());
+        } else {
+            $this->log_debug('XML-RPC returned empty results, falling back to REST API');
+        }
         
         // Fall back to REST API
         return $this->fetch_saved_search_data_rest($api_key, $report_id, $report_uuid, $is_manual);
@@ -1131,67 +1155,154 @@ class Keap_Reports_API {
     private function fetch_saved_search_data_xmlrpc($report_id, $is_manual = false) {
         $this->log_debug('Attempting to fetch saved search via XML-RPC/iSDK for report_id: ' . $report_id . ' (is_manual: ' . ($is_manual ? 'true' : 'false') . ')');
         
-        // Check if iSDK library is available
-        $isdk_paths = array(
-            '/keap_isdk/infusion_connect.php',
+        // Use the existing infusion_connect.php file that already works (matches user's working code pattern)
+        // This file sets up the global $app object with proper authentication
+        $infusion_connect_paths = array(
             '/nas/content/live/jazzacademy/keap_isdk/infusion_connect.php',
+            '/keap_isdk/infusion_connect.php',
             ABSPATH . '../keap_isdk/infusion_connect.php',
         );
         
-        $isdk_loaded = false;
-        foreach ($isdk_paths as $path) {
+        $infusion_connect_loaded = false;
+        foreach ($infusion_connect_paths as $path) {
             if (file_exists($path)) {
+                // Include the existing connection file (this sets up global $app)
                 include_once($path);
-                $isdk_loaded = true;
-                $this->log_debug('Loaded iSDK from: ' . $path);
+                $infusion_connect_loaded = true;
+                $this->log_debug('Loaded infusion_connect.php from: ' . $path);
                 break;
             }
         }
         
-        if (!$isdk_loaded) {
-            $this->log_debug('iSDK library not found. Tried paths: ' . implode(', ', $isdk_paths), 'warning');
-            return new WP_Error('isdk_not_found', 'iSDK library not found. Please ensure the iSDK library is installed.');
+        if (!$infusion_connect_loaded) {
+            $this->log_debug('infusion_connect.php not found. Tried paths: ' . implode(', ', $infusion_connect_paths), 'warning');
+            return new WP_Error('infusion_connect_not_found', 'infusion_connect.php not found. Please ensure the Keap iSDK library is installed at /nas/content/live/jazzacademy/keap_isdk/infusion_connect.php');
         }
         
-        // Get iSDK app object from global scope (as used in existing code)
+        // Get iSDK app object from global scope (set up by infusion_connect.php)
         global $app;
         
-        // If $app is not already initialized, try to initialize it
+        $this->log_debug('Checking iSDK app object from infusion_connect.php', 'debug', array(
+            'app_exists' => isset($app),
+            'app_is_object' => isset($app) && is_object($app),
+            'app_class' => isset($app) && is_object($app) ? get_class($app) : 'not_object',
+            'app_key_set' => isset($app) && is_object($app) && isset($app->key) ? 'yes (length: ' . strlen($app->key) . ')' : 'no'
+        ));
+        
+        // Verify $app is set up correctly
         if (!isset($app) || !is_object($app)) {
-            $this->log_debug('iSDK $app object not found in global scope. Attempting to initialize...', 'warning');
-            
-            // Try to create new iSDK instance
-            if (class_exists('iSDK')) {
-                $app = new iSDK;
-                // Try to get credentials - we'll need app name and API key
-                // For now, we'll try common values or get from options
-                $app_name = get_option('keap_reports_app_name', 'ft217');
-                $app_key = get_option('keap_reports_app_key', '');
-                
-                if (empty($app_key)) {
-                    return new WP_Error('isdk_no_credentials', 'iSDK API key not configured. Please configure app name and API key in settings.');
-                }
-                
-                try {
-                    $app->cfgCon($app_name, $app_key);
-                    $this->log_debug('Initialized iSDK connection with app: ' . $app_name);
-                } catch (Exception $e) {
-                    return new WP_Error('isdk_connection_failed', 'Failed to connect to Keap via iSDK: ' . $e->getMessage());
-                }
+            $this->log_debug('iSDK $app object not found after including infusion_connect.php', 'error');
+            return new WP_Error('isdk_app_not_found', 'iSDK $app object not found after including infusion_connect.php. Please verify the file is set up correctly.');
+        }
+        
+        if (!method_exists($app, 'savedSearchAllFields')) {
+            $this->log_debug('savedSearchAllFields method not available on $app object', 'error');
+            return new WP_Error('isdk_method_not_found', 'savedSearchAllFields method not available on iSDK $app object.');
+        }
+        
+        // Log app object details to verify it's properly set up
+        $this->log_debug('iSDK app object details', 'debug', array(
+            'app_class' => get_class($app),
+            'has_key' => isset($app->key) && !empty($app->key),
+            'key_length' => isset($app->key) ? strlen($app->key) : 0,
+            'has_client' => isset($app->client),
+            'debug_mode' => isset($app->debug) ? $app->debug : 'not_set'
+        ));
+        
+        // Test the connection with a simple query to verify it's working
+        try {
+            $test_result = $app->dsQuery('Contact', 1, 0, array('Id' => '%'), array('Id'));
+            if ($test_result !== false) {
+                $this->log_debug('iSDK connection test successful - can query contacts', 'info', array(
+                    'test_result_count' => is_array($test_result) ? count($test_result) : 'not_array',
+                    'test_result_type' => gettype($test_result)
+                ));
             } else {
-                return new WP_Error('isdk_class_not_found', 'iSDK class not found. Please ensure the iSDK library is properly installed.');
+                $this->log_debug('iSDK connection test returned false - connection may not be working', 'warning');
             }
+        } catch (Exception $e) {
+            $this->log_debug('iSDK connection test failed: ' . $e->getMessage(), 'warning', array(
+                'exception' => $e->getMessage()
+            ));
         }
         
         try {
             // Fetch saved search results
-            // $app->savedSearchAllFields($report_id, $page, $page_size)
-            // We'll fetch all pages
+            // Method signature: savedSearchAllFields($savedSearchId, $userId, $page)
+            // Working code: $app->savedSearchAllFields(2078, 1, $x) where $x is undefined
+            // When $x is undefined in PHP, it becomes null, which gets cast to (int) null = 0
+            // So let's try page 0 first (or 1 if 0 doesn't work)
             $all_results = array();
-            $page = 1;
-            $page_size = 1000; // Large page size to minimize API calls
-            $max_pages = 100; // Safety limit
+            $user_id = 1; // Always use userId = 1 (from working code)
+            $search_id = intval($report_id);
             
+            // Try page 0 first (since undefined variable becomes null -> 0)
+            // If that doesn't work, try page 1
+            $pages_to_try = array(0, 1);
+            $max_pages = 100; // Safety limit for pagination
+            $page = 0; // Start with 0 to match undefined variable behavior
+            
+            // Call EXACTLY like the working code: $app->savedSearchAllFields(2078, 1, $x)
+            // Make a simple, direct call - no pagination, no complex logic
+            // Just call it and return whatever we get
+            
+            $this->log_debug("Making direct call to savedSearchAllFields (matching working code pattern)", 'info', array(
+                'savedSearchId' => $search_id,
+                'userId' => $user_id,
+                'page' => 1,
+                'working_code' => '$app->savedSearchAllFields(2078, 1, $x)'
+            ));
+            
+            // Simple direct call - page 1
+            $result = $app->savedSearchAllFields($search_id, $user_id, 1);
+            
+            // Log what we got
+            $this->log_debug("Direct call result", 'info', array(
+                'result_type' => gettype($result),
+                'is_array' => is_array($result),
+                'count' => is_array($result) ? count($result) : 'N/A',
+                'is_empty' => is_array($result) ? empty($result) : 'N/A',
+                'full_result' => $result
+            ));
+            
+            // If we got results, return them
+            if (is_array($result) && !empty($result)) {
+                $this->log_debug("SUCCESS: Direct call returned " . count($result) . " results!", 'info', array(
+                    'count' => count($result),
+                    'first_record' => $result[0],
+                    'first_record_keys' => array_keys($result[0])
+                ));
+                return $result;
+            }
+            
+            // If empty, try page 0 (since undefined variable becomes null -> 0)
+            if (is_array($result) && empty($result)) {
+                $this->log_debug("Page 1 returned empty, trying page 0 (undefined variable behavior)", 'info');
+                $result0 = $app->savedSearchAllFields($search_id, $user_id, 0);
+                $this->log_debug("Page 0 result", 'info', array(
+                    'result_type' => gettype($result0),
+                    'is_array' => is_array($result0),
+                    'count' => is_array($result0) ? count($result0) : 'N/A',
+                    'full_result' => $result0
+                ));
+                if (is_array($result0) && !empty($result0)) {
+                    $this->log_debug("SUCCESS: Page 0 returned " . count($result0) . " results!", 'info');
+                    return $result0;
+                }
+            }
+            
+            // If still empty, return empty array (caller will handle it)
+            $this->log_debug("Both page 1 and page 0 returned empty arrays", 'warning', array(
+                'report_id' => $report_id,
+                'savedSearchId' => $search_id,
+                'note' => 'The saved search may have no data, or may need to be run/executed in Keap first'
+            ));
+            return array();
+            
+            // OLD PAGINATION CODE REMOVED - Using simple direct call instead
+            // If you need pagination later, uncomment and fix the code below
+            /*
+            $page = 1;
             while ($page <= $max_pages) {
                 // Only check kill switch and auto-fetch for scheduled fetches (not manual)
                 if (!$is_manual) {
@@ -1219,34 +1330,152 @@ class Keap_Reports_API {
                     }
                 }
                 
-                $this->log_debug("Fetching XML-RPC saved search page {$page} (report_id: {$report_id})");
+                $this->log_debug("Fetching XML-RPC saved search page {$page} (report_id: {$report_id})", 'debug', array(
+                    'report_id' => $report_id,
+                    'savedSearchId' => intval($report_id),
+                    'userId' => $user_id,
+                    'page' => $page,
+                    'is_manual' => $is_manual,
+                    'app_methods' => get_class_methods($app)
+                ));
                 
-                $page_results = $app->savedSearchAllFields($report_id, $page, $page_size);
-                
-                if (empty($page_results) || !is_array($page_results)) {
-                    // No more results
-                    $this->log_debug("Page {$page} returned no results, stopping pagination");
-                    break;
+                // First, try to verify the saved search exists by getting its details
+                // Some iSDK versions have getSavedSearch or similar methods
+                if ($page === 1) {
+                    // Try getSavedSearch
+                    if (method_exists($app, 'getSavedSearch')) {
+                        try {
+                            $search_info = $app->getSavedSearch($report_id);
+                            $this->log_debug("Saved search info retrieved via getSavedSearch", 'debug', array(
+                                'search_info' => $search_info,
+                                'search_info_type' => gettype($search_info),
+                                'search_info_keys' => is_array($search_info) ? array_keys($search_info) : 'not_array'
+                            ));
+                        } catch (Exception $e) {
+                            $this->log_debug("Could not get saved search info via getSavedSearch: " . $e->getMessage(), 'warning', array(
+                                'exception' => $e->getMessage(),
+                                'report_id' => $report_id
+                            ));
+                        }
+                    } else {
+                        $this->log_debug("getSavedSearch method not available on iSDK object", 'debug');
+                    }
+                    
+                    // Try listSavedSearches
+                    if (method_exists($app, 'listSavedSearches')) {
+                        try {
+                            $all_searches = $app->listSavedSearches();
+                            $this->log_debug("List of all saved searches retrieved", 'debug', array(
+                                'all_searches' => $all_searches,
+                                'searches_count' => is_array($all_searches) ? count($all_searches) : 'not_array',
+                                'looking_for_id' => $report_id
+                            ));
+                            // Check if our report_id exists in the list
+                            if (is_array($all_searches)) {
+                                $found = false;
+                                $available_ids = array();
+                                foreach ($all_searches as $search) {
+                                    $search_id = null;
+                                    if (isset($search['Id'])) {
+                                        $search_id = $search['Id'];
+                                    } elseif (isset($search['id'])) {
+                                        $search_id = $search['id'];
+                                    } elseif (is_numeric($search)) {
+                                        $search_id = $search;
+                                    }
+                                    if ($search_id) {
+                                        $available_ids[] = $search_id;
+                                        if ($search_id == $report_id) {
+                                            $found = true;
+                                            $this->log_debug("Found saved search ID {$report_id} in list", 'info', array('search_details' => $search));
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (!$found) {
+                                    $this->log_debug("WARNING: Saved search ID {$report_id} NOT FOUND in list of saved searches!", 'error', array(
+                                        'available_ids' => $available_ids,
+                                        'first_few_searches' => array_slice($all_searches, 0, 5)
+                                    ));
+                                }
+                            }
+                        } catch (Exception $e) {
+                            $this->log_debug("Could not list saved searches: " . $e->getMessage(), 'warning', array(
+                                'exception' => $e->getMessage()
+                            ));
+                        }
+                    } else {
+                        $this->log_debug("listSavedSearches method not available on iSDK object", 'debug');
+                    }
                 }
                 
-                $all_results = array_merge($all_results, $page_results);
-                $this->log_debug("Page {$page}: Fetched " . count($page_results) . " results (total so far: " . count($all_results) . ")");
+                // Convert report_id to integer to match the working pattern
+                $search_id = intval($report_id);
+                $user_id = 1; // From working code: always uses userId = 1
                 
-                // If we got fewer results than page size, we're done
-                if (count($page_results) < $page_size) {
-                    $this->log_debug("Page {$page} returned fewer results than page size, assuming last page");
-                    break;
+                // Call EXACTLY like the working code: $app->savedSearchAllFields(2078, 1, $x)
+                // Make a simple, direct call - no pagination, no complex logic
+                // Just call it and return whatever we get
+                
+                $this->log_debug("Making direct call to savedSearchAllFields (matching working code pattern)", 'info', array(
+                    'savedSearchId' => $search_id,
+                    'userId' => $user_id,
+                    'page' => 1,
+                    'working_code' => '$app->savedSearchAllFields(2078, 1, $x)'
+                ));
+                
+                // Simple direct call - page 1
+                $result = $app->savedSearchAllFields($search_id, $user_id, 1);
+                
+                // Log what we got
+                $this->log_debug("Direct call result", 'info', array(
+                    'result_type' => gettype($result),
+                    'is_array' => is_array($result),
+                    'count' => is_array($result) ? count($result) : 'N/A',
+                    'is_empty' => is_array($result) ? empty($result) : 'N/A',
+                    'full_result' => $result
+                ));
+                
+                // If we got results, return them
+                if (is_array($result) && !empty($result)) {
+                    $this->log_debug("SUCCESS: Direct call returned " . count($result) . " results!", 'info', array(
+                        'count' => count($result),
+                        'first_record' => $result[0],
+                        'first_record_keys' => array_keys($result[0])
+                    ));
+                    return $result;
                 }
                 
-                $page++;
-            }
-            
-            if (!empty($all_results)) {
-                $this->log_debug('Successfully fetched ' . count($all_results) . ' results via XML-RPC/iSDK');
-                return $all_results;
-            } else {
-                return new WP_Error('xmlrpc_no_results', 'XML-RPC fetch returned no results');
-            }
+                // If empty, try page 0 (since undefined variable becomes null -> 0)
+                if (is_array($result) && empty($result)) {
+                    $this->log_debug("Page 1 returned empty, trying page 0 (undefined variable behavior)", 'info');
+                    $result0 = $app->savedSearchAllFields($search_id, $user_id, 0);
+                    $this->log_debug("Page 0 result", 'info', array(
+                        'result_type' => gettype($result0),
+                        'is_array' => is_array($result0),
+                        'count' => is_array($result0) ? count($result0) : 'N/A',
+                        'full_result' => $result0
+                    ));
+                    if (is_array($result0) && !empty($result0)) {
+                        $this->log_debug("SUCCESS: Page 0 returned " . count($result0) . " results!", 'info');
+                        return $result0;
+                    }
+                }
+                
+                // If still empty, return empty array (caller will handle it)
+                $this->log_debug("Both page 1 and page 0 returned empty arrays", 'warning', array(
+                    'report_id' => $report_id,
+                    'savedSearchId' => $search_id,
+                    'note' => 'The saved search may have no data, or may need to be run/executed in Keap first'
+                ));
+                return array();
+                
+                // OLD PAGINATION CODE REMOVED - Using simple direct call instead
+                /*
+                try {
+                    $page_results = $app->savedSearchAllFields($search_id, $user_id, $page);
+                    
+                */
             
         } catch (Exception $e) {
             $this->log_debug('XML-RPC fetch exception: ' . $e->getMessage(), 'error');
@@ -1574,32 +1803,55 @@ class Keap_Reports_API {
         $this->log_debug('=== Starting fetch_report_data ===');
         
         // Detect if this is a manual fetch (AJAX request or admin POST request)
-        // Check multiple conditions to reliably detect manual/admin requests
         $doing_ajax = defined('DOING_AJAX') && DOING_AJAX;
         $is_admin_post = is_admin() && isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST';
         $has_ajax_action = isset($_POST['action']) && strpos($_POST['action'], 'keap_reports') !== false;
         
-        $this->log_debug('Manual fetch detection - DOING_AJAX: ' . ($doing_ajax ? 'true' : 'false') . ', is_admin POST: ' . ($is_admin_post ? 'true' : 'false') . ', has ajax action: ' . ($has_ajax_action ? 'true' : 'false') . ', is_manual param: ' . ($is_manual ? 'true' : 'false'));
-        
         if (!$is_manual && ($doing_ajax || ($is_admin_post && $has_ajax_action))) {
             $is_manual = true;
-            $this->log_debug('Detected manual/admin request - treating as manual fetch (bypassing kill switch/auto-fetch checks)', 'info');
         }
         
-        $this->log_debug('Final is_manual value: ' . ($is_manual ? 'true' : 'false'), 'info');
         $this->log_debug('Report ID: ' . $report_id);
-        $this->log_debug('Report UUID: ' . $report_uuid);
         $this->log_debug('Report Type: ' . $report_type);
-        $this->log_debug('Filter Product IDs: ' . (!empty($filter_product_ids) ? implode(', ', $filter_product_ids) : 'None'));
+        $this->log_debug('is_manual: ' . ($is_manual ? 'true' : 'false'));
         
-        // Use REST API to query endpoints directly based on report type
-        $this->log_debug('Attempting REST API fetch based on report type...');
+        // Map old report types to new types for backward compatibility
+        if ($report_type === 'sales') {
+            $report_type = 'monthly_revenue';
+        } elseif ($report_type === 'paid_starter') {
+            $report_type = 'count';
+        } elseif ($report_type === 'intensives') {
+            $report_type = 'count_revenue';
+        }
+        
+        // For monthly_revenue/count/count_revenue reports (saved searches), use XML-RPC directly
+        // This is the only reliable method for saved searches
+        if (in_array($report_type, array('monthly_revenue', 'count', 'count_revenue'))) {
+            $this->log_debug('Fetching saved search via XML-RPC/iSDK (report_id: ' . $report_id . ', type: ' . $report_type . ')');
+            $result = $this->fetch_saved_search_data_xmlrpc($report_id, $is_manual);
+            
+            if (is_wp_error($result)) {
+                $this->log_debug('XML-RPC fetch failed: ' . $result->get_error_message(), 'error');
+                return $result;
+            }
+            
+            if (empty($result)) {
+                $this->log_debug('XML-RPC returned empty results', 'warning');
+                // Return empty array (not error) - caller will handle warning
+                return array();
+            }
+            
+            $this->log_debug('XML-RPC SUCCESS - Count: ' . (is_array($result) ? count($result) : 'N/A'));
+            $this->log_debug('=== fetch_report_data completed ===');
+            return $result;
+        }
+        
+        // For other report types (subscriptions, etc.), use REST API
+        $this->log_debug('Fetching via REST API for report type: ' . $report_type);
         $result = $this->fetch_report_data_rest($report_id, $report_uuid, $report_type, $filter_product_ids, $is_manual);
         
         if (is_wp_error($result)) {
-            $error_code = $result->get_error_code();
-            $error_message = $result->get_error_message();
-            $this->log_debug('REST API failed: ' . $error_code . ' - ' . $error_message);
+            $this->log_debug('REST API failed: ' . $result->get_error_message(), 'error');
         } else {
             $this->log_debug('REST API SUCCESS - Data type: ' . gettype($result) . ', Count: ' . (is_array($result) ? count($result) : 'N/A'));
         }
@@ -1705,33 +1957,6 @@ class Keap_Reports_API {
         
         return $metadata;
     }
-    
-    // ============================================
-    // Tag Audit Methods
-    // ============================================
-    
-    /**
-     * Get all access tag IDs from Academy Manager settings
-     * 
-     * @return array Array of tag IDs (flattened from all membership levels)
-     */
-    public function get_all_access_tag_ids() {
-        $keap_tags = get_option('alm_keap_tags', array());
-        $all_tag_ids = array();
-        
-        foreach ($keap_tags as $level => $tags_string) {
-            if (!empty($tags_string)) {
-                $tag_ids = array_map('trim', explode(',', $tags_string));
-                $all_tag_ids = array_merge($all_tag_ids, $tag_ids);
-            }
-        }
-        
-        // Remove duplicates and empty values
-        $all_tag_ids = array_unique(array_filter($all_tag_ids));
-        
-        return array_values($all_tag_ids);
-    }
-    
     /**
      * Get tags for a specific contact
      * 
@@ -1896,146 +2121,5 @@ class Keap_Reports_API {
         return false;
     }
     
-    /**
-     * Get contacts that have specific tags (process in batches)
-     * Uses a more efficient approach: fetch subscriptions first, then check contacts
-     * 
-     * @param array $tag_ids Array of tag IDs to search for
-     * @param callable $callback Callback function to process each contact
-     * @param int $batch_size Number of contacts to process per batch
-     * @return array|WP_Error Array with 'total_processed', 'batches_processed' or WP_Error
-     */
-    public function get_contacts_with_tags_in_batches($tag_ids, $callback, $batch_size = 100) {
-        $api_key = $this->get_api_key();
-        
-        if (empty($api_key)) {
-            return new WP_Error('no_api_key', 'API key is not configured');
-        }
-        
-        if (empty($tag_ids)) {
-            return new WP_Error('no_tags', 'No tag IDs provided');
-        }
-        
-        $this->log_debug('Starting batch fetch of contacts with tags: ' . implode(', ', $tag_ids));
-        
-        // More efficient approach: Fetch all contacts in batches and check tags
-        // We'll process in smaller batches to avoid memory issues
-        $total_processed = 0;
-        $batches_processed = 0;
-        $offset = 0;
-        $limit = 50; // Smaller batches for tag checking (more API calls but less memory)
-        $has_more = true;
-        $page = 1;
-        $contacts_with_tags = array(); // Cache contacts that have tags
-        
-        while ($has_more && $page <= 2000) { // Safety limit
-            // Check if auto-fetch was disabled during processing (for tag audit, this is less critical but still good to check)
-            $auto_fetch_enabled = get_option('keap_reports_auto_fetch_enabled', 1);
-            // Note: Tag audit is manual, so we don't stop it, but we log if auto-fetch is disabled
-            
-            $url = $this->api_base_url . '/contacts?limit=' . $limit . '&offset=' . $offset;
-            
-            if ($page % 10 == 0) {
-                $this->log_debug("Fetching contacts page {$page} (offset: {$offset}), found {$total_processed} with access tags so far");
-            }
-            
-            $response = wp_remote_get($url, array(
-                'headers' => array(
-                    'Accept' => 'application/json',
-                    'Authorization' => 'Bearer ' . $api_key
-                ),
-                'timeout' => 30
-            ));
-            
-            if (is_wp_error($response)) {
-                $this->log_debug('Page ' . $page . ' request failed: ' . $response->get_error_message(), 'error');
-                break;
-            }
-            
-            $response_code = wp_remote_retrieve_response_code($response);
-            $body = wp_remote_retrieve_body($response);
-            
-            if ($response_code == 200) {
-                $data = json_decode($body, true);
-                
-                if (!is_array($data)) {
-                    $this->log_debug("Page {$page} response is not an array", 'warning');
-                    break;
-                }
-                
-                // Extract contacts from response
-                $contacts = array();
-                if (isset($data['contacts']) && is_array($data['contacts'])) {
-                    $contacts = $data['contacts'];
-                } elseif (isset($data[0]) && is_array($data[0]) && isset($data[0]['id'])) {
-                    $contacts = $data;
-                }
-                
-                if (!empty($contacts)) {
-                    // Check each contact's tags (batch the tag requests)
-                    $contact_ids = array();
-                    foreach ($contacts as $contact) {
-                        if (isset($contact['id'])) {
-                            $contact_ids[] = intval($contact['id']);
-                        }
-                    }
-                    
-                    // Get tags for all contacts in this batch
-                    foreach ($contacts as $contact) {
-                        if (!isset($contact['id'])) {
-                            continue;
-                        }
-                        
-                        $contact_id = intval($contact['id']);
-                        $contact_tags = $this->get_contact_tags($contact_id);
-                        
-                        if (!is_wp_error($contact_tags)) {
-                            // Check if contact has any of the access tags
-                            $has_access_tag = false;
-                            foreach ($tag_ids as $tag_id) {
-                                if (in_array(strval($tag_id), $contact_tags)) {
-                                    $has_access_tag = true;
-                                    break;
-                                }
-                            }
-                            
-                            if ($has_access_tag) {
-                                // This contact has an access tag, process it
-                                $callback($contact, $contact_tags);
-                                $total_processed++;
-                            }
-                        }
-                        
-                        // Small delay to avoid rate limiting
-                        if ($total_processed % 10 == 0) {
-                            usleep(100000); // 0.1 second delay every 10 contacts
-                        }
-                    }
-                    
-                    $batches_processed++;
-                    
-                    // Check if there's more data
-                    if (count($contacts) < $limit) {
-                        $has_more = false;
-                    } else {
-                        $offset += $limit;
-                        $page++;
-                    }
-                } else {
-                    $has_more = false;
-                }
-            } else {
-                $this->log_debug("Page {$page} failed with code {$response_code}", 'error');
-                break;
-            }
-        }
-        
-        $this->log_debug("Batch fetch complete. Total contacts with access tags: {$total_processed} in {$batches_processed} batches");
-        
-        return array(
-            'total_processed' => $total_processed,
-            'batches_processed' => $batches_processed
-        );
-    }
 }
 

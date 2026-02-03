@@ -103,6 +103,7 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-chapters.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-settings.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-event-migration.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-events.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-post-sync.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-bunny-api.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-vimeo-api.php';
@@ -114,6 +115,7 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-frontend-library.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-essentials-users.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-lesson-samples.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-lesson-analytics.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-membership-pricing.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-faqs.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-admin-notifications.php';
@@ -169,6 +171,9 @@ class Academy_Lesson_Manager {
         // Add AJAX handler for AI description generation
         add_action('wp_ajax_alm_generate_lesson_description', array($this, 'ajax_generate_lesson_description'));
         
+        // Add AJAX handler for expanding lesson description with AI
+        add_action('wp_ajax_alm_expand_lesson_description', array($this, 'ajax_expand_lesson_description'));
+        
         // Add AJAX handler for getting combined lesson transcript
         add_action('wp_ajax_alm_get_lesson_transcript', array($this, 'ajax_get_lesson_transcript'));
         
@@ -212,6 +217,7 @@ class Academy_Lesson_Manager {
         // Add AJAX handlers for webhook
         add_action('wp_ajax_alm_get_webhook_logs', array($this, 'ajax_get_webhook_logs'));
         add_action('wp_ajax_alm_clear_webhook_logs', array($this, 'ajax_clear_webhook_logs'));
+        add_action('wp_ajax_alm_retry_webhook', array($this, 'ajax_retry_webhook'));
         
         // Add WordPress hooks for reverse sync
         add_action('save_post', array($this, 'handle_post_save'));
@@ -234,6 +240,7 @@ class Academy_Lesson_Manager {
             new ALM_Admin_Teachers();
         }
         new ALM_Admin_Lesson_Samples(); // Initialize early so hooks fire
+        new ALM_Admin_Lesson_Analytics();
     }
     
     /**
@@ -268,6 +275,15 @@ class Academy_Lesson_Manager {
             'manage_options',
             'academy-manager-lessons',
             array($this, 'admin_page_lessons')
+        );
+
+        add_submenu_page(
+            'academy-manager',
+            __('Lesson Analytics', 'academy-lesson-manager'),
+            __('Lesson Analytics', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-lesson-analytics',
+            array($this, 'admin_page_lesson_analytics')
         );
         
         add_submenu_page(
@@ -332,6 +348,15 @@ class Academy_Lesson_Manager {
             'academy-manager-credit-log',
             array($this, 'admin_page_credit_log')
         );
+        
+        add_submenu_page(
+            'academy-manager',
+            __('Search Logs', 'academy-lesson-manager'),
+            __('Search Logs', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-search-logs',
+            array($this, 'admin_page_search_logs')
+        );
     }
     
     /**
@@ -350,6 +375,11 @@ class Academy_Lesson_Manager {
     public function admin_page_lessons() {
         $admin_lessons = new ALM_Admin_Lessons();
         $admin_lessons->render_page();
+    }
+
+    public function admin_page_lesson_analytics() {
+        $admin_analytics = new ALM_Admin_Lesson_Analytics();
+        $admin_analytics->render_page();
     }
     
     public function admin_page_chapters() {
@@ -375,6 +405,12 @@ class Academy_Lesson_Manager {
     public function admin_page_lesson_samples() {
         $admin_lesson_samples = new ALM_Admin_Lesson_Samples();
         $admin_lesson_samples->render_page();
+    }
+    
+    public function admin_page_search_logs() {
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-search-logs.php';
+        $admin_search_logs = new ALM_Admin_Search_Logs();
+        $admin_search_logs->render_page();
     }
     
     public function admin_page_teachers() {
@@ -3250,6 +3286,55 @@ class Academy_Lesson_Manager {
     }
     
     /**
+     * AJAX handler for retrying a failed webhook
+     */
+    public function ajax_retry_webhook() {
+        check_ajax_referer('alm_webhook_settings', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $log_index = isset($_POST['log_index']) ? intval($_POST['log_index']) : -1;
+        
+        if ($log_index < 0) {
+            wp_send_json_error(array('message' => __('Invalid log index.', 'academy-lesson-manager')));
+        }
+        
+        require_once ALM_PLUGIN_DIR . 'includes/class-zoom-webhook.php';
+        $webhook = new ALM_Zoom_Webhook();
+        
+        // Get all logs
+        $logs = $webhook->get_debug_logs();
+        
+        if (!isset($logs[$log_index])) {
+            wp_send_json_error(array('message' => __('Log entry not found.', 'academy-lesson-manager')));
+        }
+        
+        $log = $logs[$log_index];
+        
+        // Check if log has payload
+        if (!isset($log['payload']) || empty($log['payload'])) {
+            wp_send_json_error(array('message' => __('No payload found in log entry.', 'academy-lesson-manager')));
+        }
+        
+        // Retry processing the webhook with the original payload
+        $result = $webhook->process_webhook($log['payload'], false);
+        
+        if ($result['success']) {
+            wp_send_json_success(array(
+                'message' => __('Webhook processed successfully.', 'academy-lesson-manager'),
+                'debug' => $result['debug']
+            ));
+        } else {
+            wp_send_json_error(array(
+                'message' => isset($result['error']) ? $result['error'] : __('Webhook processing failed.', 'academy-lesson-manager'),
+                'debug' => isset($result['debug']) ? $result['debug'] : null
+            ));
+        }
+    }
+    
+    /**
      * AJAX handler for transcribing a chapter
      */
     public function ajax_transcribe_chapter() {
@@ -3928,6 +4013,121 @@ class Academy_Lesson_Manager {
         wp_send_json_success(array(
             'description' => $generated_description,
             'message' => __('Description generated successfully!', 'academy-lesson-manager')
+        ));
+    }
+    
+    /**
+     * AJAX handler to expand lesson description using AI
+     */
+    public function ajax_expand_lesson_description() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        $current_description = isset($_POST['current_description']) ? wp_kses_post($_POST['current_description']) : '';
+        
+        if (!$lesson_id) {
+            wp_send_json_error(array('message' => __('Invalid lesson ID.', 'academy-lesson-manager')));
+        }
+        
+        if (empty($current_description)) {
+            wp_send_json_error(array('message' => __('Please enter a description first to expand.', 'academy-lesson-manager')));
+        }
+        
+        global $wpdb;
+        $database = new ALM_Database();
+        $lessons_table = $database->get_table_name('lessons');
+        
+        // Get lesson to verify it exists
+        $lesson = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$lessons_table} WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            wp_send_json_error(array('message' => __('Lesson not found.', 'academy-lesson-manager')));
+        }
+        
+        // Strip HTML tags for the prompt
+        $description_text = wp_strip_all_tags($current_description);
+        $description_text = trim($description_text);
+        
+        if (empty($description_text)) {
+            wp_send_json_error(array('message' => __('Description is empty after stripping HTML.', 'academy-lesson-manager')));
+        }
+        
+        // Get the prompt from settings or use default
+        $default_prompt = 'Your job: expand what the user wrote and clean it up. Do NOT rewrite it as marketing copy.
+
+Rules:
+- PRESERVE every fact, topic, name, and detail from the original. Do not remove, change, or invent content.
+- Clean up: fix grammar, punctuation, run-on sentences, and typos. Turn rough notes or fragments into clear, complete sentences.
+- Flesh out only for clarity: if something is vague or abbreviated, you may add a short clarifying phrase—but only using information that is already implied or stated. Do not add new topics or claims.
+- Use the author\'s tone: straightforward and factual. No marketing fluff. No phrases like "embark on a journey," "unlock," "discover," "empowering," "immersive," "transform," or similar. No hype.
+- Output only the expanded, cleaned-up description. No preamble, no "Here is the expanded version," no bullets unless the original had them.';
+        $prompt = get_option('alm_ai_expand_description_prompt', $default_prompt);
+        
+        // Build the full prompt
+        $full_prompt = $prompt . "\n\nCurrent Description:\n" . $description_text;
+        
+        // Get OpenAI API key
+        $api_key = get_option('katahdin_ai_hub_openai_key');
+        if (empty($api_key)) {
+            $api_key = get_option('fluent_support_ai_openai_key');
+        }
+        
+        if (empty($api_key)) {
+            wp_send_json_error(array('message' => __('OpenAI API key not found. Please configure it in settings.', 'academy-lesson-manager')));
+        }
+        
+        // Call OpenAI API
+        $response = wp_remote_post('https://api.openai.com/v1/chat/completions', array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type' => 'application/json',
+            ),
+            'body' => json_encode(array(
+                'model' => 'gpt-4o-mini',
+                'messages' => array(
+                    array(
+                        'role' => 'user',
+                        'content' => $full_prompt
+                    )
+                ),
+                'max_tokens' => 400,
+                'temperature' => 0.7,
+            )),
+            'timeout' => 30,
+        ));
+        
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => __('Error calling OpenAI API: ', 'academy-lesson-manager') . $response->get_error_message()));
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (!isset($body['choices'][0]['message']['content'])) {
+            $error_message = isset($body['error']['message']) ? $body['error']['message'] : __('Unknown error from OpenAI API.', 'academy-lesson-manager');
+            wp_send_json_error(array('message' => __('OpenAI API error: ', 'academy-lesson-manager') . $error_message));
+        }
+        
+        $expanded_description = trim($body['choices'][0]['message']['content']);
+        
+        // Update lesson description
+        $wpdb->update(
+            $lessons_table,
+            array('lesson_description' => $expanded_description),
+            array('ID' => $lesson_id),
+            array('%s'),
+            array('%d')
+        );
+        
+        wp_send_json_success(array(
+            'description' => $expanded_description,
+            'message' => __('Description expanded successfully!', 'academy-lesson-manager')
         ));
     }
     

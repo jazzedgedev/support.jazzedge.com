@@ -1,0 +1,25 @@
+<div id="essentialsContainer">
+  <div class="essentials-left">
+    <h3>Included with Essentials:</h3>
+    <p>Start your piano journey with essential resources and foundational content. Choose your own path with full access right away to 60 lesson credits so you can select all 60 Studio lessons immediately.</p>
+    <ul>
+      <li><strong>60 Studio Lesson Credits Up Front:</strong> Get full access right away to 60 lesson credits so you can choose all 60 lessons immediately. Each lesson you choose stays in your account as long as your membership is active.</li>
+      <li><strong>30-Day Piano Playbook™:</strong> Build your piano foundation step-by-step with a proven starter plan.</li>
+      <li><strong>Academy Blueprints:</strong> Follow clear, structured guides to learn chords, rhythms, and improvisation basics.</li>
+      <li><strong>Coaching Replays:</strong> Access recordings of coaching sessions to learn from expert guidance and student interactions.</li>
+      <li><strong>Essential Resources & Content:</strong> Access key lessons, practice materials, and support to kickstart your learning.</li>
+      <li><strong>Monthly Community Q&A Call:</strong> Join group sessions to ask questions, get tips, and stay inspired with other students.</li>
+    </ul>
+  </div>
+  <div class="essentials-right">
+    <h3>5-Year Membership Details</h3>
+    <p><strong>This is a 5-year membership.</strong> You will be billed once for the full 5-year term, and your membership will remain active for 5 years from your purchase date.</p>
+    <p><strong>Important:</strong> This is a one-time payment and does not renew.</p>
+    <p>You can view your expiration date and manage your membership (including canceling) at any time in your <strong>Account Area</strong>.</p>
+    
+    <h3>30-Day Money-Back Guarantee</h3>
+    <p>We offer a <strong>30-day money-back guarantee</strong> on your first payment. If you're not satisfied within the first 30 days, you're eligible for a full refund.</p>
+    <p><strong>Important:</strong> After the first 30 days, the payment is non-refundable.</p>
+    <p>For complete terms and conditions, please visit our <a href="https://jazzedge.academy/terms/" target="_blank">Terms & Conditions page</a>.</p>
+  </div>
+</div>

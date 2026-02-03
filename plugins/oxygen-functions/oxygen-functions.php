@@ -3322,6 +3322,21 @@ function je_can_user_view_event($event_id = 0){
 	if ($event_id == 0) { $event_id = intval($_GET['id']); }
 	$access = 'false';
 	if (ja_is_premier() == 'true') { return 'true'; }
+	
+	// Check if event has a Keap tag ID set - if user has this tag, grant access
+	$event_keap_tag_id = get_post_meta($event_id, 'keap_tag_id', true);
+	if ($event_keap_tag_id && function_exists('memb_hasAnyTags')) {
+		$tag_id = intval($event_keap_tag_id);
+		if ($tag_id > 0) {
+			if (!$user_id) {
+				$user_id = get_current_user_id();
+			}
+			if ($user_id && memb_hasAnyTags(array($tag_id)) === true) {
+				return 'true';
+			}
+		}
+	}
+	
 	$has_access = je_check_credit_used_for_event($event_id);
 	$has_credit_access = je_check_credit_used_for_class($event_id);
 	$event_sku = get_field('event_sku',$event_id);
@@ -7181,6 +7196,21 @@ function je_event_access_check($post_id){
 
   if (!is_user_logged_in()){
     return ['ok'=>false,'msg'=>'This session is for members. Please <a href="/login">log in</a> to continue.'];
+  }
+
+  // Check if event has a Keap tag ID set - if user has this tag, grant access
+  $event_keap_tag_id = get_post_meta($post_id, 'keap_tag_id', true);
+  if ($event_keap_tag_id && function_exists('memb_hasAnyTags')) {
+    $tag_id = intval($event_keap_tag_id);
+    if ($tag_id > 0) {
+      global $user_id;
+      if (!$user_id) {
+        $user_id = get_current_user_id();
+      }
+      if ($user_id && memb_hasAnyTags(array($tag_id)) === true) {
+        return ['ok'=>true,'msg'=>''];
+      }
+    }
   }
 
   $usr = je_user_level();                            // studio|premier|''

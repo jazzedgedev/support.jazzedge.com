@@ -626,10 +626,28 @@ class JPH_REST_API {
             'callback' => array($this, 'rest_fix_student_stats'),
             'permission_callback' => array($this, 'check_fix_streak_permission')
         ));
+
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)/refund-streak-gems', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_refund_streak_gems'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
         
         register_rest_route('aph/v1', '/students/(?P<id>\d+)/debug-data', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_student_debug_data'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)/practice-history', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_student_practice_history'),
+            'permission_callback' => array($this, 'check_admin_permission')
+        ));
+        
+        register_rest_route('aph/v1', '/students/(?P<id>\d+)/viewing-history', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_student_viewing_history'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
@@ -679,6 +697,27 @@ class JPH_REST_API {
             'methods' => 'PUT',
             'callback' => array($this, 'rest_update_reminder_settings'),
             'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // FluentCRM Contact endpoint for debugging
+        register_rest_route('aph/v1', '/fluentcrm/contact', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_fluentcrm_contact'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // Test reminder tag endpoint
+        register_rest_route('aph/v1', '/reminders/test-tag', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_test_reminder_tag'),
+            'permission_callback' => array($this, 'check_user_permission')
+        ));
+        
+        // Debug user reminder eligibility
+        register_rest_route('aph/v1', '/reminders/debug-user', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_debug_user_reminder'),
+            'permission_callback' => array($this, 'check_admin_permission')
         ));
         
         // Database debug endpoint
@@ -988,7 +1027,7 @@ class JPH_REST_API {
         $level_up = $gamification->check_level_up($user_id);
         
         // Update streak
-        $streak_update = $gamification->update_streak($user_id);
+        $streak_update = $gamification->update_streak($user_id, false);
         
         // Check for badges using our gamification class
         $newly_awarded = $gamification->check_and_award_badges($user_id);
@@ -1304,11 +1343,31 @@ class JPH_REST_API {
         // CSV headers
         $csv_content .= '"Date","Practice Item","Duration (minutes)","Sentiment Score","Improvement Detected","XP Earned","Notes"' . "\n";
         
+        $wp_timezone = wp_timezone();
+        $utc_timezone = new DateTimeZone('UTC');
+        $default_timezone = APH_Gamification::get_user_timezone($user_id);
+
         // Add session data
         foreach ($sessions as $session) {
+            $session_timezone = $default_timezone;
+            if (!empty($session['user_timezone_at_session'])) {
+                try {
+                    $session_timezone = new DateTimeZone($session['user_timezone_at_session']);
+                } catch (Exception $e) {
+                    $session_timezone = $default_timezone;
+                }
+            }
+
+            if (!empty($session['created_at_utc'])) {
+                $session_datetime = new DateTime($session['created_at_utc'], $utc_timezone);
+            } else {
+                $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+            }
+            $session_datetime->setTimezone($session_timezone);
+
             $csv_content .= sprintf(
                 '"%s","%s","%s","%s","%s","%s","%s"' . "\n",
-                date('Y-m-d H:i:s', strtotime($session['created_at'])),
+                $session_datetime->format('Y-m-d H:i:s'),
                 str_replace('"', '""', $session['item_name'] ?: 'Unknown Item'),
                 $session['duration_minutes'],
                 $session['sentiment_score'],
@@ -3552,9 +3611,6 @@ class JPH_REST_API {
                 return new WP_Error('permission_denied', 'You can only fix your own streak', array('status' => 403));
             }
             
-            $stats_table = $wpdb->prefix . 'jph_user_stats';
-            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
-            $user_timezone = APH_Gamification::get_user_timezone($user_id);
             $user_timezone_string = APH_Gamification::get_user_timezone_string($user_id);
             
             // Check if user has a custom timezone set (not just the default WordPress timezone)
@@ -3562,151 +3618,87 @@ class JPH_REST_API {
             $has_custom_timezone = get_user_meta($user_id, 'aph_user_timezone', true);
             $is_using_default = empty($has_custom_timezone) || $user_timezone_string === $wp_timezone_string;
             
-            // Get all practice sessions for this user
-            $sessions = $wpdb->get_results($wpdb->prepare("
-                SELECT created_at 
-                FROM {$sessions_table} 
-                WHERE user_id = %d 
-                ORDER BY created_at ASC
-            ", $user_id), ARRAY_A);
+            $gamification = new APH_Gamification();
+            $streak_result = $gamification->update_streak($user_id, false);
             
-            if (empty($sessions)) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'message' => 'No practice sessions found for this user',
-                    'current_streak' => 0,
-                    'longest_streak' => 0
-                ));
-            }
-            
-            // Get unique practice dates (calendar days) in WordPress timezone
-            $wp_timezone = $user_timezone;
-            $practice_dates = array();
-            
-            foreach ($sessions as $session) {
-                // Convert to WordPress timezone and get date
-                $session_datetime = new DateTime($session['created_at'], $wp_timezone);
-                $date = $session_datetime->format('Y-m-d');
-                if (!in_array($date, $practice_dates)) {
-                    $practice_dates[] = $date;
-                }
-            }
-            
-            if (empty($practice_dates)) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'message' => 'No valid practice dates found',
-                    'current_streak' => 0,
-                    'longest_streak' => 0
-                ));
-            }
-            
-            // Sort dates ascending
-            sort($practice_dates);
-            
-            // Get current date in WordPress timezone
-            $now_timestamp = current_time('timestamp');
-            $now_datetime = new DateTime('@' . $now_timestamp);
-            $now_datetime->setTimezone($wp_timezone);
-            $today = $now_datetime->format('Y-m-d');
-            
-            // Calculate yesterday
-            $yesterday_timestamp = $now_timestamp - DAY_IN_SECONDS;
-            $yesterday_datetime = new DateTime('@' . $yesterday_timestamp);
-            $yesterday_datetime->setTimezone($wp_timezone);
-            $yesterday = $yesterday_datetime->format('Y-m-d');
-            
-            // Calculate current streak (from most recent date backwards, counting consecutive calendar days)
-            $current_streak = 0;
-            $longest_streak = 1;
-            $temp_streak = 1;
-            
-            // Get most recent practice date
-            $most_recent_date = end($practice_dates);
-            
-            // Check if they have an active streak (practiced today or yesterday)
-            if ($most_recent_date === $today || $most_recent_date === $yesterday) {
-                $current_streak = 1;
-                $check_date = $most_recent_date;
-                
-                // Count backwards for consecutive calendar days
-                $date_index = array_search($most_recent_date, $practice_dates);
-                for ($i = $date_index - 1; $i >= 0; $i--) {
-                    // Calculate expected previous date
-                    $check_datetime = new DateTime($check_date, $wp_timezone);
-                    $check_datetime->modify('-1 day');
-                    $expected_date = $check_datetime->format('Y-m-d');
-                    
-                    if ($practice_dates[$i] === $expected_date) {
-                        // Consecutive day found
-                        $current_streak++;
-                        $check_date = $expected_date;
-                    } else {
-                        // Gap found, streak broken
-                        break;
-                    }
-                }
-            }
-            
-            // Calculate longest streak (consecutive calendar days)
-            for ($i = 1; $i < count($practice_dates); $i++) {
-                $prev_date = $practice_dates[$i - 1];
-                $curr_date = $practice_dates[$i];
-                
-                // Check if dates are consecutive
-                $prev_datetime = new DateTime($prev_date, $wp_timezone);
-                $prev_datetime->modify('+1 day');
-                $expected_next_date = $prev_datetime->format('Y-m-d');
-                
-                if ($curr_date === $expected_next_date) {
-                    // Consecutive day
-                    $temp_streak++;
-                } else {
-                    // Gap found, reset streak
-                    $longest_streak = max($longest_streak, $temp_streak);
-                    $temp_streak = 1;
-                }
-            }
-            $longest_streak = max($longest_streak, $temp_streak);
-            
-            // Update the database
-            $result = $wpdb->update(
-                $stats_table,
-                array(
-                    'current_streak' => $current_streak,
-                    'longest_streak' => $longest_streak,
-                    'updated_at' => current_time('mysql')
-                ),
-                array('user_id' => $user_id),
-                array('%d', '%d', '%s'),
-                array('%d')
-            );
-            
-            if ($result === false) {
+            if ($streak_result === false) {
                 return new WP_Error('update_failed', 'Failed to update streak', array('status' => 500));
             }
             
-            // Also update last_practice_date to most recent practice date
-            $wpdb->update(
-                $stats_table,
-                array('last_practice_date' => $most_recent_date),
-                array('user_id' => $user_id),
-                array('%s'),
-                array('%d')
-            );
+            $updated_stats = $gamification->get_user_stats($user_id);
             
-            $response_data = array(
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $user_timezone = APH_Gamification::get_user_timezone($user_id);
+            $wp_timezone = wp_timezone();
+            $utc_timezone = new DateTimeZone('UTC');
+            $sessions = $wpdb->get_results($wpdb->prepare(
+                "SELECT created_at, created_at_utc, user_timezone_at_session FROM {$sessions_table} WHERE user_id = %d ORDER BY created_at ASC",
+                $user_id
+            ), ARRAY_A);
+
+            $practice_dates = array();
+            foreach ($sessions as $session) {
+                $session_timezone = $user_timezone;
+                if (!empty($session['user_timezone_at_session'])) {
+                    try {
+                        $session_timezone = new DateTimeZone($session['user_timezone_at_session']);
+                    } catch (Exception $e) {
+                        $session_timezone = $user_timezone;
+                    }
+                }
+
+                if (!empty($session['created_at_utc'])) {
+                    $session_datetime = new DateTime($session['created_at_utc'], $utc_timezone);
+                } else {
+                    $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+                }
+                $session_datetime->setTimezone($session_timezone);
+                $date = $session_datetime->format('Y-m-d');
+                if (!in_array($date, $practice_dates, true)) {
+                    $practice_dates[] = $date;
+                }
+            }
+            sort($practice_dates);
+
+            $missing_dates = array();
+            if (!empty($practice_dates)) {
+                $start_date = new DateTime($practice_dates[0], $user_timezone);
+                $end_date = new DateTime(end($practice_dates), $user_timezone);
+                $practice_date_map = array_fill_keys($practice_dates, true);
+
+                while ($start_date <= $end_date) {
+                    $date_key = $start_date->format('Y-m-d');
+                    if (!isset($practice_date_map[$date_key])) {
+                        $missing_dates[] = $date_key;
+                    }
+                    $start_date->modify('+1 day');
+                }
+            }
+
+            update_user_meta($user_id, 'aph_streak_debug', array(
+                'missing_dates_count' => count($missing_dates),
+                'missing_dates' => $missing_dates,
+                'missing_dates_recent' => array_slice($missing_dates, -10),
+                'shields_used' => $streak_result['shields_used'] ?? 0,
+                'gems_used' => $streak_result['gems_used'] ?? 0,
+                'gems_spent' => $streak_result['gems_spent'] ?? 0,
+                'updated_at' => current_time('mysql')
+            ));
+
+            return rest_ensure_response(array(
                 'success' => true,
                 'message' => 'Streak recalculated successfully',
-                'current_streak' => $current_streak,
-                'longest_streak' => $longest_streak,
-                'practice_dates_count' => count($practice_dates),
-                'unique_practice_dates' => $practice_dates,
+                'current_streak' => $updated_stats['current_streak'] ?? 0,
+                'longest_streak' => $updated_stats['longest_streak'] ?? 0,
+                'streak_update' => $streak_result,
+                'missing_dates' => $missing_dates,
+                'missing_dates_count' => count($missing_dates),
+                'shields_used' => $streak_result['shields_used'] ?? 0,
+                'gems_used' => $streak_result['gems_used'] ?? 0,
+                'gems_spent' => $streak_result['gems_spent'] ?? 0,
                 'timezone_used' => $user_timezone_string,
                 'timezone_warning' => $is_using_default ? 'Student is using default site timezone (' . $wp_timezone_string . '). For accurate streak calculation, they should set their timezone preference first.' : null
-            );
-            
-            return rest_ensure_response($response_data);
+            ));
             
         } catch (Exception $e) {
             return new WP_Error('fix_streak_error', 'Error: ' . $e->getMessage(), array('status' => 500));
@@ -3915,6 +3907,123 @@ class JPH_REST_API {
             return new WP_Error('fix_stats_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
+
+    /**
+     * Refund gems spent on streak auto-save (admin only)
+     */
+    public function rest_refund_streak_gems($request) {
+        try {
+            global $wpdb;
+
+            $user_id = intval($request->get_param('id'));
+            if (!$user_id) {
+                return new WP_Error('invalid_user', 'Invalid user ID', array('status' => 400));
+            }
+
+            $stats_table = $wpdb->prefix . 'jph_user_stats';
+            $gems_table = $wpdb->prefix . 'jph_gems_transactions';
+
+            $stats = $wpdb->get_row($wpdb->prepare(
+                "SELECT gems_balance FROM {$stats_table} WHERE user_id = %d",
+                $user_id
+            ), ARRAY_A);
+
+            if (!$stats) {
+                return new WP_Error('user_not_found', 'User stats not found', array('status' => 404));
+            }
+
+            $current_balance = intval($stats['gems_balance'] ?? 0);
+
+            $auto_save_transactions = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, amount, created_at
+                 FROM {$gems_table}
+                 WHERE user_id = %d
+                   AND source = %s
+                   AND amount < 0
+                 ORDER BY created_at ASC",
+                $user_id,
+                'streak_auto_save'
+            ), ARRAY_A);
+
+            if (empty($auto_save_transactions)) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'No auto-save gem charges found to refund.',
+                    'refund_count' => 0,
+                    'total_refunded' => 0,
+                    'new_balance' => $current_balance
+                ));
+            }
+
+            $refund_count = 0;
+            $total_refunded = 0;
+
+            foreach ($auto_save_transactions as $transaction) {
+                $transaction_id = intval($transaction['id']);
+                $refund_description = 'Refund for streak auto-save transaction #' . $transaction_id;
+
+                $already_refunded = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*)
+                     FROM {$gems_table}
+                     WHERE user_id = %d
+                       AND source = %s
+                       AND description = %s",
+                    $user_id,
+                    'streak_auto_save_refund',
+                    $refund_description
+                ));
+
+                if ($already_refunded) {
+                    continue;
+                }
+
+                $refund_amount = abs(intval($transaction['amount']));
+                if ($refund_amount <= 0) {
+                    continue;
+                }
+
+                $current_balance += $refund_amount;
+                $total_refunded += $refund_amount;
+
+                $wpdb->insert(
+                    $gems_table,
+                    array(
+                        'user_id' => $user_id,
+                        'transaction_type' => 'credit',
+                        'amount' => $refund_amount,
+                        'source' => 'streak_auto_save_refund',
+                        'description' => $refund_description,
+                        'balance_after' => $current_balance,
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%d', '%s', '%d', '%s', '%s', '%d', '%s')
+                );
+
+                $refund_count++;
+            }
+
+            if ($total_refunded > 0) {
+                $wpdb->update(
+                    $stats_table,
+                    array('gems_balance' => $current_balance),
+                    array('user_id' => $user_id),
+                    array('%d'),
+                    array('%d')
+                );
+            }
+
+            return rest_ensure_response(array(
+                'success' => true,
+                'message' => $refund_count > 0 ? 'Refunded streak auto-save gems.' : 'No new refunds needed.',
+                'refund_count' => $refund_count,
+                'total_refunded' => $total_refunded,
+                'new_balance' => $current_balance
+            ));
+
+        } catch (Exception $e) {
+            return new WP_Error('refund_gems_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
     
     /**
      * Get comprehensive debug data for a student
@@ -4069,6 +4178,119 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             return new WP_Error('debug_data_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+
+    /**
+     * Get full practice history for a student (admin only)
+     */
+    public function rest_get_student_practice_history($request) {
+        try {
+            global $wpdb;
+
+            $user_id = intval($request->get_param('id'));
+            $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+            $user_timezone = APH_Gamification::get_user_timezone($user_id);
+            $wp_timezone = wp_timezone();
+
+            $user = get_userdata($user_id);
+            if (!$user) {
+                return new WP_Error('user_not_found', 'User not found', array('status' => 404));
+            }
+
+            $sessions = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$sessions_table} WHERE user_id = %d ORDER BY created_at ASC",
+                $user_id
+            ), ARRAY_A);
+
+            $practice_dates = array();
+            foreach ($sessions as $session) {
+                $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+                $session_datetime->setTimezone($user_timezone);
+                $date = $session_datetime->format('Y-m-d');
+                if (!in_array($date, $practice_dates, true)) {
+                    $practice_dates[] = $date;
+                }
+            }
+
+            return rest_ensure_response(array(
+                'success' => true,
+                'user_info' => array(
+                    'user_id' => $user_id,
+                    'username' => $user->user_login,
+                    'email' => $user->user_email,
+                    'display_name' => $user->display_name
+                ),
+                'practice_sessions' => array(
+                    'total_count' => count($sessions),
+                    'sessions' => $sessions,
+                    'unique_practice_dates' => $practice_dates,
+                    'practice_dates_count' => count($practice_dates)
+                ),
+                'timezone_info' => array(
+                    'user_timezone' => $user_timezone->getName(),
+                    'site_timezone' => $wp_timezone->getName()
+                )
+            ));
+
+        } catch (Exception $e) {
+            return new WP_Error('practice_history_error', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get recent lesson viewing history for a student (admin only)
+     */
+    public function rest_get_student_viewing_history($request) {
+        try {
+            global $wpdb;
+            
+            $user_id = intval($request->get_param('id'));
+            $limit = intval($request->get_param('limit')) ?: 25;
+            $limit = max(1, min($limit, 100));
+            
+            $user = get_userdata($user_id);
+            if (!$user) {
+                return new WP_Error('user_not_found', 'User not found', array('status' => 404));
+            }
+            
+            $table_name = 'academy_recently_viewed';
+            $lessons_table = $wpdb->prefix . 'alm_lessons';
+            $collections_table = $wpdb->prefix . 'alm_collections';
+            
+            $history = $wpdb->get_results($wpdb->prepare(
+                "SELECT arv.ID, arv.user_id, arv.post_id, arv.title, arv.type, arv.datetime,
+                        l.collection_id, c.collection_title
+                 FROM {$table_name} arv
+                 LEFT JOIN {$lessons_table} l ON l.post_id = arv.post_id
+                 LEFT JOIN {$collections_table} c ON c.ID = l.collection_id
+                 WHERE arv.user_id = %d
+                 AND arv.deleted_at IS NULL
+                 ORDER BY arv.datetime DESC
+                 LIMIT %d",
+                $user_id,
+                $limit
+            ), ARRAY_A);
+            
+            foreach ($history as &$item) {
+                $post_id = isset($item['post_id']) ? intval($item['post_id']) : 0;
+                $item['post_url'] = $post_id ? get_permalink($post_id) : '';
+            }
+            unset($item);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'user_info' => array(
+                    'user_id' => $user_id,
+                    'username' => $user->user_login,
+                    'email' => $user->user_email,
+                    'display_name' => $user->display_name
+                ),
+                'history' => $history,
+                'count' => count($history)
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('viewing_history_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -5137,11 +5359,23 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $reminder_enabled = $request->get_param('reminder_enabled');
             $reminder_threshold_days = $request->get_param('reminder_threshold_days');
             
-            // Validate threshold
+            // Validate threshold (minimum 5 days due to 5-day cooldown)
             if ($reminder_threshold_days !== null) {
                 $reminder_threshold_days = intval($reminder_threshold_days);
-                if ($reminder_threshold_days < 1 || $reminder_threshold_days > 14) {
-                    return new WP_Error('invalid_threshold', 'Reminder threshold must be between 1 and 14 days', array('status' => 400));
+                if ($reminder_threshold_days < 5 || $reminder_threshold_days > 14) {
+                    return new WP_Error('invalid_threshold', 'Reminder threshold must be between 5 and 14 days (minimum 5 days due to cooldown period)', array('status' => 400));
+                }
+            }
+            
+            // Get cooldown days from admin settings (default 5)
+            $cooldown_days = get_option('jph_reminder_cooldown_days', 5);
+            
+            // Validate cooldown if provided
+            $reminder_cooldown_days = $request->get_param('reminder_cooldown_days');
+            if ($reminder_cooldown_days !== null) {
+                $reminder_cooldown_days = intval($reminder_cooldown_days);
+                if ($reminder_cooldown_days < 1 || $reminder_cooldown_days > 30) {
+                    return new WP_Error('invalid_cooldown', 'Reminder cooldown must be between 1 and 30 days', array('status' => 400));
                 }
             }
             
@@ -5152,6 +5386,9 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             }
             if ($reminder_threshold_days !== null) {
                 $update_data['reminder_threshold_days'] = $reminder_threshold_days;
+            }
+            if ($reminder_cooldown_days !== null) {
+                $update_data['reminder_cooldown_days'] = $reminder_cooldown_days;
             }
             
             if (empty($update_data)) {
@@ -5172,6 +5409,220 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
         } catch (Exception $e) {
             return new WP_Error('reminder_settings_error', 'Error updating reminder settings: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Get FluentCRM contact information for current user
+     */
+    public function rest_get_fluentcrm_contact($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+            }
+            
+            $user = get_user_by('ID', $user_id);
+            if (!$user || !$user->user_email) {
+                return rest_ensure_response(array(
+                    'success' => false,
+                    'message' => 'User email not found',
+                    'user_id' => $user_id
+                ));
+            }
+            
+            $contact_data = array(
+                'user_id' => $user_id,
+                'user_email' => $user->user_email,
+                'user_login' => $user->user_login,
+                'display_name' => $user->display_name,
+                'fluentcrm_available' => function_exists('fluentCrmApi'),
+                'fluentcrm_contact_id' => null,
+                'fluentcrm_contact' => null
+            );
+            
+            if (function_exists('fluentCrmApi')) {
+                try {
+                    $contact = fluentCrmApi('contacts')->getContact($user->user_email);
+                    if ($contact) {
+                        $contact_data['fluentcrm_contact_id'] = $contact->id;
+                        $contact_data['fluentcrm_contact'] = array(
+                            'id' => $contact->id,
+                            'email' => $contact->email,
+                            'first_name' => $contact->first_name,
+                            'last_name' => $contact->last_name,
+                            'status' => $contact->status,
+                            'created_at' => $contact->created_at
+                        );
+                    }
+                } catch (Exception $e) {
+                    $contact_data['fluentcrm_error'] = $e->getMessage();
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'contact' => $contact_data
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('fluentcrm_contact_error', 'Error getting FluentCRM contact: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Test reminder tag application
+     */
+    public function rest_test_reminder_tag($request) {
+        try {
+            $user_id = get_current_user_id();
+            
+            if (!$user_id) {
+                return new WP_Error('not_logged_in', 'You must be logged in to test reminder tag', array('status' => 401));
+            }
+            
+            $user = get_user_by('ID', $user_id);
+            if (!$user || !$user->user_email) {
+                return new WP_Error('no_email', 'User email not found', array('status' => 400));
+            }
+            
+            // Get configured tag from settings
+            $reminder_tag = get_option('jph_reminder_fluentcrm_tag', 'Practice Reminder');
+            
+            // Apply the tag
+            $result = jph_apply_fluentcrm_reminder_tag($user_id, $user->user_email, $reminder_tag, 0);
+            
+            if ($result['success']) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'message' => 'Tag "' . $reminder_tag . '" applied successfully',
+                    'tag' => $reminder_tag
+                ));
+            } else {
+                return new WP_Error('tag_application_failed', $result['message'], array('status' => 500));
+            }
+            
+        } catch (Exception $e) {
+            return new WP_Error('test_tag_error', 'Error testing reminder tag: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    /**
+     * Debug user reminder eligibility
+     */
+    public function rest_debug_user_reminder($request) {
+        try {
+            $user_id = $request->get_param('user_id');
+            $user_email = $request->get_param('email');
+            
+            if (!$user_id && !$user_email) {
+                return new WP_Error('missing_param', 'Please provide either user_id or email parameter', array('status' => 400));
+            }
+            
+            // Get user
+            if ($user_id) {
+                $user = get_user_by('ID', $user_id);
+            } else {
+                $user = get_user_by('email', $user_email);
+                $user_id = $user ? $user->ID : null;
+            }
+            
+            if (!$user) {
+                return new WP_Error('user_not_found', 'User not found', array('status' => 404));
+            }
+            
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'jph_user_plans';
+            $user_plan = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE user_id = %d",
+                $user_id
+            ));
+            
+            if (!$user_plan) {
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'user_id' => $user_id,
+                    'user_email' => $user->user_email,
+                    'user_name' => $user->display_name,
+                    'has_plan' => false,
+                    'message' => 'User does not have a plan record'
+                ));
+            }
+            
+            // Calculate eligibility
+            $wp_timezone = wp_timezone();
+            $now = current_time('mysql');
+            $now_date = new DateTime($now, $wp_timezone);
+            $now_start = clone $now_date;
+            $now_start->setTime(0, 0, 0);
+            
+            $threshold = intval($user_plan->reminder_threshold_days);
+            $cooldown = intval($user_plan->reminder_cooldown_days);
+            $last_practiced = $user_plan->last_practiced_date;
+            $last_reminder = $user_plan->last_reminder_sent;
+            
+            // Calculate days since last practice
+            if ($last_practiced) {
+                $last_practiced_date = new DateTime($last_practiced, $wp_timezone);
+                $last_practiced_start = clone $last_practiced_date;
+                $last_practiced_start->setTime(0, 0, 0);
+                $days_since = $now_start->diff($last_practiced_start)->days;
+            } else {
+                $days_since = 999; // Never practiced
+            }
+            
+            // Check cooldown
+            $days_since_reminder = null;
+            $in_cooldown = false;
+            if ($last_reminder) {
+                $last_reminder_date = new DateTime($last_reminder, $wp_timezone);
+                $last_reminder_start = clone $last_reminder_date;
+                $last_reminder_start->setTime(0, 0, 0);
+                $days_since_reminder = $now_start->diff($last_reminder_start)->days;
+                $in_cooldown = ($days_since_reminder < $cooldown);
+            }
+            
+            // Determine eligibility
+            $meets_threshold = ($days_since >= $threshold);
+            $eligible = $meets_threshold && !$in_cooldown && $user_plan->reminder_enabled == 1;
+            
+            // Get configured tag
+            $reminder_tag = get_option('jph_reminder_fluentcrm_tag', 'Practice Reminder');
+            
+            // Check cron status
+            $next_cron = wp_next_scheduled('jph_daily_practice_reminder_check');
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'user_id' => $user_id,
+                'user_email' => $user->user_email,
+                'user_name' => $user->display_name,
+                'reminder_enabled' => (bool)$user_plan->reminder_enabled,
+                'reminder_threshold_days' => $threshold,
+                'reminder_cooldown_days' => $cooldown,
+                'last_practiced_date' => $last_practiced,
+                'last_reminder_sent' => $last_reminder,
+                'days_since_practice' => $days_since,
+                'days_since_reminder' => $days_since_reminder,
+                'meets_threshold' => $meets_threshold,
+                'in_cooldown' => $in_cooldown,
+                'eligible' => $eligible,
+                'reminder_tag' => $reminder_tag,
+                'cron_next_run' => $next_cron ? date('Y-m-d H:i:s', $next_cron) : null,
+                'current_time' => $now,
+                'timezone' => $wp_timezone->getName(),
+                'reason_not_eligible' => !$eligible ? (
+                    !$user_plan->reminder_enabled ? 'Reminders disabled' : (
+                        !$meets_threshold ? "Only {$days_since} days since practice (needs {$threshold})" : (
+                            $in_cooldown ? "In cooldown ({$days_since_reminder}/{$cooldown} days)" : 'Unknown'
+                        )
+                    )
+                ) : null
+            ));
+            
+        } catch (Exception $e) {
+            return new WP_Error('debug_error', 'Error debugging user reminder: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
@@ -6327,6 +6778,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 'tab_shield' => true,
                 'tab_badges' => true,
                 'tab_analytics' => true,
+                'auto_gem_streak_save' => true,
                 'dark_mode' => false,
                 'bg_color' => '#ffffff',
                 'accent_color' => '#004555',
@@ -6347,7 +6799,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $preferences = wp_parse_args($preferences, $default_preferences);
             
             // Ensure boolean values are boolean, keep strings as strings
-            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
+            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'auto_gem_streak_save', 'dark_mode');
             foreach ($boolean_keys as $key) {
                 if (isset($preferences[$key])) {
                     $preferences[$key] = (bool) $preferences[$key];
@@ -6411,6 +6863,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 'tab_shield' => true,
                 'tab_badges' => true,
                 'tab_analytics' => true,
+                'auto_gem_streak_save' => true,
                 'dark_mode' => false,
                 'bg_color' => '#ffffff',
                 'accent_color' => '#004555',
@@ -6422,7 +6875,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $sanitized_preferences = array();
             
             // Boolean preferences
-            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'dark_mode');
+            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'auto_gem_streak_save', 'dark_mode');
             foreach ($boolean_keys as $key) {
                 if (isset($preferences[$key])) {
                     $sanitized_preferences[$key] = (bool) $preferences[$key];

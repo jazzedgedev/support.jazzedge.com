@@ -37,6 +37,9 @@ function aph_activate() {
     
     // Add leaderboard columns to existing tables
     APH_Database_Schema::add_leaderboard_columns();
+
+    // Add timezone columns to practice sessions table
+    APH_Database_Schema::add_practice_session_timezone_columns();
     
     // Update badges schema to use image_url instead of icon
     APH_Database_Schema::update_badges_schema();
@@ -50,6 +53,97 @@ new JPH_REST_API();
 
 // Initialize Admin Pages
 new JPH_Admin_Pages();
+
+// Ensure timezone columns exist for practice sessions
+add_action('init', 'jph_ensure_practice_session_timezone_columns');
+function jph_ensure_practice_session_timezone_columns() {
+    APH_Database_Schema::add_practice_session_timezone_columns();
+}
+
+// Initialize practice session timezone backfill
+add_action('init', 'jph_init_practice_session_timezone_backfill');
+function jph_init_practice_session_timezone_backfill() {
+    if (get_option('jph_practice_session_timezone_backfill_complete')) {
+        return;
+    }
+
+    if (!wp_next_scheduled('jph_backfill_practice_session_timezones')) {
+        wp_schedule_single_event(time() + 60, 'jph_backfill_practice_session_timezones');
+    }
+}
+
+add_action('jph_backfill_practice_session_timezones', 'jph_run_practice_session_timezone_backfill');
+function jph_run_practice_session_timezone_backfill() {
+    global $wpdb;
+
+    $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
+    $batch_size = 500;
+    $last_id = (int) get_option('jph_practice_session_backfill_last_id', 0);
+    $wp_timezone = wp_timezone();
+    $utc_timezone = new DateTimeZone('UTC');
+
+    $sessions = $wpdb->get_results($wpdb->prepare(
+        "SELECT id, user_id, created_at, created_at_utc, user_timezone_at_session
+         FROM {$sessions_table}
+         WHERE id > %d
+         ORDER BY id ASC
+         LIMIT %d",
+        $last_id,
+        $batch_size
+    ), ARRAY_A);
+
+    if (empty($sessions)) {
+        update_option('jph_practice_session_timezone_backfill_complete', 1);
+        delete_option('jph_practice_session_backfill_last_id');
+        return;
+    }
+
+    foreach ($sessions as $session) {
+        $session_id = (int) $session['id'];
+        $user_id = (int) $session['user_id'];
+
+        $updates = array();
+        $formats = array();
+
+        if (empty($session['created_at_utc']) && !empty($session['created_at'])) {
+            $session_datetime = new DateTime($session['created_at'], $wp_timezone);
+            $session_datetime->setTimezone($utc_timezone);
+            $updates['created_at_utc'] = $session_datetime->format('Y-m-d H:i:s');
+            $formats[] = '%s';
+        }
+
+        if (empty($session['user_timezone_at_session'])) {
+            $timezone_string = get_user_meta($user_id, 'aph_user_timezone', true);
+            if (!empty($timezone_string)) {
+                try {
+                    new DateTimeZone($timezone_string);
+                } catch (Exception $e) {
+                    $timezone_string = '';
+                }
+            }
+            if (empty($timezone_string)) {
+                $timezone_string = wp_timezone_string();
+            }
+            $updates['user_timezone_at_session'] = $timezone_string;
+            $formats[] = '%s';
+        }
+
+        if (!empty($updates)) {
+            $wpdb->update(
+                $sessions_table,
+                $updates,
+                array('id' => $session_id),
+                $formats,
+                array('%d')
+            );
+        }
+
+        $last_id = $session_id;
+    }
+
+    update_option('jph_practice_session_backfill_last_id', $last_id);
+    wp_schedule_single_event(time() + 60, 'jph_backfill_practice_session_timezones');
+}
 
 // Initialize Frontend (conditionally based on wire-through setting)
 if (!defined('APH_FRONTEND_SEPARATED')) {

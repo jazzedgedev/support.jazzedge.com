@@ -141,6 +141,15 @@ class JPH_Database {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'jph_practice_sessions';
+        $created_at = current_time('mysql');
+        $created_at_utc = current_time('mysql', true);
+        $user_timezone = '';
+        if (class_exists('APH_Gamification')) {
+            $user_timezone = APH_Gamification::get_user_timezone_string($user_id);
+        }
+        if (empty($user_timezone)) {
+            $user_timezone = wp_timezone_string();
+        }
         
         $result = $wpdb->insert(
             $table_name,
@@ -152,19 +161,26 @@ class JPH_Database {
                 'improvement_detected' => $improvement_detected ? 1 : 0,
                 'notes' => $notes,
                 'session_hash' => md5(uniqid(rand(), true)),
-                'created_at' => current_time('mysql')
+                'created_at' => $created_at,
+                'created_at_utc' => $created_at_utc,
+                'user_timezone_at_session' => $user_timezone
             ),
-            array('%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s')
+            array('%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s')
         );
         
         if ($result) {
-            // Update last_practiced_date in user_plans
+            // Update last_practiced_date in user_plans using WordPress timezone
             $plans_table = $wpdb->prefix . 'jph_user_plans';
+            $current_time = $created_at;
             $wpdb->query($wpdb->prepare(
                 "INSERT INTO {$plans_table} (user_id, last_practiced_date, updated_at)
-                 VALUES (%d, NOW(), NOW())
-                 ON DUPLICATE KEY UPDATE last_practiced_date = NOW(), updated_at = NOW()",
-                $user_id
+                 VALUES (%d, %s, %s)
+                 ON DUPLICATE KEY UPDATE last_practiced_date = %s, updated_at = %s",
+                $user_id,
+                $current_time,
+                $current_time,
+                $current_time,
+                $current_time
             ));
             
             // Trigger action for reminder system
@@ -1374,7 +1390,7 @@ class JPH_Database {
                 reminder_enabled tinyint(1) unsigned DEFAULT 1,
                 reminder_threshold_days int(11) unsigned DEFAULT 3,
                 last_reminder_sent datetime DEFAULT NULL,
-                reminder_cooldown_days int(11) unsigned DEFAULT 7,
+                reminder_cooldown_days int(11) unsigned DEFAULT 5,
                 created_at datetime DEFAULT CURRENT_TIMESTAMP,
                 updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id),
@@ -1401,7 +1417,7 @@ class JPH_Database {
             'reminder_enabled' => "ALTER TABLE $table_name ADD COLUMN reminder_enabled tinyint(1) unsigned DEFAULT 1",
             'reminder_threshold_days' => "ALTER TABLE $table_name ADD COLUMN reminder_threshold_days int(11) unsigned DEFAULT 3",
             'last_reminder_sent' => "ALTER TABLE $table_name ADD COLUMN last_reminder_sent datetime DEFAULT NULL",
-            'reminder_cooldown_days' => "ALTER TABLE $table_name ADD COLUMN reminder_cooldown_days int(11) unsigned DEFAULT 7"
+            'reminder_cooldown_days' => "ALTER TABLE $table_name ADD COLUMN reminder_cooldown_days int(11) unsigned DEFAULT 5"
         );
         
         foreach ($columns_to_add as $column_name => $sql) {
@@ -1499,6 +1515,26 @@ class JPH_Database {
             $format[] = '%s';
         }
         
+        if (isset($plan_data['reminder_enabled'])) {
+            $data['reminder_enabled'] = $plan_data['reminder_enabled'] ? 1 : 0;
+            $format[] = '%d';
+        }
+        
+        if (isset($plan_data['reminder_threshold_days'])) {
+            $data['reminder_threshold_days'] = intval($plan_data['reminder_threshold_days']);
+            $format[] = '%d';
+        }
+        
+        if (isset($plan_data['reminder_cooldown_days'])) {
+            $data['reminder_cooldown_days'] = intval($plan_data['reminder_cooldown_days']);
+            $format[] = '%d';
+        }
+        
+        if (isset($plan_data['last_reminder_sent'])) {
+            $data['last_reminder_sent'] = $plan_data['last_reminder_sent'];
+            $format[] = '%s';
+        }
+        
         if ($existing) {
             // Update existing plan
             $result = $wpdb->update(
@@ -1533,6 +1569,92 @@ class JPH_Database {
             
             return $wpdb->insert_id;
         }
+    }
+    
+    /**
+     * Ensure reminder logs table exists
+     */
+    public function ensure_reminder_logs_table_exists() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_reminder_logs';
+        
+        // Check if table exists
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            // Table doesn't exist, create it
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            
+            $charset_collate = $wpdb->get_charset_collate();
+            
+            $sql = "CREATE TABLE $table_name (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                user_id bigint(20) unsigned NOT NULL,
+                user_email varchar(255) NOT NULL,
+                user_name varchar(255) DEFAULT NULL,
+                tag_name varchar(255) NOT NULL,
+                days_since_practice int(11) unsigned DEFAULT NULL,
+                created_at datetime DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY user_id (user_id),
+                KEY user_email (user_email),
+                KEY created_at (created_at)
+            ) $charset_collate;";
+            
+            dbDelta($sql);
+            error_log("APH: Created reminder_logs table: $table_name");
+        }
+    }
+    
+    /**
+     * Log a reminder tag application
+     */
+    public function log_reminder_tag($user_id, $user_email, $user_name, $tag_name, $days_since_practice = null) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_reminder_logs';
+        
+        // Ensure table exists
+        $this->ensure_reminder_logs_table_exists();
+        
+        $result = $wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'user_email' => $user_email,
+                'user_name' => $user_name,
+                'tag_name' => $tag_name,
+                'days_since_practice' => $days_since_practice,
+                'created_at' => current_time('mysql')
+            ),
+            array('%d', '%s', '%s', '%s', '%d', '%s')
+        );
+        
+        if ($result === false) {
+            error_log('APH Reminder Log Error: ' . $wpdb->last_error);
+            return false;
+        }
+        
+        return $wpdb->insert_id;
+    }
+    
+    /**
+     * Get reminder logs
+     */
+    public function get_reminder_logs($limit = 100, $offset = 0) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'jph_reminder_logs';
+        
+        // Ensure table exists
+        $this->ensure_reminder_logs_table_exists();
+        
+        $logs = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+            $limit,
+            $offset
+        ), ARRAY_A);
+        
+        return $logs ?: array();
     }
     
     /**

@@ -56,8 +56,9 @@ class Keap_Reports_Reports {
             $filter_product_ids = array_map('intval', array_map('trim', explode(',', $report['filter_product_id'])));
         }
         
-        // Fetch data from Keap API (pass report type, filter_product_ids, and is_manual flag)
-        $data = $this->api->fetch_report_data($report['report_id'], $report['report_uuid'], $report['report_type'], $filter_product_ids, $is_manual);
+        // Fetch data from Keap API using only report_id (UUID is optional now)
+        $report_uuid = !empty($report['report_uuid']) ? $report['report_uuid'] : '';
+        $data = $this->api->fetch_report_data($report['report_id'], $report_uuid, $report['report_type'], $filter_product_ids, $is_manual);
         
         if (is_wp_error($data)) {
             return array(
@@ -66,82 +67,320 @@ class Keap_Reports_Reports {
             );
         }
         
-        // Log what we received for debugging
-        $debug_enabled = get_option('keap_reports_debug_enabled', false);
-        if ($debug_enabled) {
-            $this->database->add_log('Fetched data for report "' . $report['name'] . '"', 'info', array(
-                'report_id' => $report_id,
-                'data_type' => gettype($data),
-                'data_count' => is_array($data) ? count($data) : 'N/A'
-            ));
+        // Map old report types to new types for backward compatibility
+        $report_type = $report['report_type'];
+        if ($report_type === 'sales') {
+            $report_type = 'monthly_revenue';
+        } elseif ($report_type === 'paid_starter') {
+            $report_type = 'count';
+        } elseif ($report_type === 'intensives') {
+            $report_type = 'count_revenue';
+        }
+        
+        // Handle count report type (old: paid_starter) - it's a snapshot, not monthly aggregation
+        if ($report_type === 'count') {
+            return $this->fetch_paid_starter_report($report_id, $report, $data);
+        }
+        
+        // Handle count_revenue report type (old: intensives) - process OrderDate and OrderTotal
+        if ($report_type === 'count_revenue') {
+            return $this->fetch_intensives_report($report_id, $report, $data);
+        }
+        
+        // Check if data is empty - show warning but continue
+        if (empty($data) || !is_array($data) || count($data) === 0) {
+            $this->database->add_log(
+                'Warning: Report "' . $report['name'] . '" (ID: ' . $report['report_id'] . ') returned no results. This may be normal if the saved search has no data for the current period.',
+                'warning',
+                array(
+                    'report_id' => $report['report_id'],
+                    'report_name' => $report['name'],
+                    'data_type' => gettype($data),
+                    'data_count' => is_array($data) ? count($data) : 0
+                )
+            );
             
-            if (is_array($data) && !empty($data)) {
-                // Log first 100 records for detailed inspection
-                $sample_size = min(100, count($data));
-                $sample_records = array_slice($data, 0, $sample_size);
+            // Still save empty data with metadata for tracking
+            $metadata = array(
+                'fetched_at' => current_time('mysql'),
+                'report_id' => $report['report_id'],
+                'report_type' => $report['report_type'],
+                'data_type' => gettype($data),
+                'data_count' => 0,
+                'note' => 'No results returned from saved search'
+            );
+            
+            $current_year = intval(date('Y'));
+            $current_month = intval(date('n'));
+            
+            $this->database->save_report_data(
+                $report_id,
+                $current_year,
+                $current_month,
+                0,
+                $metadata,
+                0,
+                0.00
+            );
+            
+            return array(
+                'success' => true,
+                'message' => 'Report fetched but returned no results. This may be normal if the saved search has no data.',
+                'value' => 0,
+                'num_orders' => 0,
+                'total_amt_sold' => 0.00
+            );
+        }
+        
+        // Prepare raw data dump for metadata
+        $raw_data_dump = array(
+            'fetched_at' => current_time('mysql'),
+            'report_id' => $report['report_id'],
+            'report_type' => $report['report_type'],
+            'data_type' => gettype($data),
+            'data_count' => is_array($data) ? count($data) : 'N/A',
+            'raw_data' => $data
+        );
+        
+        // Log what we received
+        $this->database->add_log('Data fetched for report "' . $report['name'] . '"', 'info', array(
+            'report_id' => $report['report_id'],
+            'data_count' => is_array($data) ? count($data) : 0,
+            'first_record_sample' => is_array($data) && count($data) > 0 ? $data[0] : null
+        ));
+        
+        // Aggregate data by Year and Month
+        // Expected format: Array with records containing NumOrders, AmtSold, Month, Year
+        $monthly_data = array(); // year => month => array('num_orders' => X, 'total_amt_sold' => Y)
+        
+        // Log the structure of the first record to understand the data format
+        $this->database->add_log('Starting data aggregation', 'info', array(
+            'report_id' => $report['report_id'],
+            'total_records' => count($data),
+            'data_type' => gettype($data),
+            'is_array' => is_array($data)
+        ));
+        
+        if (count($data) > 0 && is_array($data[0])) {
+            $this->database->add_log('First record structure from saved search', 'info', array(
+                'report_id' => $report['report_id'],
+                'first_record' => $data[0],
+                'first_record_keys' => array_keys($data[0]),
+                'has_Year' => isset($data[0]['Year']),
+                'has_Month' => isset($data[0]['Month']),
+                'Year_value' => isset($data[0]['Year']) ? $data[0]['Year'] : 'not_set',
+                'Month_value' => isset($data[0]['Month']) ? $data[0]['Month'] : 'not_set'
+            ));
+        }
+        
+        $records_processed = 0;
+        $records_skipped = 0;
+        $skip_reasons = array();
+        
+        foreach ($data as $record_index => $record) {
+            if (!is_array($record)) {
+                $records_skipped++;
+                $skip_reasons[] = "Record #{$record_index} is not an array";
+                continue;
+            }
+            
+            $records_processed++;
+            
+            // Extract year and month - try multiple field name variations
+            $year = null;
+            $month = null;
+            
+            // Try various field name combinations
+            if (isset($record['Year'])) {
+                $year = intval($record['Year']);
+            } elseif (isset($record['year'])) {
+                $year = intval($record['year']);
+            } elseif (isset($record['YEAR'])) {
+                $year = intval($record['YEAR']);
+            }
+            
+            if (isset($record['Month'])) {
+                $month = intval($record['Month']);
+            } elseif (isset($record['month'])) {
+                $month = intval($record['month']);
+            } elseif (isset($record['MONTH'])) {
+                $month = intval($record['MONTH']);
+            }
+            
+            // Always log the first record processing
+            if ($record_index === 0) {
+                $this->database->add_log("Processing first record", 'info', array(
+                    'record' => $record,
+                    'record_keys' => array_keys($record),
+                    'found_year' => $year,
+                    'found_month' => $month,
+                    'year_valid' => ($year && $year > 0),
+                    'month_valid' => ($month && $month >= 1 && $month <= 12)
+                ));
+            }
+            
+            // Skip if we don't have valid year/month
+            if (!$year || !$month || $month < 1 || $month > 12) {
+                $records_skipped++;
+                $skip_reasons[] = "Record #{$record_index}: year={$year}, month={$month} (invalid)";
+                if ($record_index === 0) {
+                    $this->database->add_log("First record skipped - invalid year/month", 'error', array(
+                        'year' => $year,
+                        'month' => $month,
+                        'record' => $record,
+                        'all_keys' => array_keys($record)
+                    ));
+                }
+                continue;
+            }
+            
+            // Initialize if not exists
+            if (!isset($monthly_data[$year])) {
+                $monthly_data[$year] = array();
+            }
+            if (!isset($monthly_data[$year][$month])) {
+                $monthly_data[$year][$month] = array(
+                    'num_orders' => 0,
+                    'total_amt_sold' => 0.00
+                );
+            }
+            
+            // Sum NumOrders and AmtSold
+            if (isset($record['NumOrders'])) {
+                $monthly_data[$year][$month]['num_orders'] += intval($record['NumOrders']);
+            } else {
+                // Log if NumOrders is missing
+                if ($record_index === 0) {
+                    $this->database->add_log("Warning: NumOrders field not found in record", 'warning', array(
+                        'record' => $record,
+                        'available_keys' => array_keys($record)
+                    ));
+                }
+            }
+            
+            if (isset($record['AmtSold'])) {
+                $monthly_data[$year][$month]['total_amt_sold'] += floatval($record['AmtSold']);
+            } else {
+                // Log if AmtSold is missing
+                if ($record_index === 0) {
+                    $this->database->add_log("Warning: AmtSold field not found in record", 'warning', array(
+                        'record' => $record,
+                        'available_keys' => array_keys($record)
+                    ));
+                }
+            }
+            
+            // Log successful processing of first record
+            if ($record_index === 0) {
+                $this->database->add_log("Successfully processed first record", 'info', array(
+                    'year' => $year,
+                    'month' => $month,
+                    'num_orders' => isset($record['NumOrders']) ? intval($record['NumOrders']) : 0,
+                    'amt_sold' => isset($record['AmtSold']) ? floatval($record['AmtSold']) : 0.00,
+                    'monthly_data_so_far' => $monthly_data
+                ));
+            }
+        }
+        
+        // Log aggregation results before saving
+        $this->database->add_log('After aggregation loop', 'info', array(
+            'monthly_data_count' => count($monthly_data),
+            'monthly_data' => $monthly_data,
+            'records_processed' => $records_processed,
+            'records_skipped' => $records_skipped
+        ));
+        
+        // Save each month's data
+        $saved_count = 0;
+        $total_orders = 0;
+        $total_amt = 0.00;
+        $save_errors = array();
+        
+        foreach ($monthly_data as $year => $months) {
+            foreach ($months as $month => $month_data) {
+                $metadata = $raw_data_dump;
+                $metadata['year'] = $year;
+                $metadata['month'] = $month;
                 
-                $this->database->add_log('First ' . $sample_size . ' records sample for report "' . $report['name'] . '"', 'debug', array(
+                $this->database->add_log("Attempting to save report data", 'info', array(
                     'report_id' => $report_id,
-                    'sample_size' => $sample_size,
-                    'total_records' => count($data),
-                    'sample_records' => $sample_records
+                    'year' => $year,
+                    'month' => $month,
+                    'num_orders' => $month_data['num_orders'],
+                    'total_amt_sold' => $month_data['total_amt_sold'],
+                    'value' => $month_data['total_amt_sold']
                 ));
                 
-                // Log unique product IDs if subscriptions
-                if ($report['report_type'] === 'subscriptions' && !empty($data)) {
-                    $product_ids = array();
-                    foreach ($data as $record) {
-                        if (isset($record['product_id'])) {
-                            $product_ids[] = $record['product_id'];
-                        }
-                    }
-                    $unique_product_ids = array_unique($product_ids);
-                    $product_id_counts = array_count_values($product_ids);
-                    
-                    $this->database->add_log('Product ID analysis for report "' . $report['name'] . '"', 'info', array(
+                $saved = $this->database->save_report_data(
+                    $report_id,
+                    $year,
+                    $month,
+                    $month_data['total_amt_sold'], // Use total_amt_sold as the value
+                    $metadata,
+                    $month_data['num_orders'],
+                    $month_data['total_amt_sold']
+                );
+                
+                if ($saved) {
+                    $saved_count++;
+                    $total_orders += $month_data['num_orders'];
+                    $total_amt += $month_data['total_amt_sold'];
+                    $this->database->add_log("Successfully saved report data", 'info', array(
                         'report_id' => $report_id,
-                        'total_subscriptions' => count($data),
-                        'unique_product_ids' => array_values($unique_product_ids),
-                        'product_id_counts' => $product_id_counts,
-                        'total_unique_products' => count($unique_product_ids)
+                        'year' => $year,
+                        'month' => $month
+                    ));
+                } else {
+                    $error_msg = "Failed to save report data for report_id={$report_id}, year={$year}, month={$month}";
+                    $save_errors[] = $error_msg;
+                    $this->database->add_log($error_msg, 'error', array(
+                        'report_id' => $report_id,
+                        'year' => $year,
+                        'month' => $month,
+                        'num_orders' => $month_data['num_orders'],
+                        'total_amt_sold' => $month_data['total_amt_sold'],
+                        'note' => 'Check PHP error log for database errors'
                     ));
                 }
             }
         }
         
-        // Aggregate data based on report type
-        $aggregated_value = $this->api->aggregate_data($data, $report['report_type']);
+        // Log aggregation summary
+        $this->database->add_log('Data aggregation summary', 'info', array(
+            'report_id' => $report['report_id'],
+            'total_records' => count($data),
+            'records_processed' => $records_processed,
+            'records_skipped' => $records_skipped,
+            'skip_reasons' => array_slice($skip_reasons, 0, 10), // First 10 skip reasons
+            'months_found' => count($monthly_data),
+            'months_data' => $monthly_data,
+            'saved_count' => $saved_count
+        ));
         
-        // Get metadata
-        $metadata = $this->api->get_metadata($data);
-        
-        // Get current month/year
-        $current_year = intval(date('Y'));
-        $current_month = intval(date('n'));
-        
-        // Save to database
-        $saved = $this->database->save_report_data(
-            $report_id,
-            $current_year,
-            $current_month,
-            $aggregated_value,
-            $metadata
-        );
-        
-        if (!$saved) {
+        if ($saved_count === 0) {
+            // Provide detailed error message
+            $error_details = "Total records: " . count($data) . ", Processed: {$records_processed}, Skipped: {$records_skipped}";
+            if (count($data) > 0 && is_array($data[0])) {
+                $error_details .= ". First record keys: " . implode(', ', array_keys($data[0]));
+            }
+            
             return array(
                 'success' => false,
-                'message' => 'Failed to save report data to database'
+                'message' => 'Failed to save report data to database. No valid year/month data found in results. ' . $error_details
             );
         }
         
         return array(
             'success' => true,
             'message' => sprintf(
-                'Report fetched successfully. Value: %s',
-                $this->format_value($aggregated_value, $report['report_type'])
+                'Report fetched successfully. Saved %d month(s) of data. Total: %d orders, $%s',
+                $saved_count,
+                $total_orders,
+                number_format($total_amt, 2)
             ),
-            'value' => $aggregated_value
+            'months_saved' => $saved_count,
+            'num_orders' => $total_orders,
+            'total_amt_sold' => $total_amt
         );
     }
     
@@ -286,13 +525,21 @@ class Keap_Reports_Reports {
             );
         }
         
-        // Get current date
-        $current_year = intval(date('Y'));
-        $current_month = intval(date('n'));
-        $current_day = intval(date('j'));
+        // Get current date (or override from transient for catch-up fetches)
+        $date_override = get_transient('keap_reports_fetch_date_override');
+        if ($date_override && is_array($date_override)) {
+            $current_year = intval($date_override['year']);
+            $current_month = intval($date_override['month']);
+            $current_day = intval($date_override['day']);
+        } else {
+            $current_year = intval(date('Y'));
+            $current_month = intval(date('n'));
+            $current_day = intval(date('j'));
+        }
         
         // Track subscriptions by product ID (incrementally)
         $subscriptions_by_product = array();
+        $subscriptions_by_product_details = array(); // Store individual subscription records
         $product_id_field_names = array('product_id', 'productId', 'product', 'productid', 'product_id_number');
         $subscriptions_without_product_id = 0;
         $total_processed = 0;
@@ -303,7 +550,7 @@ class Keap_Reports_Reports {
         
         // Define callback to process each batch
         $database = $this->database; // Capture database instance for closure
-        $process_batch = function($batch) use (&$subscriptions_by_product, &$subscriptions_without_product_id, &$total_processed, &$batch_count, &$first_batch, $product_id_field_names, $debug_enabled, $database) {
+        $process_batch = function($batch) use (&$subscriptions_by_product, &$subscriptions_by_product_details, &$subscriptions_without_product_id, &$total_processed, &$batch_count, &$first_batch, $product_id_field_names, $debug_enabled, $database, $current_year, $current_month, $current_day) {
             // Check if plugin is still active
             if (!function_exists('is_plugin_active')) {
                 require_once(ABSPATH . 'wp-admin/includes/plugin.php');
@@ -369,8 +616,64 @@ class Keap_Reports_Reports {
                     $product_id = strval($found_product_id);
                     if (!isset($subscriptions_by_product[$product_id])) {
                         $subscriptions_by_product[$product_id] = 0;
+                        $subscriptions_by_product_details[$product_id] = array();
                     }
                     $subscriptions_by_product[$product_id]++;
+                    
+                    // Extract contact information
+                    $subscription_id = isset($sub['id']) ? strval($sub['id']) : (isset($sub['Id']) ? strval($sub['Id']) : '');
+                    $contact_id = isset($sub['contact_id']) ? strval($sub['contact_id']) : (isset($sub['contactId']) ? strval($sub['contactId']) : (isset($sub['ContactId']) ? strval($sub['ContactId']) : ''));
+                    
+                    // Try to get contact name and email from subscription data
+                    $contact_name = '';
+                    $contact_email = '';
+                    
+                    // Check various possible field names
+                    $name_fields = array('contact_name', 'contactName', 'ContactName', 'name', 'Name', 'given_name', 'first_name', 'firstName');
+                    $email_fields = array('contact_email', 'contactEmail', 'ContactEmail', 'email', 'Email', 'email_address', 'emailAddress');
+                    
+                    foreach ($name_fields as $field) {
+                        if (isset($sub[$field]) && !empty($sub[$field])) {
+                            $contact_name = $sub[$field];
+                            break;
+                        }
+                    }
+                    
+                    foreach ($email_fields as $field) {
+                        if (isset($sub[$field]) && !empty($sub[$field])) {
+                            $contact_email = $sub[$field];
+                            break;
+                        }
+                    }
+                    
+                    // If contact info not in subscription, check nested contact object
+                    if (empty($contact_name) && isset($sub['contact']) && is_array($sub['contact'])) {
+                        foreach ($name_fields as $field) {
+                            if (isset($sub['contact'][$field]) && !empty($sub['contact'][$field])) {
+                                $contact_name = $sub['contact'][$field];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (empty($contact_email) && isset($sub['contact']) && is_array($sub['contact'])) {
+                        foreach ($email_fields as $field) {
+                            if (isset($sub['contact'][$field]) && !empty($sub['contact'][$field])) {
+                                $contact_email = $sub['contact'][$field];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Store subscription detail
+                    if (!empty($subscription_id) && !empty($contact_id)) {
+                        $subscriptions_by_product_details[$product_id][] = array(
+                            'subscription_id' => $subscription_id,
+                            'contact_id' => $contact_id,
+                            'contact_name' => $contact_name,
+                            'contact_email' => $contact_email
+                        );
+                    }
                 } else {
                     $subscriptions_without_product_id++;
                 }
@@ -408,10 +711,19 @@ class Keap_Reports_Reports {
             ));
         }
         
+        // First, clear existing subscription details for today (to handle re-fetches)
+        global $wpdb;
+        $details_table = $wpdb->prefix . 'keap_reports_daily_subscription_details';
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$details_table} WHERE `year` = %d AND `month` = %d AND `day` = %d",
+            $current_year, $current_month, $current_day
+        ));
+        
         // Save daily snapshot for each product
         $saved_count = 0;
         $error_count = 0;
         $save_errors = array();
+        $details_saved = 0;
         
         foreach ($subscriptions_by_product as $product_id => $active_count) {
             $saved = $this->database->save_daily_subscription(
@@ -424,9 +736,28 @@ class Keap_Reports_Reports {
             
             if ($saved) {
                 $saved_count++;
+                
+                // Save individual subscription records for this product
+                if (isset($subscriptions_by_product_details[$product_id])) {
+                    foreach ($subscriptions_by_product_details[$product_id] as $detail) {
+                        $detail_saved = $this->database->save_subscription_detail(
+                            $detail['subscription_id'],
+                            $detail['contact_id'],
+                            $detail['contact_name'],
+                            $detail['contact_email'],
+                            $product_id,
+                            $current_year,
+                            $current_month,
+                            $current_day,
+                            'active'
+                        );
+                        if ($detail_saved) {
+                            $details_saved++;
+                        }
+                    }
+                }
             } else {
                 $error_count++;
-                global $wpdb;
                 $db_error = $wpdb->last_error ? $wpdb->last_error : 'Unknown database error';
                 $save_errors[] = "Product {$product_id}: {$db_error}";
                 if ($debug_enabled) {
@@ -453,12 +784,13 @@ class Keap_Reports_Reports {
         }
         
         $message = sprintf(
-            'Daily subscription snapshot saved. %d products processed (%d saved, %d errors). Total active subscriptions: %d (processed in %d batches)',
+            'Daily subscription snapshot saved. %d products processed (%d saved, %d errors). Total active subscriptions: %d (processed in %d batches). Individual records saved: %d',
             count($subscriptions_by_product),
             $saved_count,
             $error_count,
             array_sum($subscriptions_by_product),
-            $batch_count
+            $batch_count,
+            $details_saved
         );
         
         if ($error_count > 0 && !empty($save_errors)) {
@@ -486,165 +818,268 @@ class Keap_Reports_Reports {
     }
     
     /**
-     * Scan for contacts with expired memberships but active access tags
+     * Fetch and save a paid starter report (snapshot)
      * 
-     * @return array Array with 'success', 'message', and 'mismatches' keys
+     * For paid starter reports, we store the total count as a snapshot for the current month.
+     * This allows tracking growth over time even though the source is a running total.
+     * 
+     * @param int $report_id Report ID from database
+     * @param array $report Report details
+     * @param array $data Raw data from API
+     * @return array Array with 'success' and 'message' keys
      */
-    public function scan_tag_mismatches() {
-        $debug_enabled = get_option('keap_reports_debug_enabled', false);
-        if ($debug_enabled) {
-            $this->database->add_log('Starting tag mismatch scan', 'info');
-        }
+    private function fetch_paid_starter_report($report_id, $report, $data) {
+        $current_year = intval(date('Y'));
+        $current_month = intval(date('n'));
         
-        // Get all access tag IDs
-        $access_tag_ids = $this->api->get_all_access_tag_ids();
+        // For running total, we expect a count or total value
+        // The data might be:
+        // 1. A single number (count)
+        // 2. An array with a count field
+        // 3. An array of records where we count them
         
-        if (empty($access_tag_ids)) {
-            return array(
-                'success' => false,
-                'message' => 'No access tags found in Academy Manager settings. Please configure tags first.',
-                'mismatches' => array()
-            );
-        }
+        $total_count = 0;
         
-        if ($debug_enabled) {
-            $this->database->add_log('Found ' . count($access_tag_ids) . ' access tag IDs: ' . implode(', ', $access_tag_ids), 'info');
-        }
-        
-        $mismatches = array();
-        $contacts_checked = 0;
-        
-        // Capture class instances for closure
-        $api = $this->api;
-        $database = $this->database;
-        
-        // Define callback to process each contact with access tags
-        $process_contact = function($contact, $contact_tags) use (&$mismatches, &$contacts_checked, $access_tag_ids, $debug_enabled, $api, $database) {
-            $contacts_checked++;
-            $contact_id = isset($contact['id']) ? intval($contact['id']) : 0;
-            
-            if ($contact_id == 0) {
-                return;
-            }
-            
-            // Get subscriptions for this contact
-            $subscriptions = $api->get_contact_subscriptions($contact_id);
-            
-            if (is_wp_error($subscriptions)) {
-                if ($debug_enabled) {
-                    $database->add_log("Failed to get subscriptions for contact {$contact_id}: " . $subscriptions->get_error_message(), 'warning');
-                }
-                // Still add to list for manual review if we can't determine status
-                $mismatches[] = array(
-                    'contact_id' => $contact_id,
-                    'name' => (isset($contact['given_name']) ? $contact['given_name'] : '') . ' ' . (isset($contact['family_name']) ? $contact['family_name'] : ''),
-                    'email' => isset($contact['email_addresses'][0]['email']) ? $contact['email_addresses'][0]['email'] : (isset($contact['email']) ? $contact['email'] : ''),
-                    'access_tags' => $contact_tags,
-                    'subscription_status' => 'unknown',
-                    'has_active' => false,
-                    'has_expired' => false,
-                    'subscription_count' => 0,
-                    'error' => $subscriptions->get_error_message()
-                );
-                return;
-            }
-            
-            // Check subscription statuses
-            $has_active = false;
-            $has_expired = false;
-            $active_count = 0;
-            $expired_count = 0;
-            $subscription_details = array();
-            
-            foreach ($subscriptions as $sub) {
-                $is_active = $api->is_subscription_active($sub);
-                
-                if ($is_active) {
-                    $has_active = true;
-                    $active_count++;
+        if (is_numeric($data)) {
+            // Data is a direct number
+            $total_count = intval($data);
+        } elseif (is_array($data)) {
+            if (count($data) > 0) {
+                // Check if first item has a count field
+                if (isset($data[0]['Count']) || isset($data[0]['count']) || isset($data[0]['Total']) || isset($data[0]['total'])) {
+                    // Sum up all counts
+                    foreach ($data as $item) {
+                        if (isset($item['Count'])) {
+                            $total_count += intval($item['Count']);
+                        } elseif (isset($item['count'])) {
+                            $total_count += intval($item['count']);
+                        } elseif (isset($item['Total'])) {
+                            $total_count += intval($item['Total']);
+                        } elseif (isset($item['total'])) {
+                            $total_count += intval($item['total']);
+                        }
+                    }
                 } else {
-                    $has_expired = true;
-                    $expired_count++;
+                    // Just count the number of records
+                    $total_count = count($data);
                 }
-                
-                $subscription_details[] = array(
-                    'product_id' => isset($sub['product_id']) ? $sub['product_id'] : (isset($sub['productId']) ? $sub['productId'] : 'N/A'),
-                    'status' => isset($sub['status']) ? $sub['status'] : (isset($sub['subscription_status']) ? $sub['subscription_status'] : 'unknown'),
-                    'is_active' => $is_active,
-                    'end_date' => isset($sub['end_date']) ? $sub['end_date'] : null
-                );
             }
-            
-            // Determine if this is a mismatch
-            // Mismatch = has access tag but NO active subscriptions (only expired or none)
-            $is_mismatch = false;
-            $status_text = '';
-            
-            if (empty($subscriptions)) {
-                // No subscriptions at all but has access tag
-                $is_mismatch = true;
-                $status_text = 'No subscriptions found';
-            } elseif ($has_active) {
-                // Has active subscription - this is OK (even if they also have expired ones)
-                $is_mismatch = false;
-                $status_text = 'Has active subscription(s)';
-            } elseif ($has_expired) {
-                // Only expired subscriptions - this is a mismatch
-                $is_mismatch = true;
-                $status_text = 'All subscriptions expired';
-            }
-            
-            // Add to list if mismatch OR if they have both active and expired (for manual review)
-            if ($is_mismatch || ($has_active && $has_expired)) {
-                $mismatches[] = array(
-                    'contact_id' => $contact_id,
-                    'name' => trim((isset($contact['given_name']) ? $contact['given_name'] : '') . ' ' . (isset($contact['family_name']) ? $contact['family_name'] : '')),
-                    'email' => isset($contact['email_addresses'][0]['email']) ? $contact['email_addresses'][0]['email'] : (isset($contact['email']) ? $contact['email'] : ''),
-                    'access_tags' => $contact_tags,
-                    'subscription_status' => $status_text,
-                    'has_active' => $has_active,
-                    'has_expired' => $has_expired,
-                    'active_count' => $active_count,
-                    'expired_count' => $expired_count,
-                    'subscription_count' => count($subscriptions),
-                    'subscription_details' => $subscription_details
-                );
-            }
-            
-            // Log progress every 50 contacts
-            if ($debug_enabled && $contacts_checked % 50 == 0) {
-                $database->add_log("Checked {$contacts_checked} contacts, found " . count($mismatches) . " mismatches so far", 'info');
-            }
-        };
+        }
         
-        // Fetch contacts with tags in batches
-        $result = $this->api->get_contacts_with_tags_in_batches($access_tag_ids, $process_contact, 100);
+        // Log the snapshot
+        $this->database->add_log('Running total snapshot for report "' . $report['name'] . '": ' . $total_count, 'info', array(
+            'report_id' => $report['report_id'],
+            'report_name' => $report['name'],
+            'snapshot_value' => $total_count,
+            'snapshot_month' => $current_month,
+            'snapshot_year' => $current_year,
+            'data_type' => gettype($data),
+            'data_count' => is_array($data) ? count($data) : 'N/A'
+        ));
         
-        if (is_wp_error($result)) {
+        // Save as snapshot for current month using dedicated starter signups table
+        $saved = $this->database->save_starter_signups('paid_starter', $current_year, $current_month, $total_count);
+        
+        if ($saved) {
+            return array(
+                'success' => true,
+                'message' => sprintf('Paid starter snapshot saved: %d paid starter students (as of %s %d)', $total_count, date('F', mktime(0, 0, 0, $current_month, 1)), $current_year)
+            );
+        } else {
             return array(
                 'success' => false,
-                'message' => 'Error scanning contacts: ' . $result->get_error_message(),
-                'mismatches' => array()
+                'message' => 'Failed to save paid starter snapshot to database'
+            );
+        }
+    }
+    
+    /**
+     * Fetch and process intensives report data
+     * Processes OrderDate and OrderTotal fields, aggregates by month
+     * 
+     * @param int $report_id Report ID from database
+     * @param array $report Report details
+     * @param array $data Raw data from API
+     * @return array Array with 'success' and 'message' keys
+     */
+    private function fetch_intensives_report($report_id, $report, $data) {
+        if (empty($data) || !is_array($data) || count($data) === 0) {
+            $this->database->add_log(
+                'Warning: Intensives report "' . $report['name'] . '" (ID: ' . $report['report_id'] . ') returned no results.',
+                'warning',
+                array(
+                    'report_id' => $report['report_id'],
+                    'report_name' => $report['name'],
+                    'data_type' => gettype($data),
+                    'data_count' => is_array($data) ? count($data) : 0
+                )
+            );
+            
+            // Save empty data
+            $current_year = intval(date('Y'));
+            $current_month = intval(date('n'));
+            
+            $metadata = array(
+                'fetched_at' => current_time('mysql'),
+                'report_id' => $report['report_id'],
+                'report_type' => 'intensives',
+                'data_count' => 0,
+                'note' => 'No results returned from saved search'
+            );
+            
+            $this->database->save_report_data(
+                $report_id,
+                $current_year,
+                $current_month,
+                0,
+                $metadata,
+                0,
+                0.00
+            );
+            
+            return array(
+                'success' => true,
+                'message' => 'Intensives report fetched but returned no results.',
+                'value' => 0,
+                'num_orders' => 0,
+                'total_amt_sold' => 0.00
             );
         }
         
-        $message = sprintf(
-            'Scan complete. Checked %d contacts with access tags. Found %d potential mismatches.',
-            $contacts_checked,
-            count($mismatches)
-        );
+        // Aggregate data by Year and Month from OrderDate
+        // OrderDate format: 20260106T18:04:22 (YYYYMMDDTHH:MM:SS)
+        $monthly_data = array(); // year => month => array('num_orders' => X, 'total_amt_sold' => Y)
         
-        if ($debug_enabled) {
-            $this->database->add_log('Tag mismatch scan completed: ' . $message, 'info');
+        $records_processed = 0;
+        $records_skipped = 0;
+        
+        foreach ($data as $record_index => $record) {
+            if (!is_array($record)) {
+                $records_skipped++;
+                continue;
+            }
+            
+            // Check if OrderTotal > 0 (only count actual orders)
+            $order_total = isset($record['OrderTotal']) ? floatval($record['OrderTotal']) : 0;
+            if ($order_total <= 0) {
+                $records_skipped++;
+                continue;
+            }
+            
+            $records_processed++;
+            
+            // Parse OrderDate to extract year and month
+            $year = null;
+            $month = null;
+            
+            if (isset($record['OrderDate'])) {
+                $order_date = $record['OrderDate'];
+                // Format: 20260106T18:04:22
+                // Extract YYYYMMDD part (first 8 characters)
+                if (strlen($order_date) >= 8) {
+                    $date_part = substr($order_date, 0, 8);
+                    $year = intval(substr($date_part, 0, 4));
+                    $month = intval(substr($date_part, 4, 2));
+                }
+            }
+            
+            // Skip if we don't have valid year/month
+            if (!$year || !$month || $month < 1 || $month > 12) {
+                $records_skipped++;
+                if ($record_index === 0) {
+                    $this->database->add_log("First intensives record skipped - invalid OrderDate", 'warning', array(
+                        'year' => $year,
+                        'month' => $month,
+                        'OrderDate' => isset($record['OrderDate']) ? $record['OrderDate'] : 'not_set',
+                        'record' => $record
+                    ));
+                }
+                continue;
+            }
+            
+            // Initialize if not exists
+            if (!isset($monthly_data[$year])) {
+                $monthly_data[$year] = array();
+            }
+            if (!isset($monthly_data[$year][$month])) {
+                $monthly_data[$year][$month] = array(
+                    'num_orders' => 0,
+                    'total_amt_sold' => 0.00
+                );
+            }
+            
+            // Count order and sum OrderTotal
+            $monthly_data[$year][$month]['num_orders'] += 1;
+            $monthly_data[$year][$month]['total_amt_sold'] += $order_total;
         }
         
-        return array(
-            'success' => true,
-            'message' => $message,
-            'mismatches' => $mismatches,
-            'contacts_checked' => $contacts_checked,
-            'total_mismatches' => count($mismatches)
+        // Log aggregation results
+        $this->database->add_log('Intensives aggregation complete', 'info', array(
+            'report_id' => $report['report_id'],
+            'records_processed' => $records_processed,
+            'records_skipped' => $records_skipped,
+            'monthly_data' => $monthly_data
+        ));
+        
+        // Save each month's data
+        $saved_count = 0;
+        $total_orders = 0;
+        $total_amt = 0.00;
+        $save_errors = array();
+        
+        $metadata = array(
+            'fetched_at' => current_time('mysql'),
+            'report_id' => $report['report_id'],
+            'report_type' => 'intensives',
+            'data_count' => count($data),
+            'records_processed' => $records_processed
         );
+        
+        foreach ($monthly_data as $year => $months) {
+            foreach ($months as $month => $month_data) {
+                $month_metadata = $metadata;
+                $month_metadata['year'] = $year;
+                $month_metadata['month'] = $month;
+                
+                $saved = $this->database->save_report_data(
+                    $report_id,
+                    $year,
+                    $month,
+                    $month_data['total_amt_sold'], // Use total_amt_sold as the value
+                    $month_metadata,
+                    $month_data['num_orders'],
+                    $month_data['total_amt_sold']
+                );
+                
+                if ($saved) {
+                    $saved_count++;
+                    $total_orders += $month_data['num_orders'];
+                    $total_amt += $month_data['total_amt_sold'];
+                } else {
+                    $save_errors[] = "Failed to save data for {$year}-{$month}";
+                }
+            }
+        }
+        
+        if ($saved_count > 0) {
+            return array(
+                'success' => true,
+                'message' => sprintf(
+                    'Intensives report saved: %d months processed, %d orders, $%s total revenue',
+                    $saved_count,
+                    $total_orders,
+                    number_format($total_amt, 2)
+                ),
+                'value' => $total_amt,
+                'num_orders' => $total_orders,
+                'total_amt_sold' => $total_amt
+            );
+        } else {
+            return array(
+                'success' => false,
+                'message' => 'Failed to save intensives report data. Errors: ' . implode(', ', $save_errors)
+            );
+        }
     }
 }
 

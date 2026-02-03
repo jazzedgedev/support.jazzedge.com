@@ -2901,6 +2901,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var endpoint2 = compact.getAttribute('data-endpoint');
     var viewAllUrl = compact.getAttribute('data-view-all') || '';
     var maxItems = parseInt(compact.getAttribute('data-max-items') || '10', 10);
+    var searchSource = compact.getAttribute('data-source') || 'shortcode'; // 'dashboard' or 'shortcode'
     compact.style.position = 'relative';
     var input2 = compact.querySelector('input[type="search"]');
     if (!input2) {
@@ -2926,6 +2927,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var state2 = { q: '', page: 1, per_page: maxItems };
     var aborter;
+    var searchLogTimeout = null; // For debouncing search logging
     function fmtDur2(sec){
       sec = parseInt(sec||0,10); if (!sec || sec<0) return '';
       var h = Math.floor(sec/3600); var m = Math.floor((sec%3600)/60);
@@ -2994,6 +2996,7 @@ document.addEventListener('DOMContentLoaded', function() {
       aborter = new AbortController();
       var url = new URL(endpoint2, window.location.origin);
       Object.keys(state2).forEach(function(k){ if (state2[k] !== null && state2[k] !== undefined && state2[k] !== '') url.searchParams.set(k, state2[k]); });
+      url.searchParams.set('search_source', searchSource); // Add source for logging
       panel.innerHTML = '<div style="padding:10px;color:#475467;display:flex;align-items:center;gap:8px;">\
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#475467" stroke-width="2">\
           <circle cx="12" cy="12" r="10" opacity="0.25"/>\
@@ -3001,16 +3004,242 @@ document.addEventListener('DOMContentLoaded', function() {
         </svg> Searching…</div>';
       panel.style.display='flex';
       panel.style.flexDirection = 'column';
-      fetch(url.toString(), { signal: aborter.signal }).then(function(r){ return r.json(); }).then(renderCompact).catch(function(e){ if (e.name !== 'AbortError'){ console.error('ALM Search fetch error:', e); panel.innerHTML = '<div style="padding:10px;color:#666;">Error loading results.</div>'; panel.style.display='block'; }});
+      // Get REST API nonce for authentication (WPEngine strips cookies)
+      fetch(url.toString(), { 
+        signal: aborter.signal,
+        credentials: 'same-origin',
+        headers: {
+          'X-WP-Nonce': '{$rest_nonce_js}'
+        }
+      })
+        .then(function(r){
+          if (!r.ok) {
+            throw new Error('HTTP error! status: ' + r.status);
+          }
+          return r.json();
+        })
+        .then(function(data){
+          // Handle WordPress REST API error responses
+          if (data && data.code && data.message) {
+            console.error('ALM Search API error:', data.message);
+            panel.innerHTML = '<div style="padding:10px;color:#666;">Error: ' + (data.message || 'Unknown error') + '</div>';
+            panel.style.display='block';
+            return;
+          }
+          renderCompact(data);
+        })
+        .catch(function(e){
+          if (e.name !== 'AbortError'){
+            console.error('ALM Search fetch error:', e);
+            panel.innerHTML = '<div style="padding:10px;color:#666;">Error loading results. Please try again.</div>';
+            panel.style.display='block';
+          }
+        });
     }
 
     input2.addEventListener('input', function(){
       var val = input2.value.trim();
-      if (val === '') { panel.style.display='none'; return; }
-      state2.q = val; state2.page = 1; fetchCompact();
+      if (val === '') { 
+        panel.style.display='none'; 
+        if (searchLogTimeout) {
+          clearTimeout(searchLogTimeout);
+        }
+        return; 
+      }
+      state2.q = val; 
+      state2.page = 1;
+      
+      // Debounce: Only make the actual search request after user stops typing for 500ms
+      // This prevents logging every keystroke
+      if (searchLogTimeout) {
+        clearTimeout(searchLogTimeout);
+      }
+      searchLogTimeout = setTimeout(function() {
+        // Only search if query is at least 2 characters
+        if (val.length >= 2) {
+          fetchCompact();
+        }
+      }, 500); // Wait 500ms after user stops typing before searching
     });
-    input2.addEventListener('focus', function(){ if (input2.value.trim() !== '') { fetchCompact(); }});
+    input2.addEventListener('focus', function(){
+      var val = input2.value.trim();
+      if (val !== '') {
+        fetchCompact();
+      }
+    });
     document.addEventListener('click', function(ev){ if (!compact.contains(ev.target)) { panel.style.display='none'; }});
+  } else {
+    // Element not found on initial load - try again after a short delay
+    // This handles cases where the shortcode renders after DOMContentLoaded
+    setTimeout(function() {
+      var compactDelayed = document.querySelector('#alm-lesson-search-compact');
+      if (compactDelayed && !compactDelayed.hasAttribute('data-initialized')) {
+        compactDelayed.setAttribute('data-initialized', 'true');
+        // Re-run the initialization logic
+        var endpoint2Delayed = compactDelayed.getAttribute('data-endpoint');
+        var viewAllUrlDelayed = compactDelayed.getAttribute('data-view-all') || '';
+        var maxItemsDelayed = parseInt(compactDelayed.getAttribute('data-max-items') || '10', 10);
+        var searchSourceDelayed = compactDelayed.getAttribute('data-source') || 'shortcode';
+        compactDelayed.style.position = 'relative';
+        var input2Delayed = compactDelayed.querySelector('input[type="search"]');
+        if (input2Delayed) {
+          var panelDelayed = document.createElement('div');
+          panelDelayed.style.position = 'absolute';
+          panelDelayed.style.top = '100%';
+          panelDelayed.style.left = '0';
+          panelDelayed.style.right = '0';
+          panelDelayed.style.background = '#fff';
+          panelDelayed.style.border = '1px solid #ddd';
+          panelDelayed.style.borderTop = '0';
+          panelDelayed.style.zIndex = '1000';
+          panelDelayed.style.borderRadius = '0 0 8px 8px';
+          panelDelayed.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)';
+          panelDelayed.style.maxHeight = '70vh';
+          panelDelayed.style.display = 'none';
+          panelDelayed.style.flexDirection = 'column';
+          panelDelayed.style.overflow = 'hidden';
+          compactDelayed.appendChild(panelDelayed);
+          
+          var state2Delayed = { q: '', page: 1, per_page: maxItemsDelayed };
+          var aborterDelayed;
+          var searchLogTimeoutDelayed = null; // For debouncing search logging
+          function fmtDur2Delayed(sec){
+            sec = parseInt(sec||0,10); if (!sec || sec<0) return '';
+            var h = Math.floor(sec/3600); var m = Math.floor((sec%3600)/60);
+            if (h>0 && m>0) return h+'h '+m+'m';
+            if (h>0) return h+'h';
+            if (m>0) return m+'m';
+            return '0m';
+          }
+          
+          function renderCompactDelayed(data){
+            panelDelayed.innerHTML = '';
+            panelDelayed.style.display = 'flex';
+            var items = data.items || [];
+            if (items.length === 0) { panelDelayed.innerHTML = '<div style="padding:10px;color:#666;">No results.</div>'; panelDelayed.style.display='block'; return; }
+            if (viewAllUrlDelayed){
+              var header = document.createElement('div');
+              header.style.textAlign='right';
+              header.style.padding='12px 16px';
+              header.style.background='#fff';
+              header.style.borderBottom='1px solid #eee';
+              header.style.flexShrink='0';
+              header.style.position='relative';
+              header.style.zIndex='10';
+              var all = document.createElement('a');
+              all.href = viewAllUrlDelayed + (state2Delayed.q ? ('?q='+encodeURIComponent(state2Delayed.q)) : '');
+              all.textContent='View all results';
+              all.style.color='#ffffff';
+              all.style.textDecoration='none';
+              all.style.fontWeight='400';
+              all.style.fontSize='13px';
+              all.style.display='inline-block';
+              all.style.padding='6px 12px';
+              all.style.background='#2271b1';
+              all.style.borderRadius='6px';
+              header.appendChild(all);
+              panelDelayed.appendChild(header);
+            }
+            var ul = document.createElement('div');
+            ul.style.overflowY = 'auto';
+            ul.style.flex = '1 1 auto';
+            ul.style.minHeight = '0';
+            ul.style.maxWidth = '100%';
+            items.forEach(function(it){
+              var row = document.createElement('a');
+              row.href = it.permalink || '#';
+              row.style.display = 'block';
+              row.style.padding = '10px 12px';
+              row.style.borderBottom = '1px solid #eee';
+              var dStr = fmtDur2Delayed(it.duration);
+              row.innerHTML = '<div style="font-weight:600">'+ (it.title || '') +'</div>' +
+                              '<div style="font-size:12px;color:#666">'+ (it.date || '') + (dStr ? ' • '+dStr : '') +'</div>';
+              ul.appendChild(row);
+            });
+            panelDelayed.appendChild(ul);
+          }
+          
+          function fetchCompactDelayed(){
+            if (!endpoint2Delayed) {
+              console.error('ALM Search: endpoint2 is not set');
+              return;
+            }
+            if (aborterDelayed) { aborterDelayed.abort(); }
+            aborterDelayed = new AbortController();
+            var url = new URL(endpoint2Delayed, window.location.origin);
+            Object.keys(state2Delayed).forEach(function(k){ if (state2Delayed[k] !== null && state2Delayed[k] !== undefined && state2Delayed[k] !== '') url.searchParams.set(k, state2Delayed[k]); });
+            url.searchParams.set('search_source', searchSourceDelayed); // Add source for logging
+            panelDelayed.innerHTML = '<div style="padding:10px;color:#475467;display:flex;align-items:center;gap:8px;">\
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#475467" stroke-width="2">\
+                <circle cx="12" cy="12" r="10" opacity="0.25"/>\
+                <path d="M22 12a10 10 0 0 1-10 10"/>\
+              </svg> Searching…</div>';
+            panelDelayed.style.display='flex';
+            panelDelayed.style.flexDirection = 'column';
+            // Get REST API nonce for authentication (WPEngine strips cookies)
+            fetch(url.toString(), { 
+              signal: aborterDelayed.signal,
+              credentials: 'same-origin',
+              headers: {
+                'X-WP-Nonce': '{$rest_nonce_js}'
+              }
+            })
+              .then(function(r){
+                if (!r.ok) {
+                  throw new Error('HTTP error! status: ' + r.status);
+                }
+                return r.json();
+              })
+              .then(function(data){
+                if (data && data.code && data.message) {
+                  console.error('ALM Search API error:', data.message);
+                  panelDelayed.innerHTML = '<div style="padding:10px;color:#666;">Error: ' + (data.message || 'Unknown error') + '</div>';
+                  panelDelayed.style.display='block';
+                  return;
+                }
+                renderCompactDelayed(data);
+              })
+              .catch(function(e){
+                if (e.name !== 'AbortError'){
+                  console.error('ALM Search fetch error:', e);
+                  panelDelayed.innerHTML = '<div style="padding:10px;color:#666;">Error loading results. Please try again.</div>';
+                  panelDelayed.style.display='block';
+                }
+              });
+          }
+          
+          input2Delayed.addEventListener('input', function(){
+            var val = input2Delayed.value.trim();
+            if (val === '') { 
+              panelDelayed.style.display='none'; 
+              if (searchLogTimeoutDelayed) {
+                clearTimeout(searchLogTimeoutDelayed);
+              }
+              return; 
+            }
+            state2Delayed.q = val; 
+            state2Delayed.page = 1;
+            
+            // Debounce: Only make the actual search request after user stops typing for 500ms
+            if (searchLogTimeoutDelayed) {
+              clearTimeout(searchLogTimeoutDelayed);
+            }
+            searchLogTimeoutDelayed = setTimeout(function() {
+              if (val.length >= 2) {
+                fetchCompactDelayed();
+              }
+            }, 500);
+          });
+          input2Delayed.addEventListener('focus', function(){
+            var val = input2Delayed.value.trim();
+            if (val !== '') {
+              fetchCompactDelayed();
+            }
+          });
+          document.addEventListener('click', function(ev){ if (!compactDelayed.contains(ev.target)) { panelDelayed.style.display='none'; }});
+        }
+      }
+    }, 500);
   }
 });
 JS;
@@ -3048,10 +3277,17 @@ JS;
             'view_all_url' => '',
             'placeholder' => 'Search lessons…',
             'max_items' => 10,
+            'source' => 'shortcode', // Default to 'shortcode', can be overridden to 'dashboard'
         ), $atts, 'alm_lesson_search_compact');
         $endpoint = rest_url('alm/v1/search-lessons');
         ob_start();
-        echo '<div id="alm-lesson-search-compact" data-endpoint="' . esc_attr($endpoint) . '" data-view-all="' . esc_attr($atts['view_all_url']) . '" data-max-items="' . intval($atts['max_items']) . '">';
+        // Determine source: check if source is explicitly set, otherwise default to 'shortcode'
+        // Dashboard usage should explicitly set source='dashboard' in the shortcode
+        $source = $atts['source'];
+        if (!in_array($source, array('dashboard', 'shortcode'), true)) {
+            $source = 'shortcode';
+        }
+        echo '<div id="alm-lesson-search-compact" data-endpoint="' . esc_attr($endpoint) . '" data-view-all="' . esc_attr($atts['view_all_url']) . '" data-max-items="' . intval($atts['max_items']) . '" data-source="' . esc_attr($source) . '">';
         echo '<input type="search" placeholder="' . esc_attr($atts['placeholder']) . '" style="width:100%;max-width:480px;padding:10px;border:1px solid #ccc;border-radius:8px;" />';
         echo '</div>';
         return ob_get_clean();

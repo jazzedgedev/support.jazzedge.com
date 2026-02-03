@@ -114,6 +114,100 @@ class ALM_Admin_Essentials_Users {
             }
             exit;
         }
+
+        // Set available count directly
+        if (isset($_POST['alm_set_available_count']) && isset($_POST['user_id'])) {
+            if (!wp_verify_nonce($_POST['alm_set_count_nonce'], 'alm_set_available_count')) {
+                wp_die('Security check failed. Please try again.');
+            }
+
+            $user_id = intval($_POST['user_id']);
+            $new_count = max(0, intval($_POST['available_count']));
+
+            $updated = $this->wpdb->update(
+                $this->selections_table,
+                array('available_count' => $new_count),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+
+            $message = ($updated !== false) ? 'count_updated' : 'error';
+            $error_msg = ($updated !== false) ? '' : 'Failed to update available count. Please check database.';
+
+            wp_redirect(add_query_arg(array(
+                'page' => 'academy-manager-essentials-users',
+                'view_user' => $user_id,
+                'message' => $message,
+                'error_msg' => $error_msg
+            ), admin_url('admin.php')));
+            exit;
+        }
+
+        // Adjust available count by amount (+/-)
+        if (isset($_POST['alm_adjust_available_count']) && isset($_POST['user_id'])) {
+            if (!wp_verify_nonce($_POST['alm_adjust_count_nonce'], 'alm_adjust_available_count')) {
+                wp_die('Security check failed. Please try again.');
+            }
+
+            $user_id = intval($_POST['user_id']);
+            $adjust_amount = intval($_POST['adjust_amount']);
+
+            $current = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT available_count FROM {$this->selections_table} WHERE user_id = %d",
+                $user_id
+            ));
+            $current = is_numeric($current) ? intval($current) : 0;
+            $new_count = max(0, $current + $adjust_amount);
+
+            $updated = $this->wpdb->update(
+                $this->selections_table,
+                array('available_count' => $new_count),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+
+            $message = ($updated !== false) ? 'count_adjusted' : 'error';
+            $error_msg = ($updated !== false) ? '' : 'Failed to adjust available count. Please check database.';
+
+            wp_redirect(add_query_arg(array(
+                'page' => 'academy-manager-essentials-users',
+                'view_user' => $user_id,
+                'message' => $message,
+                'error_msg' => $error_msg
+            ), admin_url('admin.php')));
+            exit;
+        }
+
+        // Pause or resume monthly grants
+        if (isset($_POST['alm_toggle_grant_pause']) && isset($_POST['user_id'])) {
+            if (!wp_verify_nonce($_POST['alm_pause_grants_nonce'], 'alm_toggle_grant_pause')) {
+                wp_die('Security check failed. Please try again.');
+            }
+
+            $user_id = intval($_POST['user_id']);
+            $pause = isset($_POST['pause_grants']) ? 1 : 0;
+
+            $updated = $this->wpdb->update(
+                $this->selections_table,
+                array('grants_paused' => $pause),
+                array('user_id' => $user_id),
+                array('%d'),
+                array('%d')
+            );
+
+            $message = ($updated !== false) ? 'grants_updated' : 'error';
+            $error_msg = ($updated !== false) ? '' : 'Failed to update grant pause status. Please check database.';
+
+            wp_redirect(add_query_arg(array(
+                'page' => 'academy-manager-essentials-users',
+                'view_user' => $user_id,
+                'message' => $message,
+                'error_msg' => $error_msg
+            ), admin_url('admin.php')));
+            exit;
+        }
     }
     
     /**
@@ -309,6 +403,24 @@ class ALM_Admin_Essentials_Users {
                 <p><?php echo esc_html__('Lesson has been removed from user\'s library.', 'academy-lesson-manager'); ?></p>
             </div>
             <?php endif; ?>
+
+            <?php if ($message === 'count_updated'): ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?php echo esc_html__('Available count has been updated.', 'academy-lesson-manager'); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($message === 'count_adjusted'): ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?php echo esc_html__('Available count has been adjusted.', 'academy-lesson-manager'); ?></p>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($message === 'grants_updated'): ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?php echo esc_html__('Monthly grants status has been updated.', 'academy-lesson-manager'); ?></p>
+            </div>
+            <?php endif; ?>
             
             <?php if ($message === 'error' && isset($_GET['error_msg'])): ?>
             <div class="notice notice-error is-dismissible">
@@ -420,11 +532,21 @@ class ALM_Admin_Essentials_Users {
                         </tr>
                         <tr>
                             <td><strong>Next Grant Date</strong></td>
-                            <td><?php echo esc_html($view_user_data->next_grant_date ? date('F j, Y', strtotime($view_user_data->next_grant_date)) : 'N/A'); ?></td>
+                            <td>
+                                <?php if (!empty($view_user_data->grants_paused)) : ?>
+                                    <?php echo esc_html__('Paused', 'academy-lesson-manager'); ?>
+                                <?php else : ?>
+                                    <?php echo esc_html($view_user_data->next_grant_date ? date('F j, Y', strtotime($view_user_data->next_grant_date)) : 'N/A'); ?>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <tr>
                             <td><strong>Available Count</strong></td>
                             <td><strong style="color: #F04E23; font-size: 1.2em;"><?php echo esc_html($view_user_data->available_count); ?></strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Monthly Grants Paused</strong></td>
+                            <td><?php echo !empty($view_user_data->grants_paused) ? 'Yes' : 'No'; ?></td>
                         </tr>
                         <tr>
                             <td><strong>Record ID</strong></td>
@@ -483,6 +605,73 @@ class ALM_Admin_Essentials_Users {
                     })();
                     </script>
                 </div>
+
+                <div style="background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; max-width: 600px; margin-top: 20px;">
+                    <h4 style="margin-top: 0;">Set Available Selections</h4>
+                    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                        <strong>What this does:</strong> Sets the user's available selection count to an exact number.
+                    </p>
+                    <form method="post" action="">
+                        <?php wp_nonce_field('alm_set_available_count', 'alm_set_count_nonce'); ?>
+                        <input type="hidden" name="user_id" value="<?php echo esc_attr($view_user_id); ?>">
+                        <input type="hidden" name="alm_set_available_count" value="1">
+                        <p style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                                Available count:
+                            </label>
+                            <input type="number" name="available_count" value="<?php echo esc_attr($view_user_data ? $view_user_data->available_count : 0); ?>" min="0" step="1" style="width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                        </p>
+                        <p>
+                            <button type="submit" class="button button-secondary">
+                                Update Count
+                            </button>
+                        </p>
+                    </form>
+                </div>
+
+                <div style="background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; max-width: 600px; margin-top: 20px;">
+                    <h4 style="margin-top: 0;">Adjust Available Selections</h4>
+                    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                        <strong>What this does:</strong> Adjusts the current available count by a positive or negative amount (e.g. -1 to remove one).
+                    </p>
+                    <form method="post" action="">
+                        <?php wp_nonce_field('alm_adjust_available_count', 'alm_adjust_count_nonce'); ?>
+                        <input type="hidden" name="user_id" value="<?php echo esc_attr($view_user_id); ?>">
+                        <input type="hidden" name="alm_adjust_available_count" value="1">
+                        <p style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                                Adjust by:
+                            </label>
+                            <input type="number" name="adjust_amount" value="-1" step="1" style="width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                        </p>
+                        <p>
+                            <button type="submit" class="button button-secondary">
+                                Apply Adjustment
+                            </button>
+                        </p>
+                    </form>
+                </div>
+
+                <div style="background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 4px; max-width: 600px; margin-top: 20px;">
+                    <h4 style="margin-top: 0;">Pause Monthly Grants</h4>
+                    <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                        <strong>What this does:</strong> Stops the automatic monthly selection grants for this user until resumed.
+                    </p>
+                    <form method="post" action="">
+                        <?php wp_nonce_field('alm_toggle_grant_pause', 'alm_pause_grants_nonce'); ?>
+                        <input type="hidden" name="user_id" value="<?php echo esc_attr($view_user_id); ?>">
+                        <input type="hidden" name="alm_toggle_grant_pause" value="1">
+                        <label style="display: inline-flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" name="pause_grants" value="1" <?php checked(!empty($view_user_data->grants_paused)); ?>>
+                            Pause monthly grants for this user
+                        </label>
+                        <p style="margin-top: 15px;">
+                            <button type="submit" class="button button-secondary">
+                                Update Grant Status
+                            </button>
+                        </p>
+                    </form>
+                </div>
                 
                 <?php endif; ?>
                 
@@ -539,6 +728,11 @@ class ALM_Admin_Essentials_Users {
             <?php else: ?>
             
             <p><?php echo esc_html__('View and manage Essentials members and their lesson library selections.', 'academy-lesson-manager'); ?></p>
+            <div class="notice notice-info">
+                <p>
+                    <?php echo esc_html__('Note: Users appear here only after they visit the Essentials Library page at least once while logged in. This initializes their Essentials record.', 'academy-lesson-manager'); ?>
+                </p>
+            </div>
             
             <?php if (empty($users)): ?>
             <div class="notice notice-info">
@@ -569,7 +763,13 @@ class ALM_Admin_Essentials_Users {
                         <td>
                             <strong style="color: #F04E23; font-size: 1.2em;"><?php echo esc_html($user->available_count); ?></strong>
                         </td>
-                        <td><?php echo esc_html($user->next_grant_date ? date('M j, Y', strtotime($user->next_grant_date)) : 'N/A'); ?></td>
+                        <td>
+                            <?php if (!empty($user->grants_paused)) : ?>
+                                <?php echo esc_html__('Paused', 'academy-lesson-manager'); ?>
+                            <?php else : ?>
+                                <?php echo esc_html($user->next_grant_date ? date('M j, Y', strtotime($user->next_grant_date)) : 'N/A'); ?>
+                            <?php endif; ?>
+                        </td>
                         <td><?php echo esc_html($user->library_count); ?></td>
                         <td>
                             <a href="<?php echo admin_url('admin.php?page=academy-manager-essentials-users&view_user=' . $user->user_id); ?>" class="button button-small">

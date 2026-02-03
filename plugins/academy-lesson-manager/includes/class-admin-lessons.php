@@ -46,6 +46,13 @@ class ALM_Admin_Lessons {
         $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : 'list';
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         
+        // Handle single lesson delete via POST (avoids nonce-in-URL issues with GET)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['alm_lesson_delete']) && !empty($_POST['id'])) {
+            check_admin_referer('alm_delete_lesson');
+            $this->handle_delete(intval($_POST['id']));
+            return;
+        }
+        
         // Handle bulk actions first
         // Handle bulk actions - check for bulk_action or button names
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['bulk_action']) || isset($_POST['submit_bulk_membership']) || isset($_POST['submit_bulk_tag']) || isset($_POST['submit_bulk_style']))) {
@@ -79,8 +86,9 @@ class ALM_Admin_Lessons {
                 $this->render_edit_page($id);
                 break;
             case 'delete':
-                $this->handle_delete($id);
-                break;
+                // Delete is handled via POST form only; GET with nonce was unreliable
+                wp_safe_redirect(admin_url('admin.php?page=academy-manager-lessons'));
+                exit;
             case 'delete-chapter':
                 $chapter_id = isset($_GET['chapter_id']) ? intval($_GET['chapter_id']) : 0;
                 $lesson_id = isset($_GET['lesson_id']) ? intval($_GET['lesson_id']) : 0;
@@ -1347,7 +1355,13 @@ class ALM_Admin_Lessons {
             echo '<a href="?page=academy-manager-lessons&action=fix&id=' . $lesson->ID . '" class="button button-small" target="_blank" onclick="return confirm(\'' . __('Create WordPress post for this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Create WordPress Post', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-tools"></span></a>';
         }
         
-        echo '<a href="?page=academy-manager-lessons&action=delete&id=' . $lesson->ID . '" class="button button-small" target="_blank" onclick="return confirm(\'' . __('Are you sure you want to delete this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span></a>';
+        $delete_action = admin_url('admin.php?page=academy-manager-lessons');
+        echo '<form method="post" action="' . esc_url($delete_action) . '" style="display:inline;" onsubmit="return confirm(\'' . esc_js(__('Are you sure you want to delete this lesson?', 'academy-lesson-manager')) . '\');">';
+        echo '<input type="hidden" name="alm_lesson_delete" value="1" />';
+        echo '<input type="hidden" name="id" value="' . intval($lesson->ID) . '" />';
+        wp_nonce_field('alm_delete_lesson', '_wpnonce', true, true);
+        echo '<button type="submit" class="button button-small" title="' . esc_attr__('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span></button>';
+        echo '</form>';
         
         // Add View Lesson Permalink button if post exists
         if ($lesson->post_id && get_post($lesson->post_id)) {
@@ -1429,7 +1443,13 @@ class ALM_Admin_Lessons {
         // Add Copy Transcript button
         echo '<button type="button" class="button alm-copy-transcript-btn" data-lesson-id="' . esc_attr($lesson->ID) . '" title="' . __('Copy Combined Transcript', 'academy-lesson-manager') . '"><span class="dashicons dashicons-clipboard"></span> ' . __('Copy Transcript', 'academy-lesson-manager') . '</button> ';
         
-        echo '<a href="?page=academy-manager-lessons&action=delete&id=' . $lesson->ID . '" class="button" onclick="return confirm(\'' . __('Are you sure you want to delete this lesson?', 'academy-lesson-manager') . '\')" title="' . __('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span> ' . __('Delete', 'academy-lesson-manager') . '</a>';
+        $delete_action = admin_url('admin.php?page=academy-manager-lessons');
+        echo '<form method="post" action="' . esc_url($delete_action) . '" style="display:inline;" onsubmit="return confirm(\'' . esc_js(__('Are you sure you want to delete this lesson?', 'academy-lesson-manager')) . '\');">';
+        echo '<input type="hidden" name="alm_lesson_delete" value="1" />';
+        echo '<input type="hidden" name="id" value="' . intval($lesson->ID) . '" />';
+        wp_nonce_field('alm_delete_lesson', '_wpnonce', true, true);
+        echo '<button type="submit" class="button" title="' . esc_attr__('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span> ' . esc_html__('Delete', 'academy-lesson-manager') . '</button>';
+        echo '</form>';
         echo '</p>';
         
         // Show success messages
@@ -1494,6 +1514,19 @@ class ALM_Admin_Lessons {
         echo '<tr>';
         echo '<th scope="row"><label for="post_id">' . __('Post ID', 'academy-lesson-manager') . '</label></th>';
         echo '<td><input type="number" id="post_id" name="post_id" value="' . esc_attr($lesson->post_id) . '" class="small-text" /></td>';
+        echo '</tr>';
+        
+        $current_status = isset($lesson->status) && in_array($lesson->status, array('published', 'draft', 'archived'), true) ? $lesson->status : 'published';
+        echo '<tr>';
+        echo '<th scope="row"><label for="lesson_status">' . __('Status', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<select id="lesson_status" name="lesson_status">';
+        echo '<option value="published"' . selected($current_status, 'published', false) . '>' . __('Published', 'academy-lesson-manager') . '</option>';
+        echo '<option value="draft"' . selected($current_status, 'draft', false) . '>' . __('Draft', 'academy-lesson-manager') . '</option>';
+        echo '<option value="archived"' . selected($current_status, 'archived', false) . '>' . __('Archived', 'academy-lesson-manager') . '</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Draft and archived lessons are hidden from the frontend. Duplicates are created as Draft.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
         echo '</tr>';
         
         // Add post status field
@@ -1621,8 +1654,13 @@ class ALM_Admin_Lessons {
         echo '<span class="dashicons dashicons-admin-tools" style="vertical-align: middle;"></span> ';
         echo __('Generate with AI', 'academy-lesson-manager');
         echo '</button>';
+        echo ' <button type="button" id="alm-expand-description" class="button button-secondary" data-lesson-id="' . esc_attr($lesson->ID) . '">';
+        echo '<span class="dashicons dashicons-arrow-right-alt" style="vertical-align: middle;"></span> ';
+        echo __('Expand With AI', 'academy-lesson-manager');
+        echo '</button>';
         echo '<span id="alm-generate-description-status" style="margin-left: 15px; font-weight: bold; display: inline-block; min-width: 200px;"></span>';
-        echo '<p class="description" style="margin-top: 8px; margin-bottom: 0;">' . __('This will replace any existing description with an AI-generated one based on all chapter transcripts.', 'academy-lesson-manager') . '</p>';
+        echo '<span id="alm-expand-description-status" style="margin-left: 15px; font-weight: bold; display: inline-block; min-width: 200px;"></span>';
+        echo '<p class="description" style="margin-top: 8px; margin-bottom: 0;">' . __('Generate: Creates a new description from transcripts. Expand: Enhances your existing description with more detail.', 'academy-lesson-manager') . '</p>';
         echo '</div>';
         echo '</td>';
         echo '</tr>';
@@ -1778,6 +1816,14 @@ class ALM_Admin_Lessons {
         }
         echo '</select>';
         echo '<p class="description">' . __('Higher levels can access lower level content.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
+        echo '<th scope="row"><label for="keap_tag_id">' . __('Keap Tag ID', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<input type="number" id="keap_tag_id" name="keap_tag_id" value="' . esc_attr($lesson->keap_tag_id ?? 0) . '" class="small-text" min="0" max="99999" step="1" />';
+        echo '<p class="description">' . __('Optional tag ID (up to 5 digits). If set and user has this tag, they get access regardless of membership level.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
         
@@ -2182,6 +2228,13 @@ class ALM_Admin_Lessons {
         echo '</tr>';
         
         echo '<tr>';
+        echo '<th scope="row"><label for="keap_tag_id">' . __('Keap Tag ID', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="keap_tag_id" name="keap_tag_id" value="0" class="small-text" min="0" max="99999" step="1" />';
+        echo '<p class="description">' . __('Optional tag ID (up to 5 digits). If set and user has this tag, they get access regardless of membership level.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+        
+        echo '<tr>';
         echo '<th scope="row"><label for="lesson_level">' . __('Lesson Level', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         echo '<select id="lesson_level" name="lesson_level">';
@@ -2379,6 +2432,7 @@ class ALM_Admin_Lessons {
             'sample_chapter_id' => $sample_chapter_id,
             'slug' => sanitize_text_field($_POST['slug']),
             'membership_level' => intval($_POST['membership_level']),
+            'keap_tag_id' => intval($_POST['keap_tag_id'] ?? 0),
             'lesson_level' => sanitize_text_field($_POST['lesson_level']),
             'lesson_tags' => $this->normalize_lesson_tags($_POST['lesson_tags'] ?? array()),
             'lesson_style' => $this->normalize_lesson_styles($_POST['lesson_style'] ?? array()),
@@ -2483,6 +2537,11 @@ class ALM_Admin_Lessons {
             $sample_video_url = esc_url_raw($_POST['sample_video_url'] ?? '');
         }
         
+        $lesson_status = isset($_POST['lesson_status']) ? sanitize_text_field($_POST['lesson_status']) : 'published';
+        if (!in_array($lesson_status, array('published', 'draft', 'archived'), true)) {
+            $lesson_status = 'published';
+        }
+        
         $data = array(
             'post_id' => intval($_POST['post_id']),
             'collection_id' => $collection_id,
@@ -2496,9 +2555,11 @@ class ALM_Admin_Lessons {
             'sample_chapter_id' => $sample_chapter_id,
             'slug' => sanitize_text_field($_POST['slug']),
             'membership_level' => intval($_POST['membership_level']),
+            'keap_tag_id' => intval($_POST['keap_tag_id'] ?? 0),
             'lesson_level' => sanitize_text_field($_POST['lesson_level']),
             'lesson_tags' => $this->normalize_lesson_tags($_POST['lesson_tags'] ?? array()),
             'lesson_style' => $this->normalize_lesson_styles($_POST['lesson_style'] ?? array()),
+            'status' => $lesson_status,
         );
         
         $result = $this->wpdb->update($this->table_name, $data, array('ID' => $lesson_id));
@@ -2567,6 +2628,8 @@ class ALM_Admin_Lessons {
         if (!current_user_can('manage_options')) {
             wp_die(__('You do not have sufficient permissions to access this page.'));
         }
+        
+        // Nonce is verified in the POST handler before calling this
         
         // Get post_id before deleting from ALM table
         $lesson = $this->wpdb->get_row($this->wpdb->prepare(
@@ -2714,6 +2777,7 @@ class ALM_Admin_Lessons {
             'lesson_tags' => $original_lesson->lesson_tags,
             'lesson_style' => $original_lesson->lesson_style,
             'resources' => '', // Don't copy resources
+            'status' => 'draft', // Don't show on frontend until published
         );
         
         // Insert the new lesson
@@ -2738,6 +2802,49 @@ class ALM_Admin_Lessons {
                         'pathway_rank' => intval($pathway->pathway_rank)
                     ),
                     array('%d', '%s', '%d')
+                );
+            }
+            
+            // Copy all chapters
+            $chapters_table = $this->database->get_table_name('chapters');
+            $chapters = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT * FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
+                $lesson_id
+            ));
+            
+            foreach ($chapters as $chapter) {
+                // Generate a new unique slug for the duplicated chapter
+                // Use original chapter ID and timestamp to ensure uniqueness
+                $new_slug = sanitize_title($chapter->chapter_title) . '-' . $new_lesson_id . '-' . $chapter->ID . '-' . time();
+                
+                $chapter_data = array(
+                    'lesson_id' => $new_lesson_id,
+                    'chapter_title' => $chapter->chapter_title,
+                    'menu_order' => intval($chapter->menu_order),
+                    'vimeo_id' => intval($chapter->vimeo_id),
+                    'bunny_url' => $chapter->bunny_url,
+                    'youtube_id' => $chapter->youtube_id,
+                    'duration' => intval($chapter->duration),
+                    'free' => $chapter->free,
+                    'slug' => $new_slug,
+                    'post_date' => $chapter->post_date,
+                );
+                
+                // Add mp3_file_url if column exists
+                if (isset($chapter->mp3_file_url)) {
+                    $chapter_data['mp3_file_url'] = $chapter->mp3_file_url;
+                }
+                
+                // Build format array dynamically
+                $formats = array('%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s');
+                if (isset($chapter->mp3_file_url)) {
+                    $formats[] = '%s';
+                }
+                
+                $this->wpdb->insert(
+                    $chapters_table,
+                    $chapter_data,
+                    $formats
                 );
             }
             
@@ -2893,6 +3000,7 @@ class ALM_Admin_Lessons {
             echo '<th scope="col">' . __('Bunny', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Duration', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Free', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col">' . __('Release Date', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Transcript', 'academy-lesson-manager') . '</th>';
             echo '<th scope="col">' . __('Actions', 'academy-lesson-manager') . '</th>';
             echo '</tr>';
@@ -2943,6 +3051,24 @@ class ALM_Admin_Lessons {
                 echo '<td>' . (!empty($chapter->bunny_url) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
                 echo '<td>' . ALM_Helpers::format_duration($chapter->duration) . '</td>';
                 echo '<td>' . ($chapter->free === 'y' ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                
+                // Get release date - use chapter's post_date if set, otherwise fall back to lesson's post_date
+                $release_date = '';
+                if (!empty($chapter->post_date) && $chapter->post_date !== '0000-00-00') {
+                    $release_date = $chapter->post_date;
+                } else {
+                    // Get lesson's post_date as fallback
+                    $lessons_table = $this->database->get_table_name('lessons');
+                    $lesson = $this->wpdb->get_row($this->wpdb->prepare(
+                        "SELECT post_date FROM {$lessons_table} WHERE ID = %d",
+                        $lesson_id
+                    ));
+                    if ($lesson && !empty($lesson->post_date) && $lesson->post_date !== '0000-00-00') {
+                        $release_date = $lesson->post_date;
+                    }
+                }
+                echo '<td>' . (!empty($release_date) ? ALM_Helpers::format_date($release_date) : '<span style="color: #999;">—</span>') . '</td>';
+                
                 echo '<td>' . (in_array($chapter->ID, $transcript_chapter_ids) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
                 echo '<td>';
                 echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small" target="_blank" rel="noopener noreferrer">' . __('Edit', 'academy-lesson-manager') . '</a> ';

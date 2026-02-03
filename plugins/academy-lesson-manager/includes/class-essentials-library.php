@@ -201,6 +201,11 @@ class ALM_Essentials_Library {
         if (!$selection_data) {
             return $this->initialize_membership($user_id);
         }
+
+        // If grants are paused for this user, do not grant new selections
+        if (!empty($selection_data->grants_paused)) {
+            return false;
+        }
         
         $today = current_time('Y-m-d');
         $next_grant_date = $selection_data->next_grant_date;
