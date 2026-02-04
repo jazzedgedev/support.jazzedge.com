@@ -90,6 +90,7 @@ class Lead_Aggregator_Plugin {
         $this->database->maybe_create_tables();
     }
 
+
     public function register_page_template($templates) {
         $templates['lead-aggregator-dashboard.php'] = 'Lead Aggregator Dashboard';
         return $templates;

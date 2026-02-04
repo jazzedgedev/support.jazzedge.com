@@ -251,6 +251,30 @@ class Lead_Aggregator_REST {
             'permission_callback' => array($this, 'check_user_write'),
         ));
 
+        register_rest_route('lead-aggregator/v1', '/get-started/settings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_get_started_settings'),
+            'permission_callback' => array($this, 'check_user_read'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/get-started/settings', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_get_started_settings'),
+            'permission_callback' => array($this, 'check_user_write'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/quick-action/settings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_quick_action_settings'),
+            'permission_callback' => array($this, 'check_user_read'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/quick-action/settings', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_quick_action_settings'),
+            'permission_callback' => array($this, 'check_user_write'),
+        ));
+
         register_rest_route('lead-aggregator/v1', '/custom-fields', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_custom_fields'),
@@ -396,6 +420,15 @@ class Lead_Aggregator_REST {
 
         $custom_fields = $this->extract_custom_fields($payload);
         $address = $this->extract_address_fields($payload);
+        $status = isset($payload['status']) ? $this->normalize_pipeline_stage($payload['status']) : 'new';
+        $followup_status = isset($payload['followup_status']) ? $this->normalize_followup_status($payload['followup_status']) : 'not_set';
+        $followup_at = $this->to_utc_datetime(isset($payload['followup_at']) ? $payload['followup_at'] : null);
+        $due_at = $this->to_utc_datetime(isset($payload['due_at']) ? $payload['due_at'] : null);
+        if ($followup_at && !$due_at) {
+            $due_at = $followup_at;
+        }
+        $last_actioned = $this->to_utc_datetime(isset($payload['last_actioned']) ? $payload['last_actioned'] : null);
+        $last_contacted = $this->to_utc_datetime(isset($payload['last_contacted']) ? $payload['last_contacted'] : null);
         $lead_id = $this->database->insert_lead(array_merge(array(
             'user_id' => $user_id,
             'source' => $lead_source,
@@ -404,14 +437,13 @@ class Lead_Aggregator_REST {
             'email' => isset($payload['email']) ? sanitize_email($payload['email']) : '',
             'phone' => isset($payload['phone']) ? sanitize_text_field($payload['phone']) : '',
             'company' => isset($payload['company']) ? sanitize_text_field($payload['company']) : '',
-            'status' => 'open',
-            'stage_id' => isset($payload['stage_id']) ? (int) $payload['stage_id'] : null,
-            'followup_status' => isset($payload['followup_status']) ? sanitize_text_field($payload['followup_status']) : 'scheduled',
+            'status' => $status,
+            'followup_status' => $followup_status,
             'skip_reminders' => !empty($payload['skip_reminders']) ? 1 : 0,
-            'followup_at' => !empty($payload['followup_at']) ? sanitize_text_field($payload['followup_at']) : null,
-            'due_at' => !empty($payload['due_at']) ? sanitize_text_field($payload['due_at']) : null,
-            'last_actioned' => !empty($payload['last_actioned']) ? sanitize_text_field($payload['last_actioned']) : null,
-            'last_contacted' => !empty($payload['last_contacted']) ? sanitize_text_field($payload['last_contacted']) : null,
+            'followup_at' => $followup_at,
+            'due_at' => $due_at,
+            'last_actioned' => $last_actioned,
+            'last_contacted' => $last_contacted,
         ), $custom_fields, $address));
         if (!$lead_id) {
             $this->maybe_log_webhook($user_id, $source, 'failed', $this->database->get_last_error() ? $this->database->get_last_error() : 'Unable to create lead', $payload);
@@ -469,6 +501,15 @@ class Lead_Aggregator_REST {
 
         $custom_fields = $this->extract_custom_fields($payload);
         $address = $this->extract_address_fields($payload);
+        $status = isset($payload['status']) ? $this->normalize_pipeline_stage($payload['status']) : 'new';
+        $followup_status = isset($payload['followup_status']) ? $this->normalize_followup_status($payload['followup_status']) : 'not_set';
+        $followup_at = $this->to_utc_datetime(isset($payload['followup_at']) ? $payload['followup_at'] : null);
+        $due_at = $this->to_utc_datetime(isset($payload['due_at']) ? $payload['due_at'] : null);
+        if ($followup_at && !$due_at) {
+            $due_at = $followup_at;
+        }
+        $last_actioned = $this->to_utc_datetime(isset($payload['last_actioned']) ? $payload['last_actioned'] : null);
+        $last_contacted = $this->to_utc_datetime(isset($payload['last_contacted']) ? $payload['last_contacted'] : null);
         $lead_id = $this->database->insert_lead(array_merge(array(
             'user_id' => $user_id,
             'source' => $lead_source,
@@ -477,14 +518,13 @@ class Lead_Aggregator_REST {
             'email' => isset($payload['email']) ? sanitize_email($payload['email']) : '',
             'phone' => isset($payload['phone']) ? sanitize_text_field($payload['phone']) : '',
             'company' => isset($payload['company']) ? sanitize_text_field($payload['company']) : '',
-            'status' => 'open',
-            'stage_id' => isset($payload['stage_id']) ? (int) $payload['stage_id'] : null,
-            'followup_status' => isset($payload['followup_status']) ? sanitize_text_field($payload['followup_status']) : 'scheduled',
+            'status' => $status,
+            'followup_status' => $followup_status,
             'skip_reminders' => !empty($payload['skip_reminders']) ? 1 : 0,
-            'followup_at' => !empty($payload['followup_at']) ? sanitize_text_field($payload['followup_at']) : null,
-            'due_at' => !empty($payload['due_at']) ? sanitize_text_field($payload['due_at']) : null,
-            'last_actioned' => !empty($payload['last_actioned']) ? sanitize_text_field($payload['last_actioned']) : null,
-            'last_contacted' => !empty($payload['last_contacted']) ? sanitize_text_field($payload['last_contacted']) : null,
+            'followup_at' => $followup_at,
+            'due_at' => $due_at,
+            'last_actioned' => $last_actioned,
+            'last_contacted' => $last_contacted,
         ), $custom_fields, $address));
         if (!$lead_id) {
             $this->maybe_log_webhook($user_id, $source_record['source_key'], 'failed', $this->database->get_last_error() ? $this->database->get_last_error() : 'Unable to create lead', $payload);
@@ -628,12 +668,13 @@ class Lead_Aggregator_REST {
     public function get_leads($request) {
         $actor_id = get_current_user_id();
         $user_id = $this->get_account_user_id($actor_id);
+        $status = $request->get_param('status');
         $filters = array(
-            'stage_id' => $request->get_param('stage_id'),
-            'status' => $request->get_param('status'),
+            'status' => $status ? $this->normalize_pipeline_stage($status) : null,
             'search' => $request->get_param('search'),
         );
         $leads = $this->database->get_leads($user_id, $filters);
+        $leads = array_map(array($this, 'normalize_lead_for_response'), $leads);
         return rest_ensure_response($leads);
     }
 
@@ -645,7 +686,7 @@ class Lead_Aggregator_REST {
             return new WP_Error('not_found', 'Lead not found', array('status' => 404));
         }
         $lead['tags'] = $this->database->get_lead_tags($lead['id']);
-        return rest_ensure_response($lead);
+        return rest_ensure_response($this->normalize_lead_for_response($lead));
     }
 
     public function create_lead($request) {
@@ -662,6 +703,15 @@ class Lead_Aggregator_REST {
         $params = $this->get_request_params($request);
         $custom_fields = $this->extract_custom_fields($params);
         $address = $this->extract_address_fields($params);
+        $status = isset($params['status']) ? $this->normalize_pipeline_stage($params['status']) : 'new';
+        $followup_status = isset($params['followup_status']) ? $this->normalize_followup_status($params['followup_status']) : 'not_set';
+        $followup_at = $this->to_utc_datetime(isset($params['followup_at']) ? $params['followup_at'] : null);
+        $due_at = $this->to_utc_datetime(isset($params['due_at']) ? $params['due_at'] : null);
+        if ($followup_at && !$due_at) {
+            $due_at = $followup_at;
+        }
+        $last_actioned = $this->to_utc_datetime(isset($params['last_actioned']) ? $params['last_actioned'] : null);
+        $last_contacted = $this->to_utc_datetime(isset($params['last_contacted']) ? $params['last_contacted'] : null);
         $lead_id = $this->database->insert_lead(array_merge(array(
             'user_id' => $user_id,
             'source' => isset($params['source']) ? sanitize_text_field($params['source']) : 'manual',
@@ -670,14 +720,13 @@ class Lead_Aggregator_REST {
             'email' => isset($params['email']) ? sanitize_email($params['email']) : '',
             'phone' => isset($params['phone']) ? sanitize_text_field($params['phone']) : '',
             'company' => isset($params['company']) ? sanitize_text_field($params['company']) : '',
-            'status' => isset($params['status']) ? sanitize_text_field($params['status']) : 'open',
-            'stage_id' => isset($params['stage_id']) ? (int) $params['stage_id'] : null,
-            'followup_status' => isset($params['followup_status']) ? sanitize_text_field($params['followup_status']) : 'scheduled',
+            'status' => $status,
+            'followup_status' => $followup_status,
             'skip_reminders' => !empty($params['skip_reminders']) ? 1 : 0,
-            'followup_at' => !empty($params['followup_at']) ? sanitize_text_field($params['followup_at']) : null,
-            'due_at' => !empty($params['due_at']) ? sanitize_text_field($params['due_at']) : null,
-            'last_actioned' => !empty($params['last_actioned']) ? sanitize_text_field($params['last_actioned']) : null,
-            'last_contacted' => !empty($params['last_contacted']) ? sanitize_text_field($params['last_contacted']) : null,
+            'followup_at' => $followup_at,
+            'due_at' => $due_at,
+            'last_actioned' => $last_actioned,
+            'last_contacted' => $last_contacted,
         ), $custom_fields, $address));
         if (!$lead_id) {
             return new WP_Error(
@@ -732,29 +781,27 @@ class Lead_Aggregator_REST {
             $data['source'] = sanitize_text_field($params['source']);
         }
         if (array_key_exists('status', $params)) {
-            $data['status'] = sanitize_text_field($params['status']);
+            $data['status'] = $this->normalize_pipeline_stage($params['status']);
         }
         if (array_key_exists('followup_status', $params)) {
-            $data['followup_status'] = sanitize_text_field($params['followup_status']);
+            $data['followup_status'] = $this->normalize_followup_status($params['followup_status']);
         }
         if (array_key_exists('skip_reminders', $params)) {
             $data['skip_reminders'] = !empty($params['skip_reminders']) ? 1 : 0;
         }
-        if (array_key_exists('stage_id', $params)) {
-            $data['stage_id'] = $params['stage_id'] === '' ? null : (int) $params['stage_id'];
-        }
         if (array_key_exists('followup_at', $params)) {
-            $data['followup_at'] = $params['followup_at'] ? sanitize_text_field($params['followup_at']) : null;
+            $data['followup_at'] = $this->to_utc_datetime($params['followup_at']);
         }
         if (array_key_exists('due_at', $params)) {
-            $data['due_at'] = $params['due_at'] ? sanitize_text_field($params['due_at']) : null;
+            $data['due_at'] = $this->to_utc_datetime($params['due_at']);
         }
         if (array_key_exists('last_actioned', $params)) {
-            $data['last_actioned'] = $params['last_actioned'] ? sanitize_text_field($params['last_actioned']) : null;
+            $data['last_actioned'] = $this->to_utc_datetime($params['last_actioned']);
         }
         if (array_key_exists('last_contacted', $params)) {
-            $data['last_contacted'] = $params['last_contacted'] ? sanitize_text_field($params['last_contacted']) : null;
+            $data['last_contacted'] = $this->to_utc_datetime($params['last_contacted']);
         }
+
 
         $custom_fields = $this->extract_custom_fields($params, true);
         if (!empty($custom_fields)) {
@@ -948,79 +995,24 @@ class Lead_Aggregator_REST {
         $user_id = $this->get_account_user_id($actor_id);
         $tag_id = (int) $request['id'];
         $leads = $this->database->get_leads_by_tag($user_id, $tag_id);
+        $leads = array_map(array($this, 'normalize_lead_for_response'), $leads);
         return rest_ensure_response($leads);
     }
 
     public function get_stages() {
-        $actor_id = get_current_user_id();
-        $user_id = $this->get_account_user_id($actor_id);
-        return rest_ensure_response($this->database->get_stages($user_id));
+        return rest_ensure_response(array());
     }
 
     public function create_stage($request) {
-        $actor_id = get_current_user_id();
-        $readonly = $this->ensure_not_read_only($actor_id);
-        if (is_wp_error($readonly)) {
-            return $readonly;
-        }
-        $user_id = $this->get_account_user_id($actor_id);
-        $params = $request->get_json_params();
-        $name = isset($params['name']) ? sanitize_text_field($params['name']) : '';
-        $position = isset($params['position']) ? (int) $params['position'] : 0;
-        $outcome = isset($params['outcome']) ? $this->normalize_stage_outcome($params['outcome']) : 'open';
-        if (!$name) {
-            return new WP_Error('missing_name', 'Stage name is required', array('status' => 400));
-        }
-
-        $stage_id = $this->database->create_stage($user_id, $name, $position, $outcome);
-        return rest_ensure_response(array('success' => true, 'stage_id' => $stage_id));
+        return new WP_Error('stages_disabled', 'Stage customization is disabled.', array('status' => 403));
     }
 
     public function update_stage($request) {
-        $actor_id = get_current_user_id();
-        $readonly = $this->ensure_not_read_only($actor_id);
-        if (is_wp_error($readonly)) {
-            return $readonly;
-        }
-        $user_id = $this->get_account_user_id($actor_id);
-        $stage_id = (int) $request['id'];
-        $params = $this->get_request_params($request);
-        $data = array();
-        if (isset($params['name'])) {
-            $data['name'] = sanitize_text_field($params['name']);
-        }
-        if (isset($params['position'])) {
-            $data['position'] = (int) $params['position'];
-        }
-        if (isset($params['outcome'])) {
-            $data['outcome'] = $this->normalize_stage_outcome($params['outcome']);
-        }
-
-        if (empty($data)) {
-            return new WP_Error('missing_fields', 'No fields to update', array('status' => 400));
-        }
-
-        $updated = $this->database->update_stage($user_id, $stage_id, $data);
-        if ($updated === false) {
-            return new WP_Error('update_failed', 'Unable to update stage', array('status' => 500));
-        }
-
-        return rest_ensure_response(array('success' => true));
+        return new WP_Error('stages_disabled', 'Stage customization is disabled.', array('status' => 403));
     }
 
     public function delete_stage($request) {
-        $actor_id = get_current_user_id();
-        $readonly = $this->ensure_not_read_only($actor_id);
-        if (is_wp_error($readonly)) {
-            return $readonly;
-        }
-        $user_id = $this->get_account_user_id($actor_id);
-        $stage_id = (int) $request['id'];
-        $deleted = $this->database->delete_stage($user_id, $stage_id);
-        if (!$deleted) {
-            return new WP_Error('delete_failed', 'Unable to delete stage', array('status' => 500));
-        }
-        return rest_ensure_response(array('success' => true));
+        return new WP_Error('stages_disabled', 'Stage customization is disabled.', array('status' => 403));
     }
 
     private function normalize_stage_outcome($value) {
@@ -1029,6 +1021,101 @@ class Lead_Aggregator_REST {
             return $value;
         }
         return 'open';
+    }
+
+    private function normalize_pipeline_stage($value) {
+        $value = sanitize_key($value);
+        $map = array(
+            'open' => 'new',
+            'new' => 'new',
+            'contacted' => 'contacted',
+            'qualified' => 'qualified',
+            'proposal' => 'proposal',
+            'won' => 'won',
+            'lost' => 'lost',
+        );
+        return isset($map[$value]) ? $map[$value] : 'new';
+    }
+
+    private function normalize_followup_status($value) {
+        $value = sanitize_key($value);
+        if ($value === 'not_set') {
+            return 'not_set';
+        }
+        if ($value === 'completed' || $value === 'canceled') {
+            return $value;
+        }
+        if ($value === 'scheduled') {
+            return 'scheduled';
+        }
+        return 'not_set';
+    }
+
+    private function pipeline_stage_label($value) {
+        $map = array(
+            'new' => 'New',
+            'contacted' => 'Contacted',
+            'qualified' => 'Qualified',
+            'proposal' => 'Proposal',
+            'won' => 'Won',
+            'lost' => 'Lost',
+        );
+        $normalized = $this->normalize_pipeline_stage($value);
+        return isset($map[$normalized]) ? $map[$normalized] : 'New';
+    }
+
+    private function followup_status_label($value) {
+        $map = array(
+            'not_set' => 'Not set',
+            'scheduled' => 'Scheduled',
+            'completed' => 'Completed',
+            'canceled' => 'Canceled',
+        );
+        $normalized = $this->normalize_followup_status($value);
+        return isset($map[$normalized]) ? $map[$normalized] : 'Scheduled';
+    }
+
+    private function to_utc_datetime($value) {
+        if (!$value) {
+            return null;
+        }
+        try {
+            $timezone = wp_timezone();
+            $date = new DateTime($value, $timezone);
+            $date->setTimezone(new DateTimeZone('UTC'));
+            return $date->format('Y-m-d H:i:s');
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    private function to_wp_datetime($value) {
+        if (!$value) {
+            return null;
+        }
+        try {
+            $date = new DateTime($value, new DateTimeZone('UTC'));
+            $date->setTimezone(wp_timezone());
+            return $date->format('Y-m-d H:i:s');
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    private function normalize_lead_for_response($lead) {
+        if (!$lead) {
+            return $lead;
+        }
+        $lead['status'] = $this->normalize_pipeline_stage(isset($lead['status']) ? $lead['status'] : 'new');
+        $lead['followup_status'] = $this->normalize_followup_status(isset($lead['followup_status']) ? $lead['followup_status'] : 'not_set');
+        $lead['followup_at'] = $this->to_wp_datetime(isset($lead['followup_at']) ? $lead['followup_at'] : null);
+        $lead['due_at'] = $this->to_wp_datetime(isset($lead['due_at']) ? $lead['due_at'] : null);
+        $lead['last_actioned'] = $this->to_wp_datetime(isset($lead['last_actioned']) ? $lead['last_actioned'] : null);
+        $lead['last_contacted'] = $this->to_wp_datetime(isset($lead['last_contacted']) ? $lead['last_contacted'] : null);
+        $lead['created_at'] = $this->to_wp_datetime(isset($lead['created_at']) ? $lead['created_at'] : null);
+        $lead['updated_at'] = $this->to_wp_datetime(isset($lead['updated_at']) ? $lead['updated_at'] : null);
+        $lead['stage_id'] = null;
+        return $lead;
     }
 
     public function get_business_profile() {
@@ -1193,9 +1280,11 @@ class Lead_Aggregator_REST {
         $actor_id = get_current_user_id();
         $user_id = $this->get_account_user_id($actor_id);
         $leads = $this->database->get_leads($user_id, array());
+        $leads = array_map(array($this, 'normalize_lead_for_response'), $leads);
+        $leads = array_map(array($this, 'normalize_lead_for_response'), $leads);
 
         $temp = fopen('php://temp', 'r+');
-        fputcsv($temp, array('ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Company', 'Stage', 'Status', 'Followup', 'Due', 'Source', 'Created'));
+        fputcsv($temp, array('ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Company', 'Pipeline Stage', 'Follow-up Status', 'Followup', 'Due', 'Source', 'Created'));
         foreach ($leads as $lead) {
             fputcsv($temp, array(
                 $lead['id'],
@@ -1204,8 +1293,8 @@ class Lead_Aggregator_REST {
                 $lead['email'],
                 $lead['phone'],
                 $lead['company'],
-                $lead['stage_id'],
-                $lead['status'],
+                $this->pipeline_stage_label($lead['status']),
+                $this->followup_status_label($lead['followup_status']),
                 $lead['followup_at'],
                 $lead['due_at'],
                 $lead['source'],
@@ -1325,11 +1414,8 @@ class Lead_Aggregator_REST {
         if (!$lead) {
             return new WP_Error('not_found', 'Lead not found', array('status' => 404));
         }
-        $stages = $this->database->get_stages($user_id);
-        $stage_map = array();
-        foreach ($stages as $stage) {
-            $stage_map[$stage['id']] = $stage['name'];
-        }
+        $lead = $this->normalize_lead_for_response($lead);
+        $lead = $this->normalize_lead_for_response($lead);
         $labels = $this->get_custom_fields_labels($user_id);
 
         $headers = array(
@@ -1344,8 +1430,8 @@ class Lead_Aggregator_REST {
             'State',
             'Zip',
             'Country',
-            'Stage',
-            'Status',
+            'Pipeline Stage',
+            'Follow-up Status',
             'Followup',
             'Due',
             'Source'
@@ -1368,8 +1454,8 @@ class Lead_Aggregator_REST {
             $lead['address_state'],
             $lead['address_zip'],
             $lead['address_country'],
-            isset($stage_map[$lead['stage_id']]) ? $stage_map[$lead['stage_id']] : '',
-            $lead['status'],
+            $this->pipeline_stage_label($lead['status']),
+            $this->followup_status_label($lead['followup_status']),
             $lead['followup_at'],
             $lead['due_at'],
             $lead['source'],
@@ -1762,8 +1848,11 @@ class Lead_Aggregator_REST {
     public function get_custom_fields() {
         $actor_id = get_current_user_id();
         $user_id = $this->get_account_user_id($actor_id);
-        $fields = $this->get_custom_fields_labels($user_id);
-        return rest_ensure_response(array('fields' => $fields));
+        $config = $this->get_custom_fields_config($user_id);
+        return rest_ensure_response(array(
+            'fields' => $config['labels'],
+            'followup' => $config['followup'],
+        ));
     }
 
     public function save_custom_fields($request) {
@@ -1775,6 +1864,7 @@ class Lead_Aggregator_REST {
         $user_id = $this->get_account_user_id($actor_id);
         $params = $this->get_request_params($request);
         $fields = isset($params['fields']) && is_array($params['fields']) ? $params['fields'] : array();
+        $followup = isset($params['followup']) && is_array($params['followup']) ? $params['followup'] : array();
         $payload = array();
         for ($i = 1; $i <= 10; $i += 1) {
             $key = 'custom_' . $i;
@@ -1782,7 +1872,15 @@ class Lead_Aggregator_REST {
                 $payload[$key] = sanitize_text_field($fields[$key]);
             }
         }
-        update_user_meta($user_id, 'lead_aggregator_custom_fields', $payload);
+        $followup_payload = array();
+        for ($i = 1; $i <= 10; $i += 1) {
+            $key = 'custom_' . $i;
+            $followup_payload[$key] = !empty($followup[$key]) ? 1 : 0;
+        }
+        update_user_meta($user_id, 'lead_aggregator_custom_fields', array(
+            'labels' => $payload,
+            'followup' => $followup_payload,
+        ));
         return rest_ensure_response(array('success' => true));
     }
 
@@ -1793,6 +1891,53 @@ class Lead_Aggregator_REST {
             'manager_id' => (int) get_user_meta($user_id, 'lead_aggregator_manager_id', true),
             'access_enabled' => (int) get_user_meta($user_id, 'lead_aggregator_access_enabled', true),
             'access_level' => get_user_meta($user_id, 'lead_aggregator_access_level', true) ?: 'full',
+        ));
+    }
+
+    public function get_get_started_settings() {
+        $user_id = get_current_user_id();
+        $enabled = get_user_meta($user_id, 'lead_aggregator_show_get_started', true);
+        if ($enabled === '') {
+            $enabled = 1;
+        }
+        return rest_ensure_response(array(
+            'enabled' => (int) $enabled,
+        ));
+    }
+
+    public function save_get_started_settings($request) {
+        $user_id = get_current_user_id();
+        $params = $this->get_request_params($request);
+        $enabled = isset($params['enabled']) ? (int) $params['enabled'] : 1;
+        update_user_meta($user_id, 'lead_aggregator_show_get_started', $enabled ? 1 : 0);
+        return rest_ensure_response(array(
+            'enabled' => $enabled ? 1 : 0,
+        ));
+    }
+
+    public function get_quick_action_settings() {
+        $user_id = get_current_user_id();
+        $settings = get_user_meta($user_id, 'lead_aggregator_quick_action', true);
+        $status = isset($settings['status']) ? $this->normalize_pipeline_stage($settings['status']) : 'contacted';
+        $followup_status = isset($settings['followup_status']) ? $this->normalize_followup_status($settings['followup_status']) : 'scheduled';
+        return rest_ensure_response(array(
+            'status' => $status,
+            'followup_status' => $followup_status,
+        ));
+    }
+
+    public function save_quick_action_settings($request) {
+        $user_id = get_current_user_id();
+        $params = $this->get_request_params($request);
+        $status = isset($params['status']) ? $this->normalize_pipeline_stage($params['status']) : 'contacted';
+        $followup_status = isset($params['followup_status']) ? $this->normalize_followup_status($params['followup_status']) : 'scheduled';
+        update_user_meta($user_id, 'lead_aggregator_quick_action', array(
+            'status' => $status,
+            'followup_status' => $followup_status,
+        ));
+        return rest_ensure_response(array(
+            'status' => $status,
+            'followup_status' => $followup_status,
         ));
     }
 
@@ -1946,18 +2091,45 @@ class Lead_Aggregator_REST {
     }
 
     private function get_custom_fields_labels($user_id) {
+        $config = $this->get_custom_fields_config($user_id);
+        return $config['labels'];
+    }
+
+    private function get_custom_fields_config($user_id) {
         $defaults = $this->get_default_custom_fields();
         $stored = get_user_meta($user_id, 'lead_aggregator_custom_fields', true);
         if (!is_array($stored)) {
             $stored = array();
         }
-        $fields = array();
+
+        $labels = array();
+        $followup = array();
+        $stored_labels = array();
+        $stored_followup = array();
+
+        if (isset($stored['labels']) && is_array($stored['labels'])) {
+            $stored_labels = $stored['labels'];
+        } elseif (isset($stored['fields']) && is_array($stored['fields'])) {
+            $stored_labels = $stored['fields'];
+        } else {
+            $stored_labels = $stored;
+        }
+
+        if (isset($stored['followup']) && is_array($stored['followup'])) {
+            $stored_followup = $stored['followup'];
+        }
+
         for ($i = 1; $i <= 10; $i += 1) {
             $key = 'custom_' . $i;
-            $label = isset($stored[$key]) ? sanitize_text_field($stored[$key]) : $defaults[$key];
-            $fields[$key] = $label;
+            $label = isset($stored_labels[$key]) ? sanitize_text_field($stored_labels[$key]) : $defaults[$key];
+            $labels[$key] = $label;
+            $followup[$key] = !empty($stored_followup[$key]) ? 1 : 0;
         }
-        return $fields;
+
+        return array(
+            'labels' => $labels,
+            'followup' => $followup,
+        );
     }
 
     private function get_account_user_id($user_id) {

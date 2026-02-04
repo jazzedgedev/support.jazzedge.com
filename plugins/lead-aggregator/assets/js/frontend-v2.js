@@ -1,20 +1,27 @@
 /* global jQuery, leadAggregator */
-window.leadAggregatorBuild = 'followup-modal-mailto-1';
+window.leadAggregatorBuild = 'lead-url-cleanup-2';
 document.documentElement.setAttribute('data-lead-aggregator-build', window.leadAggregatorBuild);
 console.log('Lead Aggregator frontend loaded', window.leadAggregatorBuild);
 jQuery(function ($) {
     var icons = {
-        plus: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m7-7H5"/></svg>',
-        edit: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l2.651 2.651-9.9 9.9-3.182.53.53-3.182 9.9-9.9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.5L16.5 4.5"/></svg>',
-        trash: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-1 12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 7"/><path stroke-linecap="round" stroke-linejoin="round" d="M10 11v6M14 11v6"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 7h16"/></svg>',
-        download: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l4-4m-4 4l-4-4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 17v4h16v-4"/></svg>',
+        plus: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>',
+        edit: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 2.651 2.651-9.9 9.9-3.182.53.53-3.182 9.9-9.9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.5 16.5 4.5"/></svg>',
+        trash: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>',
+        download: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>',
         check: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>',
         refresh: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-3-6.7"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 3v7h-7"/></svg>',
-        x: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>'
+        x: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>',
+        clock: '<svg class="la-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>',
+        action: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z"/></svg>',
+        external: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>',
+        calendar: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>',
+        columns: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125Z"/></svg>',
+        addToFollowup: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"/></svg>',
+        clearFilters: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>'
     };
 
-    var statusOptions = ['Open', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
-    var followupOptions = ['Scheduled', 'Completed', 'Canceled'];
+    var statusOptions = ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
+    var followupOptions = ['Not set', 'Scheduled', 'Completed', 'Canceled'];
     var stagePresets = {
         professional_services: {
             label: 'Professional Services',
@@ -195,6 +202,74 @@ jQuery(function ($) {
         return html;
     }
 
+    function buildFollowupCustomFields(customConfig, lead) {
+        if (!customConfig || !customConfig.followup || !customConfig.labels) {
+            return '';
+        }
+        var html = '';
+        for (var i = 1; i <= 10; i += 1) {
+            var key = 'custom_' + i;
+            if (!customConfig.followup[key]) {
+                continue;
+            }
+            var label = customConfig.labels[key] || ('Custom Field ' + i);
+            var value = lead && lead[key] ? lead[key] : '';
+            html += '<div><label>' + label + ' <input type="text" name="' + key + '" value="' + value + '"></label></div>';
+        }
+        return html;
+    }
+
+    function pipelineStageLabel(value) {
+        var key = (value || 'new').toLowerCase();
+        var map = {
+            open: 'new',
+            new: 'new',
+            contacted: 'contacted',
+            qualified: 'qualified',
+            proposal: 'proposal',
+            won: 'won',
+            lost: 'lost'
+        };
+        var normalized = map[key] || 'new';
+        return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    }
+
+    function normalizePipelineStageValue(value) {
+        var key = (value || 'new').toLowerCase();
+        var map = {
+            open: 'new',
+            new: 'new',
+            contacted: 'contacted',
+            qualified: 'qualified',
+            proposal: 'proposal',
+            won: 'won',
+            lost: 'lost'
+        };
+        return map[key] || 'new';
+    }
+
+    function normalizeFollowupStatusValue(value) {
+        var key = (value || 'not_set').toLowerCase();
+        var map = {
+            not_set: 'not_set',
+            scheduled: 'scheduled',
+            completed: 'completed',
+            canceled: 'canceled'
+        };
+        return map[key] || 'not_set';
+    }
+
+    function followupStatusLabel(value) {
+        var key = (value || 'not_set').toLowerCase();
+        var map = {
+            not_set: 'Not set',
+            scheduled: 'Scheduled',
+            completed: 'Completed',
+            canceled: 'Canceled'
+        };
+        return map[key] || 'Not set';
+    }
+
     function formatDisplayDate(value) {
         if (!value) {
             return '';
@@ -204,16 +279,90 @@ jQuery(function ($) {
         if (isNaN(date.getTime())) {
             return value;
         }
-        var formatted = date.toLocaleString('en-US', {
-            month: '2-digit',
-            day: '2-digit',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-        formatted = formatted.replace(':00 ', ' ');
-        return formatted.replace(' AM', 'am').replace(' PM', 'pm');
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        var day = String(date.getDate()).padStart(2, '0');
+        var year = String(date.getFullYear());
+        var hours = date.getHours();
+        var minutes = String(date.getMinutes()).padStart(2, '0');
+        var ampm = hours >= 12 ? 'pm' : 'am';
+        var hour12 = hours % 12;
+        if (hour12 === 0) {
+            hour12 = 12;
+        }
+        return month + '/' + day + '/' + year + ', ' + hour12 + ':' + minutes + ampm;
+    }
+
+    function formatDisplayTime(date) {
+        var hours = date.getHours();
+        var minutes = String(date.getMinutes()).padStart(2, '0');
+        var ampm = hours >= 12 ? 'pm' : 'am';
+        var hour12 = hours % 12;
+        if (hour12 === 0) {
+            hour12 = 12;
+        }
+        return hour12 + ':' + minutes + ampm;
+    }
+
+    function formatRelativeDate(value) {
+        if (!value) {
+            return '';
+        }
+        var normalized = String(value).replace(' ', 'T');
+        var date = new Date(normalized);
+        if (isNaN(date.getTime())) {
+            return value;
+        }
+        var now = new Date();
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        var diffDays = Math.round((target - today) / 86400000);
+        var label = '';
+        if (diffDays === 0) {
+            label = 'Today';
+        } else if (diffDays === 1) {
+            label = 'Tomorrow';
+        } else if (diffDays === -1) {
+            label = 'Yesterday';
+        } else if (diffDays > 1) {
+            label = 'In ' + diffDays + ' days';
+        } else {
+            label = Math.abs(diffDays) + ' days ago';
+        }
+        return label + ' · ' + formatDisplayTime(date);
+    }
+
+    function laShowCopiedFeedback($wrap) {
+        if (!$wrap || !$wrap.length) {
+            return;
+        }
+        var timer = $wrap.data('copied-timer');
+        if (timer) {
+            clearTimeout(timer);
+        }
+        $wrap.addClass('is-copied');
+        timer = setTimeout(function () {
+            $wrap.removeClass('is-copied');
+            $wrap.data('copied-timer', null);
+        }, 900);
+        $wrap.data('copied-timer', timer);
+    }
+
+    function laToast(message) {
+        var $toast = $('#la-toast');
+        if (!$toast.length) {
+            $toast = $('<div id="la-toast" class="la-toast"></div>');
+            $('body').append($toast);
+        }
+        var timer = $toast.data('toast-timer');
+        if (timer) {
+            clearTimeout(timer);
+        }
+        $toast.text(message || 'Copied to clipboard').addClass('is-visible');
+        timer = setTimeout(function () {
+            $toast.removeClass('is-visible');
+            $toast.data('toast-timer', null);
+        }, 1400);
+        $toast.data('toast-timer', timer);
     }
     function apiRequest(method, endpoint, data) {
         return $.ajax({
@@ -235,26 +384,33 @@ jQuery(function ($) {
         var showFollowupAction = !!options.showFollowupAction;
         $el.html('<p>Loading leads...</p>');
         var leadsRequest = tagId ? apiRequest('GET', 'tags/' + tagId + '/leads') : apiRequest('GET', 'leads');
-        $.when(leadsRequest, apiRequest('GET', 'stages'), apiRequest('GET', 'custom-fields'), apiRequest('GET', 'me')).done(function (leadsRes, stagesRes, customFieldsRes, meRes) {
+        $.when(leadsRequest, apiRequest('GET', 'custom-fields'), apiRequest('GET', 'me')).done(function (leadsRes, customFieldsRes, meRes) {
             var leads = leadsRes[0] || [];
-            var stages = stagesRes[0] || [];
             var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
+            var followupFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].followup) ? customFieldsRes[0].followup : {};
             var me = meRes && meRes[0] ? meRes[0] : {};
             var readOnly = (me.access_level || 'full') === 'read';
-            var stageMap = {};
-            stages.forEach(function (stage) {
-                stageMap[stage.id] = stage.name;
-            });
             var selectedLeadIds = [];
+            var storageKey = 'leadAggregatorLeadsFilters';
+            var initialFilters = options.filters || {};
+            if (!options.filters && !tagId) {
+                try {
+                    initialFilters = JSON.parse(window.localStorage.getItem(storageKey) || '{}') || {};
+                } catch (err) {
+                    initialFilters = {};
+                }
+            }
+            var initialSearch = initialFilters.search || '';
+            var initialStatus = initialFilters.status || '';
+            var initialFollowup = initialFilters.followup || '';
 
             var columnDefs = [
                 { key: 'name', label: 'Name' },
                 { key: 'email', label: 'Email' },
                 { key: 'company', label: 'Company' },
                 { key: 'phone', label: 'Phone' },
-                { key: 'stage', label: 'Stage' },
-                { key: 'status', label: 'Status' },
-                { key: 'followup', label: 'Followup' },
+                { key: 'status', label: 'Pipeline Stage' },
+                { key: 'followup', label: 'Followup Date' },
                 { key: 'due', label: 'Due' },
                 { key: 'source', label: 'Source' },
                 { key: 'last_actioned', label: 'Last Actioned' },
@@ -272,33 +428,138 @@ jQuery(function ($) {
                 });
             }
 
-            var defaultColumns = ['name', 'email', 'stage', 'status', 'followup', 'due', 'source'];
+            var defaultColumns = ['name', 'status', 'followup', 'due', 'source'];
             var storedColumns = [];
             try {
                 storedColumns = JSON.parse(window.localStorage.getItem('leadAggregatorLeadColumns') || '[]');
             } catch (err) {
                 storedColumns = [];
             }
-            var activeColumns = (storedColumns && storedColumns.length) ? storedColumns : defaultColumns.slice();
+            activeColumns = (storedColumns && storedColumns.length) ? storedColumns : defaultColumns.slice();
+            if (activeColumns.indexOf('stage') !== -1) {
+                activeColumns = activeColumns.filter(function (key) { return key !== 'stage'; });
+                if (activeColumns.indexOf('status') === -1) {
+                    activeColumns.splice(2, 0, 'status');
+                }
+            }
 
             function getColumnLabel(key) {
                 var found = columnDefs.find(function (col) { return col.key === key; });
                 return found ? found.label : key;
             }
 
+            function isOverdue(lead) {
+                if (!lead || !lead.due_at) {
+                    return false;
+                }
+                var dueDate = new Date(String(lead.due_at).replace(' ', 'T'));
+                if (isNaN(dueDate.getTime())) {
+                    return false;
+                }
+                var followupStatus = normalizeFollowupStatusValue(lead.followup_status);
+                if (followupStatus === 'completed' || followupStatus === 'canceled') {
+                    return false;
+                }
+                return dueDate < new Date();
+            }
+
+            function isDue(lead) {
+                if (!lead || !lead.due_at) {
+                    return false;
+                }
+                var dueDate = new Date(String(lead.due_at).replace(' ', 'T'));
+                if (isNaN(dueDate.getTime())) {
+                    return false;
+                }
+                var followupStatus = normalizeFollowupStatusValue(lead.followup_status);
+                if (followupStatus === 'completed' || followupStatus === 'canceled') {
+                    return false;
+                }
+                return dueDate <= new Date();
+            }
+
+            function buildDateCell(value, overdueFlag) {
+                if (!value) {
+                    return '';
+                }
+                var exact = formatDisplayDate(value);
+                var relative = formatRelativeDate(value);
+                var className = 'la-date-stack' + (overdueFlag ? ' la-date-overdue' : '');
+                return '<div class="' + className + '"><span class="la-date-relative">' + relative + '</span><span class="la-muted">' + exact + '</span></div>';
+            }
+
+            function statusFilterLabel(value) {
+                if (!value) {
+                    return 'All';
+                }
+                return pipelineStageLabel(value);
+            }
+
+            function followupFilterLabel(value) {
+                if (!value) {
+                    return 'All';
+                }
+                if (value === 'due') {
+                    return 'Due';
+                }
+                if (value === 'overdue') {
+                    return 'Overdue';
+                }
+                return followupStatusLabel(value);
+            }
+
+            function isFollowedToday(lead) {
+                if (!lead) {
+                    return false;
+                }
+                var raw = lead.last_actioned || lead.last_contacted || '';
+                if (!raw && normalizeFollowupStatusValue(lead.followup_status) === 'completed' && lead.followup_at) {
+                    raw = lead.followup_at;
+                }
+                if (!raw) {
+                    return false;
+                }
+                var normalized = String(raw).replace(' ', 'T');
+                var date = new Date(normalized);
+                if (isNaN(date.getTime())) {
+                    return false;
+                }
+                var today = new Date();
+                return date.getFullYear() === today.getFullYear() &&
+                    date.getMonth() === today.getMonth() &&
+                    date.getDate() === today.getDate();
+            }
+
+            function updateMetricButtons(filter, statusFilter, followupStatusFilter) {
+                if (!options.statsEl || !options.statsEl.length) {
+                    return;
+                }
+                var $buttons = options.statsEl.find('.la-stat-button');
+                $buttons.removeClass('is-active').attr('aria-pressed', 'false');
+                var isDefault = !filter && !statusFilter && !followupStatusFilter;
+                var followupKey = String(followupStatusFilter || '').toLowerCase();
+                if (isDefault) {
+                    $buttons.filter('[data-filter="total"]').addClass('is-active').attr('aria-pressed', 'true');
+                } else if (followupKey === 'due') {
+                    $buttons.filter('[data-filter="followup"]').addClass('is-active').attr('aria-pressed', 'true');
+                } else if (followupKey === 'followed') {
+                    $buttons.filter('[data-filter="followed"]').addClass('is-active').attr('aria-pressed', 'true');
+                } else if (followupKey === 'overdue') {
+                    $buttons.filter('[data-filter="overdue"]').addClass('is-active').attr('aria-pressed', 'true');
+                }
+            }
+
             function renderCell(lead, key) {
                 if (key === 'name') {
                     var name = (lead.first_name || '') + ' ' + (lead.last_name || '');
-                    return '<button type="button" class="la-link la-lead-link" data-lead-id="' + lead.id + '">' + (name.trim() || 'Lead #' + lead.id) + '</button>';
-                }
-                if (key === 'stage') {
-                    return stageMap[lead.stage_id] || '';
+                    var email = lead.email ? '<span class="la-name-email">' + lead.email + '</span>' : '';
+                    return '<button type="button" class="la-link la-lead-link" data-lead-id="' + lead.id + '"><span class="la-name-primary">' + (name.trim() || 'Lead #' + lead.id) + '</span>' + email + '</button>';
                 }
                 if (key === 'followup') {
-                    return formatDisplayDate(lead.followup_at);
+                    return buildDateCell(lead.followup_at, false);
                 }
                 if (key === 'due') {
-                    return formatDisplayDate(lead.due_at);
+                    return buildDateCell(lead.due_at, isOverdue(lead));
                 }
                 if (key === 'last_actioned') {
                     return formatDisplayDate(lead.last_actioned);
@@ -306,43 +567,89 @@ jQuery(function ($) {
                 if (key === 'last_contacted') {
                     return formatDisplayDate(lead.last_contacted);
                 }
+                if (key === 'status') {
+                    var stageKey = normalizePipelineStageValue(lead.status);
+                    return '<span class="la-pill la-pill--' + stageKey + '">' + pipelineStageLabel(lead.status) + '</span>';
+                }
                 return lead[key] ? lead[key] : '';
             }
 
-            function renderRows(filter, stageFilter) {
+            function renderRows(filter, statusFilter, followupStatusFilter) {
                 if (!activeColumns.length) {
                     activeColumns = defaultColumns.slice();
                     window.localStorage.setItem('leadAggregatorLeadColumns', JSON.stringify(activeColumns));
                 }
-                var title = tagId ? ('Leads tagged: ' + tagName) : 'Inbox';
+                var statusLabel = statusFilterLabel(statusFilter);
+                var followupLabel = followupFilterLabel(followupStatusFilter);
+                var hasActiveFilters = !!(filter || statusFilter || followupStatusFilter);
                 var html = '<div class="la-section-header">' +
-                    '<div class="la-section-title"><h3>' + title + '</h3></div>' +
-                    '<div class="la-section-actions">';
-                if (tagId) {
-                    html += '<button type="button" class="la-btn la-btn--ghost la-show-all-leads">All Leads</button>';
-                } else {
-                    if (!readOnly) {
-                        html += '<button type="button" class="la-btn la-add-lead">' + icons.plus + 'Add Lead</button>';
-                    }
-                }
+                    '<div class="la-section-actions la-section-actions--leads">';
+                html += '<div class="la-leads-toolbar">';
+                html += '<div class="la-intent-row">';
+                html += '<input type="text" class="la-search la-search--primary" placeholder="Search leads" value="' + (filter || '') + '">';
+                html += '<div class="la-intent-actions">';
                 if (!readOnly) {
-                    html += '<button type="button" class="la-btn la-btn--ghost la-bulk-delete"' + (selectedLeadIds.length ? '' : ' disabled') + '>Delete Selected</button>';
+                    html += '<button type="button" class="la-btn la-add-lead">' + icons.plus + 'Add Lead</button>';
                 }
-                html += '</div></div>';
-                html += '<div class="la-toolbar"><input type="text" class="la-search" placeholder="Search leads" value="' + (filter || '') + '">';
-                html += '<select class="la-stage-filter"><option value="">All stages</option>';
-                stages.forEach(function (stage) {
-                    var selected = String(stage.id) === String(stageFilter || '') ? ' selected' : '';
-                    html += '<option value="' + stage.id + '"' + selected + '>' + stage.name + '</option>';
-                });
-                html += '</select>';
-                html += '<div class="la-column-toggle-wrap"><button type="button" class="la-btn la-btn--ghost la-column-toggle">Columns</button>';
+                html += '<div class="la-column-toggle-wrap"><button type="button" class="la-btn la-btn--ghost la-column-toggle">' + icons.columns + 'Columns</button>';
                 html += '<div class="la-column-menu">';
                 columnDefs.forEach(function (col) {
                     var checked = activeColumns.indexOf(col.key) !== -1 ? ' checked' : '';
                     html += '<label><input type="checkbox" data-key="' + col.key + '"' + checked + '> ' + col.label + '</label>';
                 });
-                html += '</div></div></div>';
+                html += '</div></div>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="la-context-row">';
+                html += '<div class="la-filter-pill-group">';
+                if (tagId) {
+                    html += '<button type="button" class="la-filter-pill la-filter-tag" data-tag-clear="1">Tag: ' + tagName + ' ×</button>';
+                }
+                html += '<div class="la-filter-pill-wrap" data-filter="status">';
+                html += '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Pipeline: <span class="la-filter-value">' + statusLabel + '</span> ▾</button>';
+                html += '<div class="la-filter-menu">';
+                html += '<button type="button" data-value="">All</button>';
+                statusOptions.forEach(function (option) {
+                    var value = option.toLowerCase();
+                    var selected = value === String(statusFilter || '').toLowerCase() ? ' data-selected="1"' : '';
+                    html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
+                });
+                html += '</div></div>';
+                html += '<div class="la-filter-pill-wrap" data-filter="followup">';
+                html += '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Follow-ups: <span class="la-filter-value">' + followupLabel + '</span> ▾</button>';
+                html += '<div class="la-filter-menu">';
+                html += '<button type="button" data-value="">All</button>';
+                followupOptions.forEach(function (option) {
+                    var value = option.toLowerCase().replace(/\s+/g, '_');
+                    var selected = value === String(followupStatusFilter || '').toLowerCase() ? ' data-selected="1"' : '';
+                    html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
+                });
+                html += '<button type="button" data-value="due"' + (String(followupStatusFilter || '').toLowerCase() === 'due' ? ' data-selected="1"' : '') + '>Due</button>';
+                html += '<button type="button" data-value="overdue"' + (String(followupStatusFilter || '').toLowerCase() === 'overdue' ? ' data-selected="1"' : '') + '>Overdue</button>';
+                html += '</div></div>';
+                var clearDisabled = hasActiveFilters ? '' : ' disabled';
+                html += '<button type="button" class="la-filter-pill la-filter-clear"' + clearDisabled + '>' + icons.clearFilters + 'Clear</button>';
+                html += '<div class="la-filter-count">Showing 0 leads</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div></div>';
+
+                if (!readOnly && selectedLeadIds.length) {
+                    html += '<div class="la-bulk-toolbar">';
+                    html += '<div class="la-bulk-count">' + selectedLeadIds.length + ' selected</div>';
+                    html += '<div class="la-bulk-actions">';
+                    html += '<button type="button" class="la-btn la-btn--danger la-bulk-delete">' + icons.trash + 'Delete Selected</button>';
+                    html += '<select class="la-bulk-followup-status">';
+                    html += '<option value="">Set follow-up status</option>';
+                    followupOptions.forEach(function (option) {
+                        var value = option.toLowerCase().replace(/\s+/g, '_');
+                        html += '<option value="' + value + '">' + option + '</option>';
+                    });
+                    html += '</select>';
+                    html += '<button type="button" class="la-btn la-btn--ghost la-bulk-followup-apply">Apply</button>';
+                    html += '</div></div>';
+                }
 
                 html += '<table class="la-table"><thead><tr>';
                 if (!readOnly) {
@@ -352,7 +659,7 @@ jQuery(function ($) {
                     html += '<th>' + getColumnLabel(key) + '</th>';
                 });
                 if (showFollowupAction && !readOnly) {
-                    html += '<th>Followup</th>';
+                    html += '<th>Action</th>';
                 }
                 html += '</tr></thead><tbody>';
 
@@ -368,11 +675,35 @@ jQuery(function ($) {
                         );
                     });
                 }
-                if (stageFilter) {
+                if (statusFilter) {
+                    var normalized = normalizePipelineStageValue(statusFilter);
                     filtered = filtered.filter(function (lead) {
-                        return String(lead.stage_id || '') === String(stageFilter);
+                        return normalizePipelineStageValue(lead.status) === normalized;
                     });
                 }
+                if (followupStatusFilter) {
+                    var followupKey = String(followupStatusFilter || '').toLowerCase();
+                    if (followupKey === 'due') {
+                        filtered = filtered.filter(function (lead) {
+                            return isDue(lead);
+                        });
+                    } else if (followupKey === 'followed') {
+                        filtered = filtered.filter(function (lead) {
+                            return isFollowedToday(lead);
+                        });
+                    } else if (followupKey === 'overdue') {
+                        filtered = filtered.filter(function (lead) {
+                            return isOverdue(lead);
+                        });
+                    } else {
+                        var normalizedFollowup = normalizeFollowupStatusValue(followupStatusFilter);
+                        filtered = filtered.filter(function (lead) {
+                            return normalizeFollowupStatusValue(lead.followup_status) === normalizedFollowup;
+                        });
+                    }
+                }
+
+                var countLabel = 'Showing ' + filtered.length + ' lead' + (filtered.length === 1 ? '' : 's');
 
                 if (filtered.length === 0) {
                     html += '<tr><td class="la-empty" colspan="' + (activeColumns.length + (readOnly ? 0 : 1) + (showFollowupAction && !readOnly ? 1 : 0)) + '">No leads yet.</td></tr>';
@@ -380,41 +711,84 @@ jQuery(function ($) {
                     filtered.forEach(function (lead) {
                         html += '<tr>';
                         if (!readOnly) {
-                            var checked = selectedLeadIds.indexOf(lead.id) !== -1 ? ' checked' : '';
+                            var checked = selectedLeadIds.indexOf(String(lead.id)) !== -1 ? ' checked' : '';
                             html += '<td><input type="checkbox" class="la-lead-select" data-id="' + lead.id + '"' + checked + '></td>';
                         }
                         activeColumns.forEach(function (key) {
                             html += '<td>' + renderCell(lead, key) + '</td>';
                         });
-                        if (showFollowupAction && !readOnly) {
-                            html += '<td><button type="button" class="la-btn la-btn--ghost la-followup-add" data-id="' + lead.id + '">' + icons.edit + 'Followup</button></td>';
+                if (showFollowupAction && !readOnly && normalizePipelineStageValue(lead.status) === 'new' && normalizeFollowupStatusValue(lead.followup_status) === 'not_set') {
+                    html += '<td><button type="button" class="la-btn la-btn--ghost la-followup-add" data-id="' + lead.id + '">' + icons.addToFollowup + 'Followup</button></td>';
+                        } else if (showFollowupAction && !readOnly) {
+                            html += '<td></td>';
                         }
                         html += '</tr>';
                     });
                 }
-
                 html += '</tbody></table>';
                 $el.html(html);
+
+                updateMetricButtons(filter, statusFilter, followupStatusFilter);
+                $el.find('.la-filter-count').text(countLabel);
+                if (!tagId) {
+                    window.localStorage.setItem(storageKey, JSON.stringify({
+                        search: filter || '',
+                        status: statusFilter || '',
+                        followup: followupStatusFilter || ''
+                    }));
+                }
 
                 if (!readOnly && filtered.length && selectedLeadIds.length === filtered.length) {
                     $el.find('.la-select-all').prop('checked', true);
                 }
 
                 $el.find('.la-search').on('input', function () {
-                    var currentStage = $el.find('.la-stage-filter').val();
-                    renderRows($(this).val(), currentStage);
+                    var currentStatus = statusFilter || '';
+                    var currentFollowupStatus = followupStatusFilter || '';
+                    renderRows($(this).val(), currentStatus, currentFollowupStatus);
                 });
 
-                $el.find('.la-stage-filter').on('change', function () {
+                $el.find('.la-filter-pill').on('click', function (event) {
+                    var $wrap = $(this).closest('.la-filter-pill-wrap');
+                    if (!$wrap.length) {
+                        return;
+                    }
+                    event.stopPropagation();
+                    var isOpen = $wrap.hasClass('is-open');
+                    $el.find('.la-filter-pill-wrap').removeClass('is-open');
+                    $wrap.toggleClass('is-open', !isOpen);
+                });
+
+                $el.find('.la-filter-menu button').on('click', function () {
+                    var $wrap = $(this).closest('.la-filter-pill-wrap');
+                    var filterType = $wrap.data('filter');
+                    var value = $(this).data('value');
                     var currentSearch = $el.find('.la-search').val();
-                    renderRows(currentSearch, $(this).val());
+                    var currentStatus = filterType === 'status' ? value : (statusFilter || '');
+                    var currentFollowup = filterType === 'followup' ? value : (followupStatusFilter || '');
+                    $el.find('.la-filter-pill-wrap').removeClass('is-open');
+                    renderRows(currentSearch, currentStatus, currentFollowup);
+                });
+
+                $(document).off('click.leadAggregatorFilters').on('click.leadAggregatorFilters', function (event) {
+                    if (!$(event.target).closest('.la-filter-pill-wrap').length) {
+                        $el.find('.la-filter-pill-wrap').removeClass('is-open');
+                    }
+                });
+
+                $el.find('.la-filter-clear').on('click', function () {
+                    if (this.disabled) {
+                        return;
+                    }
+                    renderRows('', '', '');
+                });
+
+                $el.find('.la-filter-tag').on('click', function () {
+                    renderInbox($el, { showFollowupAction: showFollowupAction, statsEl: options.statsEl });
                 });
 
                 $el.find('.la-lead-select').on('change', function () {
-                    var id = parseInt($(this).data('id'), 10);
-                    if (isNaN(id)) {
-                        return;
-                    }
+                    var id = String($(this).data('id'));
                     if (this.checked) {
                         if (selectedLeadIds.indexOf(id) === -1) {
                             selectedLeadIds.push(id);
@@ -423,20 +797,22 @@ jQuery(function ($) {
                         selectedLeadIds = selectedLeadIds.filter(function (item) { return item !== id; });
                     }
                     var currentSearch = $el.find('.la-search').val();
-                    var currentStage = $el.find('.la-stage-filter').val();
-                    renderRows(currentSearch, currentStage);
+                    var currentStatus = statusFilter || '';
+                    var currentFollowupStatus = followupStatusFilter || '';
+                    renderRows(currentSearch, currentStatus, currentFollowupStatus);
                 });
 
                 if (!readOnly) {
                     $el.find('.la-select-all').on('change', function () {
                         if (this.checked) {
-                            selectedLeadIds = filtered.map(function (lead) { return lead.id; });
+                            selectedLeadIds = filtered.map(function (lead) { return String(lead.id); });
                         } else {
                             selectedLeadIds = [];
                         }
                         var currentSearch = $el.find('.la-search').val();
-                        var currentStage = $el.find('.la-stage-filter').val();
-                        renderRows(currentSearch, currentStage);
+                        var currentStatus = statusFilter || '';
+                        var currentFollowupStatus = followupStatusFilter || '';
+                        renderRows(currentSearch, currentStatus, currentFollowupStatus);
                     });
 
                     $el.find('.la-bulk-delete').on('click', function () {
@@ -451,6 +827,19 @@ jQuery(function ($) {
                             renderInbox($el, options);
                         });
                     });
+
+                $el.find('.la-bulk-followup-apply').on('click', function () {
+                    var statusValue = $el.find('.la-bulk-followup-status').val();
+                    if (!statusValue || !selectedLeadIds.length) {
+                        return;
+                    }
+                    var requests = selectedLeadIds.map(function (leadId) {
+                        return apiRequest('PUT', 'leads/' + leadId, { followup_status: statusValue });
+                    });
+                    $.when.apply($, requests).always(function () {
+                        renderInbox($el, options);
+                    });
+                });
                 }
 
                 $el.find('.la-column-toggle').on('click', function () {
@@ -468,8 +857,9 @@ jQuery(function ($) {
                     }
                     window.localStorage.setItem('leadAggregatorLeadColumns', JSON.stringify(activeColumns));
                     var currentSearch = $el.find('.la-search').val();
-                    var currentStage = $el.find('.la-stage-filter').val();
-                    renderRows(currentSearch, currentStage);
+                    var currentStatus = statusFilter || '';
+                    var currentFollowupStatus = followupStatusFilter || '';
+                    renderRows(currentSearch, currentStatus, currentFollowupStatus);
                 });
 
                 $el.find('.la-add-lead').on('click', function () {
@@ -478,18 +868,31 @@ jQuery(function ($) {
 
                 $el.find('.la-followup-add').on('click', function () {
                     var leadId = $(this).data('id');
-                    var lead = leads.find(function (item) { return String(item.id) === String(leadId); });
-                    if (lead) {
-                        openFollowupModal(lead, stages);
+                    if (!leadId) {
+                        return;
                     }
+                    // Set follow-up quickly without opening modal.
+                    apiRequest('PUT', 'leads/' + leadId, {
+                        followup_at: new Date().toISOString(),
+                        followup_status: 'scheduled'
+                    }).done(function () {
+                        if (window.leadAggregatorOpenTab) {
+                            window.leadAggregatorOpenTab('followups');
+                        }
+                        $.when(
+                            apiRequest('GET', 'leads/' + leadId)
+                        ).done(function (leadRes) {
+                            if (leadRes) {
+                                openFollowupManageModal(leadRes, { labels: customFields, followup: followupFields });
+                            }
+                            $(document).trigger('leadAggregator:refresh');
+                        });
+                    });
                 });
 
-                $el.find('.la-show-all-leads').on('click', function () {
-                    renderInbox($el);
-                });
             }
 
-            renderRows('', '');
+            renderRows(initialSearch, initialStatus, initialFollowup);
         }).fail(function () {
             $el.html('<p>Unable to load leads.</p>');
         });
@@ -592,7 +995,8 @@ jQuery(function ($) {
         });
     }
 
-    function openFollowupModal(lead, stages) {
+    // TODO: Remove if we permanently drop the quick follow-up modal.
+    function openFollowupModal(lead, customConfig) {
         function toLocalInputValue(dateObj) {
             var year = dateObj.getFullYear();
             var month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -611,12 +1015,9 @@ jQuery(function ($) {
             followupValue = toLocalInputValue(now);
         }
 
-        var stageSelect = '<select name="stage_id"><option value="">No stage</option>';
-        (stages || []).forEach(function (stage) {
-            var selected = String(stage.id) === String(lead.stage_id || '') ? ' selected' : '';
-            stageSelect += '<option value="' + stage.id + '"' + selected + '>' + stage.name + '</option>';
-        });
-        stageSelect += '</select>';
+        var statusSelect = buildSelect('status', normalizePipelineStageValue(lead.status), statusOptions);
+        var followupSelect = buildSelect('followup_status', lead.followup_status || 'scheduled', followupOptions);
+        var customFieldsHtml = buildFollowupCustomFields(customConfig, lead);
 
         var modal = $(
             '<div class="la-modal-overlay">' +
@@ -627,9 +1028,11 @@ jQuery(function ($) {
                     '</div>' +
                     '<div class="la-modal-body">' +
                         '<form class="la-form la-followup-modal-form la-form--two-col">' +
+                            '<div><label>Pipeline Stage ' + statusSelect + '</label></div>' +
+                            '<div><label>Follow-up Status ' + followupSelect + '</label></div>' +
                             '<div><label>Followup Date <input type="datetime-local" name="followup_at" value="' + followupValue + '"></label></div>' +
-                            '<div><label>Due Date <input type="datetime-local" name="due_at" value="' + (lead.due_at ? lead.due_at.replace(" ", "T") : '') + '"></label></div>' +
-                            '<div><label>Stage ' + stageSelect + '</label></div>' +
+                            '<div><label>Due Date <input type="datetime-local" name="due_at" value=""></label></div>' +
+                            customFieldsHtml +
                             '<div class="la-modal-actions">' +
                                 '<button type="button" class="la-btn la-btn--ghost la-modal-cancel">Cancel</button>' +
                                 '<button type="submit" class="la-btn">' + icons.edit + 'Save</button>' +
@@ -671,7 +1074,7 @@ jQuery(function ($) {
         });
     }
 
-    function openFollowupManageModal(lead, stages) {
+        function openFollowupManageModal(lead, customConfig) {
         function toLocalInputValue(dateObj) {
             var year = dateObj.getFullYear();
             var month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -689,15 +1092,9 @@ jQuery(function ($) {
             followupValue = toLocalInputValue(now);
         }
 
-        var stageSelect = '<select name="stage_id"><option value="">No stage</option>';
-        (stages || []).forEach(function (stage) {
-            var selected = String(stage.id) === String(lead.stage_id || '') ? ' selected' : '';
-            stageSelect += '<option value="' + stage.id + '"' + selected + '>' + stage.name + '</option>';
-        });
-        stageSelect += '</select>';
-
-        var statusSelect = buildSelect('status', lead.status || 'open', statusOptions);
+        var statusSelect = buildSelect('status', normalizePipelineStageValue(lead.status), statusOptions);
         var followupSelect = buildSelect('followup_status', lead.followup_status || 'scheduled', followupOptions);
+        var customFieldsHtml = buildFollowupCustomFields(customConfig, lead);
 
         var contactName = ((lead.first_name || '') + ' ' + (lead.last_name || '')).trim();
         var contactEmail = (lead.email || '').trim();
@@ -706,33 +1103,80 @@ jQuery(function ($) {
 
         var modal = $(
             '<div class="la-modal-overlay">' +
-                '<div class="la-modal">' +
-                    '<div class="la-modal-header">' +
-                        '<h4>Follow-up</h4>' +
+                '<div class="la-modal la-modal--wide">' +
+                '<div class="la-modal-header">' +
+                        '<div class="la-modal-title">' +
+                            '<h4>Follow-up</h4>' +
+                        '</div>' +
                         '<button type="button" class="la-modal-close">×</button>' +
                     '</div>' +
                     '<div class="la-modal-body">' +
                         '<form class="la-form la-followup-modal-form">' +
-                            '<div>' +
-                                '<label>Name <input type="text" value="' + (contactName || 'N/A') + '" disabled></label>' +
+                            '<div class="la-modal-section la-modal-section--primary">' +
+                                '<div class="la-modal-section-title">Follow-up</div>' +
+                                '<div class="la-modal-grid">' +
+                                    '<div><label>Follow-up Status ' + followupSelect + '</label></div>' +
+                                    '<div><label>Pipeline Stage ' + statusSelect + '</label></div>' +
+                                    '<div><label>Followup Date <input type="datetime-local" name="followup_at" value="' + followupValue + '"></label></div>' +
+                                    '<div><label>Due Date <input type="datetime-local" name="due_at" value="' + dueValue + '"></label></div>' +
+                                '</div>' +
                             '</div>' +
-                            '<div>' +
-                                '<label>Email <input type="text" value="' + (contactEmail || 'N/A') + '" disabled></label>' +
+                            '<div class="la-modal-section">' +
+                                '<div class="la-modal-section-title">Contact</div>' +
+                                '<div class="la-modal-grid">' +
+                                    '<div class="la-copy-wrap">' +
+                                        '<label>Name <input type="text" class="la-copy-field" value="' + (contactName || 'N/A') + '" readonly data-copy="' + (contactName || '') + '"></label>' +
+                                    '</div>' +
+                                    '<div class="la-copy-wrap">' +
+                                        '<label>Email <input type="text" class="la-copy-field" value="' + (contactEmail || 'N/A') + '" readonly data-copy="' + (contactEmail || '') + '"></label>' +
+                                    '</div>' +
+                                    '<div>' +
+                                        '<label>Phone <input type="text" value="' + (contactPhone || 'N/A') + '" disabled></label>' +
+                                    '</div>' +
+                                '</div>' +
                             '</div>' +
-                            '<div>' +
-                                '<label>Phone <input type="text" value="' + (contactPhone || 'N/A') + '" disabled></label>' +
+                            '<div class="la-modal-section">' +
+                                '<div class="la-modal-section-title">Qualifier</div>' +
+                                '<div class="la-modal-grid">' +
+                                    customFieldsHtml +
+                                '</div>' +
                             '</div>' +
-                            '<div><label>Stage ' + stageSelect + '</label></div>' +
-                            '<div><label>Lead Status ' + statusSelect + '</label></div>' +
-                            '<div><label>Follow-up Status ' + followupSelect + '</label></div>' +
-                            '<div><label>Followup Date <input type="datetime-local" name="followup_at" value="' + followupValue + '"></label></div>' +
-                            '<div><label>Due Date <input type="datetime-local" name="due_at" value="' + dueValue + '"></label></div>' +
-                            '<div><label>Note <textarea name="note" rows="3" placeholder="Add a note"></textarea></label></div>' +
+                            '<div class="la-modal-section la-modal-section--tags">' +
+                                '<div class="la-modal-section-title">Tags</div>' +
+                                '<div class="la-tags-applied">' +
+                                    '<div class="la-tags-applied-list"></div>' +
+                                    '<button type="button" class="la-tags-toggle" style="display:none;"></button>' +
+                                '</div>' +
+                                '<div class="la-tags-input">' +
+                                    '<select class="la-tag-input-select"><option value="">Add tags...</option></select>' +
+                                '</div>' +
+                                '<div class="la-message la-tag-message"></div>' +
+                            '</div>' +
+                            '<div class="la-modal-section la-modal-section--notes">' +
+                                '<div class="la-modal-section-title">Note</div>' +
+                                '<label><textarea name="note" rows="4" placeholder="Add a note"></textarea></label>' +
+                                '<div class="la-helper-text">Internal notes (not sent to lead).</div>' +
+                            '</div>' +
                             '<div class="la-modal-actions">' +
-                                '<button type="button" class="la-btn la-btn--ghost la-modal-cancel">Cancel</button>' +
-                                '<a class="la-btn la-btn--ghost la-mailto"' + (contactEmail ? ' href="' + mailtoLink + '" target="_blank" rel="noopener noreferrer"' : ' href="#" aria-disabled="true"') + '>Send Email</a>' +
-                                '<button type="button" class="la-btn la-btn--ghost la-open-contact">Open Contact</button>' +
-                                '<button type="submit" class="la-btn">' + icons.edit + 'Save</button>' +
+                                '<div class="la-modal-actions-grid">' +
+                                    '<button type="button" class="la-btn la-btn--ghost la-quick-action">Apply Quick Action</button>' +
+                                    '<button type="button" class="la-btn la-btn--ghost la-open-contact la-action-open">' +
+                                        '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">' +
+                                            '<path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />' +
+                                        '</svg>' +
+                                        'Open Contact</button>' +
+                                    '<a class="la-btn la-btn--ghost la-mailto la-action-email"' + (contactEmail ? ' href="' + mailtoLink + '" target="_blank" rel="noopener noreferrer"' : ' href="#" aria-disabled="true"') + '>' +
+                                        '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">' +
+                                            '<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 1 0-2.636 6.364M16.5 12V8.25" />' +
+                                        '</svg>' +
+                                        'Send Email</a>' +
+                                    '<button type="button" class="la-btn la-btn--ghost la-modal-cancel la-action-cancel">' +
+                                        '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">' +
+                                            '<path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />' +
+                                        '</svg>' +
+                                        'Cancel</button>' +
+                                    '<button type="submit" class="la-btn la-action-save">' + icons.edit + 'Save</button>' +
+                                '</div>' +
                             '</div>' +
                             '<div class="la-message"></div>' +
                         '</form>' +
@@ -762,6 +1206,160 @@ jQuery(function ($) {
             }
         });
 
+        modal.find('.la-quick-action').on('click', function () {
+            var $button = $(this);
+            $button.prop('disabled', true);
+            apiRequest('GET', 'quick-action/settings').done(function (settings) {
+                settings = settings || {};
+                var status = settings.status || 'contacted';
+                var followupStatus = settings.followup_status || 'scheduled';
+                modal.find('select[name="status"]').val(status);
+                modal.find('select[name="followup_status"]').val(followupStatus);
+                apiRequest('PUT', 'leads/' + lead.id, {
+                    status: status,
+                    followup_status: followupStatus
+                }).done(function () {
+                    modal.find('.la-message').text('Quick action applied.');
+                    $(document).trigger('leadAggregator:refresh');
+                }).fail(function () {
+                    modal.find('.la-message').text('Unable to apply quick action.');
+                }).always(function () {
+                    $button.prop('disabled', false);
+                });
+            }).fail(function () {
+                modal.find('.la-message').text('Quick action settings not found.');
+                $button.prop('disabled', false);
+            });
+        });
+
+        modal.find('.la-copy-field').on('click', function () {
+            var $wrap = $(this).closest('.la-copy-wrap');
+            var value = $(this).data('copy') || $(this).val();
+            if (!value) {
+                return;
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(value).then(function () {
+                    laShowCopiedFeedback($wrap);
+                    laToast('Copied to clipboard');
+                }).catch(function () {
+                    modal.find('.la-message').text('Unable to copy.');
+                });
+            } else {
+                try {
+                    this.select();
+                    document.execCommand('copy');
+                    laShowCopiedFeedback($wrap);
+                    laToast('Copied to clipboard');
+                } catch (err) {
+                    modal.find('.la-message').text('Unable to copy.');
+                }
+            }
+        });
+
+        function renderAppliedTags(tags, selectedTags, expanded) {
+            var maxVisible = expanded ? selectedTags.length : 6;
+            var html = '';
+            selectedTags.forEach(function (tagId, index) {
+                var tag = tags.find(function (t) { return t.id === tagId; });
+                if (!tag || index >= maxVisible) {
+                    return;
+                }
+                html += '<span class="la-tag-selected-chip" data-tag-id="' + tag.id + '">' +
+                    tag.name + '<button type="button" class="la-tag-remove">' + icons.x + '</button></span>';
+            });
+            if (!html) {
+                html = '<span class="la-muted">No tags yet</span>';
+            }
+            modal.find('.la-tags-applied-list').html(html);
+            var remaining = selectedTags.length - maxVisible;
+            var toggle = modal.find('.la-tags-toggle');
+            if (remaining > 0) {
+                toggle.text('+' + remaining + ' more').show();
+            } else if (expanded && selectedTags.length > 6) {
+                toggle.text('Show less').show();
+            } else {
+                toggle.hide();
+            }
+        }
+
+        function renderTagSelect(tags, selectedTags) {
+            var select = modal.find('.la-tag-input-select');
+            var html = '<option value="">Add tags...</option>';
+            tags.forEach(function (tag) {
+                if (selectedTags.indexOf(tag.id) !== -1) {
+                    return;
+                }
+                html += '<option value="' + tag.id + '">' + tag.name + '</option>';
+            });
+            select.html(html);
+        }
+
+        function saveFollowupTags(selectedTags) {
+            return apiRequest('PUT', 'leads/' + lead.id, { tags: selectedTags }).fail(function (xhr) {
+                var message = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unable to update tags.';
+                modal.find('.la-tag-message').text(message);
+            });
+        }
+
+        $.when(apiRequest('GET', 'tags'), apiRequest('GET', 'leads/' + lead.id)).done(function (tagsRes, leadRes) {
+            var tags = (tagsRes[0] || []).map(function (tag) {
+                return {
+                    id: parseInt(tag.id, 10),
+                    name: tag.name
+                };
+            });
+            var leadData = leadRes[0] || lead;
+            var selectedTags = (leadData.tags || []).map(function (tagId) {
+                return parseInt(tagId, 10);
+            }).filter(function (tagId) {
+                return !isNaN(tagId);
+            });
+            var expanded = false;
+            var select = modal.find('.la-tag-input-select');
+
+            function refreshTags() {
+                renderAppliedTags(tags, selectedTags, expanded);
+                renderTagSelect(tags, selectedTags);
+            }
+
+            function applyTag(tag) {
+                if (!tag || selectedTags.indexOf(tag.id) !== -1) {
+                    return;
+                }
+                selectedTags.push(tag.id);
+                saveFollowupTags(selectedTags);
+                select.val('');
+                refreshTags();
+            }
+
+            refreshTags();
+
+            modal.find('.la-tags-toggle').on('click', function () {
+                expanded = !expanded;
+                refreshTags();
+            });
+
+            modal.find('.la-tags-applied-list').on('click', '.la-tag-remove', function () {
+                var tagId = parseInt($(this).closest('.la-tag-selected-chip').data('tag-id'), 10);
+                if (isNaN(tagId)) {
+                    return;
+                }
+                selectedTags = selectedTags.filter(function (id) { return id !== tagId; });
+                saveFollowupTags(selectedTags);
+                refreshTags();
+            });
+
+            select.on('change', function () {
+                var id = parseInt($(this).val(), 10);
+                if (!id) {
+                    return;
+                }
+                var tag = tags.find(function (item) { return item.id === id; });
+                applyTag(tag);
+            });
+        });
+
         modal.find('.la-followup-modal-form').on('submit', function (e) {
             e.preventDefault();
             var data = {};
@@ -770,6 +1368,9 @@ jQuery(function ($) {
                     data[item.name] = item.value;
                 }
             });
+            var now = new Date();
+            now.setSeconds(0, 0);
+            data.followup_at = toLocalInputValue(now);
             var noteValue = $(this).find('textarea[name="note"]').val();
 
             apiRequest('PUT', 'leads/' + lead.id, data).done(function () {
@@ -827,10 +1428,9 @@ jQuery(function ($) {
             apiRequest('GET', 'leads/' + leadId),
             apiRequest('GET', 'leads/' + leadId + '/notes'),
             apiRequest('GET', 'tags'),
-            apiRequest('GET', 'stages'),
             apiRequest('GET', 'custom-fields'),
             apiRequest('GET', 'me')
-        ).done(function (leadRes, notesRes, tagsRes, stagesRes, customFieldsRes, meRes) {
+        ).done(function (leadRes, notesRes, tagsRes, customFieldsRes, meRes) {
             var lead = leadRes[0];
             var notes = notesRes[0] || [];
             var tags = (tagsRes[0] || []).map(function (tag) {
@@ -839,7 +1439,6 @@ jQuery(function ($) {
                     name: tag.name
                 };
             });
-            var stages = stagesRes[0] || [];
             var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
             var me = meRes && meRes[0] ? meRes[0] : {};
             var readOnly = (me.access_level || 'full') === 'read';
@@ -870,20 +1469,14 @@ jQuery(function ($) {
             var html = '<div class="la-detail-header"><h3>Lead Details</h3>' +
                 '<div class="la-detail-actions">' +
                 '<a class="la-btn la-btn--ghost" href="' + exportCsvUrl + '">' + icons.download + 'Export CSV</a>' +
-                '<a class="la-btn la-btn--ghost" href="' + exportCalendarUrl + '" target="_blank">Add to Calendar</a>' +
+                '<a class="la-btn la-btn--ghost" href="' + exportCalendarUrl + '" target="_blank">' + icons.calendar + 'Add to Calendar</a>' +
                 (readOnly ? '' : '<button type="button" class="la-btn la-btn--danger la-delete-lead" data-lead-id="' + lead.id + '">' + icons.trash + 'Delete Lead</button>') +
                 '</div>' +
                 '</div>';
             html += '<div class="la-detail-grid">';
 
-            var statusSelect = buildSelect('status', lead.status || 'open', statusOptions);
+            var statusSelect = buildSelect('status', normalizePipelineStageValue(lead.status), statusOptions);
             var followupSelect = buildSelect('followup_status', lead.followup_status || 'scheduled', followupOptions);
-            var stageSelect = '<select name="stage_id"><option value="">No stage</option>';
-            stages.forEach(function (stage) {
-                var selected = String(stage.id) === String(lead.stage_id || '') ? ' selected' : '';
-                stageSelect += '<option value="' + stage.id + '"' + selected + '>' + stage.name + '</option>';
-            });
-            stageSelect += '</select>';
 
             html += '<form class="la-form la-update-form">' +
                 '<div class="la-detail-columns">' +
@@ -910,10 +1503,9 @@ jQuery(function ($) {
                             '</div>' +
                         '</div>' +
                         '<div class="la-status-panel">' +
-                            '<h4>Status & Stage</h4>' +
+                            '<h4>Pipeline Stage & Follow-up Status</h4>' +
                             '<div class="la-status-fields">' +
-                                '<div><label>Stage ' + stageSelect + '</label></div>' +
-                                '<div><label>Lead Status ' + statusSelect + '</label></div>' +
+                                '<div><label>Pipeline Stage ' + statusSelect + '</label></div>' +
                                 '<div><label>Follow-up Status ' + followupSelect + '</label></div>' +
                             '</div>' +
                         '</div>' +
@@ -995,6 +1587,7 @@ jQuery(function ($) {
             }
 
             $el.html(html);
+
 
             function renderTagList(filter) {
                 var selectedHtml = '';
@@ -1308,110 +1901,6 @@ jQuery(function ($) {
         });
     }
 
-    function renderStages($el) {
-        $el.html('<p>Loading stages...</p>');
-        apiRequest('GET', 'stages').done(function (stages) {
-            function buildOutcomeSelect(name, value) {
-                var current = (value || 'open').toLowerCase();
-                var options = [
-                    { value: 'open', label: 'Open' },
-                    { value: 'won', label: 'Won' },
-                    { value: 'lost', label: 'Lost' }
-                ];
-                var html = '<select name="' + name + '">';
-                options.forEach(function (opt) {
-                    var selected = opt.value === current ? ' selected' : '';
-                    html += '<option value="' + opt.value + '"' + selected + '>' + opt.label + '</option>';
-                });
-                html += '</select>';
-                return html;
-            }
-            var html = '<div class="la-section-header"><h3>Stages</h3></div>';
-            html += '<form class="la-form la-stage-form">' +
-                '<input type="text" name="name" placeholder="Stage name" required>' +
-                buildOutcomeSelect('outcome', 'open') +
-                '<button type="submit" class="la-btn">' + icons.plus + 'Add Stage</button>' +
-                '</form>';
-            html += '<div class="la-stage-presets">' +
-                '<div class="la-stage-presets-header"><strong>Stage presets</strong><span class="la-muted">Choose an industry to add common stages. Existing stages are kept.</span></div>' +
-                '<div class="la-stage-presets-row">' +
-                '<select class="la-stage-preset-select"><option value="">Select an industry</option>';
-            Object.keys(stagePresets).forEach(function (key) {
-                html += '<option value="' + key + '">' + stagePresets[key].label + '</option>';
-            });
-            html += '</select>' +
-                '<button type="button" class="la-btn la-stage-preset-apply">' + icons.plus + 'Add Preset Stages</button>' +
-                '</div>' +
-                '</div>';
-            html += '<ul class="la-list la-stage-list">';
-            stages.forEach(function (stage) {
-                html += '<li data-id="' + stage.id + '">' +
-                    '<div class="la-stage-row">' +
-                    '<input type="text" class="la-stage-name" value="' + (stage.name || '') + '">' +
-                    buildOutcomeSelect('outcome', stage.outcome || 'open') +
-                    '<div class="la-stage-actions">' +
-                    '<button type="button" class="la-btn la-btn--ghost la-stage-save" title="Save">' + icons.edit + '</button>' +
-                    '<button type="button" class="la-btn la-btn--ghost la-delete" title="Delete">' + icons.trash + '</button>' +
-                    '</div>' +
-                    '</div>' +
-                    '</li>';
-            });
-            html += '</ul>';
-            $el.html(html);
-
-            $el.find('.la-stage-form').on('submit', function (e) {
-                e.preventDefault();
-                var name = $(this).find('input[name="name"]').val();
-                var outcome = $(this).find('select[name="outcome"]').val();
-                apiRequest('POST', 'stages', { name: name, outcome: outcome }).done(function () {
-                    renderStages($el);
-                });
-            });
-
-            $el.find('.la-stage-preset-apply').on('click', function () {
-                var key = $el.find('.la-stage-preset-select').val();
-                if (!key || !stagePresets[key]) {
-                    return;
-                }
-                var existing = {};
-                (stages || []).forEach(function (stage) {
-                    existing[String(stage.name || '').toLowerCase()] = true;
-                });
-                var toCreate = stagePresets[key].stages.filter(function (stage) {
-                    return !existing[String(stage.name).toLowerCase()];
-                });
-                if (!toCreate.length) {
-                    $el.find('.la-stage-presets .la-message').remove();
-                    $el.find('.la-stage-presets').append('<div class="la-message">All preset stages already exist.</div>');
-                    return;
-                }
-                var requests = toCreate.map(function (stage) {
-                    return apiRequest('POST', 'stages', { name: stage.name, outcome: stage.outcome || 'open' });
-                });
-                $.when.apply($, requests).always(function () {
-                    renderStages($el);
-                });
-            });
-
-            $el.find('.la-stage-save').on('click', function () {
-                var row = $(this).closest('li');
-                var id = row.data('id');
-                var name = row.find('.la-stage-name').val();
-                var outcome = row.find('select[name="outcome"]').val();
-                apiRequest('PUT', 'stages/' + id, { name: name, outcome: outcome }).done(function () {
-                    renderStages($el);
-                });
-            });
-
-            $el.find('.la-delete').on('click', function () {
-                var id = $(this).closest('li').data('id');
-                apiRequest('DELETE', 'stages/' + id).done(function () {
-                    renderStages($el);
-                });
-            });
-        });
-    }
-
     function renderTags($el) {
         $el.html('<p>Loading tags...</p>');
         apiRequest('GET', 'tags').done(function (tags) {
@@ -1470,10 +1959,12 @@ jQuery(function ($) {
 
     function renderCalendar($el) {
         $el.html('<p>Loading followups...</p>');
-        $.when(apiRequest('GET', 'leads'), apiRequest('GET', 'me')).done(function (leadsRes, meRes) {
+        $.when(apiRequest('GET', 'leads'), apiRequest('GET', 'me'), apiRequest('GET', 'custom-fields')).done(function (leadsRes, meRes, customFieldsRes) {
             var leads = leadsRes[0] || [];
             var me = meRes && meRes[0] ? meRes[0] : {};
             var readOnly = (me.access_level || 'full') === 'read';
+            var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
+            var followupFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].followup) ? customFieldsRes[0].followup : {};
             var view = $el.data('view-mode') || 'calendar';
             console.log('[Lead Aggregator] Followups view', view);
             var calendarUrl = leadAggregator.restUrl + 'calendar?_wpnonce=' + encodeURIComponent(leadAggregator.nonce);
@@ -1486,7 +1977,7 @@ jQuery(function ($) {
 
             html += '<div class="la-followup-views">';
             html += '<div class="la-followup-list"' + (view === 'list' ? '' : ' style="display:none;"') + '>';
-            html += '<table class="la-table"><thead><tr><th>Lead</th><th>Followup</th><th>Due</th><th>Lead Status</th><th>Follow-up Status</th>' + (readOnly ? '' : '<th>Actions</th>') + '</tr></thead><tbody>';
+            html += '<table class="la-table"><thead><tr><th>Lead</th><th>Followup Date</th><th>Followup Due</th><th>Pipeline Stage</th><th>Follow-up Status</th>' + (readOnly ? '' : '<th class="la-actions-cell">Actions</th>') + '</tr></thead><tbody>';
             var hasRows = false;
             leads.forEach(function (lead) {
                 if (lead.followup_at || lead.due_at) {
@@ -1633,7 +2124,7 @@ jQuery(function ($) {
                         var panel = '<div class="la-followup-panel">' +
                             '<div class="la-followup-grid">' +
                                 '<div>' +
-                                    '<label>Lead Status ' + statusSelect + '</label>' +
+                                    '<label>Pipeline Stage ' + statusSelect + '</label>' +
                                 '</div>' +
                                 '<div>' +
                                     '<label>Follow-up Status ' + followupSelect + '</label>' +
@@ -1932,50 +2423,143 @@ jQuery(function ($) {
 
     function renderFollowupsList($el) {
         $el.html('<p>Loading followups...</p>');
-        $.when(apiRequest('GET', 'leads'), apiRequest('GET', 'stages'), apiRequest('GET', 'me')).done(function (leadsRes, stagesRes, meRes) {
+        $.when(apiRequest('GET', 'leads'), apiRequest('GET', 'me'), apiRequest('GET', 'custom-fields')).done(function (leadsRes, meRes, customFieldsRes) {
             var leads = leadsRes[0] || [];
-            var stages = stagesRes[0] || [];
             var me = meRes && meRes[0] ? meRes[0] : {};
             var readOnly = (me.access_level || 'full') === 'read';
-            var stageMap = {};
-            stages.forEach(function (stage) {
-                stageMap[stage.id] = stage.name;
-            });
+            var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
+            var followupFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].followup) ? customFieldsRes[0].followup : {};
+            var filterValue = $el.data('followup-filter') || 'all';
+            var now = new Date();
+            var activeColumns = [];
 
-            var html = '<div class="la-section-header"><h3>Follow-ups</h3></div>';
-            html += '<table class="la-table"><thead><tr>' +
-                '<th>Lead</th><th>Followup</th><th>Due</th><th>Stage</th><th>Status</th><th>Last Actioned</th><th>Last Contacted</th><th>Actions</th>' +
-                '</tr></thead><tbody>';
+            function isOverdue(lead) {
+                if (!lead.due_at) {
+                    return false;
+                }
+                var status = String(lead.followup_status || '').toLowerCase();
+                if (status === 'completed' || status === 'canceled') {
+                    return false;
+                }
+                var due = new Date(String(lead.due_at).replace(' ', 'T'));
+                if (isNaN(due.getTime())) {
+                    return false;
+                }
+                return due < now;
+            }
+
+            var columnDefs = [
+                { key: 'lead', label: 'Lead' },
+                { key: 'followup_at', label: 'Followup Date' },
+                { key: 'due_at', label: 'Followup Due' },
+                { key: 'status', label: 'Pipeline Stage' },
+                { key: 'followup_status', label: 'Follow-up Status' },
+                { key: 'last_actioned', label: 'Last Actioned' },
+                { key: 'last_contacted', label: 'Last Contacted' }
+            ];
+            for (var i = 1; i <= 10; i += 1) {
+                var key = 'custom_' + i;
+                columnDefs.push({
+                    key: key,
+                    label: customFields[key] || ('Custom Field ' + i)
+                });
+            }
+            var defaultColumns = ['lead', 'followup_at', 'due_at', 'status', 'followup_status'];
+            var storedColumns = [];
+            try {
+                storedColumns = JSON.parse(window.localStorage.getItem('leadAggregatorFollowupColumns') || '[]');
+            } catch (err) {
+                storedColumns = [];
+            }
+            var activeColumns = (storedColumns && storedColumns.length) ? storedColumns : defaultColumns.slice();
+
+            function getColumnLabel(key) {
+                var found = columnDefs.find(function (col) { return col.key === key; });
+                return found ? found.label : key;
+            }
+
+            function renderCell(lead, key) {
+                if (key === 'lead') {
+                    var name = (lead.first_name || '') + ' ' + (lead.last_name || '');
+                    return name.trim() || ('Lead #' + lead.id);
+                }
+                if (key === 'followup_at') {
+                    return formatDisplayDate(lead.followup_at);
+                }
+                if (key === 'due_at') {
+                    var overdueBadge = isOverdue(lead) ? ' <span class="la-badge la-badge--overdue">Overdue</span>' : '';
+                    return formatDisplayDate(lead.due_at) + overdueBadge;
+                }
+                if (key === 'status') {
+                    var stageKey = normalizePipelineStageValue(lead.status);
+                    return '<span class="la-pill la-pill--' + stageKey + '">' + pipelineStageLabel(lead.status) + '</span>';
+                }
+                if (key === 'followup_status') {
+                    return followupStatusLabel(lead.followup_status);
+                }
+                if (key === 'last_actioned') {
+                    return formatDisplayDate(lead.last_actioned);
+                }
+                if (key === 'last_contacted') {
+                    return formatDisplayDate(lead.last_contacted);
+                }
+                return lead[key] ? lead[key] : '';
+            }
 
             var rows = leads.filter(function (lead) {
                 return lead.followup_at || lead.due_at;
             });
+            if (filterValue === 'overdue') {
+                rows = rows.filter(function (lead) {
+                    return isOverdue(lead);
+                });
+            }
+            var countLabel = 'Showing ' + rows.length + ' lead' + (rows.length === 1 ? '' : 's');
+
+            var html = '<div class="la-section-header"><h3>Follow-ups</h3>' +
+                '<div class="la-section-actions la-followup-actions">' +
+                '<select class="la-followup-filter">' +
+                '<option value="all"' + (filterValue === 'all' ? ' selected' : '') + '>All</option>' +
+                '<option value="overdue"' + (filterValue === 'overdue' ? ' selected' : '') + '>Overdue</option>' +
+                '</select>' +
+                '<div class="la-column-toggle-wrap">' +
+                '<button type="button" class="la-btn la-btn--ghost la-followup-columns">' + icons.columns + 'Columns</button>' +
+                '<div class="la-column-menu">';
+            columnDefs.forEach(function (col) {
+                var checked = activeColumns.indexOf(col.key) !== -1 ? ' checked' : '';
+                html += '<label><input type="checkbox" data-key="' + col.key + '"' + checked + '> ' + col.label + '</label>';
+            });
+            html += '</div></div>' +
+                '</div></div>';
+            html += '<div class="la-filter-count la-followup-count">' + countLabel + '</div>';
+            html += '<table class="la-table"><thead><tr>';
+            activeColumns.forEach(function (key) {
+                html += '<th>' + getColumnLabel(key) + '</th>';
+            });
+            html += '<th class="la-actions-cell">Actions</th></tr></thead><tbody>';
 
             if (!rows.length) {
-                html += '<tr><td class="la-empty" colspan="8">No followups scheduled.</td></tr>';
+                html += '<tr><td class="la-empty" colspan="' + (activeColumns.length + 1) + '">No followups scheduled.</td></tr>';
             } else {
                 rows.forEach(function (lead) {
-                    var name = (lead.first_name || '') + ' ' + (lead.last_name || '');
                     html += '<tr>';
-                    html += '<td>' + (name.trim() || 'Lead #' + lead.id) + '</td>';
-                    html += '<td>' + formatDisplayDate(lead.followup_at) + '</td>';
-                    html += '<td>' + formatDisplayDate(lead.due_at) + '</td>';
-                    html += '<td>' + (stageMap[lead.stage_id] || '') + '</td>';
-                    html += '<td>' + (lead.status || '') + '</td>';
-                    html += '<td>' + formatDisplayDate(lead.last_actioned) + '</td>';
-                    html += '<td>' + formatDisplayDate(lead.last_contacted) + '</td>';
+                    activeColumns.forEach(function (key) {
+                        html += '<td>' + renderCell(lead, key) + '</td>';
+                    });
                     if (readOnly) {
-                        html += '<td><button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">Open</button></td>';
+                        html += '<td class="la-actions-cell"><button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button></td>';
                     } else {
-                        html += '<td class="la-actions">' +
-                            '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-id="' + lead.id + '">' + icons.edit + 'Followup</button>' +
-                            '<button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">Open</button>' +
+                        html += '<td class="la-actions la-actions-cell">' +
+                            '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-id="' + lead.id + '">' + icons.action + 'Action</button>' +
+                            '<button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>' +
+                            '<button type="button" class="la-btn la-btn--ghost la-followup-remove" data-id="' + lead.id + '">' + icons.trash + 'Remove</button>' +
                             '</td>';
                     }
                     html += '</tr>';
                 });
             }
             html += '</tbody></table>';
+            html += '<div class="la-filter-count la-followup-count">' + countLabel + '</div>';
             $el.html(html);
 
             $el.find('.la-followup-open').on('click', function () {
@@ -1989,8 +2573,44 @@ jQuery(function ($) {
                 var leadId = $(this).data('id');
                 var lead = leads.find(function (item) { return String(item.id) === String(leadId); });
                 if (lead) {
-                    openFollowupManageModal(lead, stages);
+                    openFollowupManageModal(lead, { labels: customFields, followup: followupFields });
                 }
+            });
+
+            $el.find('.la-followup-remove').on('click', function () {
+                var leadId = $(this).data('id');
+                if (!leadId) {
+                    return;
+                }
+                if (!confirm('Remove this lead from follow-ups?')) {
+                    return;
+                }
+                apiRequest('PUT', 'leads/' + leadId, { followup_at: null, due_at: null }).done(function () {
+                    renderFollowupsList($el);
+                });
+            });
+
+            $el.find('.la-followup-filter').on('change', function () {
+                $el.data('followup-filter', $(this).val());
+                renderFollowupsList($el);
+            });
+
+            $el.find('.la-followup-columns').on('click', function (event) {
+                event.stopPropagation();
+                $el.find('.la-column-menu').toggleClass('is-open');
+            });
+
+            $el.find('.la-column-menu input[type="checkbox"]').on('change', function () {
+                var key = $(this).data('key');
+                if (this.checked) {
+                    if (activeColumns.indexOf(key) === -1) {
+                        activeColumns.push(key);
+                    }
+                } else {
+                    activeColumns = activeColumns.filter(function (item) { return item !== key; });
+                }
+                window.localStorage.setItem('leadAggregatorFollowupColumns', JSON.stringify(activeColumns));
+                renderFollowupsList($el);
             });
         }).fail(function () {
             $el.html('<p>Unable to load followups.</p>');
@@ -2121,13 +2741,24 @@ jQuery(function ($) {
         $el.html('<p>Loading custom fields...</p>');
         apiRequest('GET', 'custom-fields').done(function (response) {
             var fields = response && response.fields ? response.fields : {};
+            var followup = response && response.followup ? response.followup : {};
             var html = '<div class="la-section-header"><h3>Custom Fields</h3>' +
-                '<p class="la-muted">Rename custom fields shown on lead details.</p></div>' +
+                '<p class="la-muted">Rename custom fields and choose which appear in follow-up.</p></div>' +
                 '<form class="la-form la-custom-fields-form">';
             for (var i = 1; i <= 10; i += 1) {
                 var key = 'custom_' + i;
                 var label = fields[key] || ('Custom Field ' + i);
-                html += '<div><label>Field ' + i + ' <input type="text" name="' + key + '" value="' + label + '"></label></div>';
+                var checked = followup[key] ? ' checked' : '';
+                html += '<div class="la-custom-field-row">' +
+                    '<label class="la-custom-field-label">Field ' + i + ' <input type="text" name="' + key + '" value="' + label + '"></label>' +
+                    '<label class="la-switch la-custom-field-toggle">' +
+                    '<span class="la-switch-label">Show in follow-up</span>' +
+                    '<span class="la-switch-control">' +
+                    '<input type="checkbox" class="la-custom-followup-toggle" data-key="' + key + '" role="switch" aria-checked="' + (followup[key] ? 'true' : 'false') + '"' + checked + '>' +
+                    '<span class="la-switch-track"><span class="la-switch-thumb"></span></span>' +
+                    '</span>' +
+                    '</label>' +
+                    '</div>';
             }
             html += '<button type="submit" class="la-btn">Save</button>' +
                 '<div class="la-message"></div>' +
@@ -2136,9 +2767,13 @@ jQuery(function ($) {
 
             $el.find('.la-custom-fields-form').on('submit', function (e) {
                 e.preventDefault();
-                var payload = { fields: {} };
+                var payload = { fields: {}, followup: {} };
                 $(this).serializeArray().forEach(function (item) {
                     payload.fields[item.name] = item.value;
+                });
+                $(this).find('.la-custom-followup-toggle').each(function () {
+                    var key = $(this).data('key');
+                    payload.followup[key] = $(this).is(':checked') ? 1 : 0;
                 });
                 apiRequest('POST', 'custom-fields', payload).done(function () {
                     $el.find('.la-message').text('Saved.');
@@ -2146,6 +2781,9 @@ jQuery(function ($) {
                     var message = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unable to save.';
                     $el.find('.la-message').text(message);
                 });
+            });
+            $el.find('.la-custom-followup-toggle').on('change', function () {
+                $(this).attr('aria-checked', $(this).is(':checked') ? 'true' : 'false');
             });
         }).fail(function () {
             $el.html('<p>Unable to load custom fields.</p>');
@@ -2238,19 +2876,14 @@ jQuery(function ($) {
         $el.html('<p>Loading AI tools...</p>');
         $.when(
             apiRequest('GET', 'leads'),
-            apiRequest('GET', 'stages'),
             apiRequest('GET', 'business-profile')
-        ).done(function (leadsRes, stagesRes, profileRes) {
+        ).done(function (leadsRes, profileRes) {
             var leads = leadsRes[0] || [];
-            var stages = stagesRes[0] || [];
             var profile = profileRes[0] || {};
-            var stageMap = {};
-            stages.forEach(function (stage) {
-                stageMap[stage.id] = stage.name;
-            });
 
             var now = new Date();
             var dueCount = 0;
+            var followedCount = 0;
             var sourceCounts = {};
             var sourceWon = {};
             var stageCounts = {};
@@ -2313,7 +2946,7 @@ jQuery(function ($) {
                 if (lead.followup_at) {
                     var followupDate = parseDate(lead.followup_at);
                     if (followupDate && followupDate <= now) {
-                        dueCount += 1;
+                        followedCount += 1;
                     }
                 }
                 if (lead.due_at) {
@@ -2329,7 +2962,7 @@ jQuery(function ($) {
                     sourceWon[sourceKey] = (sourceWon[sourceKey] || 0) + 1;
                 }
 
-                var stageLabel = stageMap[lead.stage_id] || 'Unassigned';
+                var stageLabel = pipelineStageLabel(lead.status);
                 stageCounts[stageLabel] = (stageCounts[stageLabel] || 0) + 1;
 
                 scoredLeads.push({
@@ -2377,7 +3010,7 @@ jQuery(function ($) {
                 });
                 var html = '<ul class="la-ai-list">';
                 list.slice(0, 5).forEach(function (item) {
-                    html += '<li><span>' + item.name + '</span><strong>' + item.score + '</strong></li>';
+                    html += '<li><a href="/dashboard/?lead_id=' + item.id + '" class="la-link la-ai-lead-link">' + item.name + '</a><strong>' + item.score + '</strong></li>';
                 });
                 html += '</ul>';
                 return html;
@@ -2427,6 +3060,7 @@ jQuery(function ($) {
                 '<h3>Lead Insights</h3>' +
                 '<p class="la-muted">Snapshot of what needs attention right now.</p>' +
                 '<div class="la-ai-stat"><strong>' + leads.length + '</strong> total leads</div>' +
+                '<div class="la-ai-stat"><strong>' + followedCount + '</strong> followed-up</div>' +
                 '<div class="la-ai-stat"><strong>' + dueCount + '</strong> follow-ups due</div>' +
                 (goal ? '<div class="la-ai-stat">' + goal + '</div>' : '') +
                 '</section>';
@@ -2739,6 +3373,111 @@ jQuery(function ($) {
         });
     }
 
+    function renderGetStarted($el) {
+        var html = '<div class="la-section-header"><h3>Get Started</h3><p class="la-muted">Quick start guide for your lead manager.</p></div>' +
+            '<div class="la-card">' +
+            '<h4>Core workflow</h4>' +
+            '<ul class="la-ai-list">' +
+            '<li><span><strong>Add your first lead</strong> using the Add Lead button in Overview.</span></li>' +
+            '<li><span><strong>Import leads via webhooks</strong> in Settings → Webhooks.</span></li>' +
+            '<li><span><strong>Manage follow-ups</strong> in the Follow-ups tab (Action button opens the follow-up modal).</span></li>' +
+            '<li><span><strong>Use pipeline stages</strong> to keep deals moving (New → Won/Lost).</span></li>' +
+            '<li><span><strong>Tags</strong> help you group leads and filter quickly.</span></li>' +
+            '<li><span><strong>Export</strong> your data anytime from Settings → Export.</span></li>' +
+            '</ul>' +
+            '</div>' +
+            '<div class="la-card">' +
+            '<h4>Most important areas</h4>' +
+            '<ul class="la-ai-list">' +
+            '<li><span><strong>Overview</strong> — quick search, filters, and follow-up button.</span></li>' +
+            '<li><span><strong>Leads</strong> — full lead detail and edits.</span></li>' +
+            '<li><span><strong>Follow-ups</strong> — list of leads needing action + calendar view.</span></li>' +
+            '<li><span><strong>AI Tools</strong> — insights, hot leads, and summaries.</span></li>' +
+            '<li><span><strong>Settings</strong> — Webhooks, Notifications, Tags, Team, Custom Fields.</span></li>' +
+            '</ul>' +
+            '</div>' +
+            '<div class="la-card">' +
+            '<h4>Hide this tab</h4>' +
+            '<p class="la-muted">Go to Settings → Get Started and toggle off “Show Get Started tab.” You can turn it back on anytime.</p>' +
+            '</div>';
+        $el.html(html);
+    }
+
+    function renderGetStartedSettings($el, onToggle) {
+        $el.html('<p>Loading settings...</p>');
+        apiRequest('GET', 'get-started/settings').done(function (settings) {
+            settings = settings || {};
+            var enabled = settings.enabled !== 0;
+            var html = '<div class="la-section-header"><h3>Get Started</h3><p class="la-muted">Show or hide the Get Started tab.</p></div>' +
+                '<form class="la-form la-get-started-settings">' +
+                '<label class="la-switch">' +
+                '<span class="la-switch-label">Show Get Started tab</span>' +
+                '<span class="la-switch-control">' +
+                '<input type="checkbox" name="enabled" role="switch" aria-checked="' + (enabled ? 'true' : 'false') + '"' + (enabled ? ' checked' : '') + '>' +
+                '<span class="la-switch-track"><span class="la-switch-thumb"></span></span>' +
+                '</span>' +
+                '</label>' +
+                '<button type="submit" class="la-btn">Save</button>' +
+                '<div class="la-message"></div>' +
+                '</form>';
+            $el.html(html);
+            if (onToggle) {
+                onToggle(enabled);
+            }
+            $el.find('input[name="enabled"]').on('change', function () {
+                $(this).attr('aria-checked', $(this).is(':checked') ? 'true' : 'false');
+            });
+            $el.find('form').on('submit', function (e) {
+                e.preventDefault();
+                var checked = $(this).find('input[name="enabled"]').is(':checked');
+                apiRequest('POST', 'get-started/settings', { enabled: checked ? 1 : 0 }).done(function (response) {
+                    var nextEnabled = response && typeof response.enabled !== 'undefined' ? !!response.enabled : checked;
+                    if (onToggle) {
+                        onToggle(nextEnabled);
+                    }
+                    $el.find('.la-message').text('Settings saved.');
+                }).fail(function () {
+                    $el.find('.la-message').text('Unable to save settings.');
+                });
+            });
+        }).fail(function () {
+            $el.html('<p>Unable to load settings.</p>');
+        });
+    }
+
+    function renderQuickActionSettings($el) {
+        $el.html('<p>Loading quick action...</p>');
+        apiRequest('GET', 'quick-action/settings').done(function (settings) {
+            settings = settings || {};
+            var status = settings.status || 'contacted';
+            var followupStatus = settings.followup_status || 'scheduled';
+            var statusSelect = buildSelect('status', status, statusOptions);
+            var followupSelect = buildSelect('followup_status', followupStatus, followupOptions);
+            var html = '<div class="la-section-header"><h3>Quick Action</h3><p class="la-muted">Set the default status updates for the Apply Quick Action button.</p></div>' +
+                '<form class="la-form la-quick-action-settings">' +
+                '<div><label>Pipeline Stage ' + statusSelect + '</label></div>' +
+                '<div><label>Follow-up Status ' + followupSelect + '</label></div>' +
+                '<button type="submit" class="la-btn">Save</button>' +
+                '<div class="la-message"></div>' +
+                '</form>';
+            $el.html(html);
+            $el.find('form').on('submit', function (e) {
+                e.preventDefault();
+                var payload = {
+                    status: $(this).find('select[name="status"]').val(),
+                    followup_status: $(this).find('select[name="followup_status"]').val()
+                };
+                apiRequest('POST', 'quick-action/settings', payload).done(function () {
+                    $el.find('.la-message').text('Quick action saved.');
+                }).fail(function () {
+                    $el.find('.la-message').text('Unable to save quick action.');
+                });
+            });
+        }).fail(function () {
+            $el.html('<p>Unable to load quick action settings.</p>');
+        });
+    }
+
     function renderDashboard($el) {
         document.documentElement.setAttribute('data-lead-aggregator-render', 'dashboard');
         if ($el.attr('data-la-rendered') === 'dashboard') {
@@ -2747,13 +3486,36 @@ jQuery(function ($) {
         $el.attr('data-la-rendered', 'dashboard');
 
         var leadId = new URLSearchParams(window.location.search).get('lead_id');
+        var getStartedEnabled = String($el.data('get-started') || '1') !== '0';
+        function updateGetStartedVisibility(enabled) {
+            $el.attr('data-get-started', enabled ? '1' : '0');
+            var $tab = $el.find('.la-tab[data-tab="get-started"]');
+            var $panel = $el.find('#la-panel-get-started');
+            if (enabled) {
+                $tab.show();
+                $panel.show();
+                renderGetStarted($panel);
+            } else {
+                $tab.hide();
+                $panel.hide().removeClass('is-active');
+                if ($el.find('.la-tab.is-active').data('tab') === 'get-started') {
+                    $el.find('.la-tab').removeClass('is-active');
+                    $el.find('.la-tab-panel').removeClass('is-active');
+                    $el.find('.la-tab[data-tab="overview"]').addClass('is-active');
+                    $el.find('.la-tab-panel[data-tab="overview"]').addClass('is-active');
+                }
+            }
+        }
 
-        renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true });
+        var statsEl = $el.find('.la-dashboard-stats');
+        if (getStartedEnabled) {
+            renderGetStarted($el.find('#la-panel-get-started'));
+        }
+        renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true, statsEl: statsEl });
         renderInbox($el.find('#la-panel-leads'));
         renderFollowupsList($el.find('#la-panel-followups'));
         renderCalendarOnly($el.find('#la-panel-calendar'));
         renderAIHelp($el.find('#la-panel-ai-tools'));
-        renderStages($el.find('#la-settings-stages'));
         renderTags($el.find('#la-settings-tags'));
         renderTeam($el.find('#la-settings-team'));
         renderWebhooks($el.find('#la-settings-webhooks'));
@@ -2762,6 +3524,8 @@ jQuery(function ($) {
         renderExport($el.find('#la-settings-export'));
         renderBilling($el.find('#la-settings-billing'));
         renderNotificationSettings($el.find('#la-settings-notifications'));
+        renderQuickActionSettings($el.find('#la-settings-quick-action'));
+        renderGetStartedSettings($el.find('#la-settings-get-started'), updateGetStartedVisibility);
 
         $el.find('#la-panel-notes-tags').html('<div class="la-section-header"><h3>Notes</h3><p class="la-muted">Notes are managed per lead in the Lead Detail tab.</p></div>');
 
@@ -2770,25 +3534,38 @@ jQuery(function ($) {
                 var total = leads.length;
                 var followup = 0;
                 var overdue = 0;
+                var followed = 0;
                 var now = new Date();
 
                 leads.forEach(function (lead) {
-                    if (lead.followup_at) {
-                        var followupDate = new Date(String(lead.followup_at).replace(' ', 'T'));
-                        if (!isNaN(followupDate.getTime()) && followupDate <= now) {
-                            followup += 1;
-                        }
-                    }
                     if (lead.due_at) {
                         var dueDate = new Date(String(lead.due_at).replace(' ', 'T'));
-                        if (!isNaN(dueDate.getTime()) && dueDate < now) {
-                            overdue += 1;
+                        var followupStatus = String(lead.followup_status || '').toLowerCase();
+                        if (!isNaN(dueDate.getTime())) {
+                            if (dueDate <= now && followupStatus !== 'completed' && followupStatus !== 'canceled') {
+                                followup += 1;
+                            }
+                            if (dueDate < now && followupStatus !== 'completed' && followupStatus !== 'canceled') {
+                                overdue += 1;
+                            }
+                        }
+                    }
+                    if (lead.last_actioned || lead.last_contacted || (normalizeFollowupStatusValue(lead.followup_status) === 'completed' && lead.followup_at)) {
+                        var raw = lead.last_actioned || lead.last_contacted || lead.followup_at;
+                        var actionDate = new Date(String(raw).replace(' ', 'T'));
+                        if (!isNaN(actionDate.getTime())) {
+                            if (actionDate.getFullYear() === now.getFullYear() &&
+                                actionDate.getMonth() === now.getMonth() &&
+                                actionDate.getDate() === now.getDate()) {
+                                followed += 1;
+                            }
                         }
                     }
                 });
 
                 $el.find('[data-stat="total"]').text(total);
                 $el.find('[data-stat="followup"]').text(followup);
+                $el.find('[data-stat="followed"]').text(followed);
                 $el.find('[data-stat="overdue"]').text(overdue);
             });
         }
@@ -2826,8 +3603,21 @@ jQuery(function ($) {
 
         refreshStats();
 
+        statsEl.on('click', '.la-stat-button', function () {
+            var filter = $(this).data('filter');
+            var filters = { search: '', status: '', followup: '' };
+            if (filter === 'followup') {
+                filters.followup = 'due';
+            } else if (filter === 'followed') {
+                filters.followup = 'followed';
+            } else if (filter === 'overdue') {
+                filters.followup = 'overdue';
+            }
+            renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true, statsEl: statsEl, filters: filters });
+        });
+
         $(document).off('leadAggregator:refresh').on('leadAggregator:refresh', function () {
-            renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true });
+            renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true, statsEl: statsEl });
             renderInbox($el.find('#la-panel-leads'));
             renderFollowupsList($el.find('#la-panel-followups'));
             renderCalendarOnly($el.find('#la-panel-calendar'));
@@ -2840,6 +3630,7 @@ jQuery(function ($) {
             $(this).addClass('is-active');
             $el.find('.la-tab-panel').removeClass('is-active');
             $el.find('.la-tab-panel[data-tab="' + tab + '"]').addClass('is-active');
+            clearLeadIdFromUrl();
 
             if (tab === 'leads') {
                 renderInbox($el.find('#la-panel-leads'));
@@ -2850,7 +3641,15 @@ jQuery(function ($) {
             if (tab === 'calendar') {
                 renderCalendarOnly($el.find('#la-panel-calendar'));
             }
+            if (tab === 'get-started') {
+                renderGetStarted($el.find('#la-panel-get-started'));
+            }
         });
+
+        window.leadAggregatorOpenTab = function (tab) {
+            clearLeadIdFromUrl();
+            $el.find('.la-tab[data-tab="' + tab + '"]').trigger('click');
+        };
 
         $el.on('click', '.la-lead-link', function () {
             var selectedId = $(this).data('lead-id');
@@ -2917,8 +3716,6 @@ jQuery(function ($) {
                 renderLeadDetail($el, $el.data('lead-id'));
             } else if (view === 'calendar') {
                 renderCalendar($el);
-            } else if (view === 'stages') {
-                renderStages($el);
             } else if (view === 'tags') {
                 renderTags($el);
             } else if (view === 'export') {
@@ -2935,6 +3732,19 @@ jQuery(function ($) {
                 renderNotificationSettings($el);
             }
         });
+    }
+
+    function clearLeadIdFromUrl() {
+        if (!history.replaceState) {
+            return;
+        }
+        var url = new URL(window.location.href);
+        if (!url.searchParams.has('lead_id')) {
+            return;
+        }
+        url.searchParams.delete('lead_id');
+        var next = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '') + url.hash;
+        history.replaceState(null, '', next);
     }
 
     initViews();

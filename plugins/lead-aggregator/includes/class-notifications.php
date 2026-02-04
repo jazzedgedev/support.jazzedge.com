@@ -37,6 +37,19 @@ class Lead_Aggregator_Notifications {
         return home_url('/');
     }
 
+    private function format_wp_datetime($value) {
+        if (!$value) {
+            return '';
+        }
+        try {
+            $date = new DateTime($value, new DateTimeZone('UTC'));
+            $date->setTimezone(wp_timezone());
+            return $date->format('Y-m-d H:i');
+        } catch (Exception $e) {
+            return $value;
+        }
+    }
+
     private function build_followup_email($user, $leads) {
         $logo_id = (int) get_option('lead_aggregator_app_logo_id', 0);
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
@@ -48,8 +61,8 @@ class Lead_Aggregator_Notifications {
             if (!$name) {
                 $name = $lead['email'] ? $lead['email'] : 'Lead #' . $lead['id'];
             }
-            $followup = $lead['followup_at'] ? $lead['followup_at'] : 'n/a';
-            $due = $lead['due_at'] ? $lead['due_at'] : 'n/a';
+            $followup = $lead['followup_at'] ? $this->format_wp_datetime($lead['followup_at']) : 'n/a';
+            $due = $lead['due_at'] ? $this->format_wp_datetime($lead['due_at']) : 'n/a';
             $source = $lead['source'] ? $lead['source'] : 'manual';
             $lead_url = add_query_arg('lead_id', (int) $lead['id'], $dashboard_url);
 
@@ -101,7 +114,7 @@ class Lead_Aggregator_Notifications {
             return;
         }
 
-        $cutoff = current_time('mysql');
+        $cutoff = current_time('mysql', true);
         $leads = $this->database->get_due_leads($cutoff);
         if (empty($leads)) {
             return;

@@ -18,7 +18,6 @@ class Lead_Aggregator_Shortcodes {
         add_shortcode('lead_aggregator_lead_form', array($this, 'render_lead_form'));
         add_shortcode('lead_aggregator_lead_detail', array($this, 'render_lead_detail'));
         add_shortcode('lead_aggregator_calendar', array($this, 'render_calendar'));
-        add_shortcode('lead_aggregator_manage_stages', array($this, 'render_manage_stages'));
         add_shortcode('lead_aggregator_manage_tags', array($this, 'render_manage_tags'));
         add_shortcode('lead_aggregator_export', array($this, 'render_export'));
         add_shortcode('lead_aggregator_business_profile', array($this, 'render_business_profile'));
@@ -129,15 +128,6 @@ class Lead_Aggregator_Shortcodes {
         return '<div class="lead-aggregator-view" data-view="calendar"></div>';
     }
 
-    public function render_manage_stages() {
-        $notice = $this->ensure_access();
-        if ($notice) {
-            return $notice;
-        }
-
-        return '<div class="lead-aggregator-view" data-view="stages"></div>';
-    }
-
     public function render_manage_tags() {
         $notice = $this->ensure_access();
         if ($notice) {
@@ -189,8 +179,15 @@ class Lead_Aggregator_Shortcodes {
             return $notice;
         }
 
+        $show_get_started = (int) get_user_meta(get_current_user_id(), 'lead_aggregator_show_get_started', true);
+        if ($show_get_started === 0) {
+            $show_get_started = 0;
+        } else {
+            $show_get_started = 1;
+        }
         $tabs = array(
-            'overview' => 'Overview',
+            'get-started' => 'Get Started',
+            'overview' => 'Leads',
             'leads' => 'Leads',
             'followups' => 'Follow-ups',
             'calendar' => 'Calendar',
@@ -198,23 +195,25 @@ class Lead_Aggregator_Shortcodes {
             'settings' => 'Settings',
         );
 
-        $html = '<div class="lead-aggregator-view lead-aggregator-dashboard" data-view="dashboard">';
+        $html = '<div class="lead-aggregator-view lead-aggregator-dashboard" data-view="dashboard" data-get-started="' . ($show_get_started ? '1' : '0') . '">';
         $html .= '<div class="la-dashboard">';
         $html .= '<div class="la-dashboard-header">';
         $html .= '<div><h2>Lead Dashboard</h2><p>Manage leads, follow-ups, and pipeline stages.</p></div>';
         $html .= '</div>';
         $html .= '<div class="la-tabs" role="tablist">';
-        $first = true;
+        $first_tab = $show_get_started ? 'get-started' : 'overview';
         foreach ($tabs as $key => $label) {
-            $html .= '<button type="button" class="la-tab' . ($first ? ' is-active' : '') . '" data-tab="' . esc_attr($key) . '" role="tab">' . esc_html($label) . '</button>';
-            $first = false;
+            $is_active = $key === $first_tab ? ' is-active' : '';
+            $html .= '<button type="button" class="la-tab' . $is_active . '" data-tab="' . esc_attr($key) . '" role="tab">' . esc_html($label) . '</button>';
         }
         $html .= '</div>';
-        $html .= '<div class="la-panel la-tab-panel is-active" data-tab="overview">';
+        $html .= '<div class="la-panel la-tab-panel' . ($first_tab === 'get-started' ? ' is-active' : '') . '" data-tab="get-started" id="la-panel-get-started"></div>';
+        $html .= '<div class="la-panel la-tab-panel' . ($first_tab === 'overview' ? ' is-active' : '') . '" data-tab="overview">';
         $html .= '<div class="la-dashboard-stats">';
-        $html .= '<div class="la-stat"><span class="la-stat-label">Total Leads</span><span class="la-stat-value" data-stat="total">0</span></div>';
-        $html .= '<div class="la-stat"><span class="la-stat-label">Followups Due</span><span class="la-stat-value" data-stat="followup">0</span></div>';
-        $html .= '<div class="la-stat"><span class="la-stat-label">Overdue</span><span class="la-stat-value" data-stat="overdue">0</span></div>';
+        $html .= '<button type="button" class="la-stat la-stat-button" data-filter="total" aria-pressed="false"><span class="la-stat-label">Total Leads</span><span class="la-stat-value" data-stat="total">0</span></button>';
+        $html .= '<button type="button" class="la-stat la-stat-button" data-filter="followup" aria-pressed="false"><span class="la-stat-label">Followups Due</span><span class="la-stat-value" data-stat="followup">0</span></button>';
+        $html .= '<button type="button" class="la-stat la-stat-button" data-filter="followed" aria-pressed="false"><span class="la-stat-label">Followed Up Today</span><span class="la-stat-value" data-stat="followed">0</span></button>';
+        $html .= '<button type="button" class="la-stat la-stat-button" data-filter="overdue" aria-pressed="false"><span class="la-stat-label">Overdue</span><span class="la-stat-value" data-stat="overdue">0</span></button>';
         $html .= '</div>';
         $html .= '<div class="la-dashboard-overview">';
         $html .= '<section class="la-panel la-panel--inbox" id="la-panel-inbox"></section>';
@@ -227,10 +226,11 @@ class Lead_Aggregator_Shortcodes {
         $html .= '<div class="la-panel la-tab-panel" data-tab="notes-tags" id="la-panel-notes-tags"></div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="settings" id="la-panel-settings">';
         $html .= '<div class="la-settings-grid">';
-        $html .= '<section class="la-settings-card" id="la-settings-stages"></section>';
+        $html .= '<section class="la-settings-card" id="la-settings-get-started"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-tags"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-team"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-notifications"></section>';
+        $html .= '<section class="la-settings-card" id="la-settings-quick-action"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-webhooks"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-billing"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-business"></section>';

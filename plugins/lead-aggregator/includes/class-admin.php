@@ -150,7 +150,7 @@ class Lead_Aggregator_Admin {
                     <tbody>
                         <tr>
                             <td><code>[lead_aggregator_inbox]</code></td>
-                            <td>Lead inbox and stage overview</td>
+                            <td>Lead inbox and pipeline overview</td>
                         </tr>
                         <tr>
                             <td><code>[lead_aggregator_lead_form]</code></td>
@@ -163,10 +163,6 @@ class Lead_Aggregator_Admin {
                         <tr>
                             <td><code>[lead_aggregator_calendar]</code></td>
                             <td>Follow-up and due date calendar view</td>
-                        </tr>
-                        <tr>
-                            <td><code>[lead_aggregator_manage_stages]</code></td>
-                            <td>Manage lead stages</td>
                         </tr>
                         <tr>
                             <td><code>[lead_aggregator_manage_tags]</code></td>
@@ -698,8 +694,7 @@ class Lead_Aggregator_Admin {
                             <tr>
                                 <th>Name</th>
                                 <th>Email</th>
-                                <th>Stage</th>
-                                <th>Status</th>
+                                <th>Pipeline Stage</th>
                                 <th>Followup</th>
                                 <th>Due</th>
                                 <th>Source</th>
@@ -711,12 +706,11 @@ class Lead_Aggregator_Admin {
                                 <tr>
                                     <td><?php echo esc_html(trim($lead['first_name'] . ' ' . $lead['last_name'])); ?></td>
                                     <td><?php echo esc_html($lead['email']); ?></td>
-                                    <td><?php echo esc_html($lead['stage_id']); ?></td>
-                                    <td><?php echo esc_html($lead['status']); ?></td>
-                                    <td><?php echo esc_html($lead['followup_at']); ?></td>
-                                    <td><?php echo esc_html($lead['due_at']); ?></td>
+                                    <td><?php echo esc_html($this->format_pipeline_stage($lead['status'])); ?></td>
+                                    <td><?php echo esc_html($this->format_admin_datetime($lead['followup_at'])); ?></td>
+                                    <td><?php echo esc_html($this->format_admin_datetime($lead['due_at'])); ?></td>
                                     <td><?php echo esc_html($lead['source']); ?></td>
-                                    <td><?php echo esc_html($lead['created_at']); ?></td>
+                                    <td><?php echo esc_html($this->format_admin_datetime($lead['created_at'])); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -1036,5 +1030,32 @@ class Lead_Aggregator_Admin {
 
         wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=webhook-log&webhooks=cleared'));
         exit;
+    }
+
+    private function format_pipeline_stage($value) {
+        $value = sanitize_key($value);
+        $map = array(
+            'open' => 'New',
+            'new' => 'New',
+            'contacted' => 'Contacted',
+            'qualified' => 'Qualified',
+            'proposal' => 'Proposal',
+            'won' => 'Won',
+            'lost' => 'Lost',
+        );
+        return isset($map[$value]) ? $map[$value] : 'New';
+    }
+
+    private function format_admin_datetime($value) {
+        if (!$value) {
+            return '';
+        }
+        try {
+            $date = new DateTime($value, new DateTimeZone('UTC'));
+            $date->setTimezone(wp_timezone());
+            return $date->format('Y-m-d H:i');
+        } catch (Exception $e) {
+            return $value;
+        }
     }
 }

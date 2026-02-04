@@ -63,7 +63,7 @@ class Lead_Aggregator_Database {
             custom_10 VARCHAR(190) NULL,
             stage_id BIGINT UNSIGNED NULL,
             status VARCHAR(40) NOT NULL DEFAULT 'open',
-            followup_status VARCHAR(40) NOT NULL DEFAULT 'scheduled',
+            followup_status VARCHAR(40) NOT NULL DEFAULT 'not_set',
             skip_reminders TINYINT(1) NOT NULL DEFAULT 0,
             followup_at DATETIME NULL,
             due_at DATETIME NULL,
@@ -247,10 +247,6 @@ class Lead_Aggregator_Database {
         $where = $this->wpdb->prepare('WHERE user_id = %d', $user_id);
         $params = array();
 
-        if (!empty($filters['stage_id'])) {
-            $where .= $this->wpdb->prepare(' AND stage_id = %d', $filters['stage_id']);
-        }
-
         if (!empty($filters['status'])) {
             $where .= $this->wpdb->prepare(' AND status = %s', $filters['status']);
         }
@@ -272,7 +268,7 @@ class Lead_Aggregator_Database {
 
     public function insert_lead($data) {
         $this->maybe_create_tables();
-        $now = current_time('mysql');
+        $now = current_time('mysql', true);
         $data['created_at'] = $now;
         $data['updated_at'] = $now;
         $result = $this->wpdb->insert($this->table_name('leads'), $data);
@@ -284,7 +280,7 @@ class Lead_Aggregator_Database {
 
     public function update_lead($lead_id, $user_id, $data) {
         $this->maybe_create_tables();
-        $data['updated_at'] = current_time('mysql');
+        $data['updated_at'] = current_time('mysql', true);
         return $this->wpdb->update(
             $this->table_name('leads'),
             $data,
