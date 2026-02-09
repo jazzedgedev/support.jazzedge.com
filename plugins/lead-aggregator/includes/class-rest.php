@@ -7,11 +7,13 @@ class Lead_Aggregator_REST {
     private $database;
     private $permissions;
     private $billing;
+    private $audit;
 
-    public function __construct($database, $permissions, $billing) {
+    public function __construct($database, $permissions, $billing, $audit) {
         $this->database = $database;
         $this->permissions = $permissions;
         $this->billing = $billing;
+        $this->audit = $audit;
 
         add_action('rest_api_init', array($this, 'register_routes'));
     }
@@ -275,6 +277,18 @@ class Lead_Aggregator_REST {
             'permission_callback' => array($this, 'check_user_write'),
         ));
 
+        register_rest_route('lead-aggregator/v1', '/appearance/settings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_appearance_settings'),
+            'permission_callback' => array($this, 'check_user_read'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/appearance/settings', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_appearance_settings'),
+            'permission_callback' => array($this, 'check_user_write'),
+        ));
+
         register_rest_route('lead-aggregator/v1', '/custom-fields', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_custom_fields'),
@@ -284,6 +298,30 @@ class Lead_Aggregator_REST {
         register_rest_route('lead-aggregator/v1', '/custom-fields', array(
             'methods' => 'POST',
             'callback' => array($this, 'save_custom_fields'),
+            'permission_callback' => array($this, 'check_user_write'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/activity/log', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_activity_log'),
+            'permission_callback' => array($this, 'check_user_read'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/activity/reporting', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_activity_reporting'),
+            'permission_callback' => array($this, 'check_user_read'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/activity/export', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'export_activity_log'),
+            'permission_callback' => array($this, 'check_user_read'),
+        ));
+
+        register_rest_route('lead-aggregator/v1', '/activity/seed', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'seed_activity_log'),
             'permission_callback' => array($this, 'check_user_write'),
         ));
 
@@ -476,10 +514,16 @@ class Lead_Aggregator_REST {
         $required_secret = isset($source_record['shared_secret']) ? (string) $source_record['shared_secret'] : '';
         if (!$required_secret) {
             $this->maybe_log_webhook((int) $source_record['user_id'], $source_record['source_key'], 'failed', 'Shared secret required', $this->get_request_params($request));
+            $this->audit_log('webhook_failed', 'webhook', (int) $source_record['id'], $source_record['source_key'], array(
+                'error' => 'Shared secret required',
+            ), (int) $source_record['user_id']);
             return new WP_Error('secret_required', 'Shared secret not configured. Generate one in settings.', array('status' => 401));
         }
         if (!$secret || $secret !== $required_secret) {
             $this->maybe_log_webhook((int) $source_record['user_id'], $source_record['source_key'], 'failed', 'Invalid webhook secret', $this->get_request_params($request));
+            $this->audit_log('webhook_failed', 'webhook', (int) $source_record['id'], $source_record['source_key'], array(
+                'error' => 'Invalid webhook secret',
+            ), (int) $source_record['user_id']);
             return new WP_Error('invalid_secret', 'Invalid webhook secret', array('status' => 401));
         }
 
@@ -491,6 +535,9 @@ class Lead_Aggregator_REST {
         $user_id = (int) $source_record['user_id'];
         if (!$this->permissions->can_create_lead($user_id)) {
             $this->maybe_log_webhook($user_id, $source_record['source_key'], 'failed', 'Contact limit reached', $payload);
+            $this->audit_log('webhook_failed', 'webhook', (int) $source_record['id'], $source_record['source_key'], array(
+                'error' => 'Contact limit reached',
+            ), $user_id);
             return new WP_Error('limit_reached', 'Contact limit reached', array('status' => 403));
         }
 
@@ -528,6 +575,9 @@ class Lead_Aggregator_REST {
         ), $custom_fields, $address));
         if (!$lead_id) {
             $this->maybe_log_webhook($user_id, $source_record['source_key'], 'failed', $this->database->get_last_error() ? $this->database->get_last_error() : 'Unable to create lead', $payload);
+            $this->audit_log('webhook_failed', 'webhook', (int) $source_record['id'], $source_record['source_key'], array(
+                'error' => $this->database->get_last_error() ? $this->database->get_last_error() : 'Unable to create lead',
+            ), $user_id);
             return new WP_Error(
                 'create_failed',
                 $this->database->get_last_error() ? $this->database->get_last_error() : 'Unable to create lead',
@@ -538,6 +588,21 @@ class Lead_Aggregator_REST {
         $this->database->log_activity($lead_id, $user_id, 'webhook_created', array('source' => $lead_source));
         $this->apply_webhook_tags($lead_id, $payload);
         $this->maybe_log_webhook($user_id, $source_record['source_key'], 'success', 'Lead created', $payload);
+        $lead_label = $this->format_lead_label(array(
+            'id' => $lead_id,
+            'first_name' => $payload['first_name'] ?? '',
+            'last_name' => $payload['last_name'] ?? '',
+            'email' => $payload['email'] ?? '',
+        ));
+        $this->audit_log('webhook_fired', 'webhook', (int) $source_record['id'], $source_record['source_key'], array(
+            'lead_id' => $lead_id,
+            'source' => $lead_source,
+        ), $user_id);
+        $this->audit_log('lead_created', 'lead', $lead_id, $lead_label, array(
+            'source' => $lead_source,
+            'status' => $status,
+            'followup_status' => $followup_status,
+        ), $user_id);
 
         return rest_ensure_response(array('success' => true, 'lead_id' => $lead_id));
     }
@@ -742,6 +807,17 @@ class Lead_Aggregator_REST {
         }
 
         $this->database->log_activity($lead_id, $actor_id, 'manual_created');
+        $lead_label = $this->format_lead_label(array(
+            'id' => $lead_id,
+            'first_name' => $params['first_name'] ?? '',
+            'last_name' => $params['last_name'] ?? '',
+            'email' => $params['email'] ?? '',
+        ));
+        $this->audit_log('lead_created', 'lead', $lead_id, $lead_label, array(
+            'source' => $params['source'] ?? 'manual',
+            'status' => $status,
+            'followup_status' => $followup_status,
+        ), $actor_id);
 
         return rest_ensure_response(array('success' => true, 'lead_id' => $lead_id));
     }
@@ -755,6 +831,11 @@ class Lead_Aggregator_REST {
         $user_id = $this->get_account_user_id($actor_id);
         $lead_id = (int) $request['id'];
         $params = $this->get_request_params($request);
+        $before = $this->database->get_lead($lead_id, $user_id);
+        $before_tags = array();
+        if (isset($params['tags']) && is_array($params['tags'])) {
+            $before_tags = $this->database->get_lead_tags($lead_id);
+        }
 
         $data = array();
 
@@ -828,6 +909,54 @@ class Lead_Aggregator_REST {
         }
 
         $this->database->log_activity($lead_id, $actor_id, 'updated');
+        if ($before) {
+            $lead_label = $this->format_lead_label($before);
+            $changes = array_keys($data);
+            if ($has_tag_update) {
+                $changes[] = 'tags';
+            }
+            $this->audit_log('lead_updated', 'lead', $lead_id, $lead_label, array(
+                'changed_fields' => $changes,
+            ), $actor_id);
+
+            if (isset($data['status']) && $before['status'] !== $data['status']) {
+                $this->audit_log('pipeline_stage_changed', 'lead', $lead_id, $lead_label, array(
+                    'from' => $before['status'],
+                    'to' => $data['status'],
+                ), $actor_id);
+            }
+
+            if (isset($data['followup_status']) && $before['followup_status'] !== $data['followup_status']) {
+                $this->audit_log('followup_status_changed', 'lead', $lead_id, $lead_label, array(
+                    'from' => $before['followup_status'],
+                    'to' => $data['followup_status'],
+                ), $actor_id);
+            }
+
+            if (isset($data['followup_at']) || isset($data['due_at'])) {
+                $this->audit_log('followup_rescheduled', 'followup', $lead_id, $lead_label, array(
+                    'followup_at' => $data['followup_at'] ?? $before['followup_at'],
+                    'due_at' => $data['due_at'] ?? $before['due_at'],
+                ), $actor_id);
+            }
+        }
+
+        if ($has_tag_update && $before) {
+            $new_tags = array_map('intval', $params['tags']);
+            $removed = array_values(array_diff($before_tags, $new_tags));
+            $added = array_values(array_diff($new_tags, $before_tags));
+            $lead_label = $this->format_lead_label($before);
+            if (!empty($added)) {
+                $this->audit_log('tag_added_to_lead', 'tag', $lead_id, $lead_label, array(
+                    'tag_ids' => $added,
+                ), $actor_id);
+            }
+            if (!empty($removed)) {
+                $this->audit_log('tag_removed_from_lead', 'tag', $lead_id, $lead_label, array(
+                    'tag_ids' => $removed,
+                ), $actor_id);
+            }
+        }
 
         return rest_ensure_response(array('success' => true));
     }
@@ -840,11 +969,15 @@ class Lead_Aggregator_REST {
         }
         $user_id = $this->get_account_user_id($actor_id);
         $lead_id = (int) $request['id'];
+        $lead = $this->database->get_lead($lead_id, $user_id);
         $deleted = $this->database->delete_lead($lead_id, $user_id);
         if (!$deleted) {
             return new WP_Error('delete_failed', 'Unable to delete lead', array('status' => 500));
         }
         $this->database->log_activity($lead_id, $actor_id, 'deleted');
+        if ($lead) {
+            $this->audit_log('lead_deleted', 'lead', $lead_id, $this->format_lead_label($lead), array(), $actor_id);
+        }
         return rest_ensure_response(array('success' => true));
     }
 
@@ -865,6 +998,7 @@ class Lead_Aggregator_REST {
         if ($deleted === false) {
             return new WP_Error('delete_failed', 'Unable to delete leads', array('status' => 500));
         }
+        $this->audit_log('lead_bulk_deleted', 'lead', null, null, array('count' => (int) $deleted), $actor_id);
         return rest_ensure_response(array('success' => true, 'deleted' => (int) $deleted));
     }
 
@@ -891,6 +1025,9 @@ class Lead_Aggregator_REST {
 
         $note_id = $this->database->add_note($lead_id, $user_id, $note);
         $this->database->log_activity($lead_id, $actor_id, 'note_added');
+        $this->audit_log('note_added', 'note', $note_id, wp_trim_words(wp_strip_all_tags($note), 8, '...'), array(
+            'lead_id' => $lead_id,
+        ), $actor_id);
 
         return rest_ensure_response(array('success' => true, 'note_id' => $note_id));
     }
@@ -908,6 +1045,7 @@ class Lead_Aggregator_REST {
             return new WP_Error('delete_failed', 'Unable to delete note', array('status' => 500));
         }
         $this->database->log_activity((int) $request['id'], $actor_id, 'note_deleted');
+        $this->audit_log('note_deleted', 'note', $note_id, null, array(), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -929,6 +1067,7 @@ class Lead_Aggregator_REST {
             return new WP_Error('update_failed', 'Unable to update note', array('status' => 500));
         }
         $this->database->log_activity((int) $request['id'], $actor_id, 'note_updated');
+        $this->audit_log('note_updated', 'note', $note_id, wp_trim_words(wp_strip_all_tags($note), 8, '...'), array(), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -952,6 +1091,7 @@ class Lead_Aggregator_REST {
         }
 
         $tag_id = $this->database->create_tag($user_id, $name);
+        $this->audit_log('tag_created', 'tag', $tag_id, $name, array(), $actor_id);
         return rest_ensure_response(array('success' => true, 'tag_id' => $tag_id));
     }
 
@@ -967,6 +1107,7 @@ class Lead_Aggregator_REST {
         if (!$deleted) {
             return new WP_Error('delete_failed', 'Unable to delete tag', array('status' => 500));
         }
+        $this->audit_log('tag_deleted', 'tag', $tag_id, null, array(), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -987,6 +1128,7 @@ class Lead_Aggregator_REST {
         if ($updated === false) {
             return new WP_Error('update_failed', 'Unable to update tag', array('status' => 500));
         }
+        $this->audit_log('tag_updated', 'tag', $tag_id, $name, array(), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -1139,6 +1281,9 @@ class Lead_Aggregator_REST {
         $user_id = $this->get_account_user_id($actor_id);
         $params = $this->get_request_params($request);
         $this->database->save_business_profile($user_id, $params);
+        $this->audit_log('settings_changed', 'settings', null, 'Business Profile', array(
+            'keys' => array_keys($params),
+        ), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -1282,6 +1427,9 @@ class Lead_Aggregator_REST {
         $leads = $this->database->get_leads($user_id, array());
         $leads = array_map(array($this, 'normalize_lead_for_response'), $leads);
         $leads = array_map(array($this, 'normalize_lead_for_response'), $leads);
+        $this->audit_log('export_completed', 'export', null, 'Leads CSV', array(
+            'count' => count($leads),
+        ), $actor_id);
 
         $temp = fopen('php://temp', 'r+');
         fputcsv($temp, array('ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Company', 'Pipeline Stage', 'Follow-up Status', 'Followup', 'Due', 'Source', 'Created'));
@@ -1330,6 +1478,9 @@ class Lead_Aggregator_REST {
         $actor_id = get_current_user_id();
         $user_id = $this->get_account_user_id($actor_id);
         $leads = $this->database->get_leads($user_id, array());
+        $this->audit_log('export_completed', 'export', null, 'Calendar ICS', array(
+            'count' => count($leads),
+        ), $actor_id);
 
         $dashboard_url = home_url('/');
         $pages = get_pages(array(
@@ -1414,6 +1565,9 @@ class Lead_Aggregator_REST {
         if (!$lead) {
             return new WP_Error('not_found', 'Lead not found', array('status' => 404));
         }
+        $this->audit_log('export_completed', 'export', $lead_id, $this->format_lead_label($lead), array(
+            'type' => 'lead_csv',
+        ), $actor_id);
         $lead = $this->normalize_lead_for_response($lead);
         $lead = $this->normalize_lead_for_response($lead);
         $labels = $this->get_custom_fields_labels($user_id);
@@ -1501,6 +1655,9 @@ class Lead_Aggregator_REST {
         if (!$lead) {
             return new WP_Error('not_found', 'Lead not found', array('status' => 404));
         }
+        $this->audit_log('export_completed', 'export', $lead_id, $this->format_lead_label($lead), array(
+            'type' => 'lead_calendar',
+        ), $actor_id);
 
         $dashboard_url = home_url('/');
         $pages = get_pages(array(
@@ -1608,6 +1765,7 @@ class Lead_Aggregator_REST {
 
         $source_id = $this->database->create_webhook_source($user_id, $source_key, $shared_secret, 1);
         $source = $this->database->get_webhook_source_by_id($source_id, $user_id);
+        $this->audit_log('webhook_created', 'webhook', $source_id, $source_key, array(), $actor_id);
         return rest_ensure_response($source);
     }
 
@@ -1627,6 +1785,7 @@ class Lead_Aggregator_REST {
         if (!$deleted) {
             return new WP_Error('delete_failed', 'Unable to delete webhook source', array('status' => 500));
         }
+        $this->audit_log('webhook_deleted', 'webhook', $source_id, $source ? $source['source_key'] : null, array(), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -1660,6 +1819,9 @@ class Lead_Aggregator_REST {
         if ($updated === false) {
             return new WP_Error('update_failed', 'Unable to update webhook', array('status' => 500));
         }
+        $this->audit_log('webhook_updated', 'webhook', $source_id, $source['source_key'], array(
+            'regenerated' => !empty($params['regenerate']),
+        ), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -1842,6 +2004,10 @@ class Lead_Aggregator_REST {
             update_user_meta($user_id, 'lead_aggregator_digest_timezone', $timezone);
         }
 
+        $this->audit_log('settings_changed', 'settings', null, 'Notifications', array(
+            'time' => $time,
+            'timezone' => $timezone,
+        ), $user_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -1881,6 +2047,10 @@ class Lead_Aggregator_REST {
             'labels' => $payload,
             'followup' => $followup_payload,
         ));
+        $this->audit_log('settings_changed', 'settings', null, 'Custom Fields', array(
+            'fields' => $payload,
+            'followup' => $followup_payload,
+        ), $actor_id);
         return rest_ensure_response(array('success' => true));
     }
 
@@ -1910,6 +2080,9 @@ class Lead_Aggregator_REST {
         $params = $this->get_request_params($request);
         $enabled = isset($params['enabled']) ? (int) $params['enabled'] : 1;
         update_user_meta($user_id, 'lead_aggregator_show_get_started', $enabled ? 1 : 0);
+        $this->audit_log('settings_changed', 'settings', null, 'Get Started', array(
+            'enabled' => $enabled ? 1 : 0,
+        ), $user_id);
         return rest_ensure_response(array(
             'enabled' => $enabled ? 1 : 0,
         ));
@@ -1935,9 +2108,37 @@ class Lead_Aggregator_REST {
             'status' => $status,
             'followup_status' => $followup_status,
         ));
+        $this->audit_log('settings_changed', 'settings', null, 'Quick Action', array(
+            'status' => $status,
+            'followup_status' => $followup_status,
+        ), $user_id);
         return rest_ensure_response(array(
             'status' => $status,
             'followup_status' => $followup_status,
+        ));
+    }
+
+    public function get_appearance_settings() {
+        $user_id = get_current_user_id();
+        $enabled = get_user_meta($user_id, 'lead_aggregator_dark_mode', true);
+        if ($enabled === '') {
+            $enabled = 0;
+        }
+        return rest_ensure_response(array(
+            'dark_mode' => (int) $enabled,
+        ));
+    }
+
+    public function save_appearance_settings($request) {
+        $user_id = get_current_user_id();
+        $params = $this->get_request_params($request);
+        $enabled = isset($params['dark_mode']) ? (int) $params['dark_mode'] : 0;
+        update_user_meta($user_id, 'lead_aggregator_dark_mode', $enabled ? 1 : 0);
+        $this->audit_log('settings_changed', 'settings', null, 'Appearance', array(
+            'dark_mode' => $enabled ? 1 : 0,
+        ), $user_id);
+        return rest_ensure_response(array(
+            'dark_mode' => $enabled ? 1 : 0,
         ));
     }
 
@@ -2008,6 +2209,10 @@ class Lead_Aggregator_REST {
         update_user_meta($user_id, 'lead_aggregator_access_level', $access_level);
         update_user_meta($user_id, 'lead_aggregator_subscription_status', 'active');
 
+        $this->audit_log('team_member_added', 'team_member', (int) $user_id, $name ?: $email, array(
+            'email' => $email,
+            'access_level' => $access_level,
+        ), $manager_id);
         return rest_ensure_response(array(
             'success' => true,
             'user_id' => (int) $user_id,
@@ -2041,8 +2246,409 @@ class Lead_Aggregator_REST {
             $password = wp_generate_password(16, false, false);
             wp_set_password($password, $user_id);
             $response['password'] = $password;
+            $this->audit_log('team_password_reset', 'team_member', $user_id, null, array(), $manager_id);
+        }
+        if (isset($params['access_level'])) {
+            $this->audit_log('team_role_changed', 'team_member', $user_id, null, array(
+                'access_level' => sanitize_key($params['access_level']),
+            ), $manager_id);
+        }
+        if (isset($params['access_enabled'])) {
+            $this->audit_log('team_access_toggled', 'team_member', $user_id, null, array(
+                'access_enabled' => (int) !!$params['access_enabled'],
+            ), $manager_id);
         }
         return rest_ensure_response($response);
+    }
+
+    public function get_activity_log($request) {
+        $manager_id = get_current_user_id();
+        $error = $this->require_manager_user($manager_id);
+        if (is_wp_error($error)) {
+            return $error;
+        }
+        $workspace_id = $this->audit->resolve_workspace_id($manager_id);
+        if (!$workspace_id) {
+            return new WP_Error('invalid_workspace', 'Workspace not found', array('status' => 404));
+        }
+
+        $params = $this->get_request_params($request);
+        $range = $this->parse_activity_range($params);
+        $page = isset($params['page']) ? max(1, (int) $params['page']) : 1;
+        $per_page = isset($params['per_page']) ? (int) $params['per_page'] : 25;
+        if (!in_array($per_page, array(25, 50, 100), true)) {
+            $per_page = 25;
+        }
+        $offset = ($page - 1) * $per_page;
+
+        $filters = $this->build_activity_filters($workspace_id, $params, $range);
+        global $wpdb;
+        $table = $this->database->table_name('audit_log');
+        $count_sql = "SELECT COUNT(*) FROM {$table} {$filters['where']}";
+        $count = (int) $wpdb->get_var($wpdb->prepare($count_sql, $filters['params']));
+
+        $query_sql = "SELECT * FROM {$table} {$filters['where']} ORDER BY created_at DESC LIMIT %d OFFSET %d";
+        $query_params = array_merge($filters['params'], array($per_page, $offset));
+        $rows = $wpdb->get_results($wpdb->prepare($query_sql, $query_params), ARRAY_A);
+        foreach ($rows as &$row) {
+            $row['metadata'] = $row['metadata_json'] ? json_decode($row['metadata_json'], true) : null;
+            unset($row['metadata_json']);
+        }
+
+        return rest_ensure_response(array(
+            'rows' => $rows,
+            'total' => $count,
+            'page' => $page,
+            'per_page' => $per_page,
+            'pages' => $per_page ? (int) ceil($count / $per_page) : 1,
+            'range' => $range,
+        ));
+    }
+
+    public function export_activity_log($request) {
+        $manager_id = get_current_user_id();
+        $error = $this->require_manager_user($manager_id);
+        if (is_wp_error($error)) {
+            return $error;
+        }
+        $workspace_id = $this->audit->resolve_workspace_id($manager_id);
+        if (!$workspace_id) {
+            return new WP_Error('invalid_workspace', 'Workspace not found', array('status' => 404));
+        }
+        $params = $this->get_request_params($request);
+        $range = $this->parse_activity_range($params);
+        $filters = $this->build_activity_filters($workspace_id, $params, $range);
+
+        global $wpdb;
+        $table = $this->database->table_name('audit_log');
+        $query_sql = "SELECT * FROM {$table} {$filters['where']} ORDER BY created_at DESC LIMIT 5000";
+        $rows = $wpdb->get_results($wpdb->prepare($query_sql, $filters['params']), ARRAY_A);
+
+        $temp = fopen('php://temp', 'r+');
+        fputcsv($temp, array('Time', 'Team Member', 'Email', 'Action', 'Entity Type', 'Entity Label', 'Metadata'));
+        foreach ($rows as $row) {
+            fputcsv($temp, array(
+                $row['created_at'],
+                $row['actor_name'],
+                $row['actor_email'],
+                $row['action'],
+                $row['entity_type'],
+                $row['entity_label'],
+                $row['metadata_json'],
+            ));
+        }
+        rewind($temp);
+        $csv = stream_get_contents($temp);
+        fclose($temp);
+
+        add_filter('rest_pre_serve_request', function ($served, $result, $request, $server) {
+            if ($request->get_route() !== '/lead-aggregator/v1/activity/export') {
+                return $served;
+            }
+            $data = $result instanceof WP_REST_Response ? $result->get_data() : $result;
+            if (!is_string($data)) {
+                return $served;
+            }
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="activity-audit-log.csv"');
+            echo $data;
+            return true;
+        }, 10, 4);
+
+        $this->audit_log('export_completed', 'audit_log', null, 'Activity Export', array(), $manager_id);
+        $response = new WP_REST_Response($csv, 200);
+        $response->header('Content-Type', 'text/csv; charset=utf-8');
+        $response->header('Content-Disposition', 'attachment; filename="activity-audit-log.csv"');
+        return $response;
+    }
+
+    public function get_activity_reporting($request) {
+        $manager_id = get_current_user_id();
+        $error = $this->require_manager_user($manager_id);
+        if (is_wp_error($error)) {
+            return $error;
+        }
+        $workspace_id = $this->audit->resolve_workspace_id($manager_id);
+        if (!$workspace_id) {
+            return new WP_Error('invalid_workspace', 'Workspace not found', array('status' => 404));
+        }
+        $params = $this->get_request_params($request);
+        $range = $this->parse_activity_range($params);
+
+        global $wpdb;
+        $table = $this->database->table_name('audit_log');
+        $start = $range['start'];
+        $end = $range['end'];
+
+        $leads_created = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE workspace_id = %d AND action = %s AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            'lead_created',
+            $start,
+            $end
+        ));
+        $followups_completed = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE workspace_id = %d AND action = %s AND metadata_json LIKE %s AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            'followup_status_changed',
+            '%\"to\":\"completed\"%',
+            $start,
+            $end
+        ));
+        $leads_contacted = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE workspace_id = %d AND action = %s AND metadata_json LIKE %s AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            'pipeline_stage_changed',
+            '%\"to\":\"contacted\"%',
+            $start,
+            $end
+        ));
+        $won_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE workspace_id = %d AND action = %s AND metadata_json LIKE %s AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            'pipeline_stage_changed',
+            '%\"to\":\"won\"%',
+            $start,
+            $end
+        ));
+        $lost_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE workspace_id = %d AND action = %s AND metadata_json LIKE %s AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            'pipeline_stage_changed',
+            '%\"to\":\"lost\"%',
+            $start,
+            $end
+        ));
+        $active_members = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT actor_user_id) FROM {$table} WHERE workspace_id = %d AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            $start,
+            $end
+        ));
+
+        $avg_followup_minutes = $this->calculate_avg_followup_time($workspace_id, $start, $end);
+        $win_rate = ($won_count + $lost_count) > 0 ? round(($won_count / ($won_count + $lost_count)) * 100, 1) : 0;
+
+        $events_over_time = $wpdb->get_results($wpdb->prepare(
+            "SELECT DATE(created_at) as day, COUNT(*) as total FROM {$table} WHERE workspace_id = %d AND created_at BETWEEN %s AND %s GROUP BY day ORDER BY day ASC",
+            $workspace_id,
+            $start,
+            $end
+        ), ARRAY_A);
+
+        $by_member = $wpdb->get_results($wpdb->prepare(
+            "SELECT actor_user_id, actor_name, COUNT(*) as total FROM {$table} WHERE workspace_id = %d AND created_at BETWEEN %s AND %s GROUP BY actor_user_id ORDER BY total DESC LIMIT 10",
+            $workspace_id,
+            $start,
+            $end
+        ), ARRAY_A);
+
+        $top_actions = $wpdb->get_results($wpdb->prepare(
+            "SELECT action, COUNT(*) as total FROM {$table} WHERE workspace_id = %d AND created_at BETWEEN %s AND %s GROUP BY action ORDER BY total DESC LIMIT 10",
+            $workspace_id,
+            $start,
+            $end
+        ), ARRAY_A);
+
+        $stage_changes = $this->aggregate_stage_changes($workspace_id, $start, $end);
+        $followup_completion = $this->aggregate_followup_completion($workspace_id, $start, $end);
+
+        return rest_ensure_response(array(
+            'range' => $range,
+            'summary' => array(
+                'leads_created' => $leads_created,
+                'leads_contacted' => $leads_contacted,
+                'followups_completed' => $followups_completed,
+                'avg_time_to_first_followup' => $avg_followup_minutes,
+                'win_rate' => $win_rate,
+                'active_team_members' => $active_members,
+            ),
+            'charts' => array(
+                'events_over_time' => $events_over_time,
+                'by_member' => $by_member,
+                'stage_changes' => $stage_changes,
+                'followup_completion' => $followup_completion,
+                'top_actions' => $top_actions,
+            ),
+        ));
+    }
+
+    public function seed_activity_log($request) {
+        if (!current_user_can('manage_options')) {
+            return new WP_Error('not_allowed', 'Not allowed.', array('status' => 403));
+        }
+        $manager_id = get_current_user_id();
+        $workspace_id = $this->audit->resolve_workspace_id($manager_id);
+        if (!$workspace_id) {
+            return new WP_Error('invalid_workspace', 'Workspace not found', array('status' => 404));
+        }
+        $actions = array('lead_created', 'lead_updated', 'followup_status_changed', 'note_added', 'tag_created', 'webhook_fired', 'settings_changed');
+        for ($i = 0; $i < 25; $i++) {
+            $action = $actions[array_rand($actions)];
+            $this->audit->log($workspace_id, $manager_id, $action, 'seed', null, 'Seed Event', array('seed' => true));
+        }
+        return rest_ensure_response(array('success' => true));
+    }
+
+    private function parse_activity_range($params) {
+        $range = isset($params['range']) ? sanitize_text_field($params['range']) : 'last_30';
+        $now = current_time('timestamp', true);
+        $start = $now - DAY_IN_SECONDS * 30;
+        if ($range === 'last_7') {
+            $start = $now - DAY_IN_SECONDS * 7;
+        } elseif ($range === 'last_90') {
+            $start = $now - DAY_IN_SECONDS * 90;
+        } elseif ($range === 'custom') {
+            $start_param = isset($params['start']) ? sanitize_text_field($params['start']) : '';
+            $end_param = isset($params['end']) ? sanitize_text_field($params['end']) : '';
+            if ($start_param) {
+                $start = strtotime($start_param . ' 00:00:00');
+            }
+            if ($end_param) {
+                $now = strtotime($end_param . ' 23:59:59');
+            }
+        }
+        $start_mysql = gmdate('Y-m-d H:i:s', $start);
+        $end_mysql = gmdate('Y-m-d H:i:s', $now);
+        return array(
+            'range' => $range,
+            'start' => $start_mysql,
+            'end' => $end_mysql,
+        );
+    }
+
+    private function build_activity_filters($workspace_id, $params, $range) {
+        $where = array('workspace_id = %d', 'created_at BETWEEN %s AND %s');
+        $values = array($workspace_id, $range['start'], $range['end']);
+        $actor = isset($params['actor']) ? (int) $params['actor'] : 0;
+        if ($actor > 0) {
+            $where[] = 'actor_user_id = %d';
+            $values[] = $actor;
+        }
+        if (!empty($params['action'])) {
+            $where[] = 'action = %s';
+            $values[] = sanitize_key($params['action']);
+        }
+        if (!empty($params['entity_type'])) {
+            $where[] = 'entity_type = %s';
+            $values[] = sanitize_key($params['entity_type']);
+        }
+        if (!empty($params['search'])) {
+            $like = '%' . $this->esc_like(sanitize_text_field($params['search'])) . '%';
+            $where[] = '(entity_label LIKE %s OR metadata_json LIKE %s OR actor_name LIKE %s OR actor_email LIKE %s)';
+            $values[] = $like;
+            $values[] = $like;
+            $values[] = $like;
+            $values[] = $like;
+        }
+        return array(
+            'where' => 'WHERE ' . implode(' AND ', $where),
+            'params' => $values,
+        );
+    }
+
+    private function esc_like($text) {
+        global $wpdb;
+        return $wpdb->esc_like($text);
+    }
+
+    private function aggregate_stage_changes($workspace_id, $start, $end) {
+        global $wpdb;
+        $table = $this->database->table_name('audit_log');
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT created_at, metadata_json FROM {$table} WHERE workspace_id = %d AND action = %s AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            'pipeline_stage_changed',
+            $start,
+            $end
+        ), ARRAY_A);
+        $bucket = array();
+        foreach ($rows as $row) {
+            $day = substr($row['created_at'], 0, 10);
+            $meta = $row['metadata_json'] ? json_decode($row['metadata_json'], true) : array();
+            $to = isset($meta['to']) ? $meta['to'] : 'unknown';
+            if (!isset($bucket[$day])) {
+                $bucket[$day] = array();
+            }
+            if (!isset($bucket[$day][$to])) {
+                $bucket[$day][$to] = 0;
+            }
+            $bucket[$day][$to] += 1;
+        }
+        $output = array();
+        foreach ($bucket as $day => $values) {
+            $output[] = array(
+                'day' => $day,
+                'values' => $values,
+            );
+        }
+        return $output;
+    }
+
+    private function aggregate_followup_completion($workspace_id, $start, $end) {
+        global $wpdb;
+        $table = $this->database->table_name('audit_log');
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT created_at, metadata_json FROM {$table} WHERE workspace_id = %d AND action = %s AND created_at BETWEEN %s AND %s",
+            $workspace_id,
+            'followup_status_changed',
+            $start,
+            $end
+        ), ARRAY_A);
+        $bucket = array();
+        foreach ($rows as $row) {
+            $day = substr($row['created_at'], 0, 10);
+            $meta = $row['metadata_json'] ? json_decode($row['metadata_json'], true) : array();
+            if (empty($meta['to'])) {
+                continue;
+            }
+            if (!isset($bucket[$day])) {
+                $bucket[$day] = array('completed' => 0, 'total' => 0);
+            }
+            $bucket[$day]['total'] += 1;
+            if ($meta['to'] === 'completed') {
+                $bucket[$day]['completed'] += 1;
+            }
+        }
+        $output = array();
+        foreach ($bucket as $day => $values) {
+            $rate = $values['total'] ? round(($values['completed'] / $values['total']) * 100, 1) : 0;
+            $output[] = array(
+                'day' => $day,
+                'completed' => $values['completed'],
+                'total' => $values['total'],
+                'rate' => $rate,
+            );
+        }
+        return $output;
+    }
+
+    private function calculate_avg_followup_time($workspace_id, $start, $end) {
+        global $wpdb;
+        $leads_table = $this->database->table_name('leads');
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT created_at, followup_at FROM {$leads_table} WHERE user_id = %d AND created_at BETWEEN %s AND %s AND followup_at IS NOT NULL",
+            $workspace_id,
+            $start,
+            $end
+        ), ARRAY_A);
+        if (empty($rows)) {
+            return 0;
+        }
+        $total = 0;
+        $count = 0;
+        foreach ($rows as $row) {
+            $created = strtotime($row['created_at']);
+            $followup = strtotime($row['followup_at']);
+            if ($created && $followup && $followup >= $created) {
+                $total += ($followup - $created);
+                $count += 1;
+            }
+        }
+        if (!$count) {
+            return 0;
+        }
+        return (int) round($total / $count / 60);
     }
 
     private function require_manager_user($user_id) {
@@ -2051,6 +2657,35 @@ class Lead_Aggregator_REST {
             return new WP_Error('not_allowed', 'Sub-accounts cannot manage team members.', array('status' => 403));
         }
         return true;
+    }
+
+    private function audit_log($action, $entity_type, $entity_id = null, $entity_label = null, $metadata = array(), $actor_id = null) {
+        if (!$this->audit) {
+            return;
+        }
+        $actor_id = $actor_id ? (int) $actor_id : (int) get_current_user_id();
+        $workspace_id = $this->audit->resolve_workspace_id($actor_id);
+        if (!$workspace_id) {
+            return;
+        }
+        $this->audit->log($workspace_id, $actor_id, $action, $entity_type, $entity_id, $entity_label, $metadata);
+    }
+
+    private function format_lead_label($lead) {
+        if (!is_array($lead)) {
+            return '';
+        }
+        $name = trim(($lead['first_name'] ?? '') . ' ' . ($lead['last_name'] ?? ''));
+        if ($name) {
+            return $name;
+        }
+        if (!empty($lead['email'])) {
+            return $lead['email'];
+        }
+        if (!empty($lead['id'])) {
+            return 'Lead #' . $lead['id'];
+        }
+        return 'Lead';
     }
 
     private function extract_custom_fields($params, $only_if_present = false) {

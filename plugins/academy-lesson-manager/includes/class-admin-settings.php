@@ -2040,6 +2040,11 @@ class ALM_Admin_Settings {
         echo '<th scope="row"><label for="intensive_order_form_url">' . __('Order Form URL', 'academy-lesson-manager') . '</label></th>';
         echo '<td><input type="url" id="intensive_order_form_url" name="intensive_order_form_url" value="' . esc_url($editing_intensive['order_form_url'] ?? '') . '" class="regular-text" placeholder="https://jazzedge.academy/" /></td>';
         echo '</tr>';
+
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_keap_tag_id">' . __('Keap Tag ID', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="number" id="intensive_keap_tag_id" name="intensive_keap_tag_id" value="' . esc_attr($editing_intensive['keap_tag_id'] ?? 0) . '" class="small-text" min="0" max="99999" step="1" /> <span class="description">' . __('Optional tag ID (up to 5 digits) associated with this intensive.', 'academy-lesson-manager') . '</span></td>';
+        echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_retail_price">' . __('Retail Price', 'academy-lesson-manager') . '</label></th>';
@@ -2105,7 +2110,8 @@ class ALM_Admin_Settings {
             echo '<th style="width: 20%;">' . __('Title', 'academy-lesson-manager') . '</th>';
             echo '<th style="width: 25%;">' . __('Description', 'academy-lesson-manager') . '</th>';
             echo '<th style="width: 12%;">' . __('Dates', 'academy-lesson-manager') . '</th>';
-            echo '<th style="width: 8%;">' . __('Skill Level', 'academy-lesson-manager') . '</th>';
+        echo '<th style="width: 8%;">' . __('Skill Level', 'academy-lesson-manager') . '</th>';
+        echo '<th style="width: 8%;">' . __('Keap Tag', 'academy-lesson-manager') . '</th>';
             echo '<th style="width: 8%;">' . __('Order', 'academy-lesson-manager') . '</th>';
             echo '<th style="width: 8%;">' . __('Status', 'academy-lesson-manager') . '</th>';
             echo '<th style="width: 5%;">' . __('Actions', 'academy-lesson-manager') . '</th>';
@@ -2133,6 +2139,7 @@ class ALM_Admin_Settings {
                 echo '<td>' . esc_html(wp_trim_words($intensive['description'] ?? '', 20)) . '</td>';
                 echo '<td>' . esc_html($start_date) . ' - ' . esc_html($end_date) . '</td>';
                 echo '<td>' . esc_html($skill_level_label) . '</td>';
+                echo '<td>' . esc_html(intval($intensive['keap_tag_id'] ?? 0)) . '</td>';
                 echo '<td>' . esc_html($intensive['display_order']) . '</td>';
                 echo '<td>' . $status . '</td>';
                 echo '<td>';
@@ -2176,6 +2183,7 @@ class ALM_Admin_Settings {
             $start_date = isset($_POST['intensive_start_date']) ? sanitize_text_field($_POST['intensive_start_date']) : null;
             $end_date = isset($_POST['intensive_end_date']) ? sanitize_text_field($_POST['intensive_end_date']) : null;
             $order_form_url = isset($_POST['intensive_order_form_url']) ? esc_url_raw($_POST['intensive_order_form_url']) : '';
+            $keap_tag_id = isset($_POST['intensive_keap_tag_id']) ? intval($_POST['intensive_keap_tag_id']) : 0;
             $retail_price = isset($_POST['intensive_retail_price']) && $_POST['intensive_retail_price'] !== '' ? floatval($_POST['intensive_retail_price']) : null;
             $sale_price = isset($_POST['intensive_sale_price']) && $_POST['intensive_sale_price'] !== '' ? floatval($_POST['intensive_sale_price']) : null;
             $skill_level = isset($_POST['intensive_skill_level']) ? sanitize_text_field($_POST['intensive_skill_level']) : 'beg';
@@ -2204,6 +2212,7 @@ class ALM_Admin_Settings {
                 'start_date' => $start_date ? $start_date : null,
                 'end_date' => $end_date ? $end_date : null,
                 'order_form_url' => $order_form_url,
+                'keap_tag_id' => $keap_tag_id,
                 'retail_price' => $retail_price,
                 'sale_price' => $sale_price,
                 'skill_level' => $skill_level,
@@ -2217,7 +2226,7 @@ class ALM_Admin_Settings {
                     $intensives_table,
                     $data,
                     array('ID' => $intensive_id),
-                    array('%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%d', '%d'),
+                    array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%f', '%f', '%s', '%d', '%d'),
                     array('%d')
                 );
             } else {
@@ -2225,7 +2234,7 @@ class ALM_Admin_Settings {
                 $result = $this->wpdb->insert(
                     $intensives_table,
                     $data,
-                    array('%s', '%s', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%d', '%d')
+                    array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%f', '%f', '%s', '%d', '%d')
                 );
             }
             

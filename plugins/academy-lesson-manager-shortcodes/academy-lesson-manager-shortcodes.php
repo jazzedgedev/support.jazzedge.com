@@ -1060,6 +1060,7 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('academy_starter_plan', array($this, 'academy_starter_plan_shortcode'));
         add_shortcode('academy_starter_landing', array($this, 'academy_starter_landing_shortcode'));
         add_shortcode('Cocktail_Piano_10_Steps_Landing_Page', array($this, 'cocktail_piano_10_steps_landing_page_shortcode'));
+        add_shortcode('Cocktail_Piano_10_Steps_Step_1', array($this, 'cocktail_piano_10_steps_step_1_shortcode'));
         add_shortcode('academy_starter_popup', array($this, 'academy_starter_popup_shortcode'));
         add_shortcode('quick_navigation', array($this, 'quick_navigation_shortcode'));
         add_shortcode('12days-of-xmas', array($this, 'twelve_days_of_xmas_shortcode'));
@@ -1459,6 +1460,25 @@ class ALM_Shortcodes_Plugin {
                         <code>[Cocktail_Piano_10_Steps_Landing_Page]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[Cocktail_Piano_10_Steps_Landing_Page]">Copy</button>
                     </div>
+                    <div class="shortcode-example" style="margin-top: 8px;">
+                        <code>[Cocktail_Piano_10_Steps_Landing_Page fluent_form_id="52"]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[Cocktail_Piano_10_Steps_Landing_Page fluent_form_id="52"]'>Copy</button>
+                    </div>
+                    <p style="margin-top: 8px; font-size: 12px; color: #666;"><strong>Attributes:</strong> <code>fluent_form_id</code> (default: 52)</p>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>Cocktail Piano 10 Steps - Step 1</h3>
+                    <p>Step 1 landing section with form and Intensive details.</p>
+                    <div class="shortcode-example">
+                        <code>[Cocktail_Piano_10_Steps_Step_1]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[Cocktail_Piano_10_Steps_Step_1]">Copy</button>
+                    </div>
+                    <div class="shortcode-example" style="margin-top: 8px;">
+                        <code>[Cocktail_Piano_10_Steps_Step_1 fluent_form_id="52"]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode='[Cocktail_Piano_10_Steps_Step_1 fluent_form_id="52"]'>Copy</button>
+                    </div>
+                    <p style="margin-top: 8px; font-size: 12px; color: #666;"><strong>Attributes:</strong> <code>fluent_form_id</code> (default: 52)</p>
                 </div>
                 
                 <div class="alm-shortcode-card">
@@ -19115,6 +19135,7 @@ class ALM_Shortcodes_Plugin {
         $retail_price = !empty($intensive['retail_price']) ? floatval($intensive['retail_price']) : 247.00;
         $sale_price = !empty($intensive['sale_price']) ? floatval($intensive['sale_price']) : 147.00;
         $has_sale = !empty($intensive['sale_price']) && $intensive['sale_price'] < $retail_price;
+        $single_discount_percent = $has_sale && $retail_price > 0 ? round((($retail_price - $sale_price) / $retail_price) * 100) : 0;
         
         // Hard coded bundle pricing
         $bundle_retail_price = 1497.00;
@@ -19601,6 +19622,63 @@ class ALM_Shortcodes_Plugin {
                 color: #239B90;
                 font-weight: 700;
                 font-size: 20px;
+            }
+            
+            /* Learn at Your Own Pace */
+            .intensive-flexibility {
+                background: linear-gradient(135deg, #fff8f5 0%, #fff0eb 100%);
+                border: 2px solid #f04e23;
+                border-radius: 16px;
+                padding: 40px 50px;
+                margin: 50px 0;
+                max-width: 800px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            
+            .intensive-flexibility h3 {
+                font-size: 28px;
+                font-weight: 700;
+                color: #004555;
+                margin: 0 0 16px 0;
+                text-align: center;
+            }
+            
+            .intensive-flexibility-lead {
+                font-size: 20px;
+                font-weight: 600;
+                color: #0f172a;
+                text-align: center;
+                margin: 0 0 24px 0;
+                line-height: 1.5;
+            }
+            
+            .intensive-flexibility-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            
+            .intensive-flexibility-list li {
+                font-size: 17px;
+                line-height: 1.6;
+                color: #334155;
+                padding: 14px 0 14px 36px;
+                position: relative;
+                border-bottom: 1px solid rgba(240, 78, 35, 0.15);
+            }
+            
+            .intensive-flexibility-list li:last-child {
+                border-bottom: none;
+            }
+            
+            .intensive-flexibility-list li::before {
+                content: '✓';
+                position: absolute;
+                left: 0;
+                color: #f04e23;
+                font-weight: 700;
+                font-size: 22px;
             }
             
             /* 3-Step Process */
@@ -20104,6 +20182,10 @@ class ALM_Shortcodes_Plugin {
                 letter-spacing: 0.3px;
             }
             
+            .intensive-card-content .intensive-card-date {
+                margin-bottom: 12px;
+            }
+            
             .intensive-card-content {
                 padding: 24px;
                 flex: 1;
@@ -20323,6 +20405,18 @@ class ALM_Shortcodes_Plugin {
                     max-width: 100%;
                 }
                 
+                .intensive-flexibility {
+                    padding: 30px 24px;
+                }
+                
+                .intensive-flexibility h3 {
+                    font-size: 24px;
+                }
+                
+                .intensive-flexibility-lead {
+                    font-size: 18px;
+                }
+                
                 .process-steps {
                     max-width: 100%;
                 }
@@ -20385,21 +20479,6 @@ class ALM_Shortcodes_Plugin {
                     <h2 class="intensive-title"><?php echo !empty($song_name) ? esc_html($song_name) : 'My Romance'; ?></h2>
                     <p class="intensive-subtitle"><?php echo !empty($intensive['title']) ? esc_html($intensive['title']) : 'Cocktail Piano & Jazz Standards for Beginners'; ?></p>
                     <span class="skill-level-badge <?php echo esc_attr(strtolower($skill_level)); ?>"><?php echo esc_html($skill_level_label); ?></span>
-                    
-                    <div class="intensive-dates">
-                        <div class="intensive-date-item">
-                            <div class="date-label">Start</div>
-                            <div class="date-value">January 26, 2026</div>
-                        </div>
-                        <div class="intensive-date-item">
-                            <div class="date-label">End</div>
-                            <div class="date-value">March 8, 2026</div>
-                        </div>
-                        <div class="intensive-date-item duration-item">
-                            <div class="date-label">Duration</div>
-                            <div class="duration">6 weeks</div>
-                        </div>
-                    </div>
                 </div>
                 
                 <!-- Who This Is For -->
@@ -20471,6 +20550,17 @@ class ALM_Shortcodes_Plugin {
                             <p>Dedicated private community space for this Intensive. Students are encouraged to post short practice or performance clips. Accountability through visibility, not pressure.</p>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Learn at Your Own Pace - No Live Commitment -->
+                <div class="intensive-flexibility">
+                    <h3>Learn at Your Own Pace — No Live Commitment</h3>
+                    <p class="intensive-flexibility-lead">You do <strong>not</strong> need to join anything live. Jump in anytime.</p>
+                    <ul class="intensive-flexibility-list">
+                        <li><strong>Lessons are recorded.</strong> Watch weekly teaching lessons and Practice Actions whenever it fits your schedule.</li>
+                        <li><strong>Only the 2 coaching sessions are live</strong> — and they're recorded too, so you can watch the replay if you can't make it.</li>
+                        <li><strong>Start whenever you're ready.</strong> Join at the beginning, middle, or end of the 6 weeks. All content is available on your timeline.</li>
+                    </ul>
                 </div>
                 
                 <!-- 3-Step Process -->
@@ -20590,7 +20680,7 @@ class ALM_Shortcodes_Plugin {
                         <div class="pricing-card single-card">
                             <div class="pricing-card-header">
                                 <?php if ($has_sale): ?>
-                                    <div class="pricing-badge sale-badge">Early Access</div>
+                                    <div class="pricing-badge sale-badge">Individual Access</div>
                                 <?php endif; ?>
                                 <h4>My Romance Intensive</h4>
                                 <div class="pricing-tagline">One-Time Purchase</div>
@@ -20645,7 +20735,7 @@ class ALM_Shortcodes_Plugin {
                                     <div class="price-original">
                                         <span>Regular: $<?php echo number_format($retail_price, 0); ?></span>
                                     </div>
-                                    <div class="price-note">Early access price (before Jan 26)</div>
+                                    <div class="price-note">Save <?php echo $single_discount_percent; ?>% • One-time payment</div>
                                 <?php else: ?>
                                     <div class="price-main">
                                         <span class="price-currency">$</span>
@@ -20769,11 +20859,11 @@ class ALM_Shortcodes_Plugin {
                                         <div class="intensive-number">Intensive #<?php echo $intensive_number; ?></div>
                                         <span class="skill-level-badge <?php echo esc_attr(strtolower($int_skill_level)); ?>"><?php echo esc_html($int_skill_level_label); ?></span>
                                     </div>
+                                </div>
+                                <div class="intensive-card-content">
                                     <?php if (!empty($start_date_formatted)): ?>
                                         <div class="intensive-card-date">Live Dates: <?php echo esc_html($start_date_formatted); ?></div>
                                     <?php endif; ?>
-                                </div>
-                                <div class="intensive-card-content">
                                     <h4><?php echo esc_html($main_title); ?></h4>
                                     <?php if (!empty($song_title)): ?>
                                         <p class="intensive-song"><?php echo esc_html($song_title); ?></p>
@@ -20806,9 +20896,9 @@ class ALM_Shortcodes_Plugin {
                                         <div class="intensive-number">Intensive #<?php echo $fallback['number']; ?></div>
                                         <span class="skill-level-badge <?php echo esc_attr(strtolower($fallback['skill'])); ?>"><?php echo esc_html($fallback_skill_label); ?></span>
                                     </div>
-                                    <div class="intensive-card-date">Live Dates: <?php echo esc_html($fallback['dates']); ?></div>
                                 </div>
                                 <div class="intensive-card-content">
+                                    <div class="intensive-card-date">Live Dates: <?php echo esc_html($fallback['dates']); ?></div>
                                     <h4><?php echo esc_html($fallback['title']); ?></h4>
                                     <p class="intensive-song"><?php echo esc_html($fallback['song']); ?></p>
                                     <p class="intensive-focus"><strong>Focus:</strong> <?php echo esc_html($fallback['focus']); ?></p>
@@ -20872,6 +20962,13 @@ class ALM_Shortcodes_Plugin {
     }
 
     public function cocktail_piano_10_steps_landing_page_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'fluent_form_id' => '52',
+        ), $atts, 'Cocktail_Piano_10_Steps_Landing_Page');
+        $form_id = preg_replace('/[^0-9]/', '', $atts['fluent_form_id']);
+        if ($form_id === '') {
+            $form_id = '52';
+        }
         ob_start();
         ?>
         <div class="cocktail-10-steps-landing">
@@ -21174,7 +21271,7 @@ class ALM_Shortcodes_Plugin {
                         <div class="cp-form-card">
                             <h3>Send me the resources</h3>
                             <p>Enter your name and email to get instant access to the download.</p>
-                            <?php echo do_shortcode('[fluentform id="51"]'); ?>
+                            <?php echo do_shortcode('[fluentform id="' . esc_attr($form_id) . '"]'); ?>
                             <p class="cp-privacy">We respect your inbox. Unsubscribe anytime.</p>
                         </div>
                     </div>
@@ -21242,6 +21339,293 @@ class ALM_Shortcodes_Plugin {
             }
         })();
         </script>
+        <?php
+        return ob_get_clean();
+    }
+
+    public function cocktail_piano_10_steps_step_1_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'fluent_form_id' => '52',
+        ), $atts, 'Cocktail_Piano_10_Steps_Step_1');
+        $form_id = preg_replace('/[^0-9]/', '', $atts['fluent_form_id']);
+        if ($form_id === '') {
+            $form_id = '52';
+        }
+        ob_start();
+        ?>
+        <div class="cocktail-10-steps-step-1">
+            <style>
+            .cocktail-10-steps-step-1 {
+                --cp-primary: #004555;
+                --cp-accent: #239B90;
+                --cp-highlight: #F04E23;
+                --cp-text: #1f2933;
+                --cp-muted: #5f6b7a;
+                max-width: 1100px;
+                margin: 0 auto;
+                padding: 0 20px 70px 20px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                color: var(--cp-text);
+            }
+            
+            .cocktail-10-steps-step-1 * {
+                box-sizing: border-box;
+            }
+            
+            .cp-step-hero {
+                background: linear-gradient(135deg, #004555 0%, #239B90 100%);
+                color: #fff;
+                border-radius: 22px;
+                padding: 48px 40px;
+                box-shadow: 0 18px 45px rgba(0, 69, 85, 0.25);
+                margin-bottom: 48px;
+            }
+            
+            .cp-step-hero-grid {
+                display: grid;
+                grid-template-columns: 1.1fr 0.9fr;
+                gap: 36px;
+                align-items: center;
+            }
+            
+            .cp-step-hero h1 {
+                font-size: 40px;
+                font-weight: 800;
+                margin: 0 0 14px 0;
+                line-height: 1.2;
+            }
+            
+            .cp-step-hero p {
+                margin: 0 0 20px 0;
+                font-size: 18px;
+                line-height: 1.6;
+                opacity: 0.95;
+            }
+            
+            .cp-step-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+                display: grid;
+                gap: 10px;
+            }
+            
+            .cp-step-list li {
+                display: flex;
+                gap: 10px;
+                font-size: 15px;
+                line-height: 1.5;
+            }
+            
+            .cp-step-list li::before {
+                content: '✓';
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.2);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 700;
+                color: #fff;
+                flex-shrink: 0;
+            }
+            
+            .cp-step-hero-cta {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 12px 24px;
+                border-radius: 999px;
+                background: #f04e23;
+                color: #fff;
+                text-decoration: none;
+                font-weight: 700;
+                margin-top: 18px;
+                box-shadow: 0 10px 20px rgba(240, 78, 35, 0.3);
+            }
+            
+            .cp-step-hero-cta:hover {
+                color: #fff;
+                box-shadow: 0 14px 26px rgba(240, 78, 35, 0.4);
+            }
+            
+            .cp-step-form {
+                background: #fff;
+                color: var(--cp-text);
+                padding: 24px;
+                border-radius: 18px;
+                box-shadow: 0 14px 32px rgba(0, 0, 0, 0.2);
+            }
+            
+            .cp-step-form h3 {
+                margin: 0 0 8px 0;
+                font-size: 20px;
+                color: var(--cp-primary);
+            }
+            
+            .cp-step-form p {
+                margin: 0 0 16px 0;
+                color: var(--cp-muted);
+                line-height: 1.5;
+            }
+            
+            .cp-step-form .cp-privacy {
+                font-size: 12px;
+                color: #7c8a9a;
+                margin-top: 12px;
+            }
+            
+            .cp-step-section-title {
+                font-size: 28px;
+                font-weight: 800;
+                margin: 0 0 16px 0;
+                color: var(--cp-primary);
+                text-align: center;
+            }
+            
+            .cp-step-section-subtitle {
+                text-align: center;
+                margin: 0 auto 28px auto;
+                max-width: 760px;
+                color: var(--cp-muted);
+                font-size: 17px;
+                line-height: 1.6;
+            }
+            
+            .cp-step-cards {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+                gap: 20px;
+                margin-bottom: 50px;
+            }
+            
+            .cp-step-card {
+                background: #fff;
+                border-radius: 16px;
+                padding: 22px;
+                border: 1px solid #e6edf0;
+                box-shadow: 0 8px 24px rgba(0, 69, 85, 0.12);
+            }
+            
+            .cp-step-card h4 {
+                margin: 0 0 10px 0;
+                font-size: 19px;
+                color: var(--cp-primary);
+            }
+            
+            .cp-step-card p {
+                margin: 0;
+                color: var(--cp-muted);
+                line-height: 1.6;
+            }
+            
+            .cp-intensive {
+                background: #f6fbfb;
+                border-radius: 20px;
+                padding: 34px;
+            }
+            
+            .cp-intensive h3 {
+                margin: 0 0 10px 0;
+                font-size: 24px;
+                color: var(--cp-primary);
+            }
+            
+            .cp-intensive p {
+                margin: 0 0 16px 0;
+                color: var(--cp-muted);
+                line-height: 1.6;
+            }
+            
+            .cp-intensive ul {
+                margin: 0 0 20px 0;
+                padding-left: 18px;
+                color: var(--cp-muted);
+            }
+            
+            .cp-intensive a {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 12px 24px;
+                border-radius: 999px;
+                background: var(--cp-accent);
+                color: #fff;
+                text-decoration: none;
+                font-weight: 700;
+                box-shadow: 0 10px 20px rgba(35, 155, 144, 0.25);
+            }
+            
+            .cp-intensive a:hover {
+                color: #fff;
+                box-shadow: 0 14px 26px rgba(35, 155, 144, 0.35);
+            }
+            
+            @media (max-width: 900px) {
+                .cp-step-hero-grid {
+                    grid-template-columns: 1fr;
+                }
+                
+                .cp-step-hero h1 {
+                    font-size: 34px;
+                }
+            }
+            </style>
+            
+            <section class="cp-step-hero">
+                <div class="cp-step-hero-grid">
+                    <div>
+                        <h1>Step 1: Outer Notes (Foundation)</h1>
+                        <p>Start with the simplest, most musical foundation so you can follow the form and feel confident right away.</p>
+                        <ul class="cp-step-list">
+                            <li>Left hand: roots only</li>
+                            <li>Right hand: melody</li>
+                            <li>Learn the form and harmonic movement</li>
+                            <li>Build confidence immediately</li>
+                        </ul>
+                        <a class="cp-step-hero-cta" href="https://jazzedge.academy/intensive">View the Cocktail Piano Intensive</a>
+                    </div>
+                    <div class="cp-step-form">
+                        <h3>Get the Step 1 resources</h3>
+                        <p>Enter your name and email to get instant access to the download.</p>
+                        <?php echo do_shortcode('[fluentform id="' . esc_attr($form_id) . '"]'); ?>
+                        <p class="cp-privacy">We respect your inbox. Unsubscribe anytime.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section>
+                <h2 class="cp-step-section-title">Why Step 1 matters</h2>
+                <p class="cp-step-section-subtitle">This foundation makes everything that follows feel easier, because you are always anchored in the melody and the harmonic roadmap.</p>
+                <div class="cp-step-cards">
+                    <div class="cp-step-card">
+                        <h4>Stay grounded</h4>
+                        <p>Root notes keep the harmony clear while you focus on steady time.</p>
+                    </div>
+                    <div class="cp-step-card">
+                        <h4>Learn the form fast</h4>
+                        <p>Following the melody with roots teaches you where the music is headed.</p>
+                    </div>
+                    <div class="cp-step-card">
+                        <h4>Build momentum</h4>
+                        <p>Simple, repeatable steps create progress without overwhelm.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="cp-intensive">
+                <h3>Want the full Cocktail Piano Intensive?</h3>
+                <p>The Cocktail Piano Intensive is a 6-week guided experience built around the jazz standard “My Romance.” It is designed for beginner to early-intermediate players who want clarity and a repeatable process.</p>
+                <ul>
+                    <li>Learn Root–7 shell chords and how to support the melody</li>
+                    <li>Add the 3rd under the melody where appropriate</li>
+                    <li>Reinforce harmony on strong beats, even during melody rests</li>
+                    <li>Build musical confidence without theory overload</li>
+                </ul>
+                <a href="https://jazzedge.academy/intensive">View the Cocktail Piano Intensive</a>
+            </section>
+        </div>
         <?php
         return ob_get_clean();
     }

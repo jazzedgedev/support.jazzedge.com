@@ -27,6 +27,7 @@ class Lead_Aggregator_Plugin {
     public $notifications;
     public $permissions;
     public $billing;
+    public $audit;
 
     public static function instance() {
         if (self::$instance === null) {
@@ -43,6 +44,7 @@ class Lead_Aggregator_Plugin {
 
     private function load_dependencies() {
         require_once LEAD_AGGREGATOR_PLUGIN_DIR . 'includes/class-database.php';
+        require_once LEAD_AGGREGATOR_PLUGIN_DIR . 'includes/class-audit.php';
         require_once LEAD_AGGREGATOR_PLUGIN_DIR . 'includes/class-permissions.php';
         require_once LEAD_AGGREGATOR_PLUGIN_DIR . 'includes/class-billing.php';
         require_once LEAD_AGGREGATOR_PLUGIN_DIR . 'includes/class-rest.php';
@@ -53,9 +55,10 @@ class Lead_Aggregator_Plugin {
 
     private function init_components() {
         $this->database = new Lead_Aggregator_Database();
+        $this->audit = new Lead_Aggregator_Audit($this->database);
         $this->permissions = new Lead_Aggregator_Permissions($this->database);
         $this->billing = new Lead_Aggregator_Billing($this->database);
-        $this->rest = new Lead_Aggregator_REST($this->database, $this->permissions, $this->billing);
+        $this->rest = new Lead_Aggregator_REST($this->database, $this->permissions, $this->billing, $this->audit);
         $this->shortcodes = new Lead_Aggregator_Shortcodes($this->database, $this->permissions, $this->billing);
         $this->admin = new Lead_Aggregator_Admin($this->database, $this->permissions);
         $this->notifications = new Lead_Aggregator_Notifications($this->database);
@@ -92,6 +95,9 @@ class Lead_Aggregator_Plugin {
 
 
     public function register_page_template($templates) {
+        if (!is_array($templates)) {
+            $templates = array();
+        }
         $templates['lead-aggregator-dashboard.php'] = 'Lead Aggregator Dashboard';
         return $templates;
     }
@@ -132,6 +138,10 @@ class Lead_Aggregator_Plugin {
         $selected = get_page_template_slug($page_id);
         if ($selected === 'lead-aggregator-dashboard.php') {
             $classes[] = 'lead-aggregator-template';
+            $user_id = get_current_user_id();
+            if ($user_id && get_user_meta($user_id, 'lead_aggregator_dark_mode', true)) {
+                $classes[] = 'dark-mode';
+            }
         }
 
         return $classes;

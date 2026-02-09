@@ -15,6 +15,7 @@ class Lead_Aggregator_Database {
         'webhook_sources',
         'business_profile',
         'activity',
+        'audit_log',
         'email_logs',
         'webhook_logs',
     );
@@ -146,6 +147,27 @@ class Lead_Aggregator_Database {
             PRIMARY KEY (id),
             KEY lead_id (lead_id),
             KEY user_id (user_id)
+        ) $charset_collate;";
+
+        $tables[] = "CREATE TABLE {$this->table_name('audit_log')} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            workspace_id BIGINT UNSIGNED NOT NULL,
+            actor_user_id BIGINT UNSIGNED NOT NULL,
+            actor_name VARCHAR(190) NULL,
+            actor_email VARCHAR(190) NULL,
+            action VARCHAR(100) NOT NULL,
+            entity_type VARCHAR(60) NOT NULL,
+            entity_id BIGINT UNSIGNED NULL,
+            entity_label VARCHAR(190) NULL,
+            metadata_json LONGTEXT NULL,
+            ip_address VARCHAR(45) NULL,
+            user_agent VARCHAR(255) NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY workspace_id (workspace_id),
+            KEY created_at (created_at),
+            KEY actor_user_id (actor_user_id),
+            KEY action (action)
         ) $charset_collate;";
 
         $tables[] = "CREATE TABLE {$this->table_name('email_logs')} (

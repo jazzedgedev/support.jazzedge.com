@@ -614,6 +614,7 @@ class ALM_Admin_Collections {
                 echo '</td>';
                 echo '<td>';
                 echo '<a href="?page=academy-manager-lessons&action=edit&id=' . $lesson->ID . '" class="button button-small" target="_blank">' . __('Edit', 'academy-lesson-manager') . '</a> ';
+                echo '<a href="?page=academy-manager-lessons&action=duplicate&id=' . $lesson->ID . '" class="button button-small" target="_blank">' . __('Duplicate', 'academy-lesson-manager') . '</a> ';
                 echo '<a href="?page=academy-manager-lessons&action=remove_from_collection&id=' . $lesson->ID . '&collection_id=' . $collection_id . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to remove this lesson from the collection?', 'academy-lesson-manager') . '\')">' . __('Remove', 'academy-lesson-manager') . '</a>';
                 echo '</td>';
                 echo '</tr>';

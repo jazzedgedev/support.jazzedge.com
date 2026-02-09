@@ -996,6 +996,7 @@ class ALM_Database {
             start_date date DEFAULT NULL,
             end_date date DEFAULT NULL,
             order_form_url varchar(500) DEFAULT '',
+            keap_tag_id int(11) DEFAULT 0,
             retail_price decimal(10,2) DEFAULT NULL,
             sale_price decimal(10,2) DEFAULT NULL,
             skill_level varchar(20) DEFAULT 'beg',
@@ -1009,7 +1010,8 @@ class ALM_Database {
             KEY end_date (end_date),
             KEY is_active (is_active),
             KEY display_order (display_order),
-            KEY skill_level (skill_level)
+            KEY skill_level (skill_level),
+            KEY keap_tag_id (keap_tag_id)
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -1023,6 +1025,9 @@ class ALM_Database {
         
         // Check and add pricing columns if they don't exist (for existing installations)
         $this->check_and_add_intensive_pricing_columns();
+
+        // Check and add keap_tag_id column if it doesn't exist (for existing installations)
+        $this->check_and_add_intensive_keap_tag_id_column();
     }
     
     /**
@@ -1069,6 +1074,21 @@ class ALM_Database {
         
         if (!in_array('sale_price', $columns)) {
             $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN sale_price decimal(10,2) DEFAULT NULL AFTER retail_price");
+        }
+    }
+
+    /**
+     * Check and add keap_tag_id column to intensives table
+     */
+    private function check_and_add_intensive_keap_tag_id_column() {
+        $table_name = $this->tables['intensives'];
+
+        // Check if column exists
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+
+        if (!in_array('keap_tag_id', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN keap_tag_id int(11) DEFAULT 0 AFTER order_form_url");
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD KEY keap_tag_id (keap_tag_id)");
         }
     }
     

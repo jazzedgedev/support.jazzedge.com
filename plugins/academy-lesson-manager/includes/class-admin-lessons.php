@@ -1824,6 +1824,7 @@ class ALM_Admin_Lessons {
         echo '<td>';
         echo '<input type="number" id="keap_tag_id" name="keap_tag_id" value="' . esc_attr($lesson->keap_tag_id ?? 0) . '" class="small-text" min="0" max="99999" step="1" />';
         echo '<p class="description">' . __('Optional tag ID (up to 5 digits). If set and user has this tag, they get access regardless of membership level.', 'academy-lesson-manager') . '</p>';
+        $this->render_intensive_tag_selector($lesson->keap_tag_id ?? 0);
         echo '</td>';
         echo '</tr>';
         
@@ -2231,6 +2232,7 @@ class ALM_Admin_Lessons {
         echo '<th scope="row"><label for="keap_tag_id">' . __('Keap Tag ID', 'academy-lesson-manager') . '</label></th>';
         echo '<td><input type="number" id="keap_tag_id" name="keap_tag_id" value="0" class="small-text" min="0" max="99999" step="1" />';
         echo '<p class="description">' . __('Optional tag ID (up to 5 digits). If set and user has this tag, they get access regardless of membership level.', 'academy-lesson-manager') . '</p>';
+        $this->render_intensive_tag_selector(0);
         echo '</td>';
         echo '</tr>';
         
@@ -2854,6 +2856,68 @@ class ALM_Admin_Lessons {
             wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager-lessons')));
             exit;
         }
+    }
+
+    /**
+     * Render intensive tag selector for Keap Tag ID
+     */
+    private function render_intensive_tag_selector($current_tag_id) {
+        $intensives_table = $this->database->get_table_name('intensives');
+        $intensives = $this->wpdb->get_results(
+            "SELECT ID, title, keap_tag_id, start_date, end_date, is_active, display_order
+             FROM {$intensives_table}
+             ORDER BY display_order ASC, start_date DESC",
+            ARRAY_A
+        );
+
+        if (empty($intensives)) {
+            echo '<p class="description">' . __('No intensives found. Add them in Settings → Intensives.', 'academy-lesson-manager') . '</p>';
+            return;
+        }
+
+        echo '<div style="margin-top: 8px;">';
+        echo '<label for="alm_intensive_tag_select" style="display: inline-block; margin-right: 8px;">' . __('Set from Intensive', 'academy-lesson-manager') . '</label>';
+        echo '<select id="alm_intensive_tag_select" class="regular-text" style="max-width: 360px;">';
+        echo '<option value="" data-tag="">' . __('Select an intensive...', 'academy-lesson-manager') . '</option>';
+
+        foreach ($intensives as $intensive) {
+            $tag_id = intval($intensive['keap_tag_id'] ?? 0);
+            $title = $intensive['title'] ?? '';
+            $is_active = !empty($intensive['is_active']);
+            $status_label = $is_active ? '' : ' ' . __('(Inactive)', 'academy-lesson-manager');
+            $date_parts = array();
+            if (!empty($intensive['start_date'])) {
+                $date_parts[] = date('M j, Y', strtotime($intensive['start_date']));
+            }
+            if (!empty($intensive['end_date'])) {
+                $date_parts[] = date('M j, Y', strtotime($intensive['end_date']));
+            }
+            $date_label = !empty($date_parts) ? ' • ' . implode(' - ', $date_parts) : '';
+            $selected = ($tag_id > 0 && intval($current_tag_id) === $tag_id) ? ' selected' : '';
+
+            echo '<option value="' . esc_attr($intensive['ID']) . '" data-tag="' . esc_attr($tag_id) . '"' . $selected . '>';
+            echo esc_html($title) . ' (Tag: ' . esc_html($tag_id) . ')' . esc_html($status_label) . esc_html($date_label);
+            echo '</option>';
+        }
+
+        echo '</select>';
+        echo '<p class="description">' . __('Choosing an intensive will fill the Keap Tag ID above.', 'academy-lesson-manager') . '</p>';
+        echo '</div>';
+
+        echo '<script>
+        (function() {
+            var select = document.getElementById("alm_intensive_tag_select");
+            var input = document.getElementById("keap_tag_id");
+            if (!select || !input) return;
+            select.addEventListener("change", function() {
+                var option = this.options[this.selectedIndex];
+                if (!option) return;
+                var tag = option.getAttribute("data-tag");
+                if (tag === null || tag === "") return;
+                input.value = tag;
+            });
+        })();
+        </script>';
     }
     
     /**

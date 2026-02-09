@@ -6774,6 +6774,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 'stats' => true,
                 'roadmap' => true,
                 'search_section' => true,
+                'intensives_section' => true,
                 'repertoire_section' => true,
                 'tab_shield' => true,
                 'tab_badges' => true,
@@ -6799,7 +6800,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $preferences = wp_parse_args($preferences, $default_preferences);
             
             // Ensure boolean values are boolean, keep strings as strings
-            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'auto_gem_streak_save', 'dark_mode');
+            $boolean_keys = array('stats', 'roadmap', 'search_section', 'intensives_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'auto_gem_streak_save', 'dark_mode');
             foreach ($boolean_keys as $key) {
                 if (isset($preferences[$key])) {
                     $preferences[$key] = (bool) $preferences[$key];
@@ -6859,6 +6860,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                 'stats' => true,
                 'roadmap' => true,
                 'search_section' => true,
+                'intensives_section' => true,
                 'repertoire_section' => true,
                 'tab_shield' => true,
                 'tab_badges' => true,
@@ -6875,7 +6877,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $sanitized_preferences = array();
             
             // Boolean preferences
-            $boolean_keys = array('stats', 'roadmap', 'search_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'auto_gem_streak_save', 'dark_mode');
+            $boolean_keys = array('stats', 'roadmap', 'search_section', 'intensives_section', 'repertoire_section', 'tab_shield', 'tab_badges', 'tab_analytics', 'auto_gem_streak_save', 'dark_mode');
             foreach ($boolean_keys as $key) {
                 if (isset($preferences[$key])) {
                     $sanitized_preferences[$key] = (bool) $preferences[$key];

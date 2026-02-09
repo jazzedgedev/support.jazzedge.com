@@ -36,6 +36,14 @@ class Lead_Aggregator_Shortcodes {
         $css_path = LEAD_AGGREGATOR_PLUGIN_DIR . 'assets/css/frontend.css';
         $js_path = LEAD_AGGREGATOR_PLUGIN_DIR . 'assets/js/frontend-v2.js';
 
+        wp_enqueue_script(
+            'lead-aggregator-chartjs',
+            'https://cdn.jsdelivr.net/npm/chart.js',
+            array(),
+            '4.4.1',
+            true
+        );
+
         wp_enqueue_style(
             'lead-aggregator-frontend',
             LEAD_AGGREGATOR_PLUGIN_URL . 'assets/css/frontend.css',
@@ -46,7 +54,7 @@ class Lead_Aggregator_Shortcodes {
         wp_enqueue_script(
             'lead-aggregator-frontend',
             LEAD_AGGREGATOR_PLUGIN_URL . 'assets/js/frontend-v2.js',
-            array('jquery'),
+            array('jquery', 'lead-aggregator-chartjs'),
             file_exists($js_path) ? filemtime($js_path) . '-forced' : LEAD_AGGREGATOR_VERSION . '-forced',
             true
         );
@@ -185,6 +193,11 @@ class Lead_Aggregator_Shortcodes {
         } else {
             $show_get_started = 1;
         }
+        $manager_id = (int) get_user_meta(get_current_user_id(), 'lead_aggregator_manager_id', true);
+        $is_manager = $manager_id === 0;
+        if (user_can(get_current_user_id(), 'manage_options')) {
+            $is_manager = true;
+        }
         $tabs = array(
             'get-started' => 'Get Started',
             'overview' => 'Leads',
@@ -192,8 +205,11 @@ class Lead_Aggregator_Shortcodes {
             'followups' => 'Follow-ups',
             'calendar' => 'Calendar',
             'ai-tools' => 'AI Tools',
-            'settings' => 'Settings',
         );
+        if ($is_manager) {
+            $tabs['activity'] = 'Activity';
+        }
+        $tabs['settings'] = 'Settings';
 
         $html = '<div class="lead-aggregator-view lead-aggregator-dashboard" data-view="dashboard" data-get-started="' . ($show_get_started ? '1' : '0') . '">';
         $html .= '<div class="la-dashboard">';
@@ -223,10 +239,14 @@ class Lead_Aggregator_Shortcodes {
         $html .= '<div class="la-panel la-tab-panel" data-tab="followups" id="la-panel-followups"></div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="calendar" id="la-panel-calendar"></div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="ai-tools" id="la-panel-ai-tools"></div>';
+        if ($is_manager) {
+            $html .= '<div class="la-panel la-tab-panel" data-tab="activity" id="la-panel-activity"></div>';
+        }
         $html .= '<div class="la-panel la-tab-panel" data-tab="notes-tags" id="la-panel-notes-tags"></div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="settings" id="la-panel-settings">';
         $html .= '<div class="la-settings-grid">';
         $html .= '<section class="la-settings-card" id="la-settings-get-started"></section>';
+        $html .= '<section class="la-settings-card" id="la-settings-appearance"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-tags"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-team"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-notifications"></section>';

@@ -270,13 +270,24 @@ jQuery(function ($) {
         return map[key] || 'Not set';
     }
 
+    function parseLeadDate(value) {
+        if (!value) {
+            return null;
+        }
+        var normalized = String(value).trim().replace(' ', 'T');
+        if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)) {
+            normalized += 'Z';
+        }
+        var date = new Date(normalized);
+        return isNaN(date.getTime()) ? null : date;
+    }
+
     function formatDisplayDate(value) {
         if (!value) {
             return '';
         }
-        var normalized = String(value).replace(' ', 'T');
-        var date = new Date(normalized);
-        if (isNaN(date.getTime())) {
+        var date = parseLeadDate(value);
+        if (!date) {
             return value;
         }
         var month = String(date.getMonth() + 1).padStart(2, '0');
@@ -307,9 +318,8 @@ jQuery(function ($) {
         if (!value) {
             return '';
         }
-        var normalized = String(value).replace(' ', 'T');
-        var date = new Date(normalized);
-        if (isNaN(date.getTime())) {
+        var date = parseLeadDate(value);
+        if (!date) {
             return value;
         }
         var now = new Date();
@@ -411,7 +421,7 @@ jQuery(function ($) {
                 { key: 'phone', label: 'Phone' },
                 { key: 'status', label: 'Pipeline Stage' },
                 { key: 'followup', label: 'Followup Date' },
-                { key: 'due', label: 'Due' },
+                { key: 'due', label: 'Followup Due' },
                 { key: 'source', label: 'Source' },
                 { key: 'last_actioned', label: 'Last Actioned' },
                 { key: 'last_contacted', label: 'Last Contacted' },
@@ -452,8 +462,8 @@ jQuery(function ($) {
                 if (!lead || !lead.due_at) {
                     return false;
                 }
-                var dueDate = new Date(String(lead.due_at).replace(' ', 'T'));
-                if (isNaN(dueDate.getTime())) {
+                var dueDate = parseLeadDate(lead.due_at);
+                if (!dueDate) {
                     return false;
                 }
                 var followupStatus = normalizeFollowupStatusValue(lead.followup_status);
@@ -467,8 +477,8 @@ jQuery(function ($) {
                 if (!lead || !lead.due_at) {
                     return false;
                 }
-                var dueDate = new Date(String(lead.due_at).replace(' ', 'T'));
-                if (isNaN(dueDate.getTime())) {
+                var dueDate = parseLeadDate(lead.due_at);
+                if (!dueDate) {
                     return false;
                 }
                 var followupStatus = normalizeFollowupStatusValue(lead.followup_status);
@@ -519,9 +529,8 @@ jQuery(function ($) {
                 if (!raw) {
                     return false;
                 }
-                var normalized = String(raw).replace(' ', 'T');
-                var date = new Date(normalized);
-                if (isNaN(date.getTime())) {
+                var date = parseLeadDate(raw);
+                if (!date) {
                     return false;
                 }
                 var today = new Date();
@@ -2817,7 +2826,10 @@ jQuery(function ($) {
                         '<td>' + (user.email || '') + '</td>' +
                         '<td><select class="la-team-access"><option value="full"' + (access === 'full' ? ' selected' : '') + '>Full</option><option value="read"' + (access === 'read' ? ' selected' : '') + '>Read-only</option></select></td>' +
                         '<td><label class="la-toggle"><input type="checkbox" class="la-team-active"' + activeChecked + '><span>Active</span></label></td>' +
-                        '<td><button type="button" class="la-btn la-btn--ghost la-team-reset" title="Reset password">' + icons.refresh + '</button></td>' +
+                        '<td><button type="button" class="la-btn la-btn--ghost la-team-reset" title="Reset password">' +
+                        '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />' +
+                        '</svg>Reset Password</button></td>' +
                         '</tr>';
                 });
                 html += '</tbody></table>';
@@ -3373,6 +3385,374 @@ jQuery(function ($) {
         });
     }
 
+    function renderActivity($el) {
+        if (!$el || !$el.length) {
+            return;
+        }
+        var state = {
+            view: 'reporting',
+            range: 'last_30',
+            start: '',
+            end: '',
+            actor: '',
+            action: '',
+            entity_type: '',
+            search: '',
+            page: 1,
+            per_page: 25
+        };
+        var auditRows = [];
+        var teamUsers = [];
+        var actionLabels = {
+            lead_created: 'Lead created',
+            lead_updated: 'Lead updated',
+            lead_deleted: 'Lead deleted',
+            lead_bulk_deleted: 'Leads deleted',
+            pipeline_stage_changed: 'Pipeline stage changed',
+            followup_status_changed: 'Follow-up status changed',
+            followup_rescheduled: 'Follow-up rescheduled',
+            note_added: 'Note added',
+            note_updated: 'Note updated',
+            note_deleted: 'Note deleted',
+            tag_created: 'Tag created',
+            tag_updated: 'Tag updated',
+            tag_deleted: 'Tag deleted',
+            tag_added_to_lead: 'Tag added to lead',
+            tag_removed_from_lead: 'Tag removed from lead',
+            webhook_created: 'Webhook created',
+            webhook_updated: 'Webhook updated',
+            webhook_deleted: 'Webhook deleted',
+            webhook_fired: 'Webhook fired',
+            webhook_failed: 'Webhook failed',
+            team_member_added: 'Team member added',
+            team_role_changed: 'Team role changed',
+            team_access_toggled: 'Team access toggled',
+            team_password_reset: 'Team password reset',
+            settings_changed: 'Settings changed',
+            export_completed: 'Export completed'
+        };
+
+        var html = '<div class="la-section-header la-activity-header">' +
+            '<div><h3>Activity</h3><p class="la-muted">Team audit log and reporting.</p></div>' +
+            '</div>' +
+            '<div class="la-activity-tabs">' +
+            '<button type="button" class="la-activity-tab is-active" data-view="reporting">Reporting</button>' +
+            '<button type="button" class="la-activity-tab" data-view="log">Audit Log</button>' +
+            '</div>' +
+            '<div class="la-activity-view la-activity-view--log"></div>' +
+            '<div class="la-activity-view la-activity-view--reporting"></div>' +
+            '<div class="la-activity-drawer" aria-hidden="true">' +
+            '<div class="la-activity-drawer__panel">' +
+            '<div class="la-activity-drawer__header"><h4>Details</h4><button type="button" class="la-activity-drawer__close">×</button></div>' +
+            '<div class="la-activity-drawer__body"></div>' +
+            '</div></div>';
+        $el.html(html);
+
+        function renderFilters(container) {
+            var filters = '<div class="la-activity-filters">' +
+                '<select class="la-activity-range">' +
+                '<option value="last_7">Last 7 days</option>' +
+                '<option value="last_30">Last 30 days</option>' +
+                '<option value="last_90">Last 90 days</option>' +
+                '<option value="custom">Custom</option>' +
+                '</select>' +
+                '<input type="date" class="la-activity-start" style="display:none;">' +
+                '<input type="date" class="la-activity-end" style="display:none;">' +
+                '<select class="la-activity-actor"><option value="">All team members</option></select>' +
+                '<select class="la-activity-action"><option value="">All actions</option></select>' +
+                '<select class="la-activity-entity"><option value="">All entities</option></select>' +
+                '<input type="text" class="la-activity-search" placeholder="Search activity">' +
+                '<button type="button" class="la-btn la-activity-export">Export CSV</button>' +
+                '</div>';
+            container.append(filters);
+
+            var $actor = container.find('.la-activity-actor');
+            teamUsers.forEach(function (user) {
+                $actor.append('<option value="' + user.id + '">' + user.name + '</option>');
+            });
+            var $action = container.find('.la-activity-action');
+            Object.keys(actionLabels).forEach(function (key) {
+                $action.append('<option value="' + key + '">' + actionLabels[key] + '</option>');
+            });
+            var $entity = container.find('.la-activity-entity');
+            ['lead', 'followup', 'note', 'tag', 'webhook', 'team_member', 'settings', 'export'].forEach(function (type) {
+                $entity.append('<option value="' + type + '">' + type.replace('_', ' ') + '</option>');
+            });
+        }
+
+        function loadTeamUsers() {
+            return apiRequest('GET', 'team').done(function (response) {
+                teamUsers = response && response.users ? response.users : [];
+            }).fail(function () {
+                teamUsers = [];
+            });
+        }
+
+        function toggleCustomDates() {
+            var show = state.range === 'custom';
+            $el.find('.la-activity-start, .la-activity-end').toggle(show);
+        }
+
+        function renderAuditLog() {
+            var $view = $el.find('.la-activity-view--log');
+            $view.html('<div class="la-loading">Loading activity...</div>');
+            var params = {
+                range: state.range,
+                start: state.start,
+                end: state.end,
+                actor: state.actor,
+                action: state.action,
+                entity_type: state.entity_type,
+                search: state.search,
+                page: state.page,
+                per_page: state.per_page
+            };
+            apiRequest('GET', 'activity/log', params).done(function (data) {
+                auditRows = data.rows || [];
+                var html = '<div class="la-activity-panel">';
+                html += '<div class="la-activity-panel__header"><h4>Audit Log</h4><span class="la-muted">Showing ' + (data.total || 0) + ' events</span></div>';
+                html += '<div class="la-activity-panel__filters"></div>';
+                html += '<div class="la-activity-table-wrap"><table class="la-table la-activity-table"><thead><tr><th>Time</th><th>Team member</th><th>Action</th><th>Item</th><th>Details</th></tr></thead><tbody>';
+                if (!auditRows.length) {
+                    html += '<tr><td colspan="5" class="la-empty">No activity found.</td></tr>';
+                } else {
+                    auditRows.forEach(function (row, idx) {
+                        var member = row.actor_name || row.actor_email || 'Unknown';
+                        var actionLabel = actionLabels[row.action] || row.action;
+                        var item = row.entity_label || row.entity_type;
+                        html += '<tr>' +
+                            '<td>' + (row.created_at || '') + '</td>' +
+                            '<td>' + member + '</td>' +
+                            '<td>' + actionLabel + '</td>' +
+                            '<td>' + item + '</td>' +
+                            '<td><button type="button" class="la-btn la-btn--ghost la-activity-details" data-index="' + idx + '">View</button></td>' +
+                            '</tr>';
+                    });
+                }
+                html += '</tbody></table></div>';
+                html += '<div class="la-activity-pagination">' +
+                    '<div class="la-muted">Page ' + data.page + ' of ' + data.pages + '</div>' +
+                    '<div class="la-activity-pagination__controls">' +
+                    '<button type="button" class="la-btn la-btn--ghost la-activity-prev"' + (data.page <= 1 ? ' disabled' : '') + '>Previous</button>' +
+                    '<button type="button" class="la-btn la-btn--ghost la-activity-next"' + (data.page >= data.pages ? ' disabled' : '') + '>Next</button>' +
+                    '<select class="la-activity-per-page">' +
+                    '<option value="25">25</option><option value="50">50</option><option value="100">100</option>' +
+                    '</select>' +
+                    '</div></div>';
+                html += '</div>';
+                $view.html(html);
+                renderFilters($view.find('.la-activity-panel__filters'));
+                $view.find('.la-activity-range').val(state.range);
+                $view.find('.la-activity-start').val(state.start);
+                $view.find('.la-activity-end').val(state.end);
+                $view.find('.la-activity-actor').val(state.actor);
+                $view.find('.la-activity-action').val(state.action);
+                $view.find('.la-activity-entity').val(state.entity_type);
+                $view.find('.la-activity-search').val(state.search);
+                $view.find('.la-activity-per-page').val(String(state.per_page));
+                toggleCustomDates();
+            }).fail(function (xhr) {
+                var message = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unable to load activity.';
+                $view.html('<div class="la-empty">' + message + '</div>');
+            });
+        }
+
+        function renderReporting() {
+            var $view = $el.find('.la-activity-view--reporting');
+            $view.html('<div class="la-loading">Loading reporting...</div>');
+            var params = { range: state.range, start: state.start, end: state.end };
+            apiRequest('GET', 'activity/reporting', params).done(function (data) {
+                var summary = data.summary || {};
+                var charts = data.charts || {};
+                var html = '<div class="la-activity-panel">' +
+                    '<div class="la-activity-panel__header"><h4>Reporting</h4></div>' +
+                    '<div class="la-activity-panel__filters"></div>' +
+                    '<div class="la-activity-summary">' +
+                    '<div class="la-card"><h5>Leads created</h5><div class="la-stat-value">' + (summary.leads_created || 0) + '</div></div>' +
+                    '<div class="la-card"><h5>Leads contacted</h5><div class="la-stat-value">' + (summary.leads_contacted || 0) + '</div></div>' +
+                    '<div class="la-card"><h5>Follow-ups completed</h5><div class="la-stat-value">' + (summary.followups_completed || 0) + '</div></div>' +
+                    '<div class="la-card"><h5>Avg time to first follow-up</h5><div class="la-stat-value">' + (summary.avg_time_to_first_followup || 0) + ' min</div></div>' +
+                    '<div class="la-card"><h5>Win rate</h5><div class="la-stat-value">' + (summary.win_rate || 0) + '%</div></div>' +
+                    '<div class="la-card"><h5>Active team members</h5><div class="la-stat-value">' + (summary.active_team_members || 0) + '</div></div>' +
+                    '</div>' +
+                    '<div class="la-activity-charts">' +
+                    '<div class="la-card"><h5>Activity over time</h5><canvas id="la-activity-chart-events"></canvas></div>' +
+                    '<div class="la-card"><h5>Activity by team member</h5><canvas id="la-activity-chart-members"></canvas></div>' +
+                    '<div class="la-card"><h5>Lead stage changes</h5><canvas id="la-activity-chart-stages"></canvas></div>' +
+                    '<div class="la-card"><h5>Follow-up completion rate</h5><canvas id="la-activity-chart-followups"></canvas></div>' +
+                    '<div class="la-card"><h5>Top actions</h5><canvas id="la-activity-chart-actions"></canvas></div>' +
+                    '</div>' +
+                    '</div>';
+                $view.html(html);
+                renderFilters($view.find('.la-activity-panel__filters'));
+                $view.find('.la-activity-range').val(state.range);
+                $view.find('.la-activity-start').val(state.start);
+                $view.find('.la-activity-end').val(state.end);
+                toggleCustomDates();
+                renderCharts(charts);
+            }).fail(function (xhr) {
+                var message = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unable to load reporting.';
+                $view.html('<div class="la-empty">' + message + '</div>');
+            });
+        }
+
+        function renderCharts(charts) {
+            if (typeof Chart === 'undefined') {
+                return;
+            }
+            var events = charts.events_over_time || [];
+            var days = events.map(function (row) { return row.day; });
+            var totals = events.map(function (row) { return row.total; });
+            new Chart(document.getElementById('la-activity-chart-events'), {
+                type: 'line',
+                data: { labels: days, datasets: [{ label: 'Events', data: totals, borderColor: '#0257ab', backgroundColor: 'rgba(2, 87, 171, 0.2)', tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            var members = charts.by_member || [];
+            new Chart(document.getElementById('la-activity-chart-members'), {
+                type: 'bar',
+                data: { labels: members.map(function (row) { return row.actor_name || row.actor_user_id; }), datasets: [{ label: 'Events', data: members.map(function (row) { return row.total; }), backgroundColor: '#13b1c4' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            var stageData = charts.stage_changes || [];
+            new Chart(document.getElementById('la-activity-chart-stages'), {
+                type: 'bar',
+                data: { labels: stageData.map(function (row) { return row.day; }), datasets: [{ label: 'Stage changes', data: stageData.map(function (row) { return Object.values(row.values || {}).reduce(function (sum, val) { return sum + val; }, 0); }), backgroundColor: '#0257ab' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            var followupData = charts.followup_completion || [];
+            new Chart(document.getElementById('la-activity-chart-followups'), {
+                type: 'line',
+                data: { labels: followupData.map(function (row) { return row.day; }), datasets: [{ label: 'Completion rate %', data: followupData.map(function (row) { return row.rate; }), borderColor: '#13b1c4', backgroundColor: 'rgba(19, 177, 196, 0.2)', tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            var topActions = charts.top_actions || [];
+            new Chart(document.getElementById('la-activity-chart-actions'), {
+                type: 'bar',
+                data: { labels: topActions.map(function (row) { return actionLabels[row.action] || row.action; }), datasets: [{ label: 'Count', data: topActions.map(function (row) { return row.total; }), backgroundColor: '#0257ab' }] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y' }
+            });
+        }
+
+        function refreshView() {
+            if (state.view === 'log') {
+                renderAuditLog();
+            } else {
+                renderReporting();
+            }
+        }
+
+        $el.on('click', '.la-activity-tab', function () {
+            var view = $(this).data('view');
+            state.view = view;
+            $el.find('.la-activity-tab').removeClass('is-active');
+            $(this).addClass('is-active');
+            $el.find('.la-activity-view').hide();
+            $el.find('.la-activity-view--' + view).show();
+            refreshView();
+        });
+
+        $el.on('change', '.la-activity-range', function () {
+            state.range = $(this).val();
+            state.page = 1;
+            toggleCustomDates();
+            refreshView();
+        });
+
+        $el.on('change', '.la-activity-start', function () {
+            state.start = $(this).val();
+        });
+
+        $el.on('change', '.la-activity-end', function () {
+            state.end = $(this).val();
+        });
+
+        $el.on('change', '.la-activity-actor', function () {
+            state.actor = $(this).val();
+            state.page = 1;
+            refreshView();
+        });
+
+        $el.on('change', '.la-activity-action', function () {
+            state.action = $(this).val();
+            state.page = 1;
+            refreshView();
+        });
+
+        $el.on('change', '.la-activity-entity', function () {
+            state.entity_type = $(this).val();
+            state.page = 1;
+            refreshView();
+        });
+
+        $el.on('input', '.la-activity-search', function () {
+            state.search = $(this).val();
+        });
+
+        $el.on('keydown', '.la-activity-search', function (e) {
+            if (e.key === 'Enter') {
+                state.page = 1;
+                refreshView();
+            }
+        });
+
+        $el.on('click', '.la-activity-export', function () {
+            var query = $.param({
+                range: state.range,
+                start: state.start,
+                end: state.end,
+                actor: state.actor,
+                action: state.action,
+                entity_type: state.entity_type,
+                search: state.search
+            });
+            window.open(leadAggregator.restUrl + 'activity/export?' + query, '_blank');
+        });
+
+        $el.on('click', '.la-activity-prev', function () {
+            if (state.page > 1) {
+                state.page -= 1;
+                renderAuditLog();
+            }
+        });
+
+        $el.on('click', '.la-activity-next', function () {
+            state.page += 1;
+            renderAuditLog();
+        });
+
+        $el.on('change', '.la-activity-per-page', function () {
+            state.per_page = parseInt($(this).val(), 10);
+            state.page = 1;
+            renderAuditLog();
+        });
+
+        $el.on('click', '.la-activity-details', function () {
+            var idx = parseInt($(this).data('index'), 10);
+            var row = auditRows[idx];
+            if (!row) {
+                return;
+            }
+            var $drawer = $el.find('.la-activity-drawer');
+            var $body = $drawer.find('.la-activity-drawer__body');
+            var meta = row.metadata ? JSON.stringify(row.metadata, null, 2) : 'No additional details.';
+            $body.html('<pre>' + meta + '</pre>');
+            $drawer.addClass('is-open').attr('aria-hidden', 'false');
+        });
+
+        $el.on('click', '.la-activity-drawer__close', function () {
+            $el.find('.la-activity-drawer').removeClass('is-open').attr('aria-hidden', 'true');
+        });
+
+        loadTeamUsers().always(function () {
+            refreshView();
+        });
+    }
+
     function renderGetStarted($el) {
         var html = '<div class="la-section-header"><h3>Get Started</h3><p class="la-muted">Quick start guide for your lead manager.</p></div>' +
             '<div class="la-card">' +
@@ -3417,7 +3797,6 @@ jQuery(function ($) {
                 '<span class="la-switch-track"><span class="la-switch-thumb"></span></span>' +
                 '</span>' +
                 '</label>' +
-                '<button type="submit" class="la-btn">Save</button>' +
                 '<div class="la-message"></div>' +
                 '</form>';
             $el.html(html);
@@ -3425,11 +3804,8 @@ jQuery(function ($) {
                 onToggle(enabled);
             }
             $el.find('input[name="enabled"]').on('change', function () {
-                $(this).attr('aria-checked', $(this).is(':checked') ? 'true' : 'false');
-            });
-            $el.find('form').on('submit', function (e) {
-                e.preventDefault();
-                var checked = $(this).find('input[name="enabled"]').is(':checked');
+                var checked = $(this).is(':checked');
+                $(this).attr('aria-checked', checked ? 'true' : 'false');
                 apiRequest('POST', 'get-started/settings', { enabled: checked ? 1 : 0 }).done(function (response) {
                     var nextEnabled = response && typeof response.enabled !== 'undefined' ? !!response.enabled : checked;
                     if (onToggle) {
@@ -3443,6 +3819,230 @@ jQuery(function ($) {
         }).fail(function () {
             $el.html('<p>Unable to load settings.</p>');
         });
+    }
+
+    function renderAppearanceSettings($el) {
+        $el.html('<p>Loading appearance...</p>');
+        apiRequest('GET', 'appearance/settings').done(function (settings) {
+            settings = settings || {};
+            var enabled = settings.dark_mode === 1;
+            var html = '<div class="la-section-header"><h3>Appearance</h3><p class="la-muted">Toggle dark mode for the dashboard.</p></div>' +
+                '<form class="la-form la-appearance-settings">' +
+                '<label class="la-switch">' +
+                '<span class="la-switch-label">Dark mode</span>' +
+                '<span class="la-switch-control">' +
+                '<input type="checkbox" name="dark_mode" role="switch" aria-checked="' + (enabled ? 'true' : 'false') + '"' + (enabled ? ' checked' : '') + '>' +
+                '<span class="la-switch-track"><span class="la-switch-thumb"></span></span>' +
+                '</span>' +
+                '</label>' +
+                '<div class="la-message"></div>' +
+                '</form>';
+            $el.html(html);
+            $el.find('input[name="dark_mode"]').on('change', function () {
+                var isOn = $(this).is(':checked');
+                $(this).attr('aria-checked', isOn ? 'true' : 'false');
+                $('body').toggleClass('dark-mode', isOn);
+                apiRequest('POST', 'appearance/settings', { dark_mode: isOn ? 1 : 0 }).done(function () {
+                    $el.find('.la-message').text('Appearance saved.');
+                }).fail(function () {
+                    $el.find('.la-message').text('Unable to save appearance.');
+                });
+            });
+        }).fail(function () {
+            $el.html('<p>Unable to load appearance settings.</p>');
+        });
+    }
+
+    function initSettingsAccordion($panel) {
+        if (!$panel || !$panel.length) {
+            return;
+        }
+        var $grid = $panel.find('.la-settings-grid');
+        if (!$grid.length || $grid.data('accordion-ready')) {
+            return;
+        }
+        $grid.addClass('is-accordion');
+        var wrappedCount = 0;
+        $grid.find('.la-settings-card').each(function (idx) {
+            var $card = $(this);
+            if ($card.find('> .la-accordion-toggle').length) {
+                return;
+            }
+            var $header = $card.find('> .la-section-header').first();
+            if (!$header.length) {
+                return;
+            }
+            var titleText = $.trim($header.find('h3').first().text() || $header.text() || 'Settings');
+            var subtitleText = $.trim($header.find('p').first().text());
+            var $body = $('<div class="la-accordion-body"></div>');
+            if (subtitleText) {
+                $body.append('<p class="la-accordion-subtitle">' + subtitleText + '</p>');
+            }
+            $body.append($card.children().not($header));
+            var $toggle = $('<button type="button" class="la-accordion-toggle" aria-expanded="false"></button>');
+            $toggle.append('<span class="la-accordion-title">' + titleText + '</span>');
+            $toggle.append('<span class="la-accordion-icon">+</span>');
+            $card.empty().append($toggle).append($body);
+            if (idx === 0) {
+                $card.addClass('is-open');
+                $toggle.attr('aria-expanded', 'true');
+            }
+            wrappedCount += 1;
+        });
+        if (wrappedCount > 0) {
+            $grid.data('accordion-ready', true);
+        } else if (!$grid.data('accordion-observer') && typeof MutationObserver !== 'undefined') {
+            var observer = new MutationObserver(function () {
+                if ($grid.find('> .la-settings-card > .la-section-header').length) {
+                    observer.disconnect();
+                    $grid.data('accordion-observer', null);
+                    $grid.data('accordion-ready', false);
+                    initSettingsAccordion($panel);
+                }
+            });
+            observer.observe($grid[0], { childList: true, subtree: true });
+            $grid.data('accordion-observer', observer);
+        }
+
+        $grid.off('click', '.la-accordion-toggle').on('click', '.la-accordion-toggle', function () {
+            var $card = $(this).closest('.la-settings-card');
+            var isOpen = $card.hasClass('is-open');
+            $grid.find('.la-settings-card.is-open')
+                .removeClass('is-open')
+                .find('.la-accordion-toggle')
+                .attr('aria-expanded', 'false');
+            if (!isOpen) {
+                $card.addClass('is-open');
+                $(this).attr('aria-expanded', 'true');
+            }
+        });
+    }
+
+    function initSettingsLayout($panel) {
+        if (!$panel || !$panel.length) {
+            return;
+        }
+        var $grid = $panel.find('.la-settings-grid');
+        if (!$grid.length || $panel.find('.mml-settings').length) {
+            return;
+        }
+
+        var $cards = $grid.find('.la-settings-card');
+        if (!$cards.length) {
+            return;
+        }
+
+        var labelMap = {
+            'la-settings-get-started': 'Get Started',
+            'la-settings-appearance': 'Appearance',
+            'la-settings-tags': 'Tags',
+            'la-settings-team': 'Team',
+            'la-settings-notifications': 'Notifications',
+            'la-settings-quick-action': 'Quick Action',
+            'la-settings-webhooks': 'Webhooks',
+            'la-settings-billing': 'Billing',
+            'la-settings-business': 'Business Profile',
+            'la-settings-custom-fields': 'Custom Fields',
+            'la-settings-export': 'Export'
+        };
+
+        var groups = [
+            { label: 'Getting Started', items: ['la-settings-get-started'] },
+            { label: 'Workspace', items: ['la-settings-business', 'la-settings-appearance', 'la-settings-team'] },
+            { label: 'CRM Defaults', items: ['la-settings-quick-action', 'la-settings-tags', 'la-settings-custom-fields'] },
+            { label: 'Automation', items: ['la-settings-notifications', 'la-settings-webhooks'] },
+            { label: 'Billing', items: ['la-settings-billing', 'la-settings-export'] }
+        ];
+
+        var $wrapper = $('<div class="mml-settings"></div>');
+        var $header = $('<header class="mml-settings__header"><div><h3>Settings</h3><p>Manage your workspace settings and defaults.</p></div></header>');
+        var $body = $('<div class="mml-settings__body"></div>');
+        var $nav = $('<aside class="mml-settings__nav" aria-label="Settings"></aside>');
+        var $content = $('<main class="mml-settings__content"></main>');
+        var $mobileSelect = $('<select class="mml-settings__select" aria-label="Select settings section"></select>');
+        var $navList = $('<div class="mml-settings__nav-list" role="tablist"></div>');
+
+        var panels = [];
+        $cards.each(function (idx) {
+            var $card = $(this);
+            var cardId = $card.attr('id') || '';
+            var title = labelMap[cardId] || '';
+            var key = cardId ? cardId.replace('la-settings-', '') : '';
+            if (!title) {
+                var $headerEl = $card.find('> .la-section-header h3').first();
+                title = $.trim($headerEl.text() || 'Settings');
+            }
+            if (!key) {
+                key = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            }
+            if (!key) {
+                key = 'settings-' + idx;
+            }
+            $card.attr('data-settings-key', key);
+            var $panelWrap = $('<section class="mml-settings__panel" data-settings-panel="' + key + '" role="tabpanel"></section>');
+            $panelWrap.append($card);
+            $content.append($panelWrap);
+            panels.push({ key: key, id: cardId, title: title });
+            $mobileSelect.append('<option value="' + key + '">' + title + '</option>');
+        });
+
+        groups.forEach(function (group) {
+            var groupItems = group.items.filter(function (id) {
+                return panels.some(function (panel) { return panel.id === id; });
+            });
+            if (!groupItems.length) {
+                return;
+            }
+            $navList.append('<div class="mml-settings__nav-title">' + group.label + '</div>');
+            groupItems.forEach(function (id) {
+                var panel = panels.find(function (p) { return p.id === id; });
+                if (!panel) {
+                    return;
+                }
+                var $btn = $('<button type="button" class="mml-settings__nav-item" role="tab" aria-selected="false"></button>');
+                $btn.attr('data-target', panel.key).text(panel.title);
+                $navList.append($btn);
+            });
+        });
+
+        $nav.append($mobileSelect).append($navList);
+        $body.append($nav).append($content);
+        $wrapper.append($header).append($body);
+        $grid.before($wrapper);
+        $grid.remove();
+
+        function showSection(key) {
+            $content.find('.mml-settings__panel').removeClass('is-active');
+            $navList.find('.mml-settings__nav-item').removeClass('is-active').attr('aria-current', 'false').attr('aria-selected', 'false');
+            var $targetPanel = $content.find('[data-settings-panel="' + key + '"]');
+            if (!$targetPanel.length) {
+                $targetPanel = $content.find('.mml-settings__panel').first();
+                key = $targetPanel.data('settings-panel');
+            }
+            $targetPanel.addClass('is-active');
+            $navList.find('.mml-settings__nav-item[data-target="' + key + '"]').addClass('is-active').attr('aria-current', 'page').attr('aria-selected', 'true');
+            $mobileSelect.val(key);
+            try {
+                window.localStorage.setItem('leadAggregatorSettingsSection', key);
+            } catch (err) {}
+        }
+
+        $navList.on('click', '.mml-settings__nav-item', function () {
+            showSection($(this).data('target'));
+        });
+
+        $mobileSelect.on('change', function () {
+            showSection($(this).val());
+        });
+
+        var stored = '';
+        var fromQuery = '';
+        try {
+            var searchParams = new URLSearchParams(window.location.search);
+            fromQuery = searchParams.get('settings') || '';
+            stored = window.localStorage.getItem('leadAggregatorSettingsSection') || '';
+        } catch (err) {}
+        showSection(fromQuery || stored);
     }
 
     function renderQuickActionSettings($el) {
@@ -3516,6 +4116,7 @@ jQuery(function ($) {
         renderFollowupsList($el.find('#la-panel-followups'));
         renderCalendarOnly($el.find('#la-panel-calendar'));
         renderAIHelp($el.find('#la-panel-ai-tools'));
+        renderActivity($el.find('#la-panel-activity'));
         renderTags($el.find('#la-settings-tags'));
         renderTeam($el.find('#la-settings-team'));
         renderWebhooks($el.find('#la-settings-webhooks'));
@@ -3526,6 +4127,8 @@ jQuery(function ($) {
         renderNotificationSettings($el.find('#la-settings-notifications'));
         renderQuickActionSettings($el.find('#la-settings-quick-action'));
         renderGetStartedSettings($el.find('#la-settings-get-started'), updateGetStartedVisibility);
+        renderAppearanceSettings($el.find('#la-settings-appearance'));
+        initSettingsLayout($el.find('#la-panel-settings'));
 
         $el.find('#la-panel-notes-tags').html('<div class="la-section-header"><h3>Notes</h3><p class="la-muted">Notes are managed per lead in the Lead Detail tab.</p></div>');
 
@@ -3539,9 +4142,9 @@ jQuery(function ($) {
 
                 leads.forEach(function (lead) {
                     if (lead.due_at) {
-                        var dueDate = new Date(String(lead.due_at).replace(' ', 'T'));
+                        var dueDate = parseLeadDate(lead.due_at);
                         var followupStatus = String(lead.followup_status || '').toLowerCase();
-                        if (!isNaN(dueDate.getTime())) {
+                        if (dueDate) {
                             if (dueDate <= now && followupStatus !== 'completed' && followupStatus !== 'canceled') {
                                 followup += 1;
                             }
@@ -3552,8 +4155,8 @@ jQuery(function ($) {
                     }
                     if (lead.last_actioned || lead.last_contacted || (normalizeFollowupStatusValue(lead.followup_status) === 'completed' && lead.followup_at)) {
                         var raw = lead.last_actioned || lead.last_contacted || lead.followup_at;
-                        var actionDate = new Date(String(raw).replace(' ', 'T'));
-                        if (!isNaN(actionDate.getTime())) {
+                        var actionDate = parseLeadDate(raw);
+                        if (actionDate) {
                             if (actionDate.getFullYear() === now.getFullYear() &&
                                 actionDate.getMonth() === now.getMonth() &&
                                 actionDate.getDate() === now.getDate()) {
@@ -3640,6 +4243,9 @@ jQuery(function ($) {
             }
             if (tab === 'calendar') {
                 renderCalendarOnly($el.find('#la-panel-calendar'));
+            }
+            if (tab === 'activity') {
+                renderActivity($el.find('#la-panel-activity'));
             }
             if (tab === 'get-started') {
                 renderGetStarted($el.find('#la-panel-get-started'));

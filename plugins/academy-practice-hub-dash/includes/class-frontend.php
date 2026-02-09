@@ -2180,6 +2180,7 @@ class JPH_Frontend {
             'stats' => true,
             'roadmap' => true,
             'search_section' => true,
+            'intensives_section' => true,
             'repertoire_section' => true,
             'tab_shield' => true,
             'tab_badges' => true,
@@ -3252,10 +3253,11 @@ class JPH_Frontend {
             // Intensives section - visible to all students
             $show_intensives = true;
             
-            if ($show_intensives) {
+            if ($show_intensives && ($dashboard_prefs['intensives_section'] ?? true)) {
                 // Ensure $user_id is set as global for je_is_chapter_complete function
                 global $user_id;
                 $user_id = get_current_user_id();
+                global $wpdb;
                 
                 $intensives = array();
                 $current_intensive = null;
@@ -6965,6 +6967,15 @@ class JPH_Frontend {
                                     <span class="checkbox-text">
                                         <strong>Search Section</strong>
                                         <span class="checkbox-description">Quick search bar to find lessons and content</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="settings-checkbox-item">
+                                <label>
+                                    <input type="checkbox" id="setting-intensives-section" checked>
+                                    <span class="checkbox-text">
+                                        <strong>Intensives Section</strong>
+                                        <span class="checkbox-description">Current 6-week intensives overview</span>
                                     </span>
                                 </label>
                             </div>
@@ -19041,6 +19052,7 @@ class JPH_Frontend {
                 stats: true,
                 roadmap: true,
                 search_section: true,
+                intensives_section: true,
                 repertoire_section: true,
                 tab_shield: true,
                 tab_badges: true,
@@ -19071,6 +19083,7 @@ class JPH_Frontend {
                             $('#setting-roadmap').prop('checked', prefs.roadmap !== false);
                             $('#setting-search-section').prop('checked', prefs.search_section !== false);
                             $('#setting-repertoire-section').prop('checked', prefs.repertoire_section !== false);
+                            $('#setting-intensives-section').prop('checked', prefs.intensives_section !== false);
                             $('#setting-tab-shield').prop('checked', prefs.tab_shield !== false);
                             $('#setting-tab-badges').prop('checked', prefs.tab_badges !== false);
                             $('#setting-tab-analytics').prop('checked', prefs.tab_analytics !== false);
@@ -19096,7 +19109,7 @@ class JPH_Frontend {
                     },
                     error: function() {
                         // Default to all checked if load fails
-                        $('#setting-stats, #setting-roadmap, #setting-search-section, #setting-tab-shield, #setting-tab-badges, #setting-tab-analytics').prop('checked', true);
+                        $('#setting-stats, #setting-roadmap, #setting-search-section, #setting-intensives-section, #setting-tab-shield, #setting-tab-badges, #setting-tab-analytics').prop('checked', true);
                     }
                 });
             }
@@ -19422,6 +19435,7 @@ class JPH_Frontend {
                     stats: $('#setting-stats').is(':checked'),
                     roadmap: $('#setting-roadmap').is(':checked'),
                     search_section: $('#setting-search-section').is(':checked'),
+                    intensives_section: $('#setting-intensives-section').is(':checked'),
                     repertoire_section: $('#setting-repertoire-section').is(':checked'),
                     tab_shield: $('#setting-tab-shield').is(':checked'),
                     tab_badges: $('#setting-tab-badges').is(':checked'),
@@ -19711,6 +19725,13 @@ class JPH_Frontend {
                     $('.jph-search-section').show();
                 } else {
                     $('.jph-search-section').hide();
+                }
+
+                // Update intensives section
+                if (preferences.intensives_section !== false) {
+                    $('.jph-intensives-section').show();
+                } else {
+                    $('.jph-intensives-section').hide();
                 }
                 
                 // Update repertoire section (default to true if undefined)
