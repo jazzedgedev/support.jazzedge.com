@@ -106,6 +106,12 @@ class JPH_REST_API {
         ));
         
         // Dashboard preferences endpoints
+        register_rest_route('aph/v1', '/dashboard-init', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_dashboard_init'),
+            'permission_callback' => 'is_user_logged_in'
+        ));
+
         register_rest_route('aph/v1', '/user/dashboard-preferences', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_get_dashboard_preferences'),
@@ -1004,6 +1010,7 @@ class JPH_REST_API {
         }
 
         delete_transient( 'aph_analytics_' . $user_id );
+        delete_transient( 'aph_dashboard_init_' . $user_id );
         $this->bump_practice_sessions_cache_version( $user_id );
 
         // Gamification integration - use our Academy gamification class
@@ -1035,6 +1042,7 @@ class JPH_REST_API {
         // Check for badges using our gamification class
         $newly_awarded = $gamification->check_and_award_badges($user_id);
         delete_transient( 'aph_badges_' . $user_id );
+        delete_transient( 'aph_dashboard_init_' . $user_id );
         
         // Get updated user stats for response
         $updated_stats = $gamification->get_user_stats($user_id);
@@ -1190,13 +1198,14 @@ class JPH_REST_API {
         }
 
         $this->bump_practice_sessions_cache_version($user_id);
+        delete_transient( 'aph_dashboard_init_' . $user_id );
 
         return rest_ensure_response(array(
             'success' => true,
             'message' => 'Practice session deleted successfully'
         ));
     }
-    
+
     /**
      * Get user's repertoire items
      */
@@ -1994,7 +2003,8 @@ class JPH_REST_API {
             }
             
             delete_transient( 'aph_lesson_favorites_' . $user_id );
-            
+            delete_transient( 'aph_dashboard_init_' . $user_id );
+
             return rest_ensure_response(array(
                 'success' => true,
                 'favorite_id' => $result,
@@ -2032,6 +2042,7 @@ class JPH_REST_API {
             }
             
             delete_transient( 'aph_lesson_favorites_' . $user_id );
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -2605,7 +2616,8 @@ class JPH_REST_API {
             // Run badge check
             $newly_awarded = $gamification->check_and_award_badges($user_id);
             delete_transient( 'aph_badges_' . $user_id );
-            
+            delete_transient( 'aph_dashboard_init_' . $user_id );
+
             // Get stats and badges after checking
             $user_stats_after = $this->database->get_user_stats($user_id);
             $user_badges_after = $this->database->get_user_badges($user_id);
@@ -2732,7 +2744,8 @@ class JPH_REST_API {
                 // Award the badge using the full gamification process
                 $badge_awarded = $this->database->award_badge($user_id, $badge_key);
                 delete_transient( 'aph_badges_' . $user_id );
-                
+                delete_transient( 'aph_dashboard_init_' . $user_id );
+
                 if (!$badge_awarded) {
                     return rest_ensure_response(array(
                         'success' => false,
@@ -2859,6 +2872,7 @@ class JPH_REST_API {
                         // Award badge using full gamification process
                         $result = $this->database->award_badge($user_id, $badge['badge_key']);
                         delete_transient( 'aph_badges_' . $user_id );
+                        delete_transient( 'aph_dashboard_init_' . $user_id );
                         if ($result) {
                             // Update user stats with XP reward, gems reward, and badge count
                             $update_data = array();
@@ -6904,6 +6918,98 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
     }
 
     /**
+     * Aggregated dashboard init: user_stats, plan, practice_sessions, dashboard_preferences,
+     * popup_notification, badges, lesson_favorites, analytics.
+     * Cached 60s; busted whenever any of the underlying caches are busted.
+     */
+    public function rest_get_dashboard_init($request) {
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
+        }
+
+        $cache_key = 'aph_dashboard_init_' . $user_id;
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return rest_ensure_response($cached);
+        }
+
+        $empty_req = new WP_REST_Request('GET', '/');
+
+        $user_stats = $this->database->get_user_stats($user_id);
+        $plan = $this->database->get_user_plan($user_id);
+        $sessions_this_week = $this->database->get_weekly_session_count($user_id);
+        if ($plan) {
+            $plan['sessions_this_week'] = $sessions_this_week;
+        } else {
+            $plan = array(
+                'user_id' => $user_id,
+                'transformation' => '',
+                'goal_90_day' => '',
+                'weekly_focus_item_id' => null,
+                'practice_steps' => array(),
+                'deadline' => null,
+                'sessions_this_week' => $sessions_this_week,
+                'last_practiced_date' => null
+            );
+        }
+
+        $practice_sessions = $this->database->get_practice_sessions($user_id, 10, 0);
+        if (is_wp_error($practice_sessions)) {
+            return $practice_sessions;
+        }
+
+        $preferences_json = get_user_meta($user_id, 'aph_dashboard_preferences', true);
+        $default_preferences = array(
+            'stats' => true,
+            'roadmap' => true,
+            'search_section' => true,
+            'intensives_section' => true,
+            'repertoire_section' => true,
+            'tab_shield' => true,
+            'tab_badges' => true,
+            'tab_analytics' => true,
+            'auto_gem_streak_save' => true,
+            'dark_mode' => false,
+            'bg_color' => '#ffffff',
+            'accent_color' => '#004555',
+            'theme' => 'default',
+            'color_palette' => 'default'
+        );
+        if (empty($preferences_json)) {
+            $dashboard_preferences = $default_preferences;
+        } else {
+            $dashboard_preferences = wp_parse_args(json_decode($preferences_json, true) ?: array(), $default_preferences);
+        }
+
+        $popup_resp = $this->rest_get_popup_notification($empty_req);
+        $popup_notification = is_wp_error($popup_resp) ? array('success' => false, 'notification' => null) : $popup_resp->get_data();
+
+        $badges_resp = $this->rest_get_user_badges($empty_req);
+        $badges = is_wp_error($badges_resp) ? array() : ($badges_resp->get_data()['badges'] ?? array());
+
+        $fav_resp = $this->rest_get_lesson_favorites($empty_req);
+        $lesson_favorites = is_wp_error($fav_resp) ? array() : ($fav_resp->get_data()['favorites'] ?? array());
+
+        $analytics_resp = $this->rest_get_analytics($empty_req);
+        $analytics = is_wp_error($analytics_resp) ? array() : ($analytics_resp->get_data()['data'] ?? array());
+
+        $payload = array(
+            'success' => true,
+            'user_stats' => $user_stats,
+            'plan' => $plan,
+            'practice_sessions' => $practice_sessions,
+            'dashboard_preferences' => $dashboard_preferences,
+            'popup_notification' => $popup_notification,
+            'badges' => $badges,
+            'lesson_favorites' => $lesson_favorites,
+            'analytics' => $analytics
+        );
+        set_transient($cache_key, $payload, 60);
+        return rest_ensure_response($payload);
+    }
+
+    /**
      * Update the current user's dashboard preferences
      */
     public function rest_update_dashboard_preferences($request) {
@@ -6985,6 +7091,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $preferences_json = json_encode($sanitized_preferences);
             update_user_meta($user_id, 'aph_dashboard_preferences', $preferences_json);
             update_user_meta($user_id, 'aph_dashboard_preferences_updated_at', current_time('mysql'));
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -7145,6 +7252,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             $notifications_manager = new ALM_Notifications_Manager();
             $notifications_manager->mark_popup_shown($notification_id, $user_id);
             delete_transient( 'aph_popup_notification_' . $user_id );
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -10009,6 +10117,7 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 return $result;
             }
             
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             return rest_ensure_response(array(
                 'success' => true,
                 'message' => 'Plan saved successfully',
@@ -10038,6 +10147,7 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 return $result;
             }
             
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             return rest_ensure_response(array(
                 'success' => true,
                 'message' => 'Transformation updated successfully',
@@ -10069,6 +10179,7 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 return $result;
             }
             
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             return rest_ensure_response(array(
                 'success' => true,
                 'message' => 'Goal updated successfully',
@@ -10114,6 +10225,7 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 return $result;
             }
             
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             return rest_ensure_response(array(
                 'success' => true,
                 'message' => 'Weekly focus updated successfully',
@@ -10150,6 +10262,7 @@ Return only the cleaned feedback text, no explanations or additional commentary.
                 return $result;
             }
             
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             return rest_ensure_response(array(
                 'success' => true,
                 'message' => 'Practice steps updated successfully',
@@ -10176,6 +10289,8 @@ Return only the cleaned feedback text, no explanations or additional commentary.
             if (!$result) {
                 return new WP_Error('mark_practiced_error', 'Failed to mark as practiced', array('status' => 500));
             }
+            
+            delete_transient( 'aph_dashboard_init_' . $user_id );
             
             // Get updated session count
             $sessions_this_week = $this->database->get_weekly_session_count($user_id);
