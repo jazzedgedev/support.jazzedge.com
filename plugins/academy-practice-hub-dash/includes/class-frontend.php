@@ -18874,17 +18874,54 @@ class JPH_Frontend {
                 });
             }
             
+            // Helper: process sessions array into chart-ready { labels, durations, sentiments }
+            function processSessionsToChartData(sessions, days) {
+                const labels = [];
+                const durations = [];
+                const sentiments = [];
+                const dailyData = {};
+                sessions.forEach(function(session) {
+                    const sessionDate = new Date(session.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    if (!dailyData[sessionDate]) {
+                        dailyData[sessionDate] = { totalMinutes: 0, totalSentiment: 0, sessionCount: 0 };
+                    }
+                    dailyData[sessionDate].totalMinutes += parseInt(session.duration_minutes, 10) || 0;
+                    dailyData[sessionDate].totalSentiment += parseFloat(session.sentiment_score) || 0;
+                    dailyData[sessionDate].sessionCount += 1;
+                });
+                for (var i = days - 1; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dateKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    labels.push(dateKey);
+                    if (dailyData[dateKey]) {
+                        durations.push(dailyData[dateKey].totalMinutes);
+                        const avgSentiment = dailyData[dateKey].totalSentiment / dailyData[dateKey].sessionCount;
+                        sentiments.push(Math.round(avgSentiment * 10) / 10);
+                    } else {
+                        durations.push(0);
+                        sentiments.push(0);
+                    }
+                }
+                return { labels: labels, durations: durations, sentiments: sentiments };
+            }
+
             // Function to generate daily data for the selected period using real practice sessions
             function generateDailyData(days, analyticsData) {
                 const labels = [];
                 const durations = [];
                 const sentiments = [];
-                
+
+                // Use dashboard-init data for 30-day chart when available (skip XHR)
+                if (days === 30 && window.aphDashboardInitData && Array.isArray(window.aphDashboardInitData.practice_sessions_chart)) {
+                    return processSessionsToChartData(window.aphDashboardInitData.practice_sessions_chart, 30);
+                }
+
                 // Fetch real practice sessions for the selected period
                 const endDate = new Date();
                 const startDate = new Date();
                 startDate.setDate(startDate.getDate() - days);
-                
+
                 // Get practice sessions for the period
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',

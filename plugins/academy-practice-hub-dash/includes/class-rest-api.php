@@ -6996,11 +6996,27 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
 
         $repertoire = $this->database->get_user_repertoire($user_id, 'last_practiced', 'DESC');
 
+        // Practice sessions for chart (last 30 days), same query as rest_get_practice_sessions with date range
+        $thirty_days_ago = date('Y-m-d', strtotime('-30 days'));
+        $today = date('Y-m-d');
+        $chart_req = new WP_REST_Request('GET', '/');
+        $chart_req->set_param('start_date', $thirty_days_ago);
+        $chart_req->set_param('end_date', $today);
+        $chart_req->set_param('limit', 1000);
+        $chart_req->set_param('offset', 0);
+        $chart_resp = $this->rest_get_practice_sessions($chart_req);
+        $practice_sessions_chart = array();
+        if (!is_wp_error($chart_resp)) {
+            $chart_data = $chart_resp->get_data();
+            $practice_sessions_chart = isset($chart_data['sessions']) ? $chart_data['sessions'] : array();
+        }
+
         $payload = array(
             'success' => true,
             'user_stats' => $user_stats,
             'plan' => $plan,
             'practice_sessions' => $practice_sessions,
+            'practice_sessions_chart' => $practice_sessions_chart,
             'dashboard_preferences' => $dashboard_preferences,
             'popup_notification' => $popup_notification,
             'badges' => $badges,
