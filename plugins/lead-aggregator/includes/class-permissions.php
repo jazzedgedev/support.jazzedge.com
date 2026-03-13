@@ -73,22 +73,16 @@ class Lead_Aggregator_Permissions {
             return false;
         }
 
-        $limit = $this->get_contact_limit_for_user($user_id);
-        if ($limit === 0) {
+        $entitlements = lead_aggregator_get_entitlements($user_id);
+        if ($entitlements['lead_limit'] === 0) {
             return true;
         }
-
-        $current = $this->database->count_leads($user_id);
-        return $current < $limit;
+        return !$entitlements['is_over_limit'];
     }
 
     public function get_contact_limit_for_user($user_id) {
-        $plan_limit = $this->get_plan_limit_for_user($user_id);
-        if ($plan_limit !== null) {
-            return $plan_limit;
-        }
-
-        return 0;
+        $entitlements = lead_aggregator_get_entitlements($user_id);
+        return (int) $entitlements['lead_limit'];
     }
 
     public function get_last_error() {
@@ -126,21 +120,10 @@ class Lead_Aggregator_Permissions {
     }
 
     private function get_plan_limit_for_user($user_id) {
-        $plan_key = get_user_meta($user_id, 'lead_aggregator_plan_key', true);
-        if (!$plan_key) {
-            return null;
+        $entitlements = lead_aggregator_get_entitlements($user_id);
+        if (isset($entitlements['lead_limit'])) {
+            return (int) $entitlements['lead_limit'];
         }
-
-        $plans = get_option('lead_aggregator_plans', array());
-        if (!isset($plans[$plan_key])) {
-            return null;
-        }
-
-        $limit = isset($plans[$plan_key]['limit']) ? (int) $plans[$plan_key]['limit'] : null;
-        if ($limit === null) {
-            return null;
-        }
-
-        return $limit;
+        return null;
     }
 }

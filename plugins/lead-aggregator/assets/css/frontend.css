@@ -198,6 +198,8 @@ body.lead-aggregator-app {
     padding: 16px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
     margin-bottom: 16px;
+    width: 100%;
+    max-width: 100%;
 }
  
 .la-table {
@@ -1886,6 +1888,30 @@ body.lead-aggregator-app {
     flex-wrap: wrap;
 }
 
+.lead-aggregator-dashboard .la-section-header {
+    display: flex;
+    align-items: center;
+}
+
+.lead-aggregator-dashboard .la-section-header .la-section-actions.la-followup-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.lead-aggregator-dashboard .la-section-header .la-section-actions.la-followup-actions .la-leads-toolbar {
+    width: 100%;
+}
+
+.lead-aggregator-dashboard .la-followup-actions .la-intent-row {
+    width: 100%;
+    gap: 12px;
+}
+
+.lead-aggregator-dashboard .la-followup-actions .la-intent-actions {
+    margin-left: auto;
+    gap: 10px;
+}
+
 .lead-aggregator-dashboard .la-context-row {
     display: flex;
     align-items: center;
@@ -2452,7 +2478,7 @@ body.dark-mode .mml-settings__select {
 
 .la-activity-summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 16px;
 }
@@ -2468,8 +2494,15 @@ body.dark-mode .mml-settings__select {
 
 .la-activity-charts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
+}
+
+@media (max-width: 900px) {
+    .la-activity-summary,
+    .la-activity-charts {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .la-activity-charts .la-card {
@@ -3060,6 +3093,10 @@ body.dark-mode .lead-aggregator-dashboard .la-followup-filter {
 
 .lead-aggregator-dashboard .la-actions-cell {
     text-align: right;
+}
+
+.lead-aggregator-dashboard .la-table th.la-actions-cell {
+    text-align: center;
 }
 
 .lead-aggregator-dashboard .la-actions-cell .la-actions {

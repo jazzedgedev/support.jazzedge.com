@@ -6,6 +6,13 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+if (!is_user_logged_in()) {
+    $login_page_id = (int) get_option('lead_aggregator_login_page_id', 0);
+    $login_url = $login_page_id ? get_permalink($login_page_id) : home_url('/login');
+    wp_redirect($login_url);
+    exit;
+}
+
 $app_mode = get_option('lead_aggregator_app_mode', true);
 
 if (!$app_mode) {

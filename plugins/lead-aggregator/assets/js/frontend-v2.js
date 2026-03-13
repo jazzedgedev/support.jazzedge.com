@@ -751,10 +751,96 @@ jQuery(function ($) {
                     $el.find('.la-select-all').prop('checked', true);
                 }
 
+                function updateRowsOnly(filterValue, statusValue, followupValue) {
+                    var filteredRows = leads;
+                    if (filterValue) {
+                        var query = filterValue.toLowerCase();
+                        filteredRows = leads.filter(function (lead) {
+                            var name = (lead.first_name || '') + ' ' + (lead.last_name || '');
+                            return (
+                                name.toLowerCase().indexOf(query) !== -1 ||
+                                (lead.email || '').toLowerCase().indexOf(query) !== -1 ||
+                                (lead.company || '').toLowerCase().indexOf(query) !== -1
+                            );
+                        });
+                    }
+                    if (statusValue) {
+                        var normalized = normalizePipelineStageValue(statusValue);
+                        filteredRows = filteredRows.filter(function (lead) {
+                            return normalizePipelineStageValue(lead.status) === normalized;
+                        });
+                    }
+                    if (followupValue) {
+                        var followupKey = String(followupValue || '').toLowerCase();
+                        if (followupKey === 'due') {
+                            filteredRows = filteredRows.filter(function (lead) {
+                                return isDue(lead);
+                            });
+                        } else if (followupKey === 'followed') {
+                            filteredRows = filteredRows.filter(function (lead) {
+                                return isFollowedToday(lead);
+                            });
+                        } else if (followupKey === 'overdue') {
+                            filteredRows = filteredRows.filter(function (lead) {
+                                return isOverdue(lead);
+                            });
+                        } else {
+                            var normalizedFollowup = normalizeFollowupStatusValue(followupValue);
+                            filteredRows = filteredRows.filter(function (lead) {
+                                return normalizeFollowupStatusValue(lead.followup_status) === normalizedFollowup;
+                            });
+                        }
+                    }
+
+                    var countText = 'Showing ' + filteredRows.length + ' lead' + (filteredRows.length === 1 ? '' : 's');
+                    $el.find('.la-filter-count').text(countText);
+                    updateMetricButtons(filterValue, statusValue, followupValue);
+                    var shouldEnableClear = !!(filterValue || statusValue || followupValue);
+                    $el.find('.la-filter-clear').prop('disabled', !shouldEnableClear);
+                    if (!tagId) {
+                        window.localStorage.setItem(storageKey, JSON.stringify({
+                            search: filterValue || '',
+                            status: statusValue || '',
+                            followup: followupValue || ''
+                        }));
+                    }
+
+                    var bodyHtml = '';
+                    if (!filteredRows.length) {
+                        bodyHtml = '<tr><td class="la-empty" colspan="' + (activeColumns.length + (readOnly ? 0 : 1) + (showFollowupAction && !readOnly ? 1 : 0)) + '">No leads yet.</td></tr>';
+                    } else {
+                        filteredRows.forEach(function (lead) {
+                            bodyHtml += '<tr>';
+                            if (!readOnly) {
+                                var checked = selectedLeadIds.indexOf(String(lead.id)) !== -1 ? ' checked' : '';
+                                bodyHtml += '<td><input type="checkbox" class="la-lead-select" data-id="' + lead.id + '"' + checked + '></td>';
+                            }
+                            activeColumns.forEach(function (key) {
+                                bodyHtml += '<td>' + renderCell(lead, key) + '</td>';
+                            });
+                            if (showFollowupAction && !readOnly && normalizePipelineStageValue(lead.status) === 'new' && normalizeFollowupStatusValue(lead.followup_status) === 'not_set') {
+                                bodyHtml += '<td><button type="button" class="la-btn la-btn--ghost la-followup-add" data-id="' + lead.id + '">' + icons.addToFollowup + 'Followup</button></td>';
+                            } else if (showFollowupAction && !readOnly) {
+                                bodyHtml += '<td></td>';
+                            }
+                            bodyHtml += '</tr>';
+                        });
+                    }
+                    $el.find('.la-table tbody').html(bodyHtml);
+                }
+
                 $el.find('.la-search').on('input', function () {
                     var currentStatus = statusFilter || '';
                     var currentFollowupStatus = followupStatusFilter || '';
-                    renderRows($(this).val(), currentStatus, currentFollowupStatus);
+                    var inputValue = $(this).val();
+                    var timer = $el.data('la-leads-search-timer');
+                    if (timer) {
+                        clearTimeout(timer);
+                    }
+                    timer = setTimeout(function () {
+                        updateRowsOnly(inputValue, currentStatus, currentFollowupStatus);
+                    }, 350);
+                    $el.data('la-leads-search-timer', timer);
                 });
 
                 $el.find('.la-filter-pill').on('click', function (event) {
@@ -789,6 +875,11 @@ jQuery(function ($) {
                     if (this.disabled) {
                         return;
                     }
+                    var $toolbar = $(this).closest('.la-leads-toolbar');
+                    var $search = $toolbar.find('.la-search');
+                    if ($search.length) {
+                        $search.val('');
+                    }
                     renderRows('', '', '');
                 });
 
@@ -796,7 +887,7 @@ jQuery(function ($) {
                     renderInbox($el, { showFollowupAction: showFollowupAction, statsEl: options.statsEl });
                 });
 
-                $el.find('.la-lead-select').on('change', function () {
+                $el.off('change.laLeadSelect').on('change.laLeadSelect', '.la-lead-select', function () {
                     var id = String($(this).data('id'));
                     if (this.checked) {
                         if (selectedLeadIds.indexOf(id) === -1) {
@@ -812,7 +903,7 @@ jQuery(function ($) {
                 });
 
                 if (!readOnly) {
-                    $el.find('.la-select-all').on('change', function () {
+                    $el.off('change.laSelectAll').on('change.laSelectAll', '.la-select-all', function () {
                         if (this.checked) {
                             selectedLeadIds = filtered.map(function (lead) { return String(lead.id); });
                         } else {
@@ -875,7 +966,7 @@ jQuery(function ($) {
                     openLeadModal();
                 });
 
-                $el.find('.la-followup-add').on('click', function () {
+                $el.off('click.laFollowupAdd').on('click.laFollowupAdd', '.la-followup-add', function () {
                     var leadId = $(this).data('id');
                     if (!leadId) {
                         return;
@@ -2438,7 +2529,9 @@ jQuery(function ($) {
             var readOnly = (me.access_level || 'full') === 'read';
             var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
             var followupFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].followup) ? customFieldsRes[0].followup : {};
-            var filterValue = $el.data('followup-filter') || 'all';
+            var pipelineFilter = $el.data('followup-pipeline-filter') || '';
+            var followupFilter = $el.data('followup-status-filter') || '';
+            var searchValue = $el.data('followup-search') || '';
             var now = new Date();
             var activeColumns = [];
 
@@ -2450,11 +2543,46 @@ jQuery(function ($) {
                 if (status === 'completed' || status === 'canceled') {
                     return false;
                 }
-                var due = new Date(String(lead.due_at).replace(' ', 'T'));
+                var due = parseLeadDate(lead.due_at);
                 if (isNaN(due.getTime())) {
                     return false;
                 }
                 return due < now;
+            }
+
+            function isDue(lead) {
+                if (!lead.due_at) {
+                    return false;
+                }
+                var status = String(lead.followup_status || '').toLowerCase();
+                if (status === 'completed' || status === 'canceled') {
+                    return false;
+                }
+                var due = parseLeadDate(lead.due_at);
+                if (isNaN(due.getTime())) {
+                    return false;
+                }
+                return due <= now;
+            }
+
+            function statusFilterLabel(value) {
+                if (!value) {
+                    return 'All';
+                }
+                return pipelineStageLabel(value);
+            }
+
+            function followupFilterLabel(value) {
+                if (!value) {
+                    return 'All';
+                }
+                if (value === 'due') {
+                    return 'Due';
+                }
+                if (value === 'overdue') {
+                    return 'Overdue';
+                }
+                return followupStatusLabel(value);
             }
 
             var columnDefs = [
@@ -2518,29 +2646,83 @@ jQuery(function ($) {
             var rows = leads.filter(function (lead) {
                 return lead.followup_at || lead.due_at;
             });
-            if (filterValue === 'overdue') {
+            if (searchValue) {
+                var query = String(searchValue).toLowerCase();
                 rows = rows.filter(function (lead) {
-                    return isOverdue(lead);
+                    var name = (lead.first_name || '') + ' ' + (lead.last_name || '');
+                    return (
+                        name.toLowerCase().indexOf(query) !== -1 ||
+                        (lead.email || '').toLowerCase().indexOf(query) !== -1 ||
+                        (lead.company || '').toLowerCase().indexOf(query) !== -1
+                    );
                 });
+            }
+            if (pipelineFilter) {
+                var normalized = normalizePipelineStageValue(pipelineFilter);
+                rows = rows.filter(function (lead) {
+                    return normalizePipelineStageValue(lead.status) === normalized;
+                });
+            }
+            if (followupFilter) {
+                var followupKey = String(followupFilter || '').toLowerCase();
+                if (followupKey === 'due') {
+                    rows = rows.filter(function (lead) { return isDue(lead); });
+                } else if (followupKey === 'overdue') {
+                    rows = rows.filter(function (lead) { return isOverdue(lead); });
+                } else {
+                    rows = rows.filter(function (lead) {
+                        return normalizeFollowupStatusValue(lead.followup_status) === followupKey;
+                    });
+                }
             }
             var countLabel = 'Showing ' + rows.length + ' lead' + (rows.length === 1 ? '' : 's');
 
-            var html = '<div class="la-section-header"><h3>Follow-ups</h3>' +
-                '<div class="la-section-actions la-followup-actions">' +
-                '<select class="la-followup-filter">' +
-                '<option value="all"' + (filterValue === 'all' ? ' selected' : '') + '>All</option>' +
-                '<option value="overdue"' + (filterValue === 'overdue' ? ' selected' : '') + '>Overdue</option>' +
-                '</select>' +
-                '<div class="la-column-toggle-wrap">' +
-                '<button type="button" class="la-btn la-btn--ghost la-followup-columns">' + icons.columns + 'Columns</button>' +
-                '<div class="la-column-menu">';
+            var columnMenuHtml = '';
             columnDefs.forEach(function (col) {
                 var checked = activeColumns.indexOf(col.key) !== -1 ? ' checked' : '';
-                html += '<label><input type="checkbox" data-key="' + col.key + '"' + checked + '> ' + col.label + '</label>';
+                columnMenuHtml += '<label><input type="checkbox" data-key="' + col.key + '"' + checked + '> ' + col.label + '</label>';
             });
-            html += '</div></div>' +
-                '</div></div>';
-            html += '<div class="la-filter-count la-followup-count">' + countLabel + '</div>';
+
+            var html = '<div class="la-section-header">' +
+                '<div class="la-section-actions la-followup-actions">' +
+                '<div class="la-leads-toolbar">' +
+                '<div class="la-intent-row">' +
+                '<input type="text" class="la-search la-search--primary" placeholder="Search leads" value="' + (searchValue || '') + '">' +
+                '<div class="la-intent-actions">' +
+                '<div class="la-column-toggle-wrap" data-context="followups">' +
+                '<button type="button" class="la-btn la-btn--ghost la-column-toggle" data-context="followups">' + icons.columns + 'Columns</button>' +
+                '<div class="la-column-menu">' + columnMenuHtml + '</div>' +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="la-context-row">' +
+                '<div class="la-filter-pill-group">' +
+                '<div class="la-filter-pill-wrap" data-filter="status">' +
+                '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Pipeline: <span class="la-filter-value">' + statusFilterLabel(pipelineFilter) + '</span> ▾</button>' +
+                '<div class="la-filter-menu">' +
+                '<button type="button" data-value="">All</button>';
+            statusOptions.forEach(function (option) {
+                var value = option.toLowerCase();
+                var selected = value === String(pipelineFilter || '').toLowerCase() ? ' data-selected="1"' : '';
+                html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
+            });
+            html += '</div></div>';
+            html += '<div class="la-filter-pill-wrap" data-filter="followup">';
+            html += '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Follow-ups: <span class="la-filter-value">' + followupFilterLabel(followupFilter) + '</span> ▾</button>';
+            html += '<div class="la-filter-menu">';
+            html += '<button type="button" data-value="">All</button>';
+            followupOptions.forEach(function (option) {
+                var value = option.toLowerCase().replace(/\\s+/g, '_');
+                var selected = value === String(followupFilter || '').toLowerCase() ? ' data-selected="1"' : '';
+                html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
+            });
+            html += '<button type="button" data-value="due"' + (String(followupFilter || '').toLowerCase() === 'due' ? ' data-selected="1"' : '') + '>Due</button>';
+            html += '<button type="button" data-value="overdue"' + (String(followupFilter || '').toLowerCase() === 'overdue' ? ' data-selected="1"' : '') + '>Overdue</button>';
+            html += '</div></div>';
+            var clearDisabled = pipelineFilter || followupFilter || searchValue ? '' : ' disabled';
+            html += '<button type="button" class="la-filter-pill la-filter-clear"' + clearDisabled + '>' + icons.clearFilters + 'Clear</button>';
+            html += '<div class="la-filter-count">' + countLabel + '</div>';
+            html += '</div></div></div></div></div>';
             html += '<table class="la-table"><thead><tr>';
             activeColumns.forEach(function (key) {
                 html += '<th>' + getColumnLabel(key) + '</th>';
@@ -2568,17 +2750,93 @@ jQuery(function ($) {
                 });
             }
             html += '</tbody></table>';
-            html += '<div class="la-filter-count la-followup-count">' + countLabel + '</div>';
             $el.html(html);
 
-            $el.find('.la-followup-open').on('click', function () {
+            function updateFollowupRows() {
+                var currentSearch = $el.data('followup-search') || '';
+                var currentPipeline = $el.data('followup-pipeline-filter') || '';
+                var currentFollowup = $el.data('followup-status-filter') || '';
+                var filteredRows = leads.filter(function (lead) {
+                    return lead.followup_at || lead.due_at;
+                });
+                if (currentSearch) {
+                    var query = String(currentSearch).toLowerCase();
+                    filteredRows = filteredRows.filter(function (lead) {
+                        var name = (lead.first_name || '') + ' ' + (lead.last_name || '');
+                        return (
+                            name.toLowerCase().indexOf(query) !== -1 ||
+                            (lead.email || '').toLowerCase().indexOf(query) !== -1 ||
+                            (lead.company || '').toLowerCase().indexOf(query) !== -1
+                        );
+                    });
+                }
+                if (currentPipeline) {
+                    var normalized = normalizePipelineStageValue(currentPipeline);
+                    filteredRows = filteredRows.filter(function (lead) {
+                        return normalizePipelineStageValue(lead.status) === normalized;
+                    });
+                }
+                if (currentFollowup) {
+                    var followupKey = String(currentFollowup || '').toLowerCase();
+                    if (followupKey === 'due') {
+                        filteredRows = filteredRows.filter(function (lead) { return isDue(lead); });
+                    } else if (followupKey === 'overdue') {
+                        filteredRows = filteredRows.filter(function (lead) { return isOverdue(lead); });
+                    } else {
+                        filteredRows = filteredRows.filter(function (lead) {
+                            return normalizeFollowupStatusValue(lead.followup_status) === followupKey;
+                        });
+                    }
+                }
+                var countText = 'Showing ' + filteredRows.length + ' lead' + (filteredRows.length === 1 ? '' : 's');
+                $el.find('.la-filter-count').text(countText);
+                var shouldEnableClear = !!(currentSearch || currentPipeline || currentFollowup);
+                $el.find('.la-filter-clear').prop('disabled', !shouldEnableClear);
+
+                var bodyHtml = '';
+                if (!filteredRows.length) {
+                    bodyHtml = '<tr><td class="la-empty" colspan="' + (activeColumns.length + 1) + '">No followups scheduled.</td></tr>';
+                } else {
+                    filteredRows.forEach(function (lead) {
+                        bodyHtml += '<tr>';
+                        activeColumns.forEach(function (key) {
+                            bodyHtml += '<td>' + renderCell(lead, key) + '</td>';
+                        });
+                        if (readOnly) {
+                            bodyHtml += '<td class="la-actions-cell"><button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button></td>';
+                        } else {
+                            bodyHtml += '<td class="la-actions la-actions-cell">' +
+                                '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-id="' + lead.id + '">' + icons.action + 'Action</button>' +
+                                '<button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>' +
+                                '<button type="button" class="la-btn la-btn--ghost la-followup-remove" data-id="' + lead.id + '">' + icons.trash + 'Remove</button>' +
+                                '</td>';
+                        }
+                        bodyHtml += '</tr>';
+                    });
+                }
+                $el.find('.la-table tbody').html(bodyHtml);
+            }
+
+            $el.find('.la-search').on('input', function () {
+                $el.data('followup-search', $(this).val());
+                var existingTimer = $el.data('followup-search-timer');
+                if (existingTimer) {
+                    clearTimeout(existingTimer);
+                }
+                var timer = setTimeout(function () {
+                    updateFollowupRows();
+                }, 350);
+                $el.data('followup-search-timer', timer);
+            });
+
+            $el.off('click.laFollowupOpen').on('click.laFollowupOpen', '.la-followup-open', function () {
                 var leadId = $(this).data('id');
                 if (leadId && window.leadAggregatorOpenLeadDetail) {
                     window.leadAggregatorOpenLeadDetail(leadId);
                 }
             });
 
-            $el.find('.la-followup-manage').on('click', function () {
+            $el.off('click.laFollowupManage').on('click.laFollowupManage', '.la-followup-manage', function () {
                 var leadId = $(this).data('id');
                 var lead = leads.find(function (item) { return String(item.id) === String(leadId); });
                 if (lead) {
@@ -2586,7 +2844,7 @@ jQuery(function ($) {
                 }
             });
 
-            $el.find('.la-followup-remove').on('click', function () {
+            $el.off('click.laFollowupRemove').on('click.laFollowupRemove', '.la-followup-remove', function () {
                 var leadId = $(this).data('id');
                 if (!leadId) {
                     return;
@@ -2599,12 +2857,52 @@ jQuery(function ($) {
                 });
             });
 
-            $el.find('.la-followup-filter').on('change', function () {
-                $el.data('followup-filter', $(this).val());
+            $el.find('.la-filter-pill').on('click', function (event) {
+                var $wrap = $(this).closest('.la-filter-pill-wrap');
+                if (!$wrap.length) {
+                    return;
+                }
+                event.stopPropagation();
+                var isOpen = $wrap.hasClass('is-open');
+                $el.find('.la-filter-pill-wrap').removeClass('is-open');
+                $wrap.toggleClass('is-open', !isOpen);
+            });
+
+            $el.find('.la-filter-menu button').on('click', function () {
+                var $wrap = $(this).closest('.la-filter-pill-wrap');
+                var filterType = $wrap.data('filter');
+                var value = $(this).data('value');
+                if (filterType === 'status') {
+                    $el.data('followup-pipeline-filter', value);
+                } else if (filterType === 'followup') {
+                    $el.data('followup-status-filter', value);
+                }
+                $el.find('.la-filter-pill-wrap').removeClass('is-open');
                 renderFollowupsList($el);
             });
 
-            $el.find('.la-followup-columns').on('click', function (event) {
+            $(document).off('click.leadAggregatorFollowupFilters').on('click.leadAggregatorFollowupFilters', function (event) {
+                if (!$(event.target).closest('.la-filter-pill-wrap').length) {
+                    $el.find('.la-filter-pill-wrap').removeClass('is-open');
+                }
+            });
+
+            $el.find('.la-filter-clear').on('click', function () {
+                if (this.disabled) {
+                    return;
+                }
+                $el.data('followup-pipeline-filter', '');
+                $el.data('followup-status-filter', '');
+                $el.data('followup-search', '');
+                var $toolbar = $(this).closest('.la-leads-toolbar');
+                var $search = $toolbar.find('.la-search');
+                if ($search.length) {
+                    $search.val('');
+                }
+                renderFollowupsList($el);
+            });
+
+            $el.find('.la-column-toggle[data-context="followups"]').on('click', function (event) {
                 event.stopPropagation();
                 $el.find('.la-column-menu').toggleClass('is-open');
             });
@@ -3181,37 +3479,10 @@ jQuery(function ($) {
             html += '<div class="la-plan-card" data-plan="' + plan.key + '">' +
                 '<h4>' + plan.label + '</h4>' +
                 '<p class="la-muted">' + formatPlanLimit(plan.limit) + '</p>' +
-                '<div class="la-plan-actions">' +
-                    '<button type="button" class="la-btn la-plan-select" data-interval="monthly" data-plan="' + plan.key + '">Monthly</button>' +
-                    '<button type="button" class="la-btn la-btn--ghost la-plan-select" data-interval="annual" data-plan="' + plan.key + '">Annual</button>' +
-                '</div>' +
             '</div>';
         });
         html += '</div>';
         return html;
-    }
-
-    function attachCheckoutHandlers($el, getPayload) {
-        $el.find('.la-plan-select').on('click', function () {
-            var planKey = $(this).data('plan');
-            var interval = $(this).data('interval');
-            var payload = getPayload ? getPayload(planKey, interval) : { plan_key: planKey, interval: interval };
-            if (!payload) {
-                return;
-            }
-            $el.find('.la-message').remove();
-            $el.append('<div class="la-message">Redirecting to checkout...</div>');
-            apiRequest('POST', 'billing/checkout', payload).done(function (response) {
-                if (response && response.checkout_url) {
-                    window.location.href = response.checkout_url;
-                } else {
-                    $el.find('.la-message').text('Unable to start checkout.');
-                }
-            }).fail(function (xhr) {
-                var message = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unable to start checkout.';
-                $el.find('.la-message').text(message);
-            });
-        });
     }
 
     function renderBilling($el) {
@@ -3225,20 +3496,12 @@ jQuery(function ($) {
                     '<strong>Active:</strong> ' + planLabel + ' · ' + limitLabel +
                     '</div>' +
                     '<div class="la-billing-meta">Leads used: ' + status.lead_count + '</div>' +
-                    '<button type="button" class="la-btn la-billing-portal">Manage subscription</button>';
+                    '<p class="la-muted">Billing is managed via FluentCart.</p>';
                 $el.html(html);
-                $el.find('.la-billing-portal').on('click', function () {
-                    apiRequest('POST', 'billing/portal').done(function (response) {
-                        if (response && response.portal_url) {
-                            window.location.href = response.portal_url;
-                        }
-                    });
-                });
             } else {
-                html += '<p class="la-muted">Subscription inactive. Choose a plan to activate your account.</p>';
+                html += '<p class="la-muted">Subscription inactive. Billing is managed via FluentCart.</p>';
                 html += buildPlanGrid(status.plans || []);
                 $el.html(html);
-                attachCheckoutHandlers($el);
             }
         }).fail(function () {
             $el.html('<p>Unable to load billing.</p>');
@@ -3253,31 +3516,9 @@ jQuery(function ($) {
             apiRequest('GET', 'billing/plans').done(function (response) {
                 var plans = response && response.plans ? response.plans : [];
                 var html = '<div class="la-section-header"><h3>Choose Your Plan</h3>' +
-                    '<p class="la-muted">Pay first to activate your account.</p></div>' +
-                    '<form class="la-form la-billing-signup">' +
-                        '<div><label>Email <input type="email" name="email" required></label></div>' +
-                        '<div><label>Password <input type="password" name="password" required></label></div>' +
-                        '<div><label>Username (optional) <input type="text" name="username"></label></div>' +
-                    '</form>' +
+                    '<p class="la-muted">Billing is managed via FluentCart.</p></div>' +
                     buildPlanGrid(plans);
                 $el.html(html);
-                attachCheckoutHandlers($el, function (planKey, interval) {
-                    var email = $el.find('input[name="email"]').val();
-                    var password = $el.find('input[name="password"]').val();
-                    var username = $el.find('input[name="username"]').val();
-                    if (!email || !password) {
-                        $el.find('.la-message').remove();
-                        $el.append('<div class="la-message">Email and password are required.</div>');
-                        return null;
-                    }
-                    return {
-                        plan_key: planKey,
-                        interval: interval,
-                        email: email,
-                        password: password,
-                        username: username
-                    };
-                });
             }).fail(function () {
                 $el.html('<p>Unable to load plans.</p>');
             });
@@ -3598,8 +3839,17 @@ jQuery(function ($) {
 
         function renderCharts(charts) {
             if (typeof Chart === 'undefined') {
+                console.warn('[Lead Aggregator] Chart.js is missing or blocked.');
+                $el.find('.la-activity-charts .la-card').each(function () {
+                    var $card = $(this);
+                    var $canvas = $card.find('canvas');
+                    if ($canvas.length) {
+                        $canvas.replaceWith('<div class="la-empty la-chart-fallback">Charts unavailable. Chart.js failed to load.</div>');
+                    }
+                });
                 return;
             }
+            console.info('[Lead Aggregator] Chart.js ready.');
             var events = charts.events_over_time || [];
             var days = events.map(function (row) { return row.day; });
             var totals = events.map(function (row) { return row.total; });

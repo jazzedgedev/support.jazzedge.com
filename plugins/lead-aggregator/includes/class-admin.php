@@ -67,6 +67,37 @@ class Lead_Aggregator_Admin {
             '});' .
             '});'
         );
+
+        wp_add_inline_script(
+            'jquery',
+            'jQuery(function($){' .
+                'var $output = $("#lead-aggregator-fluentcart-plans");' .
+                '$("#lead-aggregator-sync-fluentcart").on("click", function(e){' .
+                    'e.preventDefault();' .
+                    'var $btn = $(this);' .
+                    '$btn.prop("disabled", true).text("Syncing...");' .
+                    '$output.empty();' .
+                    'fetch("' . esc_url_raw(rest_url('lead-aggregator/v1/fluentcart/plans')) . '", {' .
+                        'method: "GET",' .
+                        'headers: { "X-WP-Nonce": "' . esc_js(wp_create_nonce('wp_rest')) . '" }' .
+                    '})' .
+                    '.then(function(response){ return response.json(); })' .
+                    '.then(function(data){' .
+                        'if (!data || !data.success) { throw new Error((data && data.message) ? data.message : "Unable to load FluentCart plans."); }' .
+                        'var html = "<p><strong>Available subscriptions</strong></p><p class=\"description\">Show IDs: use these Product IDs in Plan Configuration.</p><ul>";' .
+                        'if (!data.data || !data.data.length) { html += "<li>No subscriptions found.</li>"; }' .
+                        'else { data.data.forEach(function(item){ html += "<li>" + item.label + " (ID: " + item.id + ")</li>"; }); }' .
+                        'html += "</ul>";' .
+                        '$output.html(html);' .
+                    '})' .
+                    '.catch(function(err){' .
+                        'var message = (err && err.message) ? err.message : "Unable to load FluentCart subscriptions.";' .
+                        '$output.html("<p>Unable to load FluentCart subscriptions.</p><p class=\\"description\\">Debug: " + message + "</p>");' .
+                    '})' .
+                    '.finally(function(){ $btn.prop("disabled", false).text("Sync FluentCart Plans"); });' .
+                '});' .
+            '});'
+        );
     }
 
     public function settings_page() {
@@ -81,14 +112,15 @@ class Lead_Aggregator_Admin {
         $footer_enabled = (int) get_option('lead_aggregator_app_footer_enabled', 0);
         $footer_text = get_option('lead_aggregator_app_footer_text', '');
         $webhook_logging = (int) get_option('lead_aggregator_webhook_logging', 1);
-        $stripe_publishable_key = get_option('lead_aggregator_stripe_publishable_key', '');
-        $stripe_secret_key = get_option('lead_aggregator_stripe_secret_key', '');
-        $stripe_webhook_secret = get_option('lead_aggregator_stripe_webhook_secret', '');
-        $stripe_success_url = get_option('lead_aggregator_stripe_success_url', '');
-        $stripe_cancel_url = get_option('lead_aggregator_stripe_cancel_url', '');
-        $stripe_plans = get_option('lead_aggregator_plans', array());
+        $plans = get_option('lead_aggregator_plans', array());
+        $fluentcart_secret = get_option('lead_aggregator_fluentcart_webhook_secret', '');
+        $fluentcart_secret_constant = defined('LEAD_AGGREGATOR_FLUENTCART_WEBHOOK_SECRET') ? (string) LEAD_AGGREGATOR_FLUENTCART_WEBHOOK_SECRET : '';
+        $fluentcart_secret_display = $fluentcart_secret_constant ? $fluentcart_secret_constant : $fluentcart_secret;
+        $fluentcart_secret_suffix = $fluentcart_secret_display ? substr($fluentcart_secret_display, -4) : '';
         $webhooks = $this->database->get_webhook_sources();
         $menus = wp_get_nav_menus();
+        $pages = get_pages(array('number' => 500));
+        $login_page_id = (int) get_option('lead_aggregator_login_page_id', 0);
         $current_user_id = isset($_GET['lead_user']) ? (int) $_GET['lead_user'] : 0;
         $lead_users = $this->database->get_lead_users();
         $admin_leads = $current_user_id ? $this->database->get_leads($current_user_id) : array();
@@ -226,37 +258,18 @@ class Lead_Aggregator_Admin {
                         </tr>
                     </table>
 
-                    <h2>Stripe Billing</h2>
+                    <h3>FluentCart Webhook</h3>
                     <table class="form-table">
-                        <tr>
-                            <th scope="row">Publishable Key</th>
-                            <td>
-                                <input type="text" name="stripe_publishable_key" value="<?php echo esc_attr($stripe_publishable_key); ?>" class="regular-text" />
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Secret Key</th>
-                            <td>
-                                <input type="text" name="stripe_secret_key" value="<?php echo esc_attr($stripe_secret_key); ?>" class="regular-text" />
-                            </td>
-                        </tr>
                         <tr>
                             <th scope="row">Webhook Secret</th>
                             <td>
-                                <input type="text" name="stripe_webhook_secret" value="<?php echo esc_attr($stripe_webhook_secret); ?>" class="regular-text" />
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Success URL</th>
-                            <td>
-                                <input type="url" name="stripe_success_url" value="<?php echo esc_attr($stripe_success_url); ?>" class="regular-text" />
-                                <p class="description">Where users land after successful payment.</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Cancel URL</th>
-                            <td>
-                                <input type="url" name="stripe_cancel_url" value="<?php echo esc_attr($stripe_cancel_url); ?>" class="regular-text" />
+                                <?php if ($fluentcart_secret_constant) : ?>
+                                    <input type="text" value="Saved ••••<?php echo esc_attr($fluentcart_secret_suffix); ?>" class="regular-text" disabled />
+                                    <p class="description">Secret is defined via <code>LEAD_AGGREGATOR_FLUENTCART_WEBHOOK_SECRET</code>.</p>
+                                <?php else : ?>
+                                    <input type="password" name="fluentcart_webhook_secret" value="" class="regular-text" maxlength="200" placeholder="<?php echo $fluentcart_secret_suffix ? 'Saved ••••' . esc_attr($fluentcart_secret_suffix) : ''; ?>" />
+                                    <p class="description">Enter a new secret to replace the saved value. Saved value is hidden.</p>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     </table>
@@ -266,43 +279,49 @@ class Lead_Aggregator_Admin {
                         <thead>
                             <tr>
                                 <th>Plan</th>
-                                <th>Contact Limit</th>
-                                <th>Monthly Price ID</th>
-                                <th>Annual Price ID</th>
+                                <th>Lead Limit</th>
+                                <th>FluentCart Subscriptions</th>
+                                <th>Allowed Statuses</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php
                             $default_plans = array(
-                                'starter' => array('label' => 'Starter', 'limit' => 100),
-                                'growth' => array('label' => 'Growth', 'limit' => 500),
-                                'pro' => array('label' => 'Pro', 'limit' => 2000),
+                                'starter' => array('label' => 'Starter', 'lead_limit' => 100),
+                                'growth' => array('label' => 'Growth', 'lead_limit' => 500),
+                                'pro' => array('label' => 'Pro', 'lead_limit' => 2000),
                             );
                             foreach ($default_plans as $plan_key => $plan_defaults) :
-                                $plan_settings = isset($stripe_plans[$plan_key]) && is_array($stripe_plans[$plan_key]) ? $stripe_plans[$plan_key] : array();
+                                $plan_settings = isset($plans[$plan_key]) && is_array($plans[$plan_key]) ? $plans[$plan_key] : array();
                                 $label = isset($plan_settings['label']) ? $plan_settings['label'] : $plan_defaults['label'];
-                                $limit = isset($plan_settings['limit']) ? (int) $plan_settings['limit'] : $plan_defaults['limit'];
-                                $monthly_price = isset($plan_settings['monthly_price_id']) ? $plan_settings['monthly_price_id'] : '';
-                                $annual_price = isset($plan_settings['annual_price_id']) ? $plan_settings['annual_price_id'] : '';
+                                $limit = isset($plan_settings['lead_limit']) ? (int) $plan_settings['lead_limit'] : (isset($plan_settings['limit']) ? (int) $plan_settings['limit'] : $plan_defaults['lead_limit']);
+                                $fluentcart = isset($plan_settings['fluentcart']) && is_array($plan_settings['fluentcart']) ? $plan_settings['fluentcart'] : array();
+                                $subscription_ids = isset($fluentcart['subscription_ids']) ? implode(',', (array) $fluentcart['subscription_ids']) : '';
+                                $allowed_statuses = isset($fluentcart['allowed_statuses']) ? (array) $fluentcart['allowed_statuses'] : array('active', 'trialing', 'grace');
                                 ?>
                                 <tr>
                                     <td>
                                         <strong><?php echo esc_html($label); ?></strong>
-                                        <input type="hidden" name="stripe_plans[<?php echo esc_attr($plan_key); ?>][label]" value="<?php echo esc_attr($label); ?>">
+                                        <input type="hidden" name="plans[<?php echo esc_attr($plan_key); ?>][label]" value="<?php echo esc_attr($label); ?>">
                                     </td>
                                     <td>
-                                        <input type="number" min="0" name="stripe_plans[<?php echo esc_attr($plan_key); ?>][limit]" value="<?php echo esc_attr($limit); ?>" />
+                                        <input type="number" min="0" name="plans[<?php echo esc_attr($plan_key); ?>][lead_limit]" value="<?php echo esc_attr($limit); ?>" />
                                     </td>
                                     <td>
-                                        <input type="text" name="stripe_plans[<?php echo esc_attr($plan_key); ?>][monthly_price_id]" value="<?php echo esc_attr($monthly_price); ?>" class="regular-text" />
+                                        <input type="text" name="plans[<?php echo esc_attr($plan_key); ?>][fluentcart_subscription_ids]" value="<?php echo esc_attr($subscription_ids); ?>" class="regular-text" placeholder="123,456" />
                                     </td>
                                     <td>
-                                        <input type="text" name="stripe_plans[<?php echo esc_attr($plan_key); ?>][annual_price_id]" value="<?php echo esc_attr($annual_price); ?>" class="regular-text" />
+                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="active" <?php checked(in_array('active', $allowed_statuses, true)); ?>> Active</label><br>
+                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="trialing" <?php checked(in_array('trialing', $allowed_statuses, true)); ?>> Trialing</label><br>
+                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="grace" <?php checked(in_array('grace', $allowed_statuses, true)); ?>> Grace</label><br>
+                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="past_due" <?php checked(in_array('past_due', $allowed_statuses, true)); ?>> Past Due</label>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <p><button type="button" class="button" id="lead-aggregator-sync-fluentcart">Sync FluentCart Plans</button></p>
+                    <div id="lead-aggregator-fluentcart-plans" style="margin-top: 10px;"></div>
 
                     <h2>App Mode</h2>
                     <table class="form-table">
@@ -353,6 +372,20 @@ class Lead_Aggregator_Admin {
                                 Show footer in app mode
                             </label>
                             <textarea name="app_footer_text" rows="3" class="large-text"><?php echo esc_textarea($footer_text); ?></textarea>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Login Redirect Page</th>
+                        <td>
+                            <select name="login_page_id">
+                                <option value="0">Default (/login)</option>
+                                <?php foreach ($pages as $page) : ?>
+                                    <option value="<?php echo esc_attr($page->ID); ?>" <?php selected($login_page_id, (int) $page->ID); ?>>
+                                        <?php echo esc_html($page->post_title); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description">Redirect unauthenticated visitors to this page.</p>
                         </td>
                     </tr>
                     </table>
@@ -410,10 +443,13 @@ class Lead_Aggregator_Admin {
                             <th scope="row">Type</th>
                             <td>
                                 <select name="manager_id">
-                                    <option value="0">Manager</option>
-                                    <?php foreach ($manager_options as $manager) : ?>
-                                        <option value="<?php echo esc_attr($manager->ID); ?>"><?php echo esc_html($manager->display_name); ?></option>
-                                    <?php endforeach; ?>
+                                    <option value="0">Set as a Manager</option>
+                                    <option value="" disabled>──────────</option>
+                                    <optgroup label="Assign to Manager...">
+                                        <?php foreach ($manager_options as $manager) : ?>
+                                            <option value="<?php echo esc_attr($manager->ID); ?>"><?php echo esc_html($manager->display_name); ?></option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
                                 </select>
                             </td>
                         </tr>
@@ -480,12 +516,15 @@ class Lead_Aggregator_Admin {
                                             <input type="hidden" name="action" value="lead_aggregator_manage_user">
                                             <input type="hidden" name="user_id" value="<?php echo esc_attr($user->ID); ?>">
                                             <select name="manager_id">
-                                                <option value="0" <?php selected($manager_id, 0); ?>>Manager</option>
-                                                <?php foreach ($manager_options as $manager) : ?>
-                                                    <option value="<?php echo esc_attr($manager->ID); ?>" <?php selected($manager_id, $manager->ID); ?>>
-                                                        <?php echo esc_html($manager->display_name); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
+                                                <option value="0" <?php selected($manager_id, 0); ?>>Set as a Manager</option>
+                                                <option value="" disabled>──────────</option>
+                                                <optgroup label="Assign to Manager...">
+                                                    <?php foreach ($manager_options as $manager) : ?>
+                                                        <option value="<?php echo esc_attr($manager->ID); ?>" <?php selected($manager_id, $manager->ID); ?>>
+                                                            <?php echo esc_html($manager->display_name); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </optgroup>
                                             </select>
                                     </td>
                                     <td>
@@ -778,23 +817,37 @@ class Lead_Aggregator_Admin {
         $footer_enabled = isset($_POST['app_footer_enabled']) ? 1 : 0;
         $footer_text = isset($_POST['app_footer_text']) ? wp_kses_post($_POST['app_footer_text']) : '';
         $webhook_logging = isset($_POST['webhook_logging']) ? 1 : 0;
-        $stripe_publishable_key = isset($_POST['stripe_publishable_key']) ? sanitize_text_field($_POST['stripe_publishable_key']) : '';
-        $stripe_secret_key = isset($_POST['stripe_secret_key']) ? sanitize_text_field($_POST['stripe_secret_key']) : '';
-        $stripe_webhook_secret = isset($_POST['stripe_webhook_secret']) ? sanitize_text_field($_POST['stripe_webhook_secret']) : '';
-        $stripe_success_url = isset($_POST['stripe_success_url']) ? esc_url_raw($_POST['stripe_success_url']) : '';
-        $stripe_cancel_url = isset($_POST['stripe_cancel_url']) ? esc_url_raw($_POST['stripe_cancel_url']) : '';
-        $stripe_plans = array();
-        if (isset($_POST['stripe_plans']) && is_array($_POST['stripe_plans'])) {
-            foreach ($_POST['stripe_plans'] as $plan_key => $plan_data) {
+        $login_page_id = isset($_POST['login_page_id']) ? (int) $_POST['login_page_id'] : 0;
+        $plans = array();
+        if (isset($_POST['plans']) && is_array($_POST['plans'])) {
+            foreach ($_POST['plans'] as $plan_key => $plan_data) {
                 $plan_key = sanitize_key($plan_key);
                 if (!$plan_key || !is_array($plan_data)) {
                     continue;
                 }
-                $stripe_plans[$plan_key] = array(
+                $allowed_statuses = array();
+                if (!empty($plan_data['allowed_statuses']) && is_array($plan_data['allowed_statuses'])) {
+                    foreach ($plan_data['allowed_statuses'] as $status) {
+                        $allowed_statuses[] = sanitize_text_field($status);
+                    }
+                }
+                $subscription_ids = array();
+                if (!empty($plan_data['fluentcart_subscription_ids'])) {
+                    $ids = explode(',', $plan_data['fluentcart_subscription_ids']);
+                    foreach ($ids as $id) {
+                        $id = trim($id);
+                        if ($id !== '') {
+                            $subscription_ids[] = $id;
+                        }
+                    }
+                }
+                $plans[$plan_key] = array(
                     'label' => isset($plan_data['label']) ? sanitize_text_field($plan_data['label']) : ucfirst($plan_key),
-                    'limit' => isset($plan_data['limit']) ? (int) $plan_data['limit'] : 0,
-                    'monthly_price_id' => isset($plan_data['monthly_price_id']) ? sanitize_text_field($plan_data['monthly_price_id']) : '',
-                    'annual_price_id' => isset($plan_data['annual_price_id']) ? sanitize_text_field($plan_data['annual_price_id']) : '',
+                    'lead_limit' => isset($plan_data['lead_limit']) ? (int) $plan_data['lead_limit'] : 0,
+                    'fluentcart' => array(
+                        'subscription_ids' => $subscription_ids,
+                        'allowed_statuses' => !empty($allowed_statuses) ? $allowed_statuses : array('active', 'trialing', 'grace'),
+                    ),
                 );
             }
         }
@@ -806,12 +859,16 @@ class Lead_Aggregator_Admin {
         update_option('lead_aggregator_app_footer_enabled', $footer_enabled);
         update_option('lead_aggregator_app_footer_text', $footer_text);
         update_option('lead_aggregator_webhook_logging', $webhook_logging);
-        update_option('lead_aggregator_stripe_publishable_key', $stripe_publishable_key);
-        update_option('lead_aggregator_stripe_secret_key', $stripe_secret_key);
-        update_option('lead_aggregator_stripe_webhook_secret', $stripe_webhook_secret);
-        update_option('lead_aggregator_stripe_success_url', $stripe_success_url);
-        update_option('lead_aggregator_stripe_cancel_url', $stripe_cancel_url);
-        update_option('lead_aggregator_plans', $stripe_plans);
+        update_option('lead_aggregator_login_page_id', $login_page_id);
+        update_option('lead_aggregator_plans', $plans);
+
+        if (!defined('LEAD_AGGREGATOR_FLUENTCART_WEBHOOK_SECRET') && isset($_POST['fluentcart_webhook_secret'])) {
+            $secret = sanitize_text_field(wp_unslash($_POST['fluentcart_webhook_secret']));
+            $secret = substr(trim($secret), 0, 200);
+            if ($secret !== '') {
+                update_option('lead_aggregator_fluentcart_webhook_secret', $secret);
+            }
+        }
 
         wp_redirect(admin_url('admin.php?page=lead-aggregator&settings=updated'));
         exit;

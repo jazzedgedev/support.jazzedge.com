@@ -8,12 +8,14 @@ class Lead_Aggregator_REST {
     private $permissions;
     private $billing;
     private $audit;
+    private $fluentcart;
 
-    public function __construct($database, $permissions, $billing, $audit) {
+    public function __construct($database, $permissions, $billing, $audit, $fluentcart) {
         $this->database = $database;
         $this->permissions = $permissions;
         $this->billing = $billing;
         $this->audit = $audit;
+        $this->fluentcart = $fluentcart;
 
         add_action('rest_api_init', array($this, 'register_routes'));
     }
@@ -187,6 +189,12 @@ class Lead_Aggregator_REST {
             'permission_callback' => array($this, 'check_user_read'),
         ));
 
+        register_rest_route('lead-aggregator/v1', '/fluentcart/plans', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_fluentcart_plans'),
+            'permission_callback' => array($this, 'check_admin'),
+        ));
+
         register_rest_route('lead-aggregator/v1', '/webhook-sources', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_webhook_sources'),
@@ -223,21 +231,9 @@ class Lead_Aggregator_REST {
             'permission_callback' => '__return_true',
         ));
 
-        register_rest_route('lead-aggregator/v1', '/billing/checkout', array(
+        register_rest_route('lead-aggregator/v1', '/fluentcart/webhook', array(
             'methods' => 'POST',
-            'callback' => array($this, 'create_checkout_session'),
-            'permission_callback' => '__return_true',
-        ));
-
-        register_rest_route('lead-aggregator/v1', '/billing/portal', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'create_portal_session'),
-            'permission_callback' => array($this, 'check_login'),
-        ));
-
-        register_rest_route('lead-aggregator/v1', '/billing/webhook', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'handle_billing_webhook'),
+            'callback' => array($this, 'handle_fluentcart_webhook'),
             'permission_callback' => '__return_true',
         ));
 
@@ -401,6 +397,13 @@ class Lead_Aggregator_REST {
         return new WP_Error($code, $message, array('status' => $status));
     }
 
+    public function check_admin() {
+        if (current_user_can('manage_options')) {
+            return true;
+        }
+        return new WP_Error('forbidden', 'Insufficient permissions.', array('status' => 403));
+    }
+
     public function check_login() {
         if ($this->permissions->require_login()) {
             return true;
@@ -446,9 +449,10 @@ class Lead_Aggregator_REST {
         }
 
         $user_id = (int) $source_record['user_id'];
-        if (!$this->permissions->can_create_lead($user_id)) {
-            $this->maybe_log_webhook($user_id, $source, 'failed', 'Contact limit reached', $payload);
-            return new WP_Error('limit_reached', 'Contact limit reached', array('status' => 403));
+        $entitlements = lead_aggregator_get_entitlements($user_id);
+        if (!empty($entitlements['is_over_limit'])) {
+            $this->maybe_log_webhook($user_id, $source, 'failed', 'Lead limit reached', $payload);
+            return new WP_Error('over_limit', 'Lead limit reached. Please upgrade your plan.', array('status' => 403));
         }
 
         $lead_source = 'webhook';
@@ -533,12 +537,13 @@ class Lead_Aggregator_REST {
         }
 
         $user_id = (int) $source_record['user_id'];
-        if (!$this->permissions->can_create_lead($user_id)) {
-            $this->maybe_log_webhook($user_id, $source_record['source_key'], 'failed', 'Contact limit reached', $payload);
+        $entitlements = lead_aggregator_get_entitlements($user_id);
+        if (!empty($entitlements['is_over_limit'])) {
+            $this->maybe_log_webhook($user_id, $source_record['source_key'], 'failed', 'Lead limit reached', $payload);
             $this->audit_log('webhook_failed', 'webhook', (int) $source_record['id'], $source_record['source_key'], array(
-                'error' => 'Contact limit reached',
+                'error' => 'Lead limit reached',
             ), $user_id);
-            return new WP_Error('limit_reached', 'Contact limit reached', array('status' => 403));
+            return new WP_Error('over_limit', 'Lead limit reached. Please upgrade your plan.', array('status' => 403));
         }
 
         $lead_source = 'webhook';
@@ -761,8 +766,9 @@ class Lead_Aggregator_REST {
             return $readonly;
         }
         $user_id = $this->get_account_user_id($actor_id);
-        if (!$this->permissions->can_create_lead($user_id)) {
-            return new WP_Error('limit_reached', 'Contact limit reached', array('status' => 403));
+        $entitlements = lead_aggregator_get_entitlements($user_id);
+        if (!empty($entitlements['is_over_limit'])) {
+            return new WP_Error('over_limit', 'Lead limit reached. Please upgrade your plan.', array('status' => 403));
         }
 
         $params = $this->get_request_params($request);
@@ -1557,6 +1563,51 @@ class Lead_Aggregator_REST {
         return $response;
     }
 
+    public function get_fluentcart_plans() {
+        if (!$this->fluentcart || !$this->fluentcart->is_active()) {
+            return rest_ensure_response(array(
+                'success' => false,
+                'data' => array(),
+                'message' => 'FluentCart API not available. Ensure FluentCart is active and API helpers are loaded.',
+            ));
+        }
+        $items = $this->fluentcart->fetch_subscriptions();
+        if (isset($items['data']) && is_array($items['data'])) {
+            $items = $items['data'];
+        }
+        if (!$items || !is_array($items)) {
+            return rest_ensure_response(array(
+                'success' => false,
+                'data' => array(),
+                'message' => 'No subscriptions returned from FluentCart.',
+            ));
+        }
+        $normalized = array();
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                $id = '';
+                $label = '';
+                if (is_array($item)) {
+                    $id = isset($item['id']) ? (string) $item['id'] : '';
+                    $label = isset($item['title']) ? (string) $item['title'] : (isset($item['name']) ? (string) $item['name'] : '');
+                } elseif (is_object($item)) {
+                    $id = isset($item->id) ? (string) $item->id : '';
+                    $label = isset($item->title) ? (string) $item->title : (isset($item->name) ? (string) $item->name : '');
+                }
+                if ($id) {
+                    $normalized[] = array(
+                        'id' => $id,
+                        'label' => $label ?: 'Subscription ' . $id,
+                    );
+                }
+            }
+        }
+        return rest_ensure_response(array(
+            'success' => true,
+            'data' => $normalized,
+        ));
+    }
+
     public function export_lead($request) {
         $actor_id = get_current_user_id();
         $user_id = $this->get_account_user_id($actor_id);
@@ -1738,6 +1789,22 @@ class Lead_Aggregator_REST {
         return $value;
     }
 
+    private function extract_fluentcart_email($data) {
+        $candidates = array(
+            $data['data']['customer']['email'] ?? null,
+            $data['customer']['email'] ?? null,
+            $data['customer_email'] ?? null,
+            $data['email'] ?? null,
+            $data['subscriber']['email'] ?? null,
+        );
+        foreach ($candidates as $candidate) {
+            if ($candidate) {
+                return sanitize_email($candidate);
+            }
+        }
+        return '';
+    }
+
     public function get_webhook_sources() {
         $actor_id = get_current_user_id();
         $user_id = $this->get_account_user_id($actor_id);
@@ -1833,7 +1900,8 @@ class Lead_Aggregator_REST {
         $user_id = get_current_user_id();
         $plans = $this->billing->get_plans();
         $status = $this->billing->get_subscription_status($user_id);
-        $plan_key = $this->billing->get_plan_key($user_id);
+        $entitlements = lead_aggregator_get_entitlements($user_id);
+        $plan_key = $entitlements['plan_key'];
         $plan = $plan_key && isset($plans[$plan_key]) ? $plans[$plan_key] : null;
 
         $public_plans = array();
@@ -1841,7 +1909,7 @@ class Lead_Aggregator_REST {
             $public_plans[$key] = array(
                 'key' => $key,
                 'label' => $plan_data['label'],
-                'limit' => isset($plan_data['limit']) ? (int) $plan_data['limit'] : 0,
+                'limit' => isset($plan_data['lead_limit']) ? (int) $plan_data['lead_limit'] : 0,
             );
         }
 
@@ -1849,9 +1917,9 @@ class Lead_Aggregator_REST {
             'status' => $status ? $status : 'inactive',
             'plan_key' => $plan_key,
             'plan_label' => $plan ? $plan['label'] : '',
-            'plan_limit' => $plan && isset($plan['limit']) ? (int) $plan['limit'] : 0,
+            'plan_limit' => $entitlements['lead_limit'],
             'current_period_end' => (int) get_user_meta($user_id, 'lead_aggregator_subscription_period_end', true),
-            'lead_count' => $this->database->count_leads($user_id),
+            'lead_count' => $entitlements['current_lead_count'],
             'plans' => array_values($public_plans),
         ));
     }
@@ -1863,100 +1931,77 @@ class Lead_Aggregator_REST {
             $public_plans[] = array(
                 'key' => $key,
                 'label' => $plan_data['label'],
-                'limit' => isset($plan_data['limit']) ? (int) $plan_data['limit'] : 0,
+                'limit' => isset($plan_data['lead_limit']) ? (int) $plan_data['lead_limit'] : 0,
             );
         }
 
         return rest_ensure_response(array('plans' => $public_plans));
     }
 
-    public function create_checkout_session($request) {
-        if ($this->is_rate_limited('billing:checkout', 20, 60)) {
+    public function handle_fluentcart_webhook($request) {
+        if ($this->is_rate_limited('fluentcart:webhook', 60, 60)) {
             return new WP_Error('rate_limited', 'Too many requests. Please try again later.', array('status' => 429));
         }
-        $params = $this->get_request_params($request);
-        $plan_key = isset($params['plan_key']) ? sanitize_key($params['plan_key']) : '';
-        $interval = isset($params['interval']) ? sanitize_key($params['interval']) : 'monthly';
-        if (!in_array($interval, array('monthly', 'annual'), true)) {
-            $interval = 'monthly';
+        if (!$this->fluentcart) {
+            return new WP_Error('missing_integration', 'FluentCart integration is not available.', array('status' => 400));
+        }
+        $secret = $this->fluentcart->get_webhook_secret();
+        if (!$secret) {
+            return new WP_Error('missing_secret', 'Webhook secret not configured.', array('status' => 400));
+        }
+        $payload = $request->get_body();
+        $signature = $request->get_header('x-fluentcart-signature');
+        if (!$signature) {
+            $signature = $request->get_header('x-fc-signature');
+        }
+        if (!$signature) {
+            $signature = $request->get_header('x-signature');
+        }
+        if (!$this->fluentcart->verify_signature($payload, $signature, $secret)) {
+            return new WP_Error('invalid_signature', 'Invalid webhook signature.', array('status' => 401));
         }
 
-        $user_id = get_current_user_id();
-        if ($user_id <= 0) {
-            $email = isset($params['email']) ? sanitize_email($params['email']) : '';
-            $password = isset($params['password']) ? (string) $params['password'] : '';
-            $username = isset($params['username']) ? sanitize_user($params['username']) : '';
-
-            if (!$email || !$password) {
-                return new WP_Error('missing_fields', 'Email and password are required.', array('status' => 400));
+        $data = json_decode($payload, true);
+        if (!is_array($data)) {
+            return new WP_Error('invalid_payload', 'Invalid webhook payload.', array('status' => 400));
+        }
+        $event_id = $data['event_id'] ?? ($data['id'] ?? '');
+        $event_id = $event_id ? sanitize_text_field($event_id) : '';
+        if ($event_id) {
+            $key = 'lead_aggregator_fc_event_' . md5($event_id);
+            if (get_transient($key)) {
+                return rest_ensure_response(array('success' => true, 'skipped' => true));
             }
-
-            if (!$username) {
-                $username = sanitize_user(strstr($email, '@', true));
-            }
-
-            if (!$username) {
-                $username = 'leaduser';
-            }
-
-            $base_username = $username;
-            $suffix = 1;
-            while (username_exists($username)) {
-                $username = $base_username . $suffix;
-                $suffix++;
-            }
-
-            if (email_exists($email)) {
-                $existing = get_user_by('email', $email);
-                if ($existing) {
-                    $user_id = (int) $existing->ID;
-                }
-            }
-
-            if (!$user_id) {
-                $user_id = wp_create_user($username, $password, $email);
-                if (is_wp_error($user_id)) {
-                    $data = $user_id->get_error_data();
-                    if (!is_array($data)) {
-                        $data = array();
-                    }
-                    if (!isset($data['status'])) {
-                        $data['status'] = 400;
-                        $user_id->add_data($data);
-                    }
-                    return $user_id;
-                }
-                update_user_meta($user_id, 'lead_aggregator_subscription_status', 'inactive');
-            }
+            set_transient($key, 1, DAY_IN_SECONDS);
         }
 
-        if (!$plan_key) {
-            return new WP_Error('missing_plan', 'Please select a plan.', array('status' => 400));
+        $email = $this->extract_fluentcart_email($data);
+        if (!$email) {
+            return rest_ensure_response(array('success' => true, 'message' => 'No user email found.'));
+        }
+        $user = get_user_by('email', $email);
+        if (!$user) {
+            return rest_ensure_response(array('success' => true, 'message' => 'No matching user.'));
         }
 
-        $url = $this->billing->create_checkout_session($user_id, $plan_key, $interval);
-        if (is_wp_error($url)) {
-            return $url;
-        }
+        $before = array(
+            'plan_key' => get_user_meta($user->ID, 'lead_aggregator_plan_key', true),
+            'lead_limit' => (int) get_user_meta($user->ID, 'lead_aggregator_lead_limit', true),
+        );
+        $plans = $this->billing->get_plans();
+        $resolved = $this->fluentcart->resolve_plan_for_user($user->ID, $plans);
+        $this->fluentcart->set_cached_plan($user->ID, $resolved['plan_key'], $resolved['lead_limit'], $resolved['source']);
 
-        return rest_ensure_response(array('checkout_url' => esc_url_raw($url)));
-    }
+        $after = array(
+            'plan_key' => $resolved['plan_key'],
+            'lead_limit' => $resolved['lead_limit'],
+        );
+        $this->audit_log('plan_changed', 'billing', $user->ID, $user->user_email, array(
+            'before' => $before,
+            'after' => $after,
+        ), $user->ID);
 
-    public function create_portal_session() {
-        $user_id = get_current_user_id();
-        $url = $this->billing->create_portal_session($user_id);
-        if (is_wp_error($url)) {
-            return $url;
-        }
-
-        return rest_ensure_response(array('portal_url' => esc_url_raw($url)));
-    }
-
-    public function handle_billing_webhook($request) {
-        if ($this->is_rate_limited('billing:webhook', 60, 60)) {
-            return new WP_Error('rate_limited', 'Too many requests. Please try again later.', array('status' => 429));
-        }
-        return $this->billing->handle_webhook($request);
+        return rest_ensure_response(array('success' => true));
     }
 
     public function get_notification_settings() {
