@@ -18398,17 +18398,8 @@ class JPH_Frontend {
                     }
                 });
                 
-                // Load plan data on page load if plan tab is active
-                if ($('#plan-tab').hasClass('active')) {
-                    loadPlanData();
-                }
-                
-                // Also load when switching to plan tab
-                $(document).on('click', '.jph-tab-btn[data-tab="plan"]', function() {
-                    setTimeout(function() {
-                        loadPlanData();
-                    }, 100);
-                });
+                // Plan data comes ONLY from applyDashboardInitData when dashboard-init resolves.
+                // No direct GET /aph/v1/plan on init or tab switch.
             }
             
             // Apply plan data to form fields (used by dashboard-init and loadPlanData)
@@ -18422,26 +18413,12 @@ class JPH_Frontend {
                 }
             }
 
-            // Load plan data from API (uses cache from dashboard-init when available)
+            // Apply plan data from cache only. Plan data comes exclusively from applyDashboardInitData.
+            // No direct GET /aph/v1/plan — only POST for save/update.
             function loadPlanData() {
-                if (aphDashboardInitData && aphDashboardInitData.plan) {
-                    applyPlanData(aphDashboardInitData.plan);
-                    return;
+                if (window.aphDashboardInitData && window.aphDashboardInitData.plan) {
+                    applyPlanData(window.aphDashboardInitData.plan);
                 }
-                $.ajax({
-                    url: '<?php echo rest_url('aph/v1/plan'); ?>',
-                    method: 'GET',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    success: function(response) {
-                        if (response.success && response.plan) {
-                            applyPlanData(response.plan);
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                    }
-                });
             }
             
             // Practice Reminder Settings Modal
