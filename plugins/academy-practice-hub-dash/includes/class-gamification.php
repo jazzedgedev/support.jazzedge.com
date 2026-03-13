@@ -178,6 +178,12 @@ class APH_Gamification {
         }
         $saved_dates_map = array_fill_keys($saved_dates, true);
         $saved_dates_changed = false;
+        $saved_dates_detail = get_user_meta($user_id, 'aph_streak_saved_dates_detail', true);
+        if (!is_array($saved_dates_detail)) {
+            $saved_dates_detail = array();
+        }
+        $saved_dates_detail_changed = false;
+        $saved_dates_detail_calc = array();
         
         // Get all practice sessions
         $sessions = $wpdb->get_results($wpdb->prepare(
@@ -292,7 +298,8 @@ class APH_Gamification {
             $today_date = (new DateTime('@' . $now_timestamp))->setTimezone($user_timezone)->format('Y-m-d');
             $today_midnight = new DateTime($today_date, $user_timezone);
             $last_midnight = new DateTime($most_recent_day['date'], $user_timezone);
-            $days_since_last = (int) floor(($today_midnight->getTimestamp() - $last_midnight->getTimestamp()) / DAY_IN_SECONDS);
+            // Use date diff to avoid DST-related 23/25 hour day issues
+            $days_since_last = (int) $last_midnight->diff($today_midnight)->days;
             $recent_gap_seconds = $now_timestamp - $most_recent_day['timestamp'];
             
             if ($days_since_last <= 1 || $recent_gap_seconds <= $grace_seconds) {
@@ -301,23 +308,34 @@ class APH_Gamification {
                 $missing_date = (clone $last_midnight)->modify('+1 day')->format('Y-m-d');
                 if (isset($saved_dates_map[$missing_date])) {
                     $is_active = true;
+                    $saved_dates_detail_calc[$missing_date] = $saved_dates_detail[$missing_date] ?? 'saved';
                 } elseif ($remaining_shields > 0) {
                     $is_active = true;
                     $remaining_shields--;
                     $shields_used++;
                     $shield_used = true;
+                    $saved_dates_detail_calc[$missing_date] = 'shield';
                     if ($apply_costs) {
                         $saved_dates_map[$missing_date] = true;
                         $saved_dates_changed = true;
+                        if (empty($saved_dates_detail[$missing_date])) {
+                            $saved_dates_detail[$missing_date] = 'shield';
+                            $saved_dates_detail_changed = true;
+                        }
                     }
                 } elseif ($auto_gem_opt_in && $remaining_gems >= $auto_gem_cost) {
                     $is_active = true;
                     $remaining_gems -= $auto_gem_cost;
                     $gems_used++;
                     $gems_spent += $auto_gem_cost;
+                    $saved_dates_detail_calc[$missing_date] = 'gem';
                     if ($apply_costs) {
                         $saved_dates_map[$missing_date] = true;
                         $saved_dates_changed = true;
+                        if (empty($saved_dates_detail[$missing_date])) {
+                            $saved_dates_detail[$missing_date] = 'gem';
+                            $saved_dates_detail_changed = true;
+                        }
                     }
                 }
             }
@@ -333,7 +351,8 @@ class APH_Gamification {
                 $gap_seconds = $current_day['timestamp'] - $prev_day['timestamp'];
                 $current_midnight = new DateTime($current_day['date'], $user_timezone);
                 $prev_midnight = new DateTime($prev_day['date'], $user_timezone);
-                $day_gap = (int) floor(($current_midnight->getTimestamp() - $prev_midnight->getTimestamp()) / DAY_IN_SECONDS);
+                // Use date diff to avoid DST-related 23/25 hour day issues
+                $day_gap = (int) $prev_midnight->diff($current_midnight)->days;
                 
                 if ($day_gap === 1) {
                     $current_streak++;
@@ -343,23 +362,34 @@ class APH_Gamification {
                     $missing_date = (clone $prev_midnight)->modify('+1 day')->format('Y-m-d');
                     if (isset($saved_dates_map[$missing_date])) {
                         $current_streak++;
+                        $saved_dates_detail_calc[$missing_date] = $saved_dates_detail[$missing_date] ?? 'saved';
                     } elseif ($remaining_shields > 0) {
                         $current_streak++;
                         $remaining_shields--;
                         $shields_used++;
                         $shield_used = true;
+                        $saved_dates_detail_calc[$missing_date] = 'shield';
                         if ($apply_costs) {
                             $saved_dates_map[$missing_date] = true;
                             $saved_dates_changed = true;
+                            if (empty($saved_dates_detail[$missing_date])) {
+                                $saved_dates_detail[$missing_date] = 'shield';
+                                $saved_dates_detail_changed = true;
+                            }
                         }
                     } elseif ($auto_gem_opt_in && $remaining_gems >= $auto_gem_cost) {
                         $current_streak++;
                         $remaining_gems -= $auto_gem_cost;
                         $gems_used++;
                         $gems_spent += $auto_gem_cost;
+                        $saved_dates_detail_calc[$missing_date] = 'gem';
                         if ($apply_costs) {
                             $saved_dates_map[$missing_date] = true;
                             $saved_dates_changed = true;
+                            if (empty($saved_dates_detail[$missing_date])) {
+                                $saved_dates_detail[$missing_date] = 'gem';
+                                $saved_dates_detail_changed = true;
+                            }
                         }
                     } else {
                         break;
@@ -379,7 +409,8 @@ class APH_Gamification {
             $gap_seconds = $curr_day['timestamp'] - $prev_day['timestamp'];
             $current_midnight = new DateTime($curr_day['date'], $user_timezone);
             $prev_midnight = new DateTime($prev_day['date'], $user_timezone);
-            $day_gap = (int) floor(($current_midnight->getTimestamp() - $prev_midnight->getTimestamp()) / DAY_IN_SECONDS);
+            // Use date diff to avoid DST-related 23/25 hour day issues
+            $day_gap = (int) $prev_midnight->diff($current_midnight)->days;
             
             if ($day_gap === 1 || ($day_gap === 2 && $gap_seconds <= $grace_seconds)) {
                 $temp_streak++;
@@ -430,6 +461,19 @@ class APH_Gamification {
             $saved_dates_list = array_keys($saved_dates_map);
             sort($saved_dates_list);
             update_user_meta($user_id, 'aph_streak_saved_dates', $saved_dates_list);
+        }
+        if ($apply_costs && $saved_dates_detail_changed) {
+            ksort($saved_dates_detail);
+            update_user_meta($user_id, 'aph_streak_saved_dates_detail', $saved_dates_detail);
+        }
+        if (!empty($saved_dates_detail_calc)) {
+            foreach ($saved_dates_detail_calc as $date_key => $type) {
+                if (empty($saved_dates_detail[$date_key])) {
+                    $saved_dates_detail[$date_key] = $type;
+                }
+            }
+            ksort($saved_dates_detail);
+            update_user_meta($user_id, 'aph_streak_saved_dates_detail', $saved_dates_detail);
         }
 
         update_user_meta($user_id, 'aph_streak_debug', array(

@@ -30,6 +30,7 @@ class JPH_Frontend {
         add_shortcode('jph_notifications', array($this, 'render_notifications_feed'));
         add_shortcode('jph_timezone_settings', array($this, 'render_timezone_settings'));
         add_shortcode('jph_fix_streak', array($this, 'render_fix_streak'));
+        add_shortcode('streak_accounting', array($this, 'render_streak_accounting'));
         
         // AJAX handler for loading AI Assistant
         add_action('wp_ajax_jph_load_ai_assistant', array($this, 'ajax_load_ai_assistant'));
@@ -1817,7 +1818,11 @@ class JPH_Frontend {
                     "SELECT COUNT(*) FROM academy_user_credit_log WHERE user_id = %d",
                     $user_id
                 ));
-                $has_credit_purchases = $credit_log_count > 0;
+                $event_purchased_count = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM academy_event_purchased WHERE user_id = %d",
+                    $user_id
+                ));
+                $has_credit_purchases = ($credit_log_count > 0 || $event_purchased_count > 0);
             }
             
             // Check if user has any membership-related Keap tags configured in ALM settings
@@ -2051,14 +2056,52 @@ class JPH_Frontend {
                     box-shadow: 0 4px 12px rgba(0, 115, 170, 0.3);
                 }
                 
+                .membership-notice a.shop-purchases-btn {
+                    background: #f04e23;
+                    color: white;
+                    box-shadow: 0 4px 12px rgba(240, 78, 35, 0.4);
+                }
+                
+                .membership-notice a.shop-purchases-btn:hover {
+                    background: #d9441c;
+                    box-shadow: 0 6px 20px rgba(240, 78, 35, 0.5);
+                }
+                
+                .membership-notice a.membership-text-link {
+                    display: inline;
+                    background: none;
+                    box-shadow: none;
+                    padding: 0;
+                    font-size: inherit;
+                    color: #0073aa;
+                    text-decoration: underline;
+                    font-weight: 400;
+                }
+                
+                .membership-notice a.membership-text-link:hover {
+                    background: none !important;
+                    box-shadow: none !important;
+                    color: #005a87;
+                    transform: none;
+                }
+                
                 .membership-notice a.credit-log-link {
-                    background: linear-gradient(135deg, #239B90 0%, #1a7a70 100%);
-                    box-shadow: 0 4px 12px rgba(35, 155, 144, 0.3);
+                    background: none;
+                    box-shadow: none;
+                    padding: 0;
+                    font-size: inherit;
+                    color: #0073aa;
+                    text-decoration: underline;
+                    display: block;
+                    margin-top: 16px;
+                    font-weight: 400;
                 }
                 
                 .membership-notice a.credit-log-link:hover {
-                    background: linear-gradient(135deg, #1a7a70 0%, #135a52 100%);
-                    box-shadow: 0 6px 20px rgba(35, 155, 144, 0.4);
+                    background: none !important;
+                    box-shadow: none !important;
+                    color: #005a87;
+                    transform: none;
                 }
                 
                 .membership-notice a:hover {
@@ -2074,15 +2117,12 @@ class JPH_Frontend {
             <div class="jph-membership-required">
                 <div class="membership-notice">
                     <h3>Membership Required</h3>
-                    <p>You need an active JazzEdge Academy membership to access the Practice Hub dashboard.</p>' .
-                    ($has_credit_purchases 
-                        ? ''
-                        : ''
-                    ) . '
+                    <p>You need an active JazzEdge Academy <a href="/join" class="membership-text-link">membership</a> to access the Practice Hub dashboard.</p>
                     <div class="button-container">
-                        ' . ($has_credit_purchases ? '<a href="/credit-log" class="credit-log-link">View Your Purchased Lessons</a>' : '') . '
+                        <a href="https://jazzedge.academy/account/" class="shop-purchases-btn">View Your Shop Purchases</a>
                         <a href="/support">Contact Support</a>
                     </div>
+                    ' . ($has_credit_purchases ? '<a href="/credit-log" class="credit-log-link">view your legacy credit log purchases</a>' : '') . '
                 </div>
             </div>' . $debug_info;
             }
@@ -21810,8 +21850,9 @@ class JPH_Frontend {
                 const closeBtn = $('#jph-streak-explainer-close');
                 const missingToggle = $('.jph-streak-missing-toggle');
                 
-                $('.jph-streak-explainer-btn').on('click', function() {
-                    modal.show();
+                $('.jph-streak-explainer-btn').on('click', function(e) {
+                    e.preventDefault();
+                    window.location.href = '/streak';
                 });
                 
                 closeBtn.on('click', function() {
@@ -27121,6 +27162,505 @@ Leaderboard Status:
     /**
      * Render fix streak shortcode - allows users to recalculate their own streak
      */
+    public function render_streak_accounting($atts) {
+        if (!is_user_logged_in()) {
+            return '<p>Please log in to view your streak details.</p>';
+        }
+
+        wp_enqueue_script('jquery');
+
+        $user_id = get_current_user_id();
+        $gamification = new APH_Gamification();
+        $user_stats = $gamification->get_user_stats($user_id);
+        $user_stats = $this->sanitize_user_stats($user_stats);
+
+        $dashboard_prefs_json = get_user_meta($user_id, 'aph_dashboard_preferences', true);
+        $dashboard_prefs = array(
+            'auto_gem_streak_save' => true
+        );
+        if (!empty($dashboard_prefs_json)) {
+            $parsed_prefs = json_decode($dashboard_prefs_json, true);
+            if (is_array($parsed_prefs)) {
+                $dashboard_prefs = wp_parse_args($parsed_prefs, $dashboard_prefs);
+                foreach ($dashboard_prefs as $key => $value) {
+                    $dashboard_prefs[$key] = (bool) $value;
+                }
+            }
+        }
+
+        $streak_debug = get_user_meta($user_id, 'aph_streak_debug', true);
+        $streak_debug = is_array($streak_debug) ? $streak_debug : array();
+        $streak_missing_count = intval($streak_debug['missing_dates_count'] ?? 0);
+        $streak_missing_all = $streak_debug['missing_dates'] ?? array();
+        $streak_shields_used = intval($streak_debug['shields_used'] ?? 0);
+        $streak_gems_used = intval($streak_debug['gems_used'] ?? 0);
+        $streak_gems_spent = intval($streak_debug['gems_spent'] ?? 0);
+        $streak_debug_updated = $streak_debug['updated_at'] ?? '';
+        $streak_timezone = APH_Gamification::get_user_timezone_string($user_id);
+        $saved_dates_list = get_user_meta($user_id, 'aph_streak_saved_dates', true);
+        $saved_dates_list = is_array($saved_dates_list) ? $saved_dates_list : array();
+        $saved_dates_detail = get_user_meta($user_id, 'aph_streak_saved_dates_detail', true);
+        $saved_dates_detail = is_array($saved_dates_detail) ? $saved_dates_detail : array();
+
+        ob_start();
+        ?>
+        <div class="jph-streak-accounting">
+            <div class="jph-streak-accounting-header">
+                <h2>Your Streak Accounting</h2>
+                <p>Here is a full breakdown of how your streak is calculated and why it looks the way it does.</p>
+            </div>
+
+            <div class="jph-streak-accounting-cards">
+                <div class="jph-streak-accounting-card jph-streak-accounting-stat">
+                    <h3>Current streak</h3>
+                    <p class="jph-streak-accounting-stat-value"><?php echo esc_html($user_stats['current_streak']); ?> days</p>
+                </div>
+                <div class="jph-streak-accounting-card jph-streak-accounting-stat">
+                    <h3>Longest streak</h3>
+                    <p class="jph-streak-accounting-stat-value"><?php echo esc_html($user_stats['longest_streak']); ?> days</p>
+                </div>
+                <div class="jph-streak-accounting-card jph-streak-accounting-stat">
+                    <h3>Last practice date</h3>
+                    <p class="jph-streak-accounting-stat-value"><?php echo esc_html($user_stats['last_practice_date'] ?? 'N/A'); ?></p>
+                </div>
+            </div>
+
+            <div class="jph-streak-accounting-card">
+                <h3>Current Streak Summary</h3>
+                <ul>
+                    <li><strong>Current streak:</strong> <?php echo esc_html($user_stats['current_streak']); ?> days</li>
+                    <li><strong>Longest streak:</strong> <?php echo esc_html($user_stats['longest_streak']); ?> days</li>
+                    <li><strong>Last practice date:</strong> <?php echo esc_html($user_stats['last_practice_date'] ?? 'N/A'); ?></li>
+                    <li><strong>Timezone used:</strong> <?php echo esc_html($streak_timezone); ?></li>
+                    <li><strong>Shields remaining:</strong> <?php echo esc_html($user_stats['streak_shield_count'] ?? 0); ?></li>
+                    <li><strong>Auto-save (gems):</strong> <?php echo !empty($dashboard_prefs['auto_gem_streak_save']) ? 'On' : 'Off'; ?></li>
+                </ul>
+                <p class="jph-streak-accounting-note">Your streak is based on consecutive calendar days in your timezone. A missed day only keeps your streak alive if a shield or auto-save gem is used for that date.</p>
+                <p class="jph-streak-accounting-note">Your longest streak ignores saved days, so it can be lower than your current streak if shields or gems kept this streak alive.</p>
+            </div>
+
+            <div class="jph-streak-accounting-card">
+                <h3>Missing Dates & Saves</h3>
+                <p><strong>Missing practice dates:</strong> <?php echo esc_html($streak_missing_count); ?></p>
+                <?php if (!empty($streak_missing_all)): ?>
+                    <button type="button" class="jph-streak-missing-toggle" aria-expanded="false">Show missing dates</button>
+                    <ul class="jph-streak-missing-list" hidden>
+                        <?php foreach ($streak_missing_all as $missing_date): ?>
+                            <li><?php echo esc_html($missing_date); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+
+                <p><strong>Shields used (last calc):</strong> <?php echo esc_html($streak_shields_used); ?></p>
+                <p><strong>Gems used (last calc):</strong> <?php echo esc_html($streak_gems_used); ?><?php if ($streak_gems_spent): ?> (<?php echo esc_html($streak_gems_spent); ?> gems)<?php endif; ?></p>
+
+                <?php if ($streak_debug_updated): ?>
+                    <p><strong>Last recalculation:</strong> <?php echo esc_html($streak_debug_updated); ?></p>
+                <?php endif; ?>
+            </div>
+
+            <div class="jph-streak-accounting-card">
+                <h3>Fix Your Streak</h3>
+                <p>If your streak still looks off, you can force a recalculation from your full practice history.</p>
+                <button id="jph-fix-stats-btn" type="button" class="jph-btn jph-btn-secondary jph-fix-stats-btn">Fix Streak</button>
+                <p class="jph-streak-accounting-status" aria-live="polite"></p>
+            </div>
+
+            <div class="jph-streak-accounting-card">
+                <h3>All Practice Sessions</h3>
+                <p>Review every practice session used to calculate your streak.</p>
+                <p class="jph-streak-accounting-hint">Scroll inside the list to review all sessions and missed days. Missing days show whether a shield or gems saved the streak.</p>
+                <div class="jph-streak-practice-history">
+                    <div class="jph-streak-practice-history-list">Loading practice sessions...</div>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            .jph-streak-accounting {
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            .jph-streak-accounting-header {
+                margin-bottom: 24px;
+            }
+            .jph-streak-accounting-cards {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+            .jph-streak-accounting-card {
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 20px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+            }
+            .jph-streak-accounting-card.jph-streak-accounting-stat {
+                margin-bottom: 0;
+            }
+            .jph-streak-accounting-stat h3 {
+                margin: 0 0 6px;
+                font-size: 0.95rem;
+                color: #64748b;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+            .jph-streak-accounting-stat-value {
+                margin: 0;
+                font-size: 1.6rem;
+                font-weight: 700;
+                color: #0f172a;
+            }
+            .jph-streak-accounting-card h3 {
+                margin-top: 0;
+            }
+            .jph-streak-accounting-card ul {
+                margin: 0;
+                padding-left: 18px;
+            }
+            .jph-streak-accounting-note {
+                margin-top: 12px;
+                color: #475569;
+            }
+            .jph-streak-accounting .jph-streak-missing-toggle {
+                margin: 8px 0 10px;
+                padding: 6px 10px;
+                border-radius: 6px;
+                border: 1px solid #cbd5f5;
+                background: #f8fafc;
+                cursor: pointer;
+            }
+            .jph-streak-accounting .jph-fix-stats-btn {
+                padding: 10px 16px;
+                border-radius: 8px;
+                border: 0;
+                background: #0f172a;
+                color: #fff;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s ease, transform 0.2s ease;
+            }
+            .jph-streak-accounting .jph-fix-stats-btn:hover {
+                background: #f04e23;
+            }
+            .jph-streak-accounting .jph-fix-stats-btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+                transform: none;
+            }
+            .jph-streak-accounting .jph-streak-missing-list {
+                margin: 8px 0 12px;
+                padding-left: 18px;
+            }
+            .jph-streak-accounting-hint {
+                margin-top: 6px;
+                color: #64748b;
+                font-size: 0.9rem;
+            }
+            .jph-streak-accounting-status {
+                margin-top: 10px;
+                min-height: 20px;
+                color: #475569;
+            }
+            .jph-streak-accounting-status.is-success {
+                color: #047857;
+            }
+            .jph-streak-accounting-status.is-error {
+                color: #b91c1c;
+            }
+            .jph-streak-practice-history {
+                max-height: 360px;
+                overflow-y: auto;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 12px;
+                background: #f8fafc;
+            }
+            .jph-streak-practice-session {
+                display: grid;
+                grid-template-columns: 1.5fr 1fr 0.7fr;
+                gap: 8px;
+                padding: 8px 0;
+                border-bottom: 1px solid #e2e8f0;
+                font-size: 0.95rem;
+            }
+            .jph-streak-practice-session:last-child {
+                border-bottom: 0;
+            }
+            .jph-streak-practice-session .label {
+                color: #475569;
+                font-size: 0.85rem;
+                display: block;
+            }
+            .jph-streak-practice-session .value {
+                color: #0f172a;
+            }
+            .jph-streak-practice-session.is-missing {
+                background: #fef2f2;
+                border-radius: 8px;
+                padding: 10px;
+                border: 1px dashed #fca5a5;
+            }
+            .jph-streak-practice-session.is-missing .value {
+                color: #b91c1c;
+                font-weight: 600;
+            }
+            .jph-streak-practice-status {
+                display: inline-flex;
+                align-items: center;
+                margin-top: 4px;
+                padding: 2px 6px;
+                border-radius: 999px;
+                font-size: 0.75rem;
+                background: #fee2e2;
+                color: #991b1b;
+            }
+            .jph-streak-practice-status.is-saved {
+                background: #dcfce7;
+                color: #166534;
+            }
+            @media (max-width: 800px) {
+                .jph-streak-accounting-cards {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+
+        <script>
+        (function($) {
+            const toggle = document.querySelector('.jph-streak-accounting .jph-streak-missing-toggle');
+            if (toggle) {
+                toggle.addEventListener('click', function() {
+                    const list = document.querySelector('.jph-streak-accounting .jph-streak-missing-list');
+                    const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+                    toggle.setAttribute('aria-expanded', String(!isExpanded));
+                    toggle.textContent = isExpanded ? 'Show missing dates' : 'Hide missing dates';
+                    if (list) {
+                        list.hidden = isExpanded;
+                    }
+                });
+            }
+
+            const btn = $('#jph-fix-stats-btn');
+            if (!btn.length) return;
+
+            btn.on('click', function(e) {
+                e.preventDefault();
+                if (!confirm('Recalculate your stats (streak and level) from practice history?')) {
+                    return;
+                }
+
+                const $btn = $(this);
+                const statusEl = $('.jph-streak-accounting-status');
+                const originalHtml = $btn.html();
+                $btn.prop('disabled', true);
+                $btn.html('Recalculating...');
+                statusEl.text('').removeClass('is-success is-error');
+
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/students/' . $user_id . '/fix-stats')); ?>',
+                    method: 'POST',
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            statusEl.addClass('is-success').text('✓ Stats recalculated. Refreshing...');
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 800);
+                        } else {
+                            statusEl.addClass('is-error').text('Error: ' + (response.message || 'Failed to recalculate stats.'));
+                        }
+                    },
+                    error: function(xhr) {
+                        const errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Failed to recalculate stats.';
+                        statusEl.addClass('is-error').text('Error: ' + errorMsg);
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false);
+                        $btn.html(originalHtml);
+                    }
+                });
+            });
+
+            const historyList = document.querySelector('.jph-streak-practice-history-list');
+            if (historyList) {
+                const restUrl = '<?php echo esc_url(rest_url('aph/v1/practice-sessions')); ?>';
+                const nonce = '<?php echo wp_create_nonce('wp_rest'); ?>';
+                const limit = 200;
+                const missingDates = <?php echo wp_json_encode(array_values($streak_missing_all)); ?>;
+                const savedDates = <?php echo wp_json_encode(array_values($saved_dates_list)); ?>;
+                const savedDatesDetail = <?php echo wp_json_encode($saved_dates_detail); ?>;
+
+                const formatSessionDate = (session) => {
+                    const tz = session.user_timezone_at_session || '<?php echo esc_js($streak_timezone); ?>';
+                    const raw = session.created_at_utc || session.created_at;
+                    const date = raw ? new Date(raw.replace(' ', 'T') + 'Z') : null;
+                    if (!date || Number.isNaN(date.getTime())) {
+                        return session.created_at || 'Unknown date';
+                    }
+                    return new Intl.DateTimeFormat('en-US', {
+                        timeZone: tz,
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }).format(date);
+                };
+
+                const getDateKey = (session) => {
+                    const tz = session.user_timezone_at_session || '<?php echo esc_js($streak_timezone); ?>';
+                    const raw = session.created_at_utc || session.created_at;
+                    const date = raw ? new Date(raw.replace(' ', 'T') + 'Z') : null;
+                    if (!date || Number.isNaN(date.getTime())) {
+                        return null;
+                    }
+                    return new Intl.DateTimeFormat('en-CA', {
+                        timeZone: tz,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    }).format(date);
+                };
+
+                const buildSessionRow = (session) => {
+                    const item = session.item_name || session.practice_item_name || 'Practice session';
+                    const duration = session.duration_minutes ? `${session.duration_minutes} min` : 'N/A';
+                    const dateText = formatSessionDate(session);
+
+                    return `
+                        <div class="jph-streak-practice-session">
+                            <div>
+                                <span class="label">Item</span>
+                                <span class="value">${item}</span>
+                            </div>
+                            <div>
+                                <span class="label">Date</span>
+                                <span class="value">${dateText}</span>
+                            </div>
+                            <div>
+                                <span class="label">Minutes</span>
+                                <span class="value">${duration}</span>
+                            </div>
+                        </div>
+                    `;
+                };
+
+                const buildMissingRow = (dateKey) => {
+                    const savedType = savedDatesDetail[dateKey] || (savedDates.includes(dateKey) ? 'saved' : '');
+                    let statusLabel = 'Missed day';
+                    let statusClass = 'jph-streak-practice-status';
+                    if (savedType === 'shield') {
+                        statusLabel = 'Saved by shield';
+                        statusClass += ' is-saved';
+                    } else if (savedType === 'gem') {
+                        statusLabel = 'Saved by gems';
+                        statusClass += ' is-saved';
+                    } else if (savedType === 'saved') {
+                        statusLabel = 'Saved';
+                        statusClass += ' is-saved';
+                    }
+                    return `
+                        <div class="jph-streak-practice-session is-missing">
+                            <div>
+                                <span class="label">Item</span>
+                                <span class="value">Missing practice day</span>
+                                <span class="${statusClass}">${statusLabel}</span>
+                            </div>
+                            <div>
+                                <span class="label">Date</span>
+                                <span class="value">${dateKey}</span>
+                            </div>
+                            <div>
+                                <span class="label">Minutes</span>
+                                <span class="value">0 min</span>
+                            </div>
+                        </div>
+                    `;
+                };
+
+                const loadAllSessions = async () => {
+                    let offset = 0;
+                    let allRows = '';
+                    let allSessions = [];
+                    let hasMore = true;
+
+                    while (hasMore) {
+                        const response = await fetch(`${restUrl}?limit=${limit}&offset=${offset}`, {
+                            headers: {
+                                'X-WP-Nonce': nonce
+                            }
+                        });
+                        const data = await response.json();
+                        if (!data || !data.success) {
+                            throw new Error(data && data.message ? data.message : 'Failed to load sessions');
+                        }
+
+                        if (!data.sessions || !data.sessions.length) {
+                            hasMore = false;
+                            break;
+                        }
+
+                        allSessions = allSessions.concat(data.sessions);
+                        hasMore = !!data.has_more;
+                        offset += limit;
+                    }
+
+                    if (!allSessions.length) {
+                        historyList.innerHTML = '<div class="no-sessions">No practice sessions found.</div>';
+                        return;
+                    }
+
+                    const sessionsByDate = {};
+                    allSessions.forEach((session) => {
+                        const key = getDateKey(session);
+                        if (!key) {
+                            return;
+                        }
+                        if (!sessionsByDate[key]) {
+                            sessionsByDate[key] = [];
+                        }
+                        sessionsByDate[key].push(session);
+                    });
+
+                    const dateKeys = Object.keys(sessionsByDate);
+                    missingDates.forEach((missing) => {
+                        if (!dateKeys.includes(missing)) {
+                            dateKeys.push(missing);
+                        }
+                    });
+
+                    dateKeys.sort((a, b) => b.localeCompare(a));
+
+                    dateKeys.forEach((dateKey) => {
+                        if (sessionsByDate[dateKey]) {
+                            allRows += sessionsByDate[dateKey].map(buildSessionRow).join('');
+                        } else if (missingDates.includes(dateKey)) {
+                            allRows += buildMissingRow(dateKey);
+                        }
+                    });
+
+                    historyList.innerHTML = allRows;
+                };
+
+                loadAllSessions().catch(() => {
+                    historyList.textContent = 'Error loading practice sessions.';
+                });
+            }
+        })(jQuery);
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
     public function render_fix_streak($atts) {
         if (!is_user_logged_in()) {
             return '<div class="jph-fix-streak jph-login-required">Please log in to fix your streak.</div>';

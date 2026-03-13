@@ -144,6 +144,9 @@ class JPH_Admin_Pages {
             'aph-ai-settings',
             array($this, 'ai_settings_page')
         );
+        
+        // JPC Migration was removed; ensure it's not in the menu (handles cache/backup leftovers)
+        remove_submenu_page( 'aph-practice-hub', 'jpc-migration' );
     }
     
     /**

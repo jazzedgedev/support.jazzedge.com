@@ -28,8 +28,6 @@ require_once __DIR__ . '/includes/class-rest-api.php';
 require_once __DIR__ . '/includes/class-admin-pages.php';
 require_once __DIR__ . '/includes/class-frontend.php';
 require_once __DIR__ . '/includes/class-jpc-handler.php';
-require_once __DIR__ . '/includes/class-jpc-migration.php';
-require_once __DIR__ . '/includes/class-jpc-migration-admin.php';
 
 // Initialize database schema on activation
 register_activation_hook(__FILE__, 'aph_activate');
@@ -609,11 +607,6 @@ function jph_remove_practice_reminder_tags($user_id) {
 add_action('jph_practice_session_logged', 'jph_remove_practice_reminder_tags_on_practice', 10, 1);
 function jph_remove_practice_reminder_tags_on_practice($user_id) {
     jph_remove_practice_reminder_tags($user_id);
-}
-
-// Initialize JPC Migration Admin (only if class exists)
-if (class_exists('JPH_JPC_Migration_Admin')) {
-    new JPH_JPC_Migration_Admin();
 }
 
 // Initialize Frontend (conditionally based on wire-through setting)

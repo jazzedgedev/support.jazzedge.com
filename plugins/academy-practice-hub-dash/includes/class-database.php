@@ -274,28 +274,55 @@ class JPH_Database {
      */
     public function get_lesson_favorites($user_id) {
         global $wpdb;
-        
+
         $table_name = $wpdb->prefix . 'jph_lesson_favorites';
-        
-        // Return all favorites (lessons and collections) - filtering by category happens in the frontend
+
         $favorites = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$table_name} WHERE user_id = %d ORDER BY created_at DESC",
             $user_id
         ), ARRAY_A);
-        
-        // Normalize URLs - convert /lesson/{id} to proper permalinks
-        foreach ($favorites as &$favorite) {
-            if (!empty($favorite['url']) && preg_match('#^/lesson/(\d+)/?$#', $favorite['url'], $matches)) {
-                $lesson_id = intval($matches[1]);
-                $permalink = $this->get_lesson_permalink_from_id($lesson_id);
-                if ($permalink) {
-                    $favorite['url'] = $permalink;
+
+        if ( empty( $favorites ) ) {
+            return array();
+        }
+
+        // Collect all lesson IDs that need URL normalization
+        $lesson_ids = array();
+        foreach ( $favorites as $favorite ) {
+            if ( ! empty( $favorite['url'] ) && preg_match( '#^/lesson/(\d+)/?$#', $favorite['url'], $matches ) ) {
+                $lesson_ids[] = intval( $matches[1] );
+            }
+        }
+
+        // Batch fetch all post_ids in one query
+        $post_id_map = array();
+        if ( ! empty( $lesson_ids ) ) {
+            $lessons_table   = $wpdb->prefix . 'alm_lessons';
+            $placeholders    = implode( ',', array_fill( 0, count( $lesson_ids ), '%d' ) );
+            $rows            = $wpdb->get_results(
+                $wpdb->prepare( "SELECT ID, post_id FROM {$lessons_table} WHERE ID IN ({$placeholders})", $lesson_ids ),
+                ARRAY_A
+            );
+            foreach ( $rows as $row ) {
+                $post_id_map[ intval( $row['ID'] ) ] = intval( $row['post_id'] );
+            }
+        }
+
+        // Apply normalized URLs
+        foreach ( $favorites as &$favorite ) {
+            if ( ! empty( $favorite['url'] ) && preg_match( '#^/lesson/(\d+)/?$#', $favorite['url'], $matches ) ) {
+                $lesson_id = intval( $matches[1] );
+                if ( isset( $post_id_map[ $lesson_id ] ) ) {
+                    $permalink = get_permalink( $post_id_map[ $lesson_id ] );
+                    if ( $permalink ) {
+                        $favorite['url'] = $permalink;
+                    }
                 }
             }
         }
-        unset($favorite); // Break reference
-        
-        return $favorites ?: array();
+        unset( $favorite );
+
+        return $favorites;
     }
     
     /**

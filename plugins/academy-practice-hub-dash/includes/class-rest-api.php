@@ -1002,7 +1002,10 @@ class JPH_REST_API {
         if (is_wp_error($session_id)) {
             return $session_id;
         }
-        
+
+        delete_transient( 'aph_analytics_' . $user_id );
+        $this->bump_practice_sessions_cache_version( $user_id );
+
         // Gamification integration - use our Academy gamification class
         $gamification = new APH_Gamification();
         
@@ -1031,6 +1034,7 @@ class JPH_REST_API {
         
         // Check for badges using our gamification class
         $newly_awarded = $gamification->check_and_award_badges($user_id);
+        delete_transient( 'aph_badges_' . $user_id );
         
         // Get updated user stats for response
         $updated_stats = $gamification->get_user_stats($user_id);
@@ -1056,6 +1060,8 @@ class JPH_REST_API {
         $start_date = $request->get_param('start_date');
         $end_date = $request->get_param('end_date');
         
+        $ps_version = (int) get_transient( 'aph_ps_version_' . $user_id );
+
         $this->logger->debug('Practice Sessions API request', array(
             'user_id' => $user_id,
             'limit' => $limit,
@@ -1063,9 +1069,15 @@ class JPH_REST_API {
             'start_date' => $start_date,
             'end_date' => $end_date
         ));
-        
+
         // If date filtering is requested, use direct database query
         if ($start_date || $end_date) {
+            $cache_key = 'aph_practice_sessions_dated_' . $user_id . '_' . $start_date . '_' . $end_date . '_' . $limit . '_' . $offset . '_' . $ps_version;
+            $cached = get_transient( $cache_key );
+            if ( false !== $cached ) {
+                return rest_ensure_response( $cached );
+            }
+
             global $wpdb;
             $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
             $items_table = $wpdb->prefix . 'jph_practice_items';
@@ -1107,9 +1119,23 @@ class JPH_REST_API {
             
             $total_count = $wpdb->get_var($count_query);
             $has_more = ($offset + $limit) < $total_count;
+
+            $response = array(
+                'success' => true,
+                'sessions' => $sessions,
+                'count' => count($sessions),
+                'has_more' => $has_more
+            );
+            set_transient( $cache_key, $response, 60 );
+            return rest_ensure_response( $response );
             
         } else {
-            // Use existing database method for regular requests
+            $cache_key = 'aph_practice_sessions_' . $user_id . '_' . $limit . '_' . $offset . '_' . $ps_version;
+            $cached = get_transient( $cache_key );
+            if ( false !== $cached ) {
+                return rest_ensure_response( $cached );
+            }
+
             $sessions = $this->database->get_practice_sessions($user_id, $limit, $offset);
             $has_more = count($sessions) >= $limit;
         }
@@ -1119,13 +1145,23 @@ class JPH_REST_API {
         if (is_wp_error($sessions)) {
             return $sessions;
         }
-        
-        return rest_ensure_response(array(
+
+        $response = array(
             'success' => true,
             'sessions' => $sessions,
             'count' => count($sessions),
             'has_more' => $has_more ?? false
-        ));
+        );
+        set_transient( $cache_key, $response, 30 );
+        return rest_ensure_response( $response );
+    }
+
+    /**
+     * Bump practice sessions cache version when sessions are added or deleted.
+     */
+    private function bump_practice_sessions_cache_version( $user_id ) {
+        $v = (int) get_transient( 'aph_ps_version_' . $user_id ) + 1;
+        set_transient( 'aph_ps_version_' . $user_id, $v, YEAR_IN_SECONDS );
     }
     
     /**
@@ -1135,26 +1171,26 @@ class JPH_REST_API {
         $session_id = $request->get_param('id');
         $user_id = get_current_user_id();
         
-        // Verify ownership
-        $sessions = $this->database->get_practice_sessions($user_id, 1000, 0);
-        $session_exists = false;
-        foreach ($sessions as $session) {
-            if ($session['id'] == $session_id) {
-                $session_exists = true;
-                break;
-            }
-        }
-        
-        if (!$session_exists) {
+        // Verify ownership with direct DB query (avoids loading 1000 sessions)
+        global $wpdb;
+        $table = $wpdb->prefix . 'jph_practice_sessions';
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $table WHERE id = %d AND user_id = %d LIMIT 1",
+            $session_id, $user_id
+        ));
+
+        if (!$exists) {
             return new WP_Error('not_found', 'Practice session not found', array('status' => 404));
         }
-        
+
         $result = $this->database->delete_practice_session($session_id, $user_id);
-        
+
         if (is_wp_error($result)) {
             return $result;
         }
-        
+
+        $this->bump_practice_sessions_cache_version($user_id);
+
         return rest_ensure_response(array(
             'success' => true,
             'message' => 'Practice session deleted successfully'
@@ -1853,13 +1889,18 @@ class JPH_REST_API {
     public function rest_get_user_badges($request) {
         try {
             $user_id = get_current_user_id();
-            $database = new JPH_Database();
-            
+
+            $cache_key = 'aph_badges_' . $user_id;
+            $cached    = get_transient( $cache_key );
+            if ( false !== $cached ) {
+                return rest_ensure_response( $cached );
+            }
+
             // Get all badges
-            $all_badges = $database->get_badges(true); // Only active badges
+            $all_badges = $this->database->get_badges(true); // Only active badges
             
             // Get user's earned badges
-            $user_badges = $database->get_user_badges($user_id);
+            $user_badges = $this->database->get_user_badges($user_id);
             
             // Create a lookup array for earned badges
             $earned_badges = array();
@@ -1878,10 +1919,12 @@ class JPH_REST_API {
                 $badges_with_status[] = $badge_data;
             }
             
-            return rest_ensure_response(array(
+            $response = array(
                 'success' => true,
-                'badges' => $badges_with_status
-            ));
+                'badges'  => $badges_with_status
+            );
+            set_transient( $cache_key, $response, 30 * MINUTE_IN_SECONDS );
+            return rest_ensure_response( $response );
             
         } catch (Exception $e) {
             return new WP_Error('get_badges_error', 'Error: ' . $e->getMessage(), array('status' => 500));
@@ -1894,15 +1937,23 @@ class JPH_REST_API {
     public function rest_get_lesson_favorites($request) {
         try {
             $user_id = get_current_user_id();
-            $database = new JPH_Database();
-            
-            $favorites = $database->get_lesson_favorites($user_id);
-            
-            return rest_ensure_response(array(
-                'success' => true,
+
+            $cache_key = 'aph_lesson_favorites_' . $user_id;
+            $cached    = get_transient( $cache_key );
+            if ( false !== $cached ) {
+                return rest_ensure_response( $cached );
+            }
+
+            $favorites = $this->database->get_lesson_favorites($user_id);
+
+            $response = array(
+                'success'   => true,
                 'favorites' => $favorites
-            ));
-            
+            );
+            set_transient( $cache_key, $response, 30 * MINUTE_IN_SECONDS );
+
+            return rest_ensure_response( $response );
+
         } catch (Exception $e) {
             return new WP_Error('get_lesson_favorites_error', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
@@ -1942,6 +1993,8 @@ class JPH_REST_API {
                 return $result;
             }
             
+            delete_transient( 'aph_lesson_favorites_' . $user_id );
+            
             return rest_ensure_response(array(
                 'success' => true,
                 'favorite_id' => $result,
@@ -1977,6 +2030,8 @@ class JPH_REST_API {
             if (!$result) {
                 return new WP_Error('remove_failed', 'Failed to remove lesson favorite', array('status' => 500));
             }
+            
+            delete_transient( 'aph_lesson_favorites_' . $user_id );
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -2549,6 +2604,7 @@ class JPH_REST_API {
             
             // Run badge check
             $newly_awarded = $gamification->check_and_award_badges($user_id);
+            delete_transient( 'aph_badges_' . $user_id );
             
             // Get stats and badges after checking
             $user_stats_after = $this->database->get_user_stats($user_id);
@@ -2675,6 +2731,7 @@ class JPH_REST_API {
                 
                 // Award the badge using the full gamification process
                 $badge_awarded = $this->database->award_badge($user_id, $badge_key);
+                delete_transient( 'aph_badges_' . $user_id );
                 
                 if (!$badge_awarded) {
                     return rest_ensure_response(array(
@@ -2801,6 +2858,7 @@ class JPH_REST_API {
                     if ($should_have_badge) {
                         // Award badge using full gamification process
                         $result = $this->database->award_badge($user_id, $badge['badge_key']);
+                        delete_transient( 'aph_badges_' . $user_id );
                         if ($result) {
                             // Update user stats with XP reward, gems reward, and badge count
                             $update_data = array();
@@ -4580,6 +4638,12 @@ class JPH_REST_API {
             }
             
             global $wpdb;
+
+            $cache_key = 'aph_analytics_' . $user_id;
+            $cached    = get_transient( $cache_key );
+            if ( false !== $cached ) {
+                return rest_ensure_response( $cached );
+            }
             
             // Get practice sessions for different time periods
             $sessions_table = $wpdb->prefix . 'jph_practice_sessions';
@@ -4703,7 +4767,7 @@ class JPH_REST_API {
             elseif ($avg_sentiment_30 >= 1.5) $sentiment_rating = 'Challenging';
             else $sentiment_rating = 'Frustrating';
             
-            return rest_ensure_response(array(
+            $response = array(
                 'success' => true,
                 'data' => array(
                     'periods' => array(
@@ -4757,7 +4821,9 @@ class JPH_REST_API {
                     ),
                     'current_stats' => $user_stats ?: array()
                 )
-            ));
+            );
+            set_transient( $cache_key, $response, 5 * MINUTE_IN_SECONDS );
+            return rest_ensure_response( $response );
             
         } catch (Exception $e) {
             return new WP_Error('analytics_error', 'Error retrieving analytics: ' . $e->getMessage(), array('status' => 500));
@@ -6999,22 +7065,26 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             if (!$user_id) {
                 return new WP_Error('not_logged_in', 'User must be logged in', array('status' => 401));
             }
+
+            $cache_key = 'aph_popup_notification_' . $user_id;
+            $cached    = get_transient( $cache_key );
+            if ( false !== $cached ) {
+                return rest_ensure_response( $cached );
+            }
             
             if (!class_exists('ALM_Notifications_Manager')) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'notification' => null
-                ));
+                $response = array( 'success' => false, 'notification' => null );
+                set_transient( $cache_key, $response, 60 );
+                return rest_ensure_response( $response );
             }
             
             $notifications_manager = new ALM_Notifications_Manager();
             $popup_notification = $notifications_manager->get_popup_notification($user_id);
             
             if (empty($popup_notification)) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'notification' => null
-                ));
+                $response = array( 'success' => false, 'notification' => null );
+                set_transient( $cache_key, $response, 60 );
+                return rest_ensure_response( $response );
             }
             
             // Get category palette for styling
@@ -7026,7 +7096,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
             $category_data = $category_palette[$category_slug];
             
-            return rest_ensure_response(array(
+            $response = array(
                 'success' => true,
                 'notification' => array(
                     'ID' => intval($popup_notification['ID']),
@@ -7042,7 +7112,9 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                         'border' => $category_data['border'],
                     ),
                 )
-            ));
+            );
+            set_transient( $cache_key, $response, 60 );
+            return rest_ensure_response( $response );
             
         } catch (Exception $e) {
             return new WP_Error('popup_notification_error', 'Error getting popup notification: ' . $e->getMessage(), array('status' => 500));
@@ -7072,6 +7144,7 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             
             $notifications_manager = new ALM_Notifications_Manager();
             $notifications_manager->mark_popup_shown($notification_id, $user_id);
+            delete_transient( 'aph_popup_notification_' . $user_id );
             
             return rest_ensure_response(array(
                 'success' => true,

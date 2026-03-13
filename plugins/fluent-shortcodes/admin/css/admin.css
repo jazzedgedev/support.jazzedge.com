@@ -1,0 +1,163 @@
+/**
+ * Fluent Shortcodes Admin Styles
+ */
+
+.fluent-shortcodes-wrap {
+    max-width: 900px;
+    margin-top: 20px;
+}
+
+.fluent-shortcodes-section {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.fluent-shortcodes-section h2 {
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #dcdcde;
+    font-size: 1.3em;
+}
+
+/* Shortcode Creator */
+.fluent-shortcodes-creator {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.fluent-shortcodes-field-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #1d2327;
+}
+
+.fluent-checkout-link,
+.fluent-product-link,
+.fluent-checkout-btn-text,
+.fluent-product-btn-text,
+.fluent-show-links {
+    width: 100%;
+    max-width: 400px;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+}
+
+.fluent-checkout-link:focus,
+.fluent-product-link:focus,
+.fluent-checkout-btn-text:focus,
+.fluent-product-btn-text:focus,
+.fluent-show-links:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    outline: none;
+}
+
+/* Shortcode output box - full width */
+.fluent-sc-table-thumb {
+    object-fit: cover;
+    border-radius: 4px;
+    display: block;
+}
+
+.fluent-sc-output-wrap {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #dcdcde;
+}
+
+#fluent-sc-item-status {
+    min-height: 1.4em;
+}
+
+#fluent-sc-item-status:empty {
+    display: none;
+}
+
+/* Shortcode display boxes */
+.fluent-shortcode-preview-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.fluent-shortcode-preview,
+.fluent-shortcode-display {
+    font-family: Consolas, Monaco, monospace;
+    font-size: 13px;
+    background: #f0f0f1;
+    padding: 10px 14px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    color: #1d2327;
+}
+
+.fluent-shortcode-preview {
+    flex: 1;
+    min-width: 280px;
+}
+
+.fluent-copy-btn {
+    flex-shrink: 0;
+}
+
+.fluent-copy-btn.copied {
+    background: #00a32a !important;
+    border-color: #00a32a !important;
+    color: #fff !important;
+}
+
+/* Live preview width toggles */
+.fluent-sc-width-btn.active {
+    background: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+}
+
+/* Table shortcode cells */
+.fluent-shortcode-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.fluent-shortcode-cell .fluent-shortcode-display {
+    flex: 1;
+    min-width: 200px;
+}
+
+.fluent-shortcode-cell .fluent-copy-btn {
+    flex-shrink: 0;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .fluent-shortcode-preview-wrap {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .fluent-shortcode-preview {
+        min-width: 100%;
+    }
+
+    .fluent-shortcode-cell {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .fluent-shortcode-cell .fluent-shortcode-display {
+        min-width: 100%;
+    }
+}
