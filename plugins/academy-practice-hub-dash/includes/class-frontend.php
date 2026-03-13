@@ -17812,6 +17812,63 @@ class JPH_Frontend {
             // Toggle new improvement pill UI. Set false to revert to simple text.
             const useImprovementPills = true;
 
+            // Cached dashboard init data (single fetch replaces multiple GETs on load)
+            var aphDashboardInitData = null;
+
+            // Single dashboard-init fetch replaces: user-stats, plan, practice-sessions, dashboard-preferences,
+            // notifications/popup, badges, lesson-favorites, analytics
+            function loadDashboardInit() {
+                $.ajax({
+                    url: '<?php echo esc_url(rest_url('aph/v1/dashboard-init')); ?>',
+                    method: 'GET',
+                    headers: {
+                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            aphDashboardInitData = response;
+                            applyDashboardInitData(response);
+                        }
+                    }
+                });
+            }
+
+            // Apply dashboard-init response to all consumers (replaces individual GET calls on load)
+            function applyDashboardInitData(data) {
+                if (data.dashboard_preferences) {
+                    dashboardPreferences = data.dashboard_preferences;
+                    updateDashboardVisibility(dashboardPreferences);
+                    applyDashboardTheme(dashboardPreferences);
+                    if (dashboardPreferences.color_palette) {
+                        applyColorPalette(dashboardPreferences.color_palette);
+                    }
+                    $('#auto-gem-streak-toggle').prop('checked', dashboardPreferences.auto_gem_streak_save === true);
+                }
+                if (data.popup_notification && data.popup_notification.success && data.popup_notification.notification) {
+                    initNotificationPopupWithData(data.popup_notification);
+                }
+                if (data.practice_sessions && Array.isArray(data.practice_sessions)) {
+                    var hasMore = data.practice_sessions.length >= 10;
+                    displayPracticeHistory(data.practice_sessions, hasMore);
+                }
+                if (data.badges && Array.isArray(data.badges)) {
+                    displayBadges(data.badges);
+                }
+                if (data.lesson_favorites && Array.isArray(data.lesson_favorites)) {
+                    applyLessonFavoritesToSelect(data.lesson_favorites);
+                }
+                if (data.analytics && data.analytics.periods) {
+                    displayAnalytics(data.analytics);
+                    createPracticeChart(data.analytics, 30);
+                }
+                if (data.plan) {
+                    applyPlanData(data.plan);
+                }
+                if (data.user_stats) {
+                    applyFirstTimeUserCheck(data.user_stats);
+                }
+            }
+
             // Initialize beta disclaimer modal
             initBetaDisclaimer();
             
@@ -17824,14 +17881,12 @@ class JPH_Frontend {
             // Initialize clean neuroscience tips
             initNeuroscienceTips();
             
-            // Initialize practice chart
-            initializePracticeChart();
+            // Single dashboard-init replaces: initializePracticeChart, loadPracticeHistory, loadAndApplyPreferences,
+            // initNotificationPopup, loadBadges, loadLessonFavorites, loadAnalytics, checkFirstTimeUser fetch
+            loadDashboardInit();
             
             // Initialize period links
             initPeriodLinks();
-            
-            // Load practice history
-            loadPracticeHistory();
             
             // Initialize tab functionality
             initTabs();
@@ -18350,8 +18405,23 @@ class JPH_Frontend {
                 });
             }
             
-            // Load plan data from API
+            // Apply plan data to form fields (used by dashboard-init and loadPlanData)
+            function applyPlanData(plan) {
+                if (!plan) return;
+                if (plan.transformation !== undefined) {
+                    $('#jph-plan-transformation').val(plan.transformation || '');
+                }
+                if (plan.goal_90_day !== undefined) {
+                    $('#jph-plan-goal').val(plan.goal_90_day || '');
+                }
+            }
+
+            // Load plan data from API (uses cache from dashboard-init when available)
             function loadPlanData() {
+                if (aphDashboardInitData && aphDashboardInitData.plan) {
+                    applyPlanData(aphDashboardInitData.plan);
+                    return;
+                }
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/plan'); ?>',
                     method: 'GET',
@@ -18360,19 +18430,7 @@ class JPH_Frontend {
                     },
                     success: function(response) {
                         if (response.success && response.plan) {
-                            var plan = response.plan;
-                            
-                            // Update transformation
-                            if (plan.transformation !== undefined) {
-                                $('#jph-plan-transformation').val(plan.transformation || '');
-                            }
-                            
-                            // Update goal
-                            if (plan.goal_90_day !== undefined) {
-                                $('#jph-plan-goal').val(plan.goal_90_day || '');
-                            }
-                            
-                            
+                            applyPlanData(response.plan);
                         }
                     },
                     error: function(xhr, status, error) {
@@ -18688,10 +18746,6 @@ class JPH_Frontend {
             // Initialize dashboard settings
             initDashboardSettings();
             initRoadmapHideButtons();
-            loadAndApplyPreferences();
-            
-            // Initialize notification popup
-            initNotificationPopup();
             
             // Initialize fix stats button
             initFixStatsButton();
@@ -19107,8 +19161,33 @@ class JPH_Frontend {
             
             let dashboardPreferences = null;
 
-            // Load current dashboard preferences
+            // Load current dashboard preferences (uses cache from dashboard-init when available)
             function loadDashboardPreferences() {
+                if (aphDashboardInitData && aphDashboardInitData.dashboard_preferences) {
+                    const prefs = aphDashboardInitData.dashboard_preferences;
+                    dashboardPreferences = prefs;
+                    $('#setting-stats').prop('checked', prefs.stats !== false);
+                    $('#setting-roadmap').prop('checked', prefs.roadmap !== false);
+                    $('#setting-search-section').prop('checked', prefs.search_section !== false);
+                    $('#setting-repertoire-section').prop('checked', prefs.repertoire_section !== false);
+                    $('#setting-intensives-section').prop('checked', prefs.intensives_section !== false);
+                    $('#setting-tab-shield').prop('checked', prefs.tab_shield !== false);
+                    $('#setting-tab-badges').prop('checked', prefs.tab_badges !== false);
+                    $('#setting-tab-analytics').prop('checked', prefs.tab_analytics !== false);
+                    $('#auto-gem-streak-toggle').prop('checked', prefs.auto_gem_streak_save === true);
+                    $('#setting-dark-mode').prop('checked', prefs.dark_mode === true);
+                    $('#setting-bg-color').val(prefs.bg_color || '#ffffff');
+                    $('#setting-accent-color').val(prefs.accent_color || '#004555');
+                    $('#setting-theme').val(prefs.theme || 'default');
+                    $('#setting-color-palette').val(prefs.color_palette || 'default');
+                    if (prefs.theme && prefs.theme !== 'default') {
+                        applyThemePreset(prefs.theme);
+                    }
+                    if (prefs.color_palette) {
+                        applyColorPalette(prefs.color_palette);
+                    }
+                    return;
+                }
                 $.ajax({
                     url: '<?php echo esc_url(rest_url('aph/v1/user/dashboard-preferences')); ?>',
                     method: 'GET',
@@ -19245,22 +19324,61 @@ class JPH_Frontend {
                 });
             }
             
-            // Initialize notification popup
+            // Apply popup notification from pre-fetched data (used by dashboard-init)
+            function initNotificationPopupWithData(response) {
+                if (!response || !response.success || !response.notification) return;
+                const popup = $('#jph-notification-popup');
+                const overlay = popup.find('.jph-notification-popup-overlay');
+                const closeBtn = $('#jph-notification-popup-close');
+                const notif = response.notification;
+                $('#jph-notification-popup-title').text(notif.title);
+                $('#jph-notification-popup-content').html(notif.content.replace(/\n/g, '<br>'));
+                const pill = $('#jph-notification-popup-pill');
+                pill.text(notif.category_label);
+                if (notif.category_colors) {
+                    pill.css({ 'background-color': notif.category_colors.background, 'color': notif.category_colors.text, 'border-color': notif.category_colors.border });
+                }
+                const actionsContainer = $('#jph-notification-popup-actions');
+                if (notif.link_url && notif.link_label) {
+                    $('#jph-notification-popup-link').attr('href', notif.link_url).text(notif.link_label);
+                    actionsContainer.show();
+                } else {
+                    actionsContainer.hide();
+                }
+                const markAsShown = function() {
+                    $.ajax({
+                        url: '<?php echo esc_url(rest_url('aph/v1/notifications/popup/')); ?>' + notif.ID + '/mark-shown',
+                        method: 'POST',
+                        beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
+                        success: function() {}
+                    });
+                };
+                const closeWithMark = function() {
+                    markAsShown();
+                    popup.fadeOut(200);
+                    $('body').removeClass('jph-notification-popup-open');
+                };
+                closeBtn.off('click').on('click', closeWithMark);
+                overlay.off('click').on('click', closeWithMark);
+                popup.fadeIn(300);
+                $('body').addClass('jph-notification-popup-open');
+            }
+
+            // Initialize notification popup (fallback fetch - not used on init when dashboard-init provides data)
             function initNotificationPopup() {
                 const popup = $('#jph-notification-popup');
                 const overlay = popup.find('.jph-notification-popup-overlay');
                 const closeBtn = $('#jph-notification-popup-close');
                 
-                // Close handlers
-                function closePopup() {
+                closeBtn.on('click', function() {
                     popup.fadeOut(200);
                     $('body').removeClass('jph-notification-popup-open');
-                }
+                });
+                overlay.on('click', function() {
+                    popup.fadeOut(200);
+                    $('body').removeClass('jph-notification-popup-open');
+                });
                 
-                closeBtn.on('click', closePopup);
-                overlay.on('click', closePopup);
-                
-                // Check for popup notification on page load
                 $.ajax({
                     url: '<?php echo esc_url(rest_url('aph/v1/notifications/popup')); ?>',
                     method: 'GET',
@@ -19812,14 +19930,7 @@ class JPH_Frontend {
                 checkActiveTabVisibility();
             }
             
-            // Load badges
-            loadBadges();
-            
-            // Load lesson favorites
-            loadLessonFavorites();
-            
-            // Load analytics
-            loadAnalytics();
+            // Badges, lesson favorites, analytics loaded from dashboard-init via applyDashboardInitData
             
             // Initialize AI generate button
             initAIGenerateButton();
@@ -19882,8 +19993,14 @@ class JPH_Frontend {
                 }
             }
             
-            // Load practice history
+            // Load practice history (uses cache from dashboard-init when available)
             function loadPracticeHistory() {
+                if (aphDashboardInitData && aphDashboardInitData.practice_sessions && Array.isArray(aphDashboardInitData.practice_sessions)) {
+                    var sessions = aphDashboardInitData.practice_sessions;
+                    var hasMore = sessions.length >= 10;
+                    displayPracticeHistory(sessions, hasMore);
+                    return;
+                }
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/practice-sessions'); ?>',
                     method: 'GET',
@@ -20632,8 +20749,12 @@ class JPH_Frontend {
                 }
             }
             
-            // Load badges
+            // Load badges (uses cache from dashboard-init when available)
             function loadBadges() {
+                if (aphDashboardInitData && aphDashboardInitData.badges && Array.isArray(aphDashboardInitData.badges)) {
+                    displayBadges(aphDashboardInitData.badges);
+                    return;
+                }
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/badges'); ?>',
                     method: 'GET',
@@ -20694,8 +20815,70 @@ class JPH_Frontend {
                 }
             }
             
-            // Load lesson favorites
+            // Apply lesson favorites to select (from dashboard-init or fetch)
+            function applyLessonFavoritesToSelect(favorites) {
+                var select = $('#lesson-favorite-select');
+                if (!select.length) return;
+                select.empty();
+                if (!favorites || favorites.length === 0) {
+                    select.append('<option value="">No favorites found</option>');
+                    return;
+                }
+                select.append('<option value="">Select a favorite...</option>');
+                var favoritesByCategory = { 'Collections': [], 'Lessons': [] };
+                $.each(favorites, function(index, favorite) {
+                    var category = favorite.category || 'lesson';
+                    var title = favorite.title || '';
+                    var resourceType = favorite.resource_type || '';
+                    var isResource = false;
+                    if (resourceType) {
+                        isResource = true;
+                    } else if (category !== 'lesson' && category !== 'collection') {
+                        isResource = true;
+                    } else {
+                        var resourceIndicators = ['(Sheet Music)', '(PDF)', '(Sheet)', '(Music)', '(Resource)'];
+                        for (var i = 0; i < resourceIndicators.length; i++) {
+                            if (title.toLowerCase().indexOf(resourceIndicators[i].toLowerCase()) !== -1) {
+                                isResource = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isResource) return;
+                    var displayCategory = category === 'collection' ? 'Collections' : 'Lessons';
+                    if (!favoritesByCategory[displayCategory]) favoritesByCategory[displayCategory] = [];
+                    favoritesByCategory[displayCategory].push(favorite);
+                });
+                $.each(favoritesByCategory, function(cat, items) {
+                    items.sort(function(a, b) { return ((a.title || '').toLowerCase()).localeCompare((b.title || '').toLowerCase()); });
+                });
+                function decodeAndClean(text) {
+                    if (!text) return '';
+                    var div = document.createElement('div');
+                    div.innerHTML = text;
+                    return (div.textContent || div.innerText || '').replace(/\\/g, '');
+                }
+                var categoryOrder = ['Collections', 'Lessons'];
+                $.each(categoryOrder, function(index, categoryName) {
+                    if (favoritesByCategory[categoryName] && favoritesByCategory[categoryName].length > 0) {
+                        var optgroup = $('<optgroup>').attr('label', categoryName);
+                        $.each(favoritesByCategory[categoryName], function(idx, favorite) {
+                            var favTitle = decodeAndClean(favorite.title || '');
+                            var favDescription = decodeAndClean(favorite.description || '');
+                            var favCategory = decodeAndClean(favorite.category || '');
+                            optgroup.append($('<option>').attr('value', favorite.id).attr('data-title', favTitle).attr('data-category', favCategory).attr('data-description', favDescription).text(favTitle));
+                        });
+                        select.append(optgroup);
+                    }
+                });
+            }
+
+            // Load lesson favorites (uses cache from dashboard-init when available)
             function loadLessonFavorites() {
+                if (aphDashboardInitData && aphDashboardInitData.lesson_favorites && Array.isArray(aphDashboardInitData.lesson_favorites)) {
+                    applyLessonFavoritesToSelect(aphDashboardInitData.lesson_favorites);
+                    return;
+                }
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/lesson-favorites'); ?>',
                     method: 'GET',
@@ -20703,101 +20886,8 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
-                        if (response.success) {
-                            var select = $('#lesson-favorite-select');
-                            select.empty();
-                            
-                            if (response.favorites.length === 0) {
-                                select.append('<option value="">No favorites found</option>');
-                            } else {
-                                select.append('<option value="">Select a favorite...</option>');
-                                
-                                // Group favorites by category (only Lessons and Collections)
-                                var favoritesByCategory = {
-                                    'Collections': [],
-                                    'Lessons': []
-                                };
-                                
-                                $.each(response.favorites, function(index, favorite) {
-                                    var category = favorite.category || 'lesson';
-                                    var title = favorite.title || '';
-                                    var resourceType = favorite.resource_type || '';
-                                    
-                                    // Skip resources - only include Collections and Lessons
-                                    var isResource = false;
-                                    if (resourceType) {
-                                        isResource = true;
-                                    } else if (category !== 'lesson' && category !== 'collection') {
-                                        isResource = true;
-                                    } else {
-                                        // Check for resource indicators in title
-                                        var resourceIndicators = ['(Sheet Music)', '(PDF)', '(Sheet)', '(Music)', '(Resource)'];
-                                        for (var i = 0; i < resourceIndicators.length; i++) {
-                                            if (title.toLowerCase().indexOf(resourceIndicators[i].toLowerCase()) !== -1) {
-                                                isResource = true;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Skip resources
-                                    if (isResource) {
-                                        return;
-                                    }
-                                    
-                                    // Determine display category
-                                    var displayCategory = category === 'collection' ? 'Collections' : 'Lessons';
-                                    
-                                    if (!favoritesByCategory[displayCategory]) {
-                                        favoritesByCategory[displayCategory] = [];
-                                    }
-                                    
-                                    favoritesByCategory[displayCategory].push(favorite);
-                                });
-                                
-                                // Sort each category alphabetically
-                                $.each(favoritesByCategory, function(cat, items) {
-                                    items.sort(function(a, b) {
-                                        var titleA = (a.title || '').toLowerCase();
-                                        var titleB = (b.title || '').toLowerCase();
-                                        return titleA.localeCompare(titleB);
-                                    });
-                                });
-                                
-                                // Helper function to decode HTML entities and strip slashes
-                                function decodeAndClean(text) {
-                                    if (!text) return '';
-                                    // Create a temporary div to decode HTML entities
-                                    var div = document.createElement('div');
-                                    div.innerHTML = text;
-                                    var decoded = div.textContent || div.innerText || '';
-                                    // Remove any remaining slashes
-                                    return decoded.replace(/\\/g, '');
-                                }
-                                
-                                // Add optgroups in order: Collections, Lessons
-                                var categoryOrder = ['Collections', 'Lessons'];
-                                $.each(categoryOrder, function(index, categoryName) {
-                                    if (favoritesByCategory[categoryName] && favoritesByCategory[categoryName].length > 0) {
-                                        var optgroup = $('<optgroup>').attr('label', categoryName);
-                                        $.each(favoritesByCategory[categoryName], function(idx, favorite) {
-                                            // Decode and clean the title
-                                            var favTitle = decodeAndClean(favorite.title || '');
-                                            var favDescription = decodeAndClean(favorite.description || '');
-                                            var favCategory = decodeAndClean(favorite.category || '');
-                                            
-                                            var option = $('<option>')
-                                                .attr('value', favorite.id)
-                                                .attr('data-title', favTitle)
-                                                .attr('data-category', favCategory)
-                                                .attr('data-description', favDescription)
-                                                .text(favTitle);
-                                            optgroup.append(option);
-                                        });
-                                        select.append(optgroup);
-                                    }
-                                });
-                            }
+                        if (response.success && response.favorites) {
+                            applyLessonFavoritesToSelect(response.favorites);
                         } else {
                             $('#lesson-favorite-select').html('<option value="">Error loading favorites</option>');
                         }
@@ -20808,8 +20898,12 @@ class JPH_Frontend {
                 });
             }
             
-            // Load analytics data
+            // Load analytics data (uses cache from dashboard-init when available)
             function loadAnalytics() {
+                if (aphDashboardInitData && aphDashboardInitData.analytics && aphDashboardInitData.analytics.periods) {
+                    displayAnalytics(aphDashboardInitData.analytics);
+                    return;
+                }
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/analytics'); ?>',
                     method: 'GET',
@@ -20819,7 +20913,6 @@ class JPH_Frontend {
                     success: function(response) {
                         if (response.success && response.data) {
                             displayAnalytics(response.data);
-                        } else {
                         }
                     },
                     error: function(xhr, status, error) {
@@ -21879,8 +21972,7 @@ class JPH_Frontend {
             
             // Initialize display name handlers
             function initDisplayNameHandlers() {
-                // Check if user needs welcome modal
-                checkFirstTimeUser();
+                // First-time user check runs from applyDashboardInitData (applyFirstTimeUserCheck)
                 
                 // Edit name button (subtle)
                 $('#jph-edit-name-btn').on('click', function() {
@@ -21931,11 +22023,24 @@ class JPH_Frontend {
                 });
             }
             
-            // Load current display name
+            // Load current display name (uses cache from dashboard-init when available)
             function loadCurrentDisplayName() {
                 const wpDisplayName = '<?php echo esc_js(wp_get_current_user()->display_name ?: wp_get_current_user()->user_login); ?>';
-                
-                // Get current user's custom display name from user stats
+
+                function applyUserStatsToModal(data) {
+                    if (data.display_name && data.display_name.trim() !== '') {
+                        $('#jph-display-name-input').val(data.display_name);
+                    } else {
+                        $('#jph-display-name-input').val(wpDisplayName);
+                    }
+                    const isHidden = data.show_on_leaderboard === 0 || data.show_on_leaderboard === false;
+                    $('#jph-hide-from-leaderboard').prop('checked', isHidden);
+                }
+
+                if (aphDashboardInitData && aphDashboardInitData.user_stats) {
+                    applyUserStatsToModal(aphDashboardInitData.user_stats);
+                    return;
+                }
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/user-stats'); ?>',
                     method: 'GET',
@@ -21943,28 +22048,14 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
-                        if (response.success) {
-                            // Set display name
-                            if (response.data.display_name && response.data.display_name.trim() !== '') {
-                                // Use custom display name if set
-                                $('#jph-display-name-input').val(response.data.display_name);
-                            } else {
-                                // Use WordPress display name as fallback
-                                $('#jph-display-name-input').val(wpDisplayName);
-                            }
-                            
-                            // Set checkbox state (show_on_leaderboard: 1 = show, 0 = hide)
-                            // Checkbox is checked when show_on_leaderboard is 0 (hidden)
-                            const isHidden = response.data.show_on_leaderboard === 0 || response.data.show_on_leaderboard === false;
-                            $('#jph-hide-from-leaderboard').prop('checked', isHidden);
+                        if (response.success && response.data) {
+                            applyUserStatsToModal(response.data);
                         } else {
-                            // Use WordPress display name as fallback
                             $('#jph-display-name-input').val(wpDisplayName);
                             $('#jph-hide-from-leaderboard').prop('checked', false);
                         }
                     },
                     error: function() {
-                        // Use WordPress display name as fallback
                         $('#jph-display-name-input').val(wpDisplayName);
                         $('#jph-hide-from-leaderboard').prop('checked', false);
                     }
@@ -22056,7 +22147,22 @@ class JPH_Frontend {
                 showMessage(text, type);
             }
             
-            // Check if user is first-time user
+            // Apply first-time user check from pre-fetched user_stats (used by dashboard-init)
+            function applyFirstTimeUserCheck(userStats) {
+                if (!userStats) {
+                    showWelcomeModal();
+                    return;
+                }
+                const hasDisplayName = userStats.display_name && userStats.display_name.trim() !== '';
+                const hasPracticeSessions = (userStats.total_sessions || 0) > 0;
+                if (!hasDisplayName && !hasPracticeSessions) {
+                    showWelcomeModal();
+                } else {
+                    updateWelcomeTitle(userStats.display_name);
+                }
+            }
+
+            // Check if user is first-time user (fallback fetch - not used on init when dashboard-init provides data)
             function checkFirstTimeUser() {
                 $.ajax({
                     url: '<?php echo rest_url('aph/v1/user-stats'); ?>',
@@ -22065,21 +22171,13 @@ class JPH_Frontend {
                         'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
                     },
                     success: function(response) {
-                        if (response.success) {
-                            const hasDisplayName = response.data.display_name && response.data.display_name.trim() !== '';
-                            const hasPracticeSessions = response.data.total_sessions > 0;
-                            
-                            // Show welcome modal if no display name set and no practice sessions
-                            if (!hasDisplayName && !hasPracticeSessions) {
-                                showWelcomeModal();
-                            } else {
-                                // Update welcome title with display name
-                                updateWelcomeTitle(response.data.display_name);
-                            }
+                        if (response.success && response.data) {
+                            applyFirstTimeUserCheck(response.data);
+                        } else {
+                            showWelcomeModal();
                         }
                     },
                     error: function() {
-                        // On error, show welcome modal to be safe
                         showWelcomeModal();
                     }
                 });
