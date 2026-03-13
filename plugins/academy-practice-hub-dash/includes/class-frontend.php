@@ -17827,6 +17827,9 @@ class JPH_Frontend {
                     success: function(response) {
                         if (response.success) {
                             aphDashboardInitData = response;
+                            if (typeof window !== 'undefined') {
+                                window.aphDashboardInitData = response;
+                            }
                             applyDashboardInitData(response);
                         }
                     }
@@ -17866,6 +17869,9 @@ class JPH_Frontend {
                 }
                 if (data.user_stats) {
                     applyFirstTimeUserCheck(data.user_stats);
+                }
+                if (data.repertoire && Array.isArray(data.repertoire) && typeof window.applyRepertoireData === 'function') {
+                    window.applyRepertoireData(data.repertoire);
                 }
             }
 
@@ -22767,6 +22773,14 @@ class JPH_Frontend {
             let repertoireItems = [];
             let draggedItem = null;
             
+            // Expose for dashboard-init to populate repertoire from cached data
+            window.applyRepertoireData = function(items) {
+                if (items && Array.isArray(items)) {
+                    repertoireItems = items;
+                    renderRepertoireTable();
+                }
+            };
+            
             // Local showMessage function for repertoire
             function showMessage(message, type = 'success') {
                 const messageElement = $('<div class="jph-message jph-message-' + type + '">' + message + '</div>');
@@ -22779,8 +22793,13 @@ class JPH_Frontend {
                 }, 3000);
             }
             
-            // Load repertoire items on page load
-            function loadRepertoireItems() {
+            // Load repertoire items (uses cache from dashboard-init when available; pass true to force fetch after add/edit/delete)
+            function loadRepertoireItems(forceRefresh) {
+                if (!forceRefresh && window.aphDashboardInitData && window.aphDashboardInitData.repertoire && Array.isArray(window.aphDashboardInitData.repertoire)) {
+                    repertoireItems = window.aphDashboardInitData.repertoire;
+                    renderRepertoireTable();
+                    return;
+                }
                 const orderBy = $('#repertoire-sort').val() || 'last_practiced';
                 
                 $.ajax({
@@ -22955,7 +22974,7 @@ class JPH_Frontend {
                             }
                             
                             showMessage(message, 'success');
-                            loadRepertoireItems();
+                            loadRepertoireItems(true);
                         } else {
                             showMessage('Failed to mark as practiced: ' + (response.message || 'Unknown error'), 'error');
                         }
@@ -23074,7 +23093,7 @@ class JPH_Frontend {
                     success: function(response) {
                         if (response.success) {
                             showMessage('Repertoire item deleted successfully.', 'success');
-                            loadRepertoireItems();
+                            loadRepertoireItems(true);
                         } else {
                             showMessage('Failed to delete repertoire: ' + (response.message || 'Unknown error'), 'error');
                         }
@@ -23155,7 +23174,7 @@ class JPH_Frontend {
                 
                 // Sort dropdown
                 $('#repertoire-sort').on('change', function() {
-                    loadRepertoireItems();
+                    loadRepertoireItems(true);
                 });
                 
                 // Add repertoire form submission
@@ -23186,7 +23205,7 @@ class JPH_Frontend {
                             if (response.success) {
                                 showMessage('Repertoire item added successfully!', 'success');
                                 $('#jph-add-repertoire-modal').hide();
-                                loadRepertoireItems();
+                                loadRepertoireItems(true);
                             } else {
                                 showMessage('Failed to add repertoire: ' + (response.message || 'Unknown error'), 'error');
                             }
@@ -23226,7 +23245,7 @@ class JPH_Frontend {
                             if (response.success) {
                                 showMessage('Repertoire item updated successfully!', 'success');
                                 $('#jph-edit-repertoire-modal').hide();
-                                loadRepertoireItems();
+                                loadRepertoireItems(true);
                             } else {
                                 showMessage('Failed to update repertoire: ' + (response.message || 'Unknown error'), 'error');
                             }
@@ -23250,10 +23269,9 @@ class JPH_Frontend {
                 });
             }
             
-            // Load repertoire items on page load
+            // Repertoire populated from dashboard-init via applyRepertoireData; init handlers only
             if ($('#repertoire-table').length) {
                 initRepertoireHandlers();
-                loadRepertoireItems();
             }
             
             // Print repertoire function

@@ -6994,6 +6994,8 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
         $analytics_resp = $this->rest_get_analytics($empty_req);
         $analytics = is_wp_error($analytics_resp) ? array() : ($analytics_resp->get_data()['data'] ?? array());
 
+        $repertoire = $this->database->get_user_repertoire($user_id, 'last_practiced', 'DESC');
+
         $payload = array(
             'success' => true,
             'user_stats' => $user_stats,
@@ -7003,7 +7005,8 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             'popup_notification' => $popup_notification,
             'badges' => $badges,
             'lesson_favorites' => $lesson_favorites,
-            'analytics' => $analytics
+            'analytics' => $analytics,
+            'repertoire' => $repertoire
         );
         set_transient($cache_key, $payload, 60);
         return rest_ensure_response($payload);
