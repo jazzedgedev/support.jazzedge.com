@@ -229,9 +229,31 @@
 
 /* === Thank You Page === */
 .jem-thankyou-wrapper {
-    max-width: 620px !important;
+    max-width: 900px !important;
     margin: 40px auto !important;
     font-family: inherit !important;
+}
+
+.jem-ty-col {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+}
+
+@media (max-width: 680px) {
+    .jem-ty-table,
+    .jem-ty-table tbody,
+    .jem-ty-table tr,
+    .jem-ty-table td {
+        display: block !important;
+        width: 100% !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .jem-ty-table td {
+        margin-bottom: 16px !important;
+    }
 }
 
 .jem-section {
@@ -286,7 +308,7 @@
     transition: background 0.2s !important;
 }
 
-.jem-btn-download {
+.jem-ty-col .jem-btn-download {
     background: #27ae60 !important;
     color: #fff !important;
     font-size: 20px !important;
@@ -298,12 +320,12 @@
     margin-top: 10px !important;
 }
 
-.jem-btn-download:hover {
+.jem-ty-col .jem-btn-download:hover {
     background: #1e8449 !important;
     color: #fff !important;
 }
 
-.jem-btn-purchase {
+.jem-ty-col .jem-ty-col .jem-ty-col .jem-ty-col .jem-ty-col .jem-ty-col .jem-btn-purchase {
     background: #0a7c7c !important;
     color: #fff !important;
     display: block !important;
@@ -314,7 +336,7 @@
     font-size: 18px !important;
 }
 
-.jem-btn-purchase:hover {
+.jem-ty-col .jem-ty-col .jem-btn-purchase:hover {
     background: #085f5f !important;
     color: #fff !important;
 }

@@ -27,7 +27,6 @@ class JEM_Funnels_List_Table extends WP_List_Table {
             'id' => __('ID', 'jazzedge-marketing'),
             'name' => __('Name', 'jazzedge-marketing'),
             'invite_code' => __('Invite Code', 'jazzedge-marketing'),
-            'shortcode' => __('Shortcode', 'jazzedge-marketing'),
             'email_link' => __('Email Link', 'jazzedge-marketing'),
             'optins' => __('Opt-ins', 'jazzedge-marketing'),
             'download_pct' => __('Download %', 'jazzedge-marketing'),
@@ -82,9 +81,6 @@ class JEM_Funnels_List_Table extends WP_List_Table {
                 $code = isset($item->invite_code) ? $item->invite_code : '';
                 $btn = '<button type="button" class="button button-small jem-regenerate-invite-code" data-funnel-id="' . (int) $item->id . '" title="' . esc_attr__('Regenerating will break any existing links using this code.', 'jazzedge-marketing') . '">' . esc_html__('Regenerate', 'jazzedge-marketing') . '</button>';
                 return '<code style="font-family:monospace;font-size:11px;">' . esc_html($code) . '</code> ' . $btn;
-            case 'shortcode':
-                $shortcode = '[jem_marketing id="' . (int) $item->id . '"]';
-                return '<div class="jem-shortcode-cell"><input type="text" readonly value="' . esc_attr($shortcode) . '" onclick="this.select()" /><button type="button" class="button button-small jem-copy-btn" data-copy="' . esc_attr($shortcode) . '">' . esc_html__('Copy', 'jazzedge-marketing') . '</button></div>';
             case 'email_link':
                 $optin_page_id  = get_option( 'jem_optin_page_id', 0 );
                 $optin_base_url = $optin_page_id ? get_permalink( $optin_page_id ) : '';

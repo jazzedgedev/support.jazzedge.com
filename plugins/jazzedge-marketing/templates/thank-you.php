@@ -16,30 +16,13 @@ $product_url = add_query_arg( 'coupon', $lead->coupon_code, $funnel->product_url
 $download_url = home_url( '/?jem_download=' . $lead->download_token );
 ?>
 <div class="jem-thankyou-wrapper">
-
-	<!-- DOWNLOAD SECTION -->
-	<div class="jem-section jem-download-section">
-		<div class="jem-checkmark">✓</div>
-		<h1><?php esc_html_e( "You're In! Your Sheet Music is Ready", 'jazzedge-marketing' ); ?></h1>
-		<p class="jem-sub"><?php
-			/* translators: %s: funnel name */
-			echo wp_kses_post( sprintf( __( 'Click the button below to download your free sheet music for <strong>%s</strong>.', 'jazzedge-marketing' ), esc_html( $funnel->name ) ) );
-		?></p>
-		<a href="<?php echo esc_url( $download_url ); ?>"
-		   class="jem-btn jem-btn-download"
-		   id="jem-download-btn"
-		   data-lead="<?php echo (int) $lead->id; ?>"
-		   data-funnel="<?php echo (int) $funnel->id; ?>">
-			<?php esc_html_e( '⬇ Download Your Free Sheet Music', 'jazzedge-marketing' ); ?>
-		</a>
-	</div>
-
-	<!-- DIVIDER -->
-	<div class="jem-divider">
-		<span><?php esc_html_e( 'Want to learn how to play it?', 'jazzedge-marketing' ); ?></span>
-	</div>
-
-	<!-- OFFER SECTION (hidden when expired) -->
+	<div class="jem-ty-page" style="max-width:960px;margin:20px auto;">
+	<table class="jem-ty-table" style="width:100%;border-collapse:collapse;table-layout:fixed;" cellpadding="0" cellspacing="0">
+		<tr style="vertical-align:top;">
+			<!-- LEFT CELL: OFFER (62%) -->
+			<td style="width:62%;padding-right:12px;vertical-align:top;">
+				<div class="jem-ty-col jem-ty-offer-col">
+		<!-- OFFER SECTION (hidden when expired) -->
 	<div class="jem-section jem-offer-section jem-ty-col jem-ty-offer-col" style="<?php echo $expired ? 'display:none!important;' : ''; ?>">
 		<?php if ( ! $expired ) : ?>
 		<!-- COUNTDOWN -->
@@ -128,7 +111,7 @@ $download_url = home_url( '/?jem_download=' . $lead->download_token );
 				<div class="jem-ty-step-num">3</div>
 				<div class="jem-ty-step-content">
 					<strong><?php esc_html_e( 'Paste Your Coupon Code at Checkout', 'jazzedge-marketing' ); ?></strong>
-					<p><?php esc_html_e( 'On the checkout page, look for the <strong>"Coupon Code"</strong> or <strong>"Discount Code"</strong> box. Paste your code there and click <strong>Apply</strong>.', 'jazzedge-marketing' ); ?></p>
+					<p><?php echo wp_kses_post( __( 'On the checkout page, look for the <strong>"Coupon Code"</strong> or <strong>"Discount Code"</strong> box. Paste your code there and click <strong>Apply</strong>.', 'jazzedge-marketing' ) ); ?></p>
 					<div class="jem-ty-tip">
 						<?php esc_html_e( '💡 Your code is:', 'jazzedge-marketing' ); ?> <span class="jem-ty-inline-code"><?php echo esc_html( $lead->coupon_code ); ?></span>
 					</div>
@@ -139,7 +122,7 @@ $download_url = home_url( '/?jem_download=' . $lead->download_token );
 				<div class="jem-ty-step-num jem-ty-step-num-warning">4</div>
 				<div class="jem-ty-step-content">
 					<strong><?php esc_html_e( '⚠️ Make Sure the Discount is Applied BEFORE You Order!', 'jazzedge-marketing' ); ?></strong>
-					<p><?php esc_html_e( 'Check that your total shows the discounted price before clicking the final order button. <strong>We cannot apply discounts after an order is placed.</strong>', 'jazzedge-marketing' ); ?></p>
+					<p><?php echo wp_kses_post( __( 'Check that your total shows the discounted price before clicking the final order button. <strong>We cannot apply discounts after an order is placed.</strong>', 'jazzedge-marketing' ) ); ?></p>
 				</div>
 			</div>
 
@@ -164,8 +147,33 @@ $download_url = home_url( '/?jem_download=' . $lead->download_token );
 			</a>
 		</div>
 	</div>
+				</div>
+			</td>
 
-</div>
+			<!-- RIGHT CELL: DOWNLOAD (38%) -->
+			<td style="width:38%;padding-left:4px;vertical-align:top;">
+				<div class="jem-ty-col jem-ty-download-col">
+					<div class="jem-section jem-download-section">
+				<div class="jem-checkmark">✓</div>
+				<h1><?php esc_html_e( "You're In! Your Sheet Music is Ready", 'jazzedge-marketing' ); ?></h1>
+				<p class="jem-sub"><?php
+					/* translators: %s: funnel name */
+					echo wp_kses_post( sprintf( __( 'Click the button below to download your free sheet music for <strong>%s</strong>.', 'jazzedge-marketing' ), esc_html( $funnel->name ) ) );
+				?></p>
+				<a href="<?php echo esc_url( $download_url ); ?>"
+				   class="jem-btn jem-btn-download"
+				   id="jem-download-btn"
+				   data-lead="<?php echo (int) $lead->id; ?>"
+				   data-funnel="<?php echo (int) $lead->id; ?>">
+					<?php esc_html_e( '⬇ Download Your Free Sheet Music', 'jazzedge-marketing' ); ?>
+				</a>
+			</div>
+		</div>
+
+	</td></tr></table>
+
+	</div><!-- end jem-ty-page -->
+</div><!-- end jem-thankyou-wrapper -->
 
 <script>
 var jemExpiry = '<?php echo esc_js( $lead->coupon_expires ); ?>';

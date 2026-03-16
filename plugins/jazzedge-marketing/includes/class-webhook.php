@@ -45,6 +45,7 @@ class JEM_Webhook {
 			'jem_product_name'    => $funnel->name,
 			'jem_product_url'     => $funnel->product_url,
 			'jem_expiration_date' => $lead->coupon_expires,
+			'jem_music_link'      => home_url( '/?jem_download=' . $lead->download_token ),
 		);
 
 		$response = wp_remote_post(
