@@ -42,6 +42,20 @@ $download_url = home_url( '/?jem_download=' . $lead->download_token );
 	<!-- OFFER SECTION (hidden when expired) -->
 	<div class="jem-section jem-offer-section jem-ty-col jem-ty-offer-col" style="<?php echo $expired ? 'display:none!important;' : ''; ?>">
 		<?php if ( ! $expired ) : ?>
+		<!-- COUNTDOWN -->
+		<div class="jem-ty-countdown-label"><?php esc_html_e( '⏰ This offer expires in:', 'jazzedge-marketing' ); ?></div>
+		<div class="jem-countdown-wrapper">
+			<div class="jem-countdown jem-ty-countdown" id="jem-countdown">
+				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-days">--</span><label><?php esc_html_e( 'Days', 'jazzedge-marketing' ); ?></label></div>
+				<div class="jem-countdown-sep jem-ty-cd-sep">:</div>
+				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-hours">--</span><label><?php esc_html_e( 'Hrs', 'jazzedge-marketing' ); ?></label></div>
+				<div class="jem-countdown-sep jem-ty-cd-sep">:</div>
+				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-minutes">--</span><label><?php esc_html_e( 'Min', 'jazzedge-marketing' ); ?></label></div>
+				<div class="jem-countdown-sep jem-ty-cd-sep">:</div>
+				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-seconds">--</span><label><?php esc_html_e( 'Sec', 'jazzedge-marketing' ); ?></label></div>
+			</div>
+		</div>
+
 		<div class="jem-ty-urgent-badge"><?php esc_html_e( '⚡ LIMITED TIME OFFER — ', 'jazzedge-marketing' ); ?><?php echo (int) $funnel->coupon_days; ?> <?php esc_html_e( 'DAYS ONLY', 'jazzedge-marketing' ); ?></div>
 
 		<h3 class="jem-ty-offer-title"><?php esc_html_e( 'Learn to Play', 'jazzedge-marketing' ); ?><br><em><?php echo esc_html( $product_title ); ?></em></h3>
@@ -85,6 +99,10 @@ $download_url = home_url( '/?jem_download=' . $lead->download_token );
 						<span class="jem-ty-coupon-code" id="jem-coupon-code"><?php echo esc_html( $lead->coupon_code ); ?></span>
 						<button class="jem-ty-copy-btn jem-btn jem-btn-copy" type="button" onclick="jemCopyCoupon()"><?php esc_html_e( '📋 COPY', 'jazzedge-marketing' ); ?></button>
 					</div>
+					<p class="jem-ty-personal-note">
+						<?php esc_html_e( '🔒 This coupon is personal and attached to', 'jazzedge-marketing' ); ?> <strong><?php echo esc_html( $lead->email ); ?></strong>.
+						<?php esc_html_e( 'It is non-transferable and cannot be used by anyone else.', 'jazzedge-marketing' ); ?>
+					</p>
 					<p class="jem-ty-copy-confirm jem-coupon-note" id="jem-copy-confirm" style="display:none;"><?php esc_html_e( '✅ Copied! Now go to Step 2.', 'jazzedge-marketing' ); ?></p>
 				</div>
 			</div>
@@ -125,22 +143,6 @@ $download_url = home_url( '/?jem_download=' . $lead->download_token );
 				</div>
 			</div>
 
-		</div>
-
-		<!-- CTA - Step 2 contains the main purchase button -->
-
-		<!-- COUNTDOWN -->
-		<div class="jem-ty-countdown-label"><?php esc_html_e( '⏰ This discount expires in:', 'jazzedge-marketing' ); ?></div>
-		<div class="jem-countdown-wrapper">
-			<div class="jem-countdown jem-ty-countdown" id="jem-countdown">
-				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-days">--</span><label><?php esc_html_e( 'Days', 'jazzedge-marketing' ); ?></label></div>
-				<div class="jem-countdown-sep jem-ty-cd-sep">:</div>
-				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-hours">--</span><label><?php esc_html_e( 'Hrs', 'jazzedge-marketing' ); ?></label></div>
-				<div class="jem-countdown-sep jem-ty-cd-sep">:</div>
-				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-minutes">--</span><label><?php esc_html_e( 'Min', 'jazzedge-marketing' ); ?></label></div>
-				<div class="jem-countdown-sep jem-ty-cd-sep">:</div>
-				<div class="jem-countdown-block jem-ty-cd-block"><span id="jem-seconds">--</span><label><?php esc_html_e( 'Sec', 'jazzedge-marketing' ); ?></label></div>
-			</div>
 		</div>
 
 		<p class="jem-disclaimer jem-ty-disclaimer">

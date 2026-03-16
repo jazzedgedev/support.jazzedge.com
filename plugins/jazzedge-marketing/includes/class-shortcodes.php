@@ -73,19 +73,29 @@ class JEM_Shortcodes {
     public function render_marketing($atts) {
         $invite_code = isset($_GET['invite_code']) ? sanitize_text_field(wp_unslash($_GET['invite_code'])) : '';
         if (empty($invite_code)) {
-            return '<p class="jem-inactive">' . esc_html__('This offer is not currently available.', 'jazzedge-marketing') . '</p>';
+            $inactive_msg = get_option('jem_inactive_msg', '');
+            if (empty(trim($inactive_msg))) {
+                $inactive_msg = __('This offer is not currently available.', 'jazzedge-marketing');
+            }
+            return '<p class="jem-inactive-message">' . esc_html($inactive_msg) . '</p>';
         }
 
         $funnel = $this->database->get_funnel_by_invite_code($invite_code);
         if (!$funnel) {
-            return '<p class="jem-inactive">' . esc_html__('This offer is not currently available.', 'jazzedge-marketing') . '</p>';
+            $inactive_msg = get_option('jem_inactive_msg', '');
+            if (empty(trim($inactive_msg))) {
+                $inactive_msg = __('This offer is not currently available.', 'jazzedge-marketing');
+            }
+            return '<p class="jem-inactive-message">' . esc_html($inactive_msg) . '</p>';
         }
         if (!(int) $funnel->active) {
-            $msg = get_option('jem_inactive_msg', '');
-            if (empty(trim($msg))) {
-                $msg = __('This offer is not currently available.', 'jazzedge-marketing');
+            $inactive_msg = !empty($funnel->inactive_msg)
+                ? $funnel->inactive_msg
+                : get_option('jem_inactive_msg', '');
+            if (empty(trim($inactive_msg))) {
+                $inactive_msg = __('This offer is not currently available.', 'jazzedge-marketing');
             }
-            return '<p class="jem-inactive">' . esc_html($msg) . '</p>';
+            return '<p class="jem-inactive-message">' . esc_html($inactive_msg) . '</p>';
         }
 
         ob_start();

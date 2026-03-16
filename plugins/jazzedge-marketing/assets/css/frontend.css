@@ -618,3 +618,17 @@
     color: #0a7c7c !important;
     letter-spacing: 1px !important;
 }
+
+.jem-ty-personal-note {
+    font-size: 11px !important;
+    color: #999 !important;
+    margin-top: 8px !important;
+    font-style: italic !important;
+    border-top: 1px solid #eee !important;
+    padding-top: 8px !important;
+}
+
+.jem-ty-personal-note strong {
+    color: #777 !important;
+    font-style: normal !important;
+}

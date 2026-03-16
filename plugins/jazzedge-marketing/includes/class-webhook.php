@@ -37,13 +37,14 @@ class JEM_Webhook {
 	 */
 	public function send( $funnel, $lead ) {
 		$body = array(
-			'first_name'       => $lead->first_name,
-			'last_name'        => $lead->last_name,
-			'full_name'        => $lead->first_name . ' ' . $lead->last_name,
-			'email'            => $lead->email,
-			'coupon_code'      => $lead->coupon_code,
-			'jem_product_name' => $funnel->name,
-			'jem_product_url'  => $funnel->product_url,
+			'first_name'          => $lead->first_name,
+			'last_name'           => $lead->last_name,
+			'full_name'           => $lead->first_name . ' ' . $lead->last_name,
+			'email'               => $lead->email,
+			'coupon_code'         => $lead->coupon_code,
+			'jem_product_name'    => $funnel->name,
+			'jem_product_url'     => $funnel->product_url,
+			'jem_expiration_date' => $lead->coupon_expires,
 		);
 
 		$response = wp_remote_post(
