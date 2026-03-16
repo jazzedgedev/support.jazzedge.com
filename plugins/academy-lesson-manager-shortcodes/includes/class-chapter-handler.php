@@ -4,6 +4,17 @@
  * Handles chapter ID resolution and navigation logic
  */
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+if (!class_exists('ALM_Helpers')) {
+    $alm_helpers_path = WP_PLUGIN_DIR . '/academy-lesson-manager/includes/class-helpers.php';
+    if (file_exists($alm_helpers_path)) {
+        require_once $alm_helpers_path;
+    }
+}
+
 class ALM_Chapter_Handler {
     
     private $wpdb;
@@ -190,7 +201,11 @@ class ALM_Chapter_Handler {
             return true;
         }
         
-        return ALM_Helpers::is_release_date_passed($release_date);
+        if (class_exists('ALM_Helpers')) {
+            return ALM_Helpers::is_release_date_passed($release_date);
+        }
+        
+        return current_time('Y-m-d') >= $release_date;
     }
     
     /**

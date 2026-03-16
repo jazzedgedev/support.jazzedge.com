@@ -18,6 +18,7 @@ class Lead_Aggregator_Database {
         'audit_log',
         'email_logs',
         'webhook_logs',
+        'followup_history',
     );
 
     public function __construct() {
@@ -68,6 +69,7 @@ class Lead_Aggregator_Database {
             skip_reminders TINYINT(1) NOT NULL DEFAULT 0,
             followup_at DATETIME NULL,
             due_at DATETIME NULL,
+            assigned_to BIGINT UNSIGNED NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             PRIMARY KEY (id),
@@ -201,6 +203,25 @@ class Lead_Aggregator_Database {
             KEY created_at (created_at)
         ) $charset_collate;";
 
+        $tables[] = "CREATE TABLE {$this->table_name('followup_history')} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            lead_id BIGINT UNSIGNED NOT NULL,
+            user_id BIGINT UNSIGNED NOT NULL,
+            actor_id BIGINT UNSIGNED NOT NULL,
+            status_before VARCHAR(40) NULL,
+            status_after VARCHAR(40) NULL,
+            followup_status_before VARCHAR(40) NULL,
+            followup_status_after VARCHAR(40) NULL,
+            followup_at DATETIME NULL,
+            due_at DATETIME NULL,
+            note LONGTEXT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY lead_id (lead_id),
+            KEY user_id (user_id),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+
         foreach ($tables as $sql) {
             dbDelta($sql);
         }
@@ -240,6 +261,9 @@ class Lead_Aggregator_Database {
         if (!$this->has_column($leads_table, 'address_street')) {
             $this->create_tables();
         }
+        if (!$this->has_column($leads_table, 'assigned_to')) {
+            $this->wpdb->query("ALTER TABLE {$leads_table} ADD COLUMN assigned_to BIGINT UNSIGNED NULL AFTER due_at");
+        }
         for ($i = 1; $i <= 10; $i += 1) {
             if (!$this->has_column($leads_table, 'custom_' . $i)) {
                 $this->create_tables();
@@ -269,13 +293,45 @@ class Lead_Aggregator_Database {
         $where = $this->wpdb->prepare('WHERE user_id = %d', $user_id);
         $params = array();
 
-        if (!empty($filters['status'])) {
+        $status_keys = !empty($filters['status_keys']) ? $filters['status_keys'] : null;
+        if (!empty($status_keys) && is_array($status_keys)) {
+            $placeholders = implode(',', array_fill(0, count($status_keys), '%s'));
+            $where .= $this->wpdb->prepare(" AND status IN ($placeholders)", $status_keys);
+        } elseif (!empty($filters['status'])) {
             $where .= $this->wpdb->prepare(' AND status = %s', $filters['status']);
         }
 
         if (!empty($filters['search'])) {
             $search = '%' . $this->wpdb->esc_like($filters['search']) . '%';
             $where .= $this->wpdb->prepare(' AND (first_name LIKE %s OR last_name LIKE %s OR email LIKE %s)', $search, $search, $search);
+        }
+
+        $outcome_keys = $status_keys ? $status_keys : (in_array($filters['status'] ?? '', array('won', 'lost'), true) ? array($filters['status']) : null);
+        if (!empty($filters['outcome_date_from']) && !empty($filters['outcome_date_to']) && !empty($outcome_keys)) {
+            $audit_table = $this->table_name('audit_log');
+            $like_conditions = array();
+            $like_params = array($user_id, 'pipeline_stage_changed', 'lead');
+            foreach ($outcome_keys as $key) {
+                $like_conditions[] = 'metadata_json LIKE %s';
+                $like_params[] = '%"to":"' . $this->wpdb->esc_like($key) . '"%';
+            }
+            $like_params[] = $filters['outcome_date_from'];
+            $like_params[] = $filters['outcome_date_to'];
+            $like_clause = implode(' OR ', $like_conditions);
+            $where .= $this->wpdb->prepare(
+                " AND id IN (SELECT entity_id FROM {$audit_table} WHERE workspace_id = %d AND action = %s AND entity_type = %s AND ({$like_clause}) AND created_at BETWEEN %s AND %s)",
+                $like_params
+            );
+        }
+
+        /* Follow-ups exclusion: exclude won/lost stages so they never appear in Follow-ups tab */
+        if (!empty($filters['exclude_status'])) {
+            $exclude = is_array($filters['exclude_status']) ? $filters['exclude_status'] : array_map('trim', explode(',', $filters['exclude_status']));
+            $exclude = array_filter($exclude);
+            if (!empty($exclude)) {
+                $placeholders = implode(',', array_fill(0, count($exclude), '%s'));
+                $where .= $this->wpdb->prepare(" AND status NOT IN ($placeholders)", $exclude);
+            }
         }
 
         $sql = "SELECT * FROM {$this->table_name('leads')} {$where} ORDER BY updated_at DESC";
@@ -329,6 +385,52 @@ class Lead_Aggregator_Database {
         return $this->wpdb->query($sql);
     }
 
+    public function count_leads_by_status($user_id, $status) {
+        $this->maybe_create_tables();
+        $table = $this->table_name('leads');
+        return (int) $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND status = %s",
+            (int) $user_id,
+            $status
+        ));
+    }
+
+    public function migrate_leads_to_stage($user_id, $from_status, $to_status) {
+        $this->maybe_create_tables();
+        $table = $this->table_name('leads');
+        $now = current_time('mysql', true);
+        return $this->wpdb->query($this->wpdb->prepare(
+            "UPDATE {$table} SET status = %s, updated_at = %s WHERE user_id = %d AND status = %s",
+            $to_status,
+            $now,
+            (int) $user_id,
+            $from_status
+        ));
+    }
+
+    public function bulk_update_assigned_to($user_id, $lead_ids, $assigned_to) {
+        $this->maybe_create_tables();
+        $lead_ids = array_values(array_filter(array_map('intval', (array) $lead_ids)));
+        if (empty($lead_ids)) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($lead_ids), '%d'));
+        $now = current_time('mysql', true);
+        $table = $this->table_name('leads');
+        if ($assigned_to === null) {
+            $sql = $this->wpdb->prepare(
+                "UPDATE {$table} SET assigned_to = NULL, updated_at = %s WHERE user_id = %d AND id IN ($placeholders)",
+                array_merge(array($now, (int) $user_id), $lead_ids)
+            );
+        } else {
+            $sql = $this->wpdb->prepare(
+                "UPDATE {$table} SET assigned_to = %d, updated_at = %s WHERE user_id = %d AND id IN ($placeholders)",
+                array_merge(array((int) $assigned_to, $now, (int) $user_id), $lead_ids)
+            );
+        }
+        return $this->wpdb->query($sql);
+    }
+
     public function get_notes($lead_id, $user_id) {
         $this->maybe_create_tables();
         $sql = $this->wpdb->prepare("SELECT * FROM {$this->table_name('notes')} WHERE lead_id = %d AND user_id = %d ORDER BY created_at DESC", $lead_id, $user_id);
@@ -362,6 +464,38 @@ class Lead_Aggregator_Database {
             'id' => $note_id,
             'user_id' => $user_id,
         ));
+    }
+
+    public function insert_followup_history($lead_id, $user_id, $actor_id, $data) {
+        $this->maybe_create_tables();
+        $table = $this->table_name('followup_history');
+        $this->wpdb->insert($table, array(
+            'lead_id' => (int) $lead_id,
+            'user_id' => (int) $user_id,
+            'actor_id' => (int) $actor_id,
+            'status_before' => isset($data['status_before']) ? $data['status_before'] : null,
+            'status_after' => isset($data['status_after']) ? $data['status_after'] : null,
+            'followup_status_before' => isset($data['followup_status_before']) ? $data['followup_status_before'] : null,
+            'followup_status_after' => isset($data['followup_status_after']) ? $data['followup_status_after'] : null,
+            'followup_at' => isset($data['followup_at']) ? $data['followup_at'] : null,
+            'due_at' => isset($data['due_at']) ? $data['due_at'] : null,
+            'note' => isset($data['note']) ? $data['note'] : null,
+            'created_at' => current_time('mysql'),
+        ));
+        return $this->wpdb->insert_id;
+    }
+
+    public function get_followup_history($lead_id, $user_id) {
+        $this->maybe_create_tables();
+        $sql = $this->wpdb->prepare(
+            "SELECT fh.*, u.display_name as actor_name FROM {$this->table_name('followup_history')} fh
+             LEFT JOIN {$this->wpdb->users} u ON fh.actor_id = u.ID
+             WHERE fh.lead_id = %d AND fh.user_id = %d
+             ORDER BY fh.created_at DESC",
+            $lead_id,
+            $user_id
+        );
+        return $this->wpdb->get_results($sql, ARRAY_A);
     }
 
     public function get_tags($user_id) {
@@ -669,6 +803,119 @@ class Lead_Aggregator_Database {
 
     public function get_last_error() {
         return $this->wpdb->last_error;
+    }
+
+    /**
+     * @param int $user_id
+     * @param string $type 'won' or 'lost'
+     * @param string $start
+     * @param string $end
+     * @param array $won_keys Stage keys with type=won (default: ['won'])
+     * @param array $lost_keys Stage keys with type=lost (default: ['lost'])
+     */
+    public function get_won_lost_analytics($user_id, $type, $start, $end, $won_keys = null, $lost_keys = null) {
+        $this->maybe_create_tables();
+        $leads_table = $this->table_name('leads');
+        $audit_table = $this->table_name('audit_log');
+        $won_keys = is_array($won_keys) && !empty($won_keys) ? $won_keys : array('won');
+        $lost_keys = is_array($lost_keys) && !empty($lost_keys) ? $lost_keys : array('lost');
+
+        $total_leads = (int) $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$leads_table} WHERE user_id = %d",
+            $user_id
+        ));
+
+        $won_count = 0;
+        if (!empty($won_keys)) {
+            $won_ph = implode(',', array_fill(0, count($won_keys), '%s'));
+            $won_count = (int) $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT COUNT(*) FROM {$leads_table} WHERE user_id = %d AND status IN ({$won_ph})",
+                array_merge(array($user_id), $won_keys)
+            ));
+        }
+        $lost_count = 0;
+        if (!empty($lost_keys)) {
+            $lost_ph = implode(',', array_fill(0, count($lost_keys), '%s'));
+            $lost_count = (int) $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT COUNT(*) FROM {$leads_table} WHERE user_id = %d AND status IN ({$lost_ph})",
+                array_merge(array($user_id), $lost_keys)
+            ));
+        }
+
+        $wins_like = array();
+        foreach ($won_keys as $k) {
+            $wins_like[] = '%"to":"' . $this->wpdb->esc_like($k) . '"%';
+        }
+        $losses_like = array();
+        foreach ($lost_keys as $k) {
+            $losses_like[] = '%"to":"' . $this->wpdb->esc_like($k) . '"%';
+        }
+        $wins_in_period = 0;
+        if (!empty($wins_like)) {
+            $wins_conds = implode(' OR ', array_fill(0, count($wins_like), 'metadata_json LIKE %s'));
+            $wins_in_period = (int) $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT COUNT(*) FROM {$audit_table} WHERE workspace_id = %d AND action = %s AND ({$wins_conds}) AND created_at BETWEEN %s AND %s",
+                array_merge(array($user_id, 'pipeline_stage_changed'), $wins_like, array($start, $end))
+            ));
+        }
+        $losses_in_period = 0;
+        if (!empty($losses_like)) {
+            $loss_conds = implode(' OR ', array_fill(0, count($losses_like), 'metadata_json LIKE %s'));
+            $losses_in_period = (int) $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT COUNT(*) FROM {$audit_table} WHERE workspace_id = %d AND action = %s AND ({$loss_conds}) AND created_at BETWEEN %s AND %s",
+                array_merge(array($user_id, 'pipeline_stage_changed'), $losses_like, array($start, $end))
+            ));
+        }
+
+        $target_keys = $type === 'won' ? $won_keys : $lost_keys;
+        $like_patterns = $type === 'won' ? $wins_like : $losses_like;
+        $avg_days = null;
+        if (!empty($target_keys) && !empty($like_patterns)) {
+            $sub_conds = implode(' OR ', array_map(function () { return 'al.metadata_json LIKE %s'; }, $like_patterns));
+            $subquery = $this->wpdb->prepare(
+                "SELECT al.entity_id, MIN(al.created_at) as changed_at FROM {$audit_table} al
+                 WHERE al.workspace_id = %d AND al.action = %s AND al.entity_type = %s AND ({$sub_conds})
+                 GROUP BY al.entity_id",
+                array_merge(array($user_id, 'pipeline_stage_changed', 'lead'), $like_patterns)
+            );
+            $status_placeholders = implode(',', array_fill(0, count($target_keys), '%s'));
+            $avg_sql = "SELECT AVG(DATEDIFF(won_lost.changed_at, l.created_at)) as avg_days
+                FROM {$leads_table} l
+                INNER JOIN ({$subquery}) won_lost ON l.id = won_lost.entity_id
+                WHERE l.user_id = %d AND l.status IN ({$status_placeholders})";
+            $result = $this->wpdb->get_var($this->wpdb->prepare($avg_sql, array_merge(array($user_id), $target_keys)));
+            if ($result !== null && $result !== '' && is_numeric($result)) {
+                $avg_days = (float) $result;
+            }
+        }
+
+        $top_loss_reason = 'No response';
+        $top_loss_pct = 100;
+        if ($type === 'lost' && $lost_count > 0 && !empty($lost_keys)) {
+            $reason_placeholders = implode(',', array_fill(0, count($lost_keys), '%s'));
+            $reasons = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT custom_1 as reason, COUNT(*) as cnt FROM {$leads_table}
+                 WHERE user_id = %d AND status IN ({$reason_placeholders}) AND custom_1 IS NOT NULL AND custom_1 != ''
+                 GROUP BY custom_1 ORDER BY cnt DESC LIMIT 1",
+                array_merge(array($user_id), $lost_keys)
+            ), ARRAY_A);
+            if (!empty($reasons) && !empty($reasons[0]['reason'])) {
+                $top_loss_reason = $reasons[0]['reason'];
+                $top_loss_pct = round((int) $reasons[0]['cnt'] / $lost_count * 100, 1);
+            }
+        }
+
+        return array(
+            'total_leads' => $total_leads,
+            'won_count' => $won_count,
+            'lost_count' => $lost_count,
+            'wins_in_period' => $wins_in_period,
+            'losses_in_period' => $losses_in_period,
+            'avg_days_to_close' => $avg_days,
+            'avg_days_to_loss' => $avg_days,
+            'top_loss_reason' => $top_loss_reason,
+            'top_loss_reason_pct' => $top_loss_pct,
+        );
     }
 
     public function get_lead_users() {

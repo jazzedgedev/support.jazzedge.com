@@ -12,11 +12,56 @@ class Lead_Aggregator_FluentCart {
     }
 
     public function is_active() {
-        return class_exists('\\FluentCart\\App\\App') && $this->has_api_helper();
+        return $this->has_fluentcart_loaded() && $this->has_api_helper();
+    }
+
+    /**
+     * Return diagnostic info for why FluentCart might be inactive (for debug output).
+     *
+     * @return array
+     */
+    public function get_active_diagnostic() {
+        $classes = array(
+            'FluentCart\\App\\App',
+            '\\FluentCart\\App\\App',
+            'FluentCartPro\\App\\App',
+            'FluentCart\\Framework\\Foundation\\Application',
+        );
+        $class_checks = array();
+        foreach ($classes as $class) {
+            $class_checks[$class] = class_exists($class);
+        }
+        $funcs = array('fluentCartApi', 'FluentCartApi', 'fluentcart_api', 'fluent_cart_api');
+        $func_checks = array();
+        foreach ($funcs as $func) {
+            $func_checks[$func] = function_exists($func);
+        }
+        return array(
+            'classes' => $class_checks,
+            'functions' => $func_checks,
+            'any_class' => !empty(array_filter($class_checks)),
+            'any_function' => !empty(array_filter($func_checks)),
+        );
+    }
+
+    private function has_fluentcart_loaded() {
+        if (class_exists('\\FluentCart\\App\\App')) {
+            return true;
+        }
+        if (class_exists('FluentCart\\App\\App')) {
+            return true;
+        }
+        if (class_exists('FluentCartPro\\App\\App')) {
+            return true;
+        }
+        if ($this->has_api_helper()) {
+            return true;
+        }
+        return false;
     }
 
     private function has_api_helper() {
-        return function_exists('fluentCartApi') || function_exists('FluentCartApi') || function_exists('fluentcart_api');
+        return function_exists('fluentCartApi') || function_exists('FluentCartApi') || function_exists('fluentcart_api') || function_exists('fluent_cart_api');
     }
 
     private function api($resource) {
@@ -28,6 +73,9 @@ class Lead_Aggregator_FluentCart {
         }
         if (function_exists('fluentcart_api')) {
             return fluentcart_api($resource);
+        }
+        if (function_exists('fluent_cart_api')) {
+            return fluent_cart_api($resource);
         }
         return null;
     }
@@ -48,9 +96,9 @@ class Lead_Aggregator_FluentCart {
             if (!$api) {
                 return array();
             }
-            $products = $api->get(array('type' => 'subscription'));
+            $products = $this->api_get($api, array('type' => 'subscription'));
             return is_array($products) ? $products : array();
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             return array();
         }
     }
@@ -78,18 +126,84 @@ class Lead_Aggregator_FluentCart {
             $customer_api = $this->api('customers');
             $subs_api = $this->api('subscriptions');
             if (!$customer_api || !$subs_api) {
-                return array();
+                return $this->get_user_subscriptions_via_rest($email);
             }
-            $customer = $customer_api->get(array('email' => $email));
+            $customer = $this->api_get($customer_api, array('email' => $email));
             if (empty($customer['data'][0]['id'])) {
-                return array();
+                return $this->get_user_subscriptions_via_rest($email);
             }
             $customer_id = (int) $customer['data'][0]['id'];
-            $subs = $subs_api->get(array('customer_id' => $customer_id));
+            $subs = $this->api_get($subs_api, array('customer_id' => $customer_id));
             return is_array($subs) && isset($subs['data']) ? $subs['data'] : array();
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
+            return $this->get_user_subscriptions_via_rest($email);
+        }
+    }
+
+    /**
+     * Call API resource with params; FluentCart may expose get(), list(), or all().
+     *
+     * @param object $api API resource object from fluentCartApi()
+     * @param array  $params Query params
+     * @return array|null Response array or null
+     */
+    private function api_get($api, $params) {
+        if (!is_object($api)) {
+            return null;
+        }
+        foreach (array('get', 'list', 'all', 'fetch') as $method) {
+            if (is_callable(array($api, $method))) {
+                $out = $api->$method($params);
+                return is_array($out) ? $out : (array) $out;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Fallback: fetch customer and subscriptions via FluentCart REST API.
+     *
+     * @param string $email Customer email
+     * @return array Subscription items (same shape as get_user_subscriptions).
+     */
+    private function get_user_subscriptions_via_rest($email) {
+        $customers = $this->rest_get('customers', array('email' => $email, 'search' => $email, 'per_page' => 5));
+        $data = isset($customers['data']) ? $customers['data'] : $customers;
+        if (!is_array($data) || empty($data[0]['id'])) {
             return array();
         }
+        $customer_id = (int) $data[0]['id'];
+        $subs = $this->rest_get('subscriptions', array('customer_id' => $customer_id, 'per_page' => 50));
+        $sub_data = isset($subs['data']) ? $subs['data'] : $subs;
+        return is_array($sub_data) ? $sub_data : array();
+    }
+
+    /**
+     * GET a FluentCart REST API resource (fluent-cart/v2).
+     *
+     * @param string $resource e.g. customers, subscriptions
+     * @param array  $params Query params
+     * @return array Decoded JSON or empty array
+     */
+    private function rest_get($resource, $params = array()) {
+        $url = rest_url('fluent-cart/v2/' . $resource);
+        $params['_wpnonce'] = wp_create_nonce('wp_rest');
+        $url = add_query_arg($params, $url);
+        $headers = array('X-WP-Nonce' => $params['_wpnonce']);
+        if (!empty($_COOKIE)) {
+            $parts = array();
+            foreach ($_COOKIE as $name => $value) {
+                $parts[] = $name . '=' . urlencode($value);
+            }
+            $headers['Cookie'] = implode('; ', $parts);
+        }
+        $response = wp_remote_get($url, array('timeout' => 15, 'headers' => $headers));
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+            return array();
+        }
+        $body = wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+        return is_array($decoded) ? $decoded : array();
     }
 
     public function match_plan_from_subscriptions($subscriptions, $plans) {

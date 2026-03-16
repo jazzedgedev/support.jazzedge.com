@@ -125,6 +125,7 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-membership-checker.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-whisper-client.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-vtt-generator.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-admin-transcribe.php';
     }
     
     /**
@@ -176,6 +177,11 @@ class Academy_Lesson_Manager {
         
         // Add AJAX handler for getting combined lesson transcript
         add_action('wp_ajax_alm_get_lesson_transcript', array($this, 'ajax_get_lesson_transcript'));
+
+        // Add AJAX handler for creating FluentCart product from lesson
+        add_action('wp_ajax_alm_create_fluentcart_product', array($this, 'ajax_create_fluentcart_product'));
+        // Add AJAX handler for generating product description from chapter titles
+        add_action('wp_ajax_alm_generate_product_description', array($this, 'ajax_generate_product_description'));
         
         // Add scheduled event for background transcription
         add_action('alm_run_transcription', array($this, 'run_transcription_background'), 10, 2);
@@ -188,6 +194,11 @@ class Academy_Lesson_Manager {
         
         // Add AJAX handler for calculating all chapter durations from Vimeo API
         add_action('wp_ajax_alm_calculate_all_vimeo_durations', array($this, 'ajax_calculate_all_vimeo_durations'));
+
+        // Add AJAX handlers for Transcribe tool
+        add_action('wp_ajax_alm_transcribe_upload', array($this, 'ajax_transcribe_upload'));
+        add_action('wp_ajax_alm_get_transcript', array($this, 'ajax_get_transcript'));
+        add_action('wp_ajax_alm_delete_transcript', array($this, 'ajax_delete_transcript'));
         
         // Add AJAX handlers for collection-level duration calculation
         add_action('wp_ajax_alm_calculate_collection_bunny_durations', array($this, 'ajax_calculate_collection_bunny_durations'));
@@ -294,6 +305,15 @@ class Academy_Lesson_Manager {
             'academy-manager-chapters',
             array($this, 'admin_page_chapters')
         );
+
+        add_submenu_page(
+            'academy-manager',
+            __('Transcribe', 'academy-lesson-manager'),
+            __('Transcribe', 'academy-lesson-manager'),
+            'manage_options',
+            'academy-manager-transcribe',
+            array($this, 'admin_page_transcribe')
+        );
         
         add_submenu_page(
             'academy-manager',
@@ -385,6 +405,11 @@ class Academy_Lesson_Manager {
     public function admin_page_chapters() {
         $admin_chapters = new ALM_Admin_Chapters();
         $admin_chapters->render_page();
+    }
+
+    public function admin_page_transcribe() {
+        $admin_transcribe = new ALM_Admin_Transcribe();
+        $admin_transcribe->render_page();
     }
     
     public function admin_page_event_migration() {
@@ -4182,6 +4207,335 @@ Rules:
             // Return stored transcript
             wp_send_json_success(array('transcript' => $stored_transcript->transcript_text));
         }
+    }
+
+    /**
+     * AJAX: Generate product description from chapter titles using Katahdin AI
+     */
+    public function ajax_generate_product_description() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        if (!$lesson_id) {
+            wp_send_json_error(array('message' => __('Invalid lesson ID.', 'academy-lesson-manager')));
+        }
+
+        global $wpdb;
+        $database = new ALM_Database();
+        $chapters_table = $database->get_table_name('chapters');
+
+        $chapters = $wpdb->get_results($wpdb->prepare(
+            "SELECT chapter_title FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC",
+            $lesson_id
+        ));
+
+        if (empty($chapters)) {
+            wp_send_json_error(array('message' => __('No chapters found for this lesson.', 'academy-lesson-manager')));
+        }
+
+        $chapter_titles = array_map(function ($c) {
+            return stripslashes($c->chapter_title);
+        }, $chapters);
+        $titles_text = implode("\n", $chapter_titles);
+
+        $default_prompt = 'Create a compelling product description for an online piano lesson based on the following chapter titles. Write 2-4 paragraphs that highlight what students will learn and why this lesson is valuable. Use a professional, engaging tone. No emojis.';
+        $prompt = get_option('alm_ai_product_description_prompt', $default_prompt);
+        $full_prompt = $prompt . "\n\nChapter titles:\n" . $titles_text;
+
+        $api_key = get_option('katahdin_ai_hub_openai_key');
+        if (empty($api_key)) {
+            $api_key = get_option('fluent_support_ai_openai_key');
+        }
+        if (empty($api_key)) {
+            wp_send_json_error(array('message' => __('OpenAI API key not found. Please configure it in settings.', 'academy-lesson-manager')));
+        }
+
+        $response = wp_remote_post('https://api.openai.com/v1/chat/completions', array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type' => 'application/json',
+            ),
+            'body' => json_encode(array(
+                'model' => 'gpt-4o-mini',
+                'messages' => array(array('role' => 'user', 'content' => $full_prompt)),
+                'max_tokens' => 500,
+                'temperature' => 0.7,
+            )),
+            'timeout' => 30,
+        ));
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => __('Error calling OpenAI API: ', 'academy-lesson-manager') . $response->get_error_message()));
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (!isset($body['choices'][0]['message']['content'])) {
+            $error_message = isset($body['error']['message']) ? $body['error']['message'] : __('Unknown error from OpenAI API.', 'academy-lesson-manager');
+            wp_send_json_error(array('message' => __('OpenAI API error: ', 'academy-lesson-manager') . $error_message));
+        }
+
+        $generated = trim($body['choices'][0]['message']['content']);
+        wp_send_json_success(array('description' => $generated));
+    }
+
+    /**
+     * AJAX: Create a FluentCart product from a lesson
+     */
+    public function ajax_create_fluentcart_product() {
+        check_ajax_referer('alm_create_fc_product', '_ajax_nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions.');
+        }
+
+        global $wpdb;
+
+        $lesson_id       = isset($_POST['lesson_id'])       ? intval($_POST['lesson_id'])              : 0;
+        $title           = isset($_POST['title'])           ? sanitize_text_field($_POST['title'])     : '';
+        $description     = isset($_POST['description'])     ? wp_kses_post($_POST['description'])      : '';
+        $sample_video_url = isset($_POST['sample_video_url']) ? esc_url_raw($_POST['sample_video_url']) : '';
+        $price           = isset($_POST['price'])           ? round(floatval($_POST['price']), 2)      : 0.00;
+        $compare_price   = isset($_POST['compare_price'])  ? round(floatval($_POST['compare_price']), 2) : 0.00;
+
+        if (empty($title)) {
+            wp_send_json_error('Product title is required.');
+        }
+
+        // FluentCart stores prices in cents
+        $price_cents = (int) round($price * 100);
+        $compare_price_cents = (int) round($compare_price * 100);
+
+        // Build post_content: if sample video URL is set, add fvplayer shortcode before the text description
+        $post_content = $description;
+        if (!empty($sample_video_url)) {
+            $splash_url = 'https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg';
+            $video_shortcode = '[fvplayer src="' . esc_url($sample_video_url) . '" splash="' . esc_url($splash_url) . '"]';
+            $post_content = $video_shortcode . "\n\n" . $description;
+        }
+
+        // Short description: up to 55 words from the full description (text only, no video)
+        $short_description = wp_trim_words(wp_strip_all_tags($description), 55);
+
+        // 1. Create the WordPress post (post_type = fluent-products)
+        $post_id = wp_insert_post([
+            'post_title'   => $title,
+            'post_content' => $post_content,
+            'post_excerpt' => $short_description,
+            'post_status'  => 'draft',
+            'post_type'    => 'fluent-products',
+        ], true);
+
+        if (is_wp_error($post_id)) {
+            wp_send_json_error('Failed to create post: ' . $post_id->get_error_message());
+        }
+
+        // 2. Insert product detail row
+        $detail_inserted = $wpdb->insert(
+            $wpdb->prefix . 'fct_product_details',
+            [
+                'post_id'            => $post_id,
+                'fulfillment_type'   => 'digital',
+                'variation_type'     => 'simple',
+                'min_price'          => $price_cents,
+                'max_price'          => $price_cents,
+                'stock_availability' => 'in-stock',
+                'manage_stock'       => '0',
+                'manage_downloadable'=> '0',
+            ],
+            ['%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s']
+        );
+
+        if ($detail_inserted === false) {
+            wp_delete_post($post_id, true);
+            wp_send_json_error('Failed to create product details: ' . $wpdb->last_error);
+        }
+
+        // 3. Insert product variation row
+        $variation_inserted = $wpdb->insert(
+            $wpdb->prefix . 'fct_product_variations',
+            [
+                'post_id'          => $post_id,
+                'variation_title'  => 'Default',
+                'item_price'       => $price_cents,
+                'compare_price'    => $compare_price_cents,
+                'payment_type'     => 'onetime',
+                'fulfillment_type' => 'digital',
+                'stock_status'     => 'in-stock',
+            ],
+            ['%d', '%s', '%d', '%d', '%s', '%s', '%s']
+        );
+
+        if ($variation_inserted === false) {
+            wp_delete_post($post_id, true);
+            $wpdb->delete($wpdb->prefix . 'fct_product_details', ['post_id' => $post_id], ['%d']);
+            wp_send_json_error('Failed to create product variation: ' . $wpdb->last_error);
+        }
+
+        // 4. Store lesson_id as post meta for traceability
+        update_post_meta($post_id, '_alm_lesson_id', $lesson_id);
+
+        // 4b. Set featured image (piano image, not video)
+        $featured_image_url = 'https://jazzedge.academy/wp-content/uploads/2026/02/piano-image-8.jpg';
+        $attachment_id = attachment_url_to_postid($featured_image_url);
+        if (!$attachment_id) {
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            $tmp = download_url($featured_image_url);
+            if (!is_wp_error($tmp)) {
+                $file_array = array(
+                    'name'     => basename($featured_image_url),
+                    'tmp_name' => $tmp,
+                );
+                $attach_id = media_handle_sideload($file_array, $post_id);
+                if (!is_wp_error($attach_id)) {
+                    $attachment_id = $attach_id;
+                }
+            }
+        }
+        if ($attachment_id) {
+            set_post_thumbnail($post_id, $attachment_id);
+            $img_url = wp_get_attachment_url($attachment_id) ?: $featured_image_url;
+            $gallery_arr = array(array('id' => $attachment_id, 'url' => $img_url, 'title' => ''));
+            update_post_meta($post_id, 'fluent-products-gallery-image', $gallery_arr);
+        }
+
+        // 5. Store FluentCart product ID on the lesson
+        if ($lesson_id > 0) {
+            $database = new ALM_Database();
+            $lessons_table = $database->get_table_name('lessons');
+            $wpdb->update(
+                $lessons_table,
+                ['fluentcart_product_id' => $post_id],
+                ['ID' => $lesson_id],
+                ['%d'],
+                ['%d']
+            );
+        }
+
+        // 6. Build response URLs
+        $edit_url = admin_url('admin.php?page=fluent-cart#/products/' . $post_id);
+        $view_url = get_permalink($post_id) ?: admin_url('admin.php?page=fluent-cart#/products');
+
+        wp_send_json_success([
+            'post_id'  => $post_id,
+            'edit_url' => $edit_url,
+            'view_url' => $view_url,
+        ]);
+    }
+
+    /**
+     * AJAX handler for Transcribe tool - upload and transcribe audio
+     */
+    public function ajax_transcribe_upload() {
+        if (!wp_verify_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '', 'alm_transcribe_upload')) {
+            wp_send_json_error(array('message' => __('Security check failed.', 'academy-lesson-manager')));
+        }
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        if (empty($_FILES['audio_file']['tmp_name'])) {
+            wp_send_json_error(array('message' => __('No file uploaded.', 'academy-lesson-manager')));
+        }
+
+        $output_format = isset($_POST['output_format']) && in_array($_POST['output_format'], array('text', 'vtt')) ? $_POST['output_format'] : 'text';
+        $tmp_path = $_FILES['audio_file']['tmp_name'];
+        $original_name = sanitize_file_name($_FILES['audio_file']['name']);
+
+        $whisper = new ALM_Whisper_Client();
+        $result = $whisper->transcribe_upload($tmp_path, $output_format);
+
+        if (!$result['success']) {
+            wp_send_json_error(array('message' => $result['message']));
+        }
+
+        global $wpdb;
+        $database = new ALM_Database();
+        $table = $database->get_table_name('whisper_transcripts');
+        if (!$table) {
+            wp_send_json_error(array('message' => __('Database table not available.', 'academy-lesson-manager')));
+        }
+
+        $inserted = $wpdb->insert(
+            $table,
+            array(
+                'file_name' => $original_name,
+                'output_format' => $output_format,
+                'content' => $result['content']
+            ),
+            array('%s', '%s', '%s')
+        );
+
+        if ($inserted === false) {
+            wp_send_json_error(array('message' => __('Failed to save transcript.', 'academy-lesson-manager')));
+        }
+
+        wp_send_json_success(array('message' => __('Transcript saved successfully.', 'academy-lesson-manager')));
+    }
+
+    /**
+     * AJAX handler for getting a saved transcript
+     */
+    public function ajax_get_transcript() {
+        if (!wp_verify_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '', 'alm_transcribe_upload')) {
+            wp_send_json_error(array('message' => __('Security check failed.', 'academy-lesson-manager')));
+        }
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        if (!$id) {
+            wp_send_json_error(array('message' => __('Invalid ID.', 'academy-lesson-manager')));
+        }
+
+        $database = new ALM_Database();
+        $table = $database->get_table_name('whisper_transcripts');
+        if (!$table) {
+            wp_send_json_error(array('message' => __('Database table not available.', 'academy-lesson-manager')));
+        }
+
+        global $wpdb;
+        $row = $wpdb->get_row($wpdb->prepare("SELECT file_name, content FROM {$table} WHERE ID = %d", $id));
+        if (!$row) {
+            wp_send_json_error(array('message' => __('Transcript not found.', 'academy-lesson-manager')));
+        }
+
+        wp_send_json_success(array('file_name' => $row->file_name, 'content' => $row->content));
+    }
+
+    /**
+     * AJAX handler for deleting a transcript
+     */
+    public function ajax_delete_transcript() {
+        if (!wp_verify_nonce(isset($_POST['nonce']) ? $_POST['nonce'] : '', 'alm_transcribe_upload')) {
+            wp_send_json_error(array('message' => __('Security check failed.', 'academy-lesson-manager')));
+        }
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        if (!$id) {
+            wp_send_json_error(array('message' => __('Invalid ID.', 'academy-lesson-manager')));
+        }
+
+        $database = new ALM_Database();
+        $table = $database->get_table_name('whisper_transcripts');
+        if (!$table) {
+            wp_send_json_error(array('message' => __('Database table not available.', 'academy-lesson-manager')));
+        }
+
+        global $wpdb;
+        $deleted = $wpdb->delete($table, array('ID' => $id), array('%d'));
+        if ($deleted === false) {
+            wp_send_json_error(array('message' => __('Failed to delete.', 'academy-lesson-manager')));
+        }
+
+        wp_send_json_success();
     }
 }
 

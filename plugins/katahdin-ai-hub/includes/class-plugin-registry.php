@@ -280,12 +280,6 @@ class Katahdin_AI_Hub_Plugin_Registry {
         );
         
         if ($result) {
-            // Log registration
-            katahdin_ai_hub()->log('info', "Plugin '{$plugin_id}' registered successfully", array(
-                'plugin_id' => $plugin_id,
-                'config' => $config
-            ));
-            
             return true;
         } else {
             return new WP_Error('registration_failed', 'Failed to register plugin');
@@ -314,12 +308,6 @@ class Katahdin_AI_Hub_Plugin_Registry {
         );
         
         if ($result !== false) {
-            // Log update
-            katahdin_ai_hub()->log('info', "Plugin '{$plugin_id}' updated successfully", array(
-                'plugin_id' => $plugin_id,
-                'config' => $config
-            ));
-            
             return true;
         } else {
             return new WP_Error('update_failed', 'Failed to update plugin');

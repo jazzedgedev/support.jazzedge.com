@@ -17,10 +17,26 @@ jQuery(function ($) {
         calendar: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>',
         columns: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125Z"/></svg>',
         addToFollowup: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"/></svg>',
-        clearFilters: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>'
+        clearFilters: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>',
+        followupHistory: '<svg class="la-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"/></svg>'
     };
 
     var statusOptions = ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
+    var pipelineStagesCache = null;
+
+    function setPipelineStages(stages) {
+        pipelineStagesCache = (stages && stages.length) ? stages.slice() : null;
+    }
+
+    function getPipelineStages() {
+        return pipelineStagesCache;
+    }
+
+    window.leadAggregatorRefreshPipelineStages = function () {
+        apiRequest('GET', 'pipeline-stages').done(function (res) {
+            setPipelineStages(res && res.stages ? res.stages : null);
+        });
+    };
     var followupOptions = ['Not set', 'Scheduled', 'Completed', 'Canceled'];
     var stagePresets = {
         professional_services: {
@@ -202,6 +218,22 @@ jQuery(function ($) {
         return html;
     }
 
+    function buildStageSelect(name, value, stages) {
+        if (!stages || !stages.length) {
+            return buildSelect(name, value, statusOptions);
+        }
+        var sorted = stages.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+        var current = (value || '').toLowerCase();
+        var html = '<select name="' + name + '">';
+        sorted.forEach(function (stage) {
+            var key = (stage.key || '').toLowerCase();
+            var selected = key === current ? ' selected' : '';
+            html += '<option value="' + key + '"' + selected + '>' + (stage.label || stage.key) + '</option>';
+        });
+        html += '</select>';
+        return html;
+    }
+
     function buildFollowupCustomFields(customConfig, lead) {
         if (!customConfig || !customConfig.followup || !customConfig.labels) {
             return '';
@@ -220,32 +252,57 @@ jQuery(function ($) {
     }
 
     function pipelineStageLabel(value) {
+        var stages = getPipelineStages();
+        if (stages && stages.length) {
+            var key = (value || 'new').toLowerCase();
+            var stage = stages.find(function (s) { return (s.key || '').toLowerCase() === key; });
+            if (stage) {
+                return stage.label || stage.key || key;
+            }
+        }
         var key = (value || 'new').toLowerCase();
         var map = {
-            open: 'new',
-            new: 'new',
-            contacted: 'contacted',
-            qualified: 'qualified',
-            proposal: 'proposal',
-            won: 'won',
-            lost: 'lost'
+            open: 'New', new: 'New', contacted: 'Contacted', qualified: 'Qualified',
+            proposal: 'Proposal', won: 'Won', lost: 'Lost'
         };
-        var normalized = map[key] || 'new';
-        return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        return map[key] || (key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '));
     }
 
     function normalizePipelineStageValue(value) {
+        var stages = getPipelineStages();
+        if (stages && stages.length) {
+            var key = (value || 'new').toLowerCase();
+            var found = stages.find(function (s) { return (s.key || '').toLowerCase() === key; });
+            if (found) {
+                return found.key;
+            }
+            if (key === 'open') {
+                return 'new';
+            }
+        }
         var key = (value || 'new').toLowerCase();
         var map = {
-            open: 'new',
-            new: 'new',
-            contacted: 'contacted',
-            qualified: 'qualified',
-            proposal: 'proposal',
-            won: 'won',
-            lost: 'lost'
+            open: 'new', new: 'new', contacted: 'contacted', qualified: 'qualified',
+            proposal: 'proposal', won: 'won', lost: 'lost'
         };
-        return map[key] || 'new';
+        return map[key] || key || 'new';
+    }
+
+    function getStatusOptionsFromStages() {
+        var stages = getPipelineStages();
+        if (stages && stages.length) {
+            return stages.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).map(function (s) { return s.label || s.key; });
+        }
+        return statusOptions;
+    }
+
+    function getExcludeStatusFromStages() {
+        var stages = getPipelineStages();
+        if (stages && stages.length) {
+            var keys = stages.filter(function (s) { return s.type === 'won' || s.type === 'lost'; }).map(function (s) { return s.key; });
+            return keys.join(',');
+        }
+        return 'won,lost';
     }
 
     function normalizeFollowupStatusValue(value) {
@@ -280,6 +337,64 @@ jQuery(function ($) {
         }
         var date = new Date(normalized);
         return isNaN(date.getTime()) ? null : date;
+    }
+
+    function getLeadSortValue(lead, key, keyMapping) {
+        var dataKey = (keyMapping && keyMapping[key]) || key;
+        if (dataKey === 'name' || key === 'name') {
+            return ((lead.first_name || '') + ' ' + (lead.last_name || '')).trim().toLowerCase() || (lead.email || '').toLowerCase() || ('lead#' + lead.id);
+        }
+        if (dataKey === 'lead' || key === 'lead') {
+            return ((lead.first_name || '') + ' ' + (lead.last_name || '')).trim().toLowerCase() || ('lead#' + lead.id);
+        }
+        var val = lead[dataKey];
+        if (val == null || val === '') {
+            return null;
+        }
+        return val;
+    }
+
+    function sortLeadRows(rows, sortKey, sortDir, keyMapping) {
+        if (!rows || !rows.length) {
+            return rows;
+        }
+        var mult = sortDir === 'desc' ? -1 : 1;
+        var dateKeys = ['followup_at', 'due_at', 'created_at', 'last_actioned', 'last_contacted', 'updated_at'];
+        var dataKey = (keyMapping && keyMapping[sortKey]) || sortKey;
+        if (sortKey === 'followup') {
+            dataKey = 'followup_at';
+        } else if (sortKey === 'due') {
+            dataKey = 'due_at';
+        }
+        var isDate = dateKeys.indexOf(dataKey) !== -1 || dateKeys.indexOf(sortKey) !== -1;
+
+        return rows.slice().sort(function (a, b) {
+            var va = getLeadSortValue(a, sortKey, keyMapping);
+            var vb = getLeadSortValue(b, sortKey, keyMapping);
+            if (va == null && vb == null) {
+                return 0;
+            }
+            if (va == null) {
+                return mult;
+            }
+            if (vb == null) {
+                return -mult;
+            }
+            if (isDate) {
+                var da = parseLeadDate(va);
+                var db = parseLeadDate(vb);
+                da = da ? da.getTime() : 0;
+                db = db ? db.getTime() : 0;
+                return mult * (da - db);
+            }
+            if (typeof va === 'string' && typeof vb === 'string') {
+                return mult * va.localeCompare(vb, undefined, { sensitivity: 'base' });
+            }
+            if (typeof va === 'number' && typeof vb === 'number') {
+                return mult * (va - vb);
+            }
+            return mult * String(va).localeCompare(String(vb), undefined, { sensitivity: 'base' });
+        });
     }
 
     function formatDisplayDate(value) {
@@ -375,11 +490,22 @@ jQuery(function ($) {
         $toast.data('toast-timer', timer);
     }
     function apiRequest(method, endpoint, data) {
+        var url = leadAggregator.restUrl + endpoint;
+        var contentType = 'application/json';
+        var body = null;
+        if (data) {
+            if (method === 'GET') {
+                var qs = $.param(data);
+                url += (url.indexOf('?') >= 0 ? '&' : '?') + qs;
+            } else {
+                body = JSON.stringify(data);
+            }
+        }
         return $.ajax({
             method: method,
-            url: leadAggregator.restUrl + endpoint,
-            data: data ? JSON.stringify(data) : null,
-            contentType: 'application/json',
+            url: url,
+            data: body,
+            contentType: contentType,
             dataType: 'json',
             beforeSend: function (xhr) {
                 xhr.setRequestHeader('X-WP-Nonce', leadAggregator.nonce);
@@ -392,16 +518,58 @@ jQuery(function ($) {
         var tagId = options.tagId || null;
         var tagName = options.tagName || '';
         var showFollowupAction = !!options.showFollowupAction;
-        $el.html('<p>Loading leads...</p>');
-        var leadsRequest = tagId ? apiRequest('GET', 'tags/' + tagId + '/leads') : apiRequest('GET', 'leads');
-        $.when(leadsRequest, apiRequest('GET', 'custom-fields'), apiRequest('GET', 'me')).done(function (leadsRes, customFieldsRes, meRes) {
+        var outcomeMode = options.outcomeMode || null;
+        var outcomeRange = options.outcomeRange || 'last_30';
+        var outcomeRangeKey = options.outcomeRangeKey || '';
+        var onOutcomeRefresh = options.onOutcomeRefresh || null;
+        var leadsParams = tagId ? null : (options.statusFilter ? { status: options.statusFilter } : null);
+        if (outcomeMode && leadsParams) {
+            leadsParams.range = outcomeRange;
+        }
+        if (outcomeMode) {
+            var initFilter = (options.filters && options.filters.search) ? options.filters.search : '';
+            var initRange = outcomeRange || 'last_30';
+            var initClearDisabled = !initFilter && initRange === 'last_30';
+            var loadingHtml = '<div class="la-outcome-inbox-layout">' +
+                '<div class="mml-toolbar">' +
+                '<div class="mml-toolbar-left">' +
+                '<div class="la-toolbar-group la-toolbar-group--left">' +
+                '<select class="la-outcome-range-select la-toolbar-control">' +
+                '<option value="last_7"' + (initRange === 'last_7' ? ' selected' : '') + '>Last 7 days</option>' +
+                '<option value="last_30"' + (initRange === 'last_30' ? ' selected' : '') + '>Last 30 days</option>' +
+                '<option value="last_90"' + (initRange === 'last_90' ? ' selected' : '') + '>Last 90 days</option>' +
+                '</select>' +
+                '<input type="text" class="la-search la-search--primary la-toolbar-control" placeholder="Search leads" value="' + (initFilter || '') + '">' +
+                '<button type="button" class="la-btn la-btn--ghost la-outcome-clear la-toolbar-control"' + (initClearDisabled ? ' disabled' : '') + '>' + icons.clearFilters + 'Clear</button>' +
+                '</div></div>' +
+                '<div class="mml-toolbar-right">' +
+                '<div class="la-toolbar-group la-toolbar-group--right">' +
+                '<span class="la-filter-count la-outcome-count">Loading…</span>' +
+                '</div></div>' +
+                '</div>' +
+                '<div class="mml-selection-bar" style="display:none;"></div>' +
+                '<div class="mml-content"><div class="mml-loading">Loading…</div></div>' +
+                '</div>';
+            $el.html(loadingHtml);
+        } else {
+            $el.html('<p>Loading leads...</p>');
+        }
+        var leadsRequest = tagId ? apiRequest('GET', 'tags/' + tagId + '/leads') : apiRequest('GET', 'leads', leadsParams);
+        var teamRequest = apiRequest('GET', 'team/assignable').then(function (r) { return r; }, function () { return { users: [] }; });
+        var pipelineStagesRequest = apiRequest('GET', 'pipeline-stages').then(function (r) { return r; }, function () { return { stages: [] }; });
+        $.when(leadsRequest, apiRequest('GET', 'custom-fields'), apiRequest('GET', 'me'), teamRequest, pipelineStagesRequest).done(function (leadsRes, customFieldsRes, meRes, teamRes, pipelineRes) {
             var leads = leadsRes[0] || [];
             var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
             var followupFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].followup) ? customFieldsRes[0].followup : {};
             var me = meRes && meRes[0] ? meRes[0] : {};
+            var teamMembers = (teamRes && (teamRes.users || (teamRes[0] && teamRes[0].users))) ? (teamRes.users || teamRes[0].users) : [];
+            var pipelineStages = (pipelineRes && (pipelineRes.stages || (pipelineRes[0] && pipelineRes[0].stages))) ? (pipelineRes.stages || pipelineRes[0].stages) : [];
+            if (pipelineStages && pipelineStages.length) {
+                setPipelineStages(pipelineStages);
+            }
             var readOnly = (me.access_level || 'full') === 'read';
             var selectedLeadIds = [];
-            var storageKey = 'leadAggregatorLeadsFilters';
+            var storageKey = outcomeMode ? ('leadAggregatorOutcomeFilters_' + outcomeMode) : 'leadAggregatorLeadsFilters';
             var initialFilters = options.filters || {};
             if (!options.filters && !tagId) {
                 try {
@@ -423,6 +591,7 @@ jQuery(function ($) {
                 { key: 'followup', label: 'Followup Date' },
                 { key: 'due', label: 'Followup Due' },
                 { key: 'source', label: 'Source' },
+                { key: 'created_at', label: 'Date Added' },
                 { key: 'last_actioned', label: 'Last Actioned' },
                 { key: 'last_contacted', label: 'Last Contacted' },
                 { key: 'address_city', label: 'City' },
@@ -430,6 +599,9 @@ jQuery(function ($) {
                 { key: 'address_zip', label: 'Zip' },
                 { key: 'address_country', label: 'Country' }
             ];
+            if (teamMembers.length > 0) {
+                columnDefs.push({ key: 'assigned_to', label: 'Assigned To' });
+            }
             for (var i = 1; i <= 10; i += 1) {
                 var key = 'custom_' + i;
                 columnDefs.push({
@@ -439,6 +611,9 @@ jQuery(function ($) {
             }
 
             var defaultColumns = ['name', 'status', 'followup', 'due', 'source'];
+            if (teamMembers.length > 0) {
+                defaultColumns.push('assigned_to');
+            }
             var storedColumns = [];
             try {
                 storedColumns = JSON.parse(window.localStorage.getItem('leadAggregatorLeadColumns') || '[]');
@@ -570,6 +745,9 @@ jQuery(function ($) {
                 if (key === 'due') {
                     return buildDateCell(lead.due_at, isOverdue(lead));
                 }
+                if (key === 'created_at') {
+                    return formatDisplayDate(lead.created_at);
+                }
                 if (key === 'last_actioned') {
                     return formatDisplayDate(lead.last_actioned);
                 }
@@ -579,6 +757,12 @@ jQuery(function ($) {
                 if (key === 'status') {
                     var stageKey = normalizePipelineStageValue(lead.status);
                     return '<span class="la-pill la-pill--' + stageKey + '">' + pipelineStageLabel(lead.status) + '</span>';
+                }
+                if (key === 'assigned_to') {
+                    var aid = lead.assigned_to;
+                    if (!aid) return 'Unassigned';
+                    var tm = teamMembers.find(function (u) { return parseInt(u.id, 10) === parseInt(aid, 10); });
+                    return tm ? (tm.name || tm.email || '#' + aid) : ('#' + aid);
                 }
                 return lead[key] ? lead[key] : '';
             }
@@ -591,87 +775,6 @@ jQuery(function ($) {
                 var statusLabel = statusFilterLabel(statusFilter);
                 var followupLabel = followupFilterLabel(followupStatusFilter);
                 var hasActiveFilters = !!(filter || statusFilter || followupStatusFilter);
-                var html = '<div class="la-section-header">' +
-                    '<div class="la-section-actions la-section-actions--leads">';
-                html += '<div class="la-leads-toolbar">';
-                html += '<div class="la-intent-row">';
-                html += '<input type="text" class="la-search la-search--primary" placeholder="Search leads" value="' + (filter || '') + '">';
-                html += '<div class="la-intent-actions">';
-                if (!readOnly) {
-                    html += '<button type="button" class="la-btn la-add-lead">' + icons.plus + 'Add Lead</button>';
-                }
-                html += '<div class="la-column-toggle-wrap"><button type="button" class="la-btn la-btn--ghost la-column-toggle">' + icons.columns + 'Columns</button>';
-                html += '<div class="la-column-menu">';
-                columnDefs.forEach(function (col) {
-                    var checked = activeColumns.indexOf(col.key) !== -1 ? ' checked' : '';
-                    html += '<label><input type="checkbox" data-key="' + col.key + '"' + checked + '> ' + col.label + '</label>';
-                });
-                html += '</div></div>';
-                html += '</div>';
-                html += '</div>';
-                html += '<div class="la-context-row">';
-                html += '<div class="la-filter-pill-group">';
-                if (tagId) {
-                    html += '<button type="button" class="la-filter-pill la-filter-tag" data-tag-clear="1">Tag: ' + tagName + ' ×</button>';
-                }
-                html += '<div class="la-filter-pill-wrap" data-filter="status">';
-                html += '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Pipeline: <span class="la-filter-value">' + statusLabel + '</span> ▾</button>';
-                html += '<div class="la-filter-menu">';
-                html += '<button type="button" data-value="">All</button>';
-                statusOptions.forEach(function (option) {
-                    var value = option.toLowerCase();
-                    var selected = value === String(statusFilter || '').toLowerCase() ? ' data-selected="1"' : '';
-                    html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
-                });
-                html += '</div></div>';
-                html += '<div class="la-filter-pill-wrap" data-filter="followup">';
-                html += '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Follow-ups: <span class="la-filter-value">' + followupLabel + '</span> ▾</button>';
-                html += '<div class="la-filter-menu">';
-                html += '<button type="button" data-value="">All</button>';
-                followupOptions.forEach(function (option) {
-                    var value = option.toLowerCase().replace(/\s+/g, '_');
-                    var selected = value === String(followupStatusFilter || '').toLowerCase() ? ' data-selected="1"' : '';
-                    html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
-                });
-                html += '<button type="button" data-value="due"' + (String(followupStatusFilter || '').toLowerCase() === 'due' ? ' data-selected="1"' : '') + '>Due</button>';
-                html += '<button type="button" data-value="overdue"' + (String(followupStatusFilter || '').toLowerCase() === 'overdue' ? ' data-selected="1"' : '') + '>Overdue</button>';
-                html += '</div></div>';
-                var clearDisabled = hasActiveFilters ? '' : ' disabled';
-                html += '<button type="button" class="la-filter-pill la-filter-clear"' + clearDisabled + '>' + icons.clearFilters + 'Clear</button>';
-                html += '<div class="la-filter-count">Showing 0 leads</div>';
-                html += '</div>';
-                html += '</div>';
-                html += '</div>';
-                html += '</div></div>';
-
-                if (!readOnly && selectedLeadIds.length) {
-                    html += '<div class="la-bulk-toolbar">';
-                    html += '<div class="la-bulk-count">' + selectedLeadIds.length + ' selected</div>';
-                    html += '<div class="la-bulk-actions">';
-                    html += '<button type="button" class="la-btn la-btn--danger la-bulk-delete">' + icons.trash + 'Delete Selected</button>';
-                    html += '<select class="la-bulk-followup-status">';
-                    html += '<option value="">Set follow-up status</option>';
-                    followupOptions.forEach(function (option) {
-                        var value = option.toLowerCase().replace(/\s+/g, '_');
-                        html += '<option value="' + value + '">' + option + '</option>';
-                    });
-                    html += '</select>';
-                    html += '<button type="button" class="la-btn la-btn--ghost la-bulk-followup-apply">Apply</button>';
-                    html += '</div></div>';
-                }
-
-                html += '<table class="la-table"><thead><tr>';
-                if (!readOnly) {
-                    html += '<th><input type="checkbox" class="la-select-all"></th>';
-                }
-                activeColumns.forEach(function (key) {
-                    html += '<th>' + getColumnLabel(key) + '</th>';
-                });
-                if (showFollowupAction && !readOnly) {
-                    html += '<th>Action</th>';
-                }
-                html += '</tr></thead><tbody>';
-
                 var filtered = leads;
                 if (filter) {
                     var query = filter.toLowerCase();
@@ -711,15 +814,162 @@ jQuery(function ($) {
                         });
                     }
                 }
+                var leadsSortState = { key: 'name', dir: 'asc' };
+                if (!outcomeMode) {
+                    try {
+                        var stored = JSON.parse(window.localStorage.getItem('lead_aggregator_leads_table_sort') || '{}');
+                        if (stored.key && activeColumns.indexOf(stored.key) !== -1 && (stored.dir === 'asc' || stored.dir === 'desc')) {
+                            leadsSortState = { key: stored.key, dir: stored.dir };
+                        }
+                    } catch (e) {}
+                    filtered = sortLeadRows(filtered, leadsSortState.key, leadsSortState.dir, { followup: 'followup_at', due: 'due_at' });
+                }
+                var html = '';
+                if (outcomeMode) {
+                    var outcomeRangeVal = options.outcomeRange || 'last_30';
+                    var outcomeClearDisabled = !filter && outcomeRangeVal === 'last_30';
+                    html += '<div class="la-outcome-inbox-layout">';
+                    html += '<div class="mml-toolbar">';
+                    html += '<div class="mml-toolbar-left">';
+                    html += '<div class="la-toolbar-group la-toolbar-group--left">';
+                    html += '<select class="la-outcome-range-select la-toolbar-control">';
+                    html += '<option value="last_7"' + (outcomeRangeVal === 'last_7' ? ' selected' : '') + '>Last 7 days</option>';
+                    html += '<option value="last_30"' + (outcomeRangeVal === 'last_30' ? ' selected' : '') + '>Last 30 days</option>';
+                    html += '<option value="last_90"' + (outcomeRangeVal === 'last_90' ? ' selected' : '') + '>Last 90 days</option>';
+                    html += '</select>';
+                    html += '<input type="text" class="la-search la-search--primary la-toolbar-control" placeholder="Search leads" value="' + (filter || '') + '">';
+                    html += '<button type="button" class="la-btn la-btn--ghost la-outcome-clear la-toolbar-control"' + (outcomeClearDisabled ? ' disabled' : '') + '>' + icons.clearFilters + 'Clear</button>';
+                    html += '</div></div>';
+                    html += '<div class="mml-toolbar-right">';
+                    html += '<div class="la-toolbar-group la-toolbar-group--right">';
+                    html += '<span class="la-filter-count la-outcome-count">Showing 0 ' + outcomeMode + ' lead' + 's</span>';
+                    html += '</div></div>';
+                    html += '</div>';
+                    html += '<div class="mml-selection-bar" style="display:none;"></div>';
+                    if (filtered.length === 0) {
+                        var emptyTitle = outcomeMode === 'won' ? 'No won leads found' : 'No lost leads found';
+                        html += '<div class="mml-content"><div class="mml-empty-state">' +
+                            '<h4>' + emptyTitle + '</h4>' +
+                            '<p>Try adjusting the date range or clearing your search.</p>' +
+                            '<button type="button" class="la-btn la-btn--ghost la-outcome-empty-clear">Clear search</button>' +
+                            '</div></div>';
+                    } else {
+                        html += '<div class="mml-content"><div class="la-table-wrap">';
+                    }
+                } else {
+                html += '<div class="la-section-header">' +
+                    '<div class="la-section-actions la-section-actions--leads">';
+                html += '<div class="la-leads-toolbar">';
+                html += '<div class="la-intent-row">';
+                html += '<input type="text" class="la-search la-search--primary" placeholder="Search leads" value="' + (filter || '') + '">';
+                html += '<div class="la-intent-actions">';
+                if (!readOnly) {
+                    html += '<button type="button" class="la-btn la-add-lead">' + icons.plus + 'Add Lead</button>';
+                }
+                html += '<div class="la-column-toggle-wrap"><button type="button" class="la-btn la-btn--ghost la-column-toggle">' + icons.columns + 'Columns</button>';
+                html += '<div class="la-column-menu">';
+                columnDefs.forEach(function (col) {
+                    var checked = activeColumns.indexOf(col.key) !== -1 ? ' checked' : '';
+                    html += '<label><input type="checkbox" data-key="' + col.key + '"' + checked + '> ' + col.label + '</label>';
+                });
+                html += '</div></div>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="la-context-row">';
+                html += '<div class="la-filter-pill-group">';
+                if (tagId) {
+                    html += '<button type="button" class="la-filter-pill la-filter-tag" data-tag-clear="1">Tag: ' + tagName + ' ×</button>';
+                }
+                html += '<div class="la-filter-pill-wrap" data-filter="status">';
+                html += '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Pipeline: <span class="la-filter-value">' + statusLabel + '</span> ▾</button>';
+                html += '<div class="la-filter-menu">';
+                html += '<button type="button" data-value="">All</button>';
+                (pipelineStages && pipelineStages.length ? pipelineStages.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }) : statusOptions.map(function (o) { return { key: o.toLowerCase(), label: o }; })).forEach(function (opt) {
+                    var value = (opt.key || opt).toLowerCase ? (opt.key || opt).toLowerCase() : String(opt).toLowerCase();
+                    var label = opt.label || opt;
+                    var selected = value === String(statusFilter || '').toLowerCase() ? ' data-selected="1"' : '';
+                    html += '<button type="button" data-value="' + value + '"' + selected + '>' + label + '</button>';
+                });
+                html += '</div></div>';
+                html += '<div class="la-filter-pill-wrap" data-filter="followup">';
+                html += '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Follow-ups: <span class="la-filter-value">' + followupLabel + '</span> ▾</button>';
+                html += '<div class="la-filter-menu">';
+                html += '<button type="button" data-value="">All</button>';
+                followupOptions.forEach(function (option) {
+                    var value = option.toLowerCase().replace(/\s+/g, '_');
+                    var selected = value === String(followupStatusFilter || '').toLowerCase() ? ' data-selected="1"' : '';
+                    html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
+                });
+                html += '<button type="button" data-value="due"' + (String(followupStatusFilter || '').toLowerCase() === 'due' ? ' data-selected="1"' : '') + '>Due</button>';
+                html += '<button type="button" data-value="overdue"' + (String(followupStatusFilter || '').toLowerCase() === 'overdue' ? ' data-selected="1"' : '') + '>Overdue</button>';
+                html += '</div></div>';
+                var clearDisabled = hasActiveFilters ? '' : ' disabled';
+                html += '<button type="button" class="la-filter-pill la-filter-clear"' + clearDisabled + '>' + icons.clearFilters + 'Clear</button>';
+                html += '<div class="la-filter-count">Showing 0 leads</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div></div>';
+                }
 
-                var countLabel = 'Showing ' + filtered.length + ' lead' + (filtered.length === 1 ? '' : 's');
+                if (!outcomeMode && !readOnly && selectedLeadIds.length) {
+                    html += '<div class="la-bulk-toolbar">';
+                    html += '<div class="la-bulk-count">' + selectedLeadIds.length + ' selected</div>';
+                    html += '<div class="la-bulk-actions">';
+                    html += '<button type="button" class="la-btn la-btn--danger la-bulk-delete">' + icons.trash + 'Delete Selected</button>';
+                    if (teamMembers.length > 0) {
+                        html += '<select class="la-bulk-assign">';
+                        html += '<option value="">Assign to</option>';
+                        html += '<option value="_unassigned_">Unassigned</option>';
+                        teamMembers.forEach(function (u) {
+                            html += '<option value="' + u.id + '">' + (u.name || u.email || '#' + u.id) + '</option>';
+                        });
+                        html += '</select>';
+                        html += '<button type="button" class="la-btn la-btn--ghost la-bulk-assign-apply">Apply</button>';
+                    }
+                    html += '<select class="la-bulk-followup-status">';
+                    html += '<option value="">Set follow-up status</option>';
+                    followupOptions.forEach(function (option) {
+                        var value = option.toLowerCase().replace(/\s+/g, '_');
+                        html += '<option value="' + value + '">' + option + '</option>';
+                    });
+                    html += '</select>';
+                    html += '<button type="button" class="la-btn la-btn--ghost la-bulk-followup-apply">Apply</button>';
+                    html += '</div></div>';
+                }
+
+                var skipTable = outcomeMode && filtered.length === 0;
+                if (!skipTable) {
+                    html += '<div class="la-table-wrap">';
+                    html += '<table class="la-table"><thead><tr>';
+                if (!readOnly && !outcomeMode) {
+                    html += '<th><input type="checkbox" class="la-select-all"></th>';
+                }
+                activeColumns.forEach(function (key) {
+                    if (!outcomeMode) {
+                        var sortClass = 'la-th-sortable' + (leadsSortState.key === key ? ' la-th-sort-active la-th-sort-' + leadsSortState.dir : '');
+                        var sortIndicator = leadsSortState.key === key ? (leadsSortState.dir === 'asc' ? ' <span class="la-sort-indicator">▲</span>' : ' <span class="la-sort-indicator">▼</span>') : '';
+                        html += '<th class="' + sortClass + '" data-sort-key="' + key + '">' + getColumnLabel(key) + sortIndicator + '</th>';
+                    } else {
+                        html += '<th>' + getColumnLabel(key) + '</th>';
+                    }
+                });
+                if (showFollowupAction && !readOnly) {
+                    html += '<th>Action</th>';
+                }
+                html += '</tr></thead><tbody>';
+
+                var countLabel = outcomeMode
+                    ? ('Showing ' + filtered.length + ' ' + outcomeMode + ' lead' + (filtered.length === 1 ? '' : 's'))
+                    : ('Showing ' + filtered.length + ' lead' + (filtered.length === 1 ? '' : 's'));
+                var emptyColspan = activeColumns.length + (readOnly || outcomeMode ? 0 : 1) + (showFollowupAction && !readOnly ? 1 : 0);
 
                 if (filtered.length === 0) {
-                    html += '<tr><td class="la-empty" colspan="' + (activeColumns.length + (readOnly ? 0 : 1) + (showFollowupAction && !readOnly ? 1 : 0)) + '">No leads yet.</td></tr>';
+                    html += '<tr><td class="la-empty" colspan="' + emptyColspan + '">No leads yet.</td></tr>';
                 } else {
                     filtered.forEach(function (lead) {
                         html += '<tr>';
-                        if (!readOnly) {
+                        if (!readOnly && !outcomeMode) {
                             var checked = selectedLeadIds.indexOf(String(lead.id)) !== -1 ? ' checked' : '';
                             html += '<td><input type="checkbox" class="la-lead-select" data-id="' + lead.id + '"' + checked + '></td>';
                         }
@@ -734,7 +984,12 @@ jQuery(function ($) {
                         html += '</tr>';
                     });
                 }
-                html += '</tbody></table>';
+                    html += '</tbody></table>';
+                    html += '</div>';
+                }
+                if (outcomeMode) {
+                    html += '</div></div>';
+                }
                 $el.html(html);
 
                 updateMetricButtons(filter, statusFilter, followupStatusFilter);
@@ -791,12 +1046,26 @@ jQuery(function ($) {
                             });
                         }
                     }
+                    if (!outcomeMode) {
+                        var updateSortState = { key: 'name', dir: 'asc' };
+                        try {
+                            var updateStored = JSON.parse(window.localStorage.getItem('lead_aggregator_leads_table_sort') || '{}');
+                            if (updateStored.key && activeColumns.indexOf(updateStored.key) !== -1 && (updateStored.dir === 'asc' || updateStored.dir === 'desc')) {
+                                updateSortState = { key: updateStored.key, dir: updateStored.dir };
+                            }
+                        } catch (e) {}
+                        filteredRows = sortLeadRows(filteredRows, updateSortState.key, updateSortState.dir, { followup: 'followup_at', due: 'due_at' });
+                    }
 
-                    var countText = 'Showing ' + filteredRows.length + ' lead' + (filteredRows.length === 1 ? '' : 's');
+                    var countText = outcomeMode
+                        ? ('Showing ' + filteredRows.length + ' ' + outcomeMode + ' lead' + (filteredRows.length === 1 ? '' : 's'))
+                        : ('Showing ' + filteredRows.length + ' lead' + (filteredRows.length === 1 ? '' : 's'));
                     $el.find('.la-filter-count').text(countText);
                     updateMetricButtons(filterValue, statusValue, followupValue);
-                    var shouldEnableClear = !!(filterValue || statusValue || followupValue);
-                    $el.find('.la-filter-clear').prop('disabled', !shouldEnableClear);
+                    var shouldEnableClear = outcomeMode
+                        ? !!(filterValue || ($el.find('.la-outcome-range-select').val() || 'last_30') !== 'last_30')
+                        : !!(filterValue || statusValue || followupValue);
+                    $el.find('.la-filter-clear, .la-outcome-clear').prop('disabled', !shouldEnableClear);
                     if (!tagId) {
                         window.localStorage.setItem(storageKey, JSON.stringify({
                             search: filterValue || '',
@@ -805,28 +1074,79 @@ jQuery(function ($) {
                         }));
                     }
 
-                    var bodyHtml = '';
-                    if (!filteredRows.length) {
-                        bodyHtml = '<tr><td class="la-empty" colspan="' + (activeColumns.length + (readOnly ? 0 : 1) + (showFollowupAction && !readOnly ? 1 : 0)) + '">No leads yet.</td></tr>';
-                    } else {
-                        filteredRows.forEach(function (lead) {
-                            bodyHtml += '<tr>';
-                            if (!readOnly) {
-                                var checked = selectedLeadIds.indexOf(String(lead.id)) !== -1 ? ' checked' : '';
-                                bodyHtml += '<td><input type="checkbox" class="la-lead-select" data-id="' + lead.id + '"' + checked + '></td>';
-                            }
-                            activeColumns.forEach(function (key) {
-                                bodyHtml += '<td>' + renderCell(lead, key) + '</td>';
+                    if (outcomeMode) {
+                        var $content = $el.find('.mml-content');
+                        if (filteredRows.length === 0) {
+                            var emptyTitle = outcomeMode === 'won' ? 'No won leads found' : 'No lost leads found';
+                            $content.html('<div class="mml-empty-state">' +
+                                '<h4>' + emptyTitle + '</h4>' +
+                                '<p>Try adjusting the date range or clearing your search.</p>' +
+                                '<button type="button" class="la-btn la-btn--ghost la-outcome-empty-clear">Clear search</button>' +
+                                '</div>');
+                            $el.find('.la-outcome-empty-clear').on('click', function () {
+                                var $toolbar = $el.find('.mml-toolbar');
+                                $toolbar.find('.la-search').val('');
+                                $toolbar.find('.la-outcome-range-select').val('last_30');
+                                try {
+                                    window.localStorage.setItem(outcomeRangeKey, 'last_30');
+                                } catch (e) {}
+                                onOutcomeRefresh();
                             });
-                            if (showFollowupAction && !readOnly && normalizePipelineStageValue(lead.status) === 'new' && normalizeFollowupStatusValue(lead.followup_status) === 'not_set') {
-                                bodyHtml += '<td><button type="button" class="la-btn la-btn--ghost la-followup-add" data-id="' + lead.id + '">' + icons.addToFollowup + 'Followup</button></td>';
-                            } else if (showFollowupAction && !readOnly) {
-                                bodyHtml += '<td></td>';
+                        } else {
+                            var $emptyState = $content.find('.mml-empty-state');
+                            if ($emptyState.length) {
+                                var rowColspan = activeColumns.length + (showFollowupAction && !readOnly ? 1 : 0);
+                                var tableHtml = '<div class="la-table-wrap"><table class="la-table"><thead><tr>';
+                                activeColumns.forEach(function (key) {
+                                    tableHtml += '<th>' + getColumnLabel(key) + '</th>';
+                                });
+                                tableHtml += '</tr></thead><tbody>';
+                                filteredRows.forEach(function (lead) {
+                                    tableHtml += '<tr>';
+                                    activeColumns.forEach(function (key) {
+                                        tableHtml += '<td>' + renderCell(lead, key) + '</td>';
+                                    });
+                                    tableHtml += '</tr>';
+                                });
+                                tableHtml += '</tbody></table></div>';
+                                $content.html(tableHtml);
+                            } else {
+                                var bodyHtml = '';
+                                filteredRows.forEach(function (lead) {
+                                    bodyHtml += '<tr>';
+                                    activeColumns.forEach(function (key) {
+                                        bodyHtml += '<td>' + renderCell(lead, key) + '</td>';
+                                    });
+                                    bodyHtml += '</tr>';
+                                });
+                                $el.find('.la-table tbody').html(bodyHtml);
                             }
-                            bodyHtml += '</tr>';
-                        });
+                        }
+                    } else {
+                        var bodyHtml = '';
+                        var rowColspan = activeColumns.length + (readOnly ? 0 : 1) + (showFollowupAction && !readOnly ? 1 : 0);
+                        if (!filteredRows.length) {
+                            bodyHtml = '<tr><td class="la-empty" colspan="' + rowColspan + '">No leads yet.</td></tr>';
+                        } else {
+                            filteredRows.forEach(function (lead) {
+                                bodyHtml += '<tr>';
+                                if (!readOnly) {
+                                    var checked = selectedLeadIds.indexOf(String(lead.id)) !== -1 ? ' checked' : '';
+                                    bodyHtml += '<td><input type="checkbox" class="la-lead-select" data-id="' + lead.id + '"' + checked + '></td>';
+                                }
+                                activeColumns.forEach(function (key) {
+                                    bodyHtml += '<td>' + renderCell(lead, key) + '</td>';
+                                });
+                                if (showFollowupAction && !readOnly && normalizePipelineStageValue(lead.status) === 'new' && normalizeFollowupStatusValue(lead.followup_status) === 'not_set') {
+                                    bodyHtml += '<td><button type="button" class="la-btn la-btn--ghost la-followup-add" data-id="' + lead.id + '">' + icons.addToFollowup + 'Followup</button></td>';
+                                } else if (showFollowupAction && !readOnly) {
+                                    bodyHtml += '<td></td>';
+                                }
+                                bodyHtml += '</tr>';
+                            });
+                        }
+                        $el.find('.la-table tbody').html(bodyHtml);
                     }
-                    $el.find('.la-table tbody').html(bodyHtml);
                 }
 
                 $el.find('.la-search').on('input', function () {
@@ -883,6 +1203,58 @@ jQuery(function ($) {
                     renderRows('', '', '');
                 });
 
+                if (outcomeMode && onOutcomeRefresh) {
+                    function showOutcomeLoading() {
+                        $el.find('.mml-content').html('<div class="mml-loading">Loading…</div>');
+                        $el.find('.la-outcome-count').text('Loading…');
+                    }
+                    $el.find('.la-outcome-range-select').on('change', function () {
+                        try {
+                            window.localStorage.setItem(outcomeRangeKey, $(this).val());
+                        } catch (e) {}
+                        showOutcomeLoading();
+                        onOutcomeRefresh();
+                    });
+                    $el.find('.la-outcome-clear').on('click', function () {
+                        if (this.disabled) {
+                            return;
+                        }
+                        var $toolbar = $(this).closest('.la-toolbar');
+                        if (!$toolbar.length) { $toolbar = $(this).closest('.mml-toolbar'); }
+                        $toolbar.find('.la-search').val('');
+                        $toolbar.find('.la-outcome-range-select').val('last_30');
+                        try {
+                            window.localStorage.setItem(outcomeRangeKey, 'last_30');
+                        } catch (e) {}
+                        showOutcomeLoading();
+                        onOutcomeRefresh();
+                    });
+                    $el.find('.la-outcome-empty-clear').on('click', function () {
+                        var $toolbar = $el.find('.mml-toolbar');
+                        $toolbar.find('.la-search').val('');
+                        $toolbar.find('.la-outcome-range-select').val('last_30');
+                        try {
+                            window.localStorage.setItem(outcomeRangeKey, 'last_30');
+                        } catch (e) {}
+                        showOutcomeLoading();
+                        onOutcomeRefresh();
+                    });
+                    $el.find('.la-search').off('input').on('input', function () {
+                        var currentSearch = $(this).val();
+                        var timer = $el.data('la-leads-search-timer');
+                        if (timer) {
+                            clearTimeout(timer);
+                        }
+                        timer = setTimeout(function () {
+                            updateRowsOnly(currentSearch, statusFilter || '', '');
+                            var rangeVal = $el.find('.la-outcome-range-select').val() || 'last_30';
+                            var shouldEnableClear = !!(currentSearch || rangeVal !== 'last_30');
+                            $el.find('.la-outcome-clear').prop('disabled', !shouldEnableClear);
+                        }, 350);
+                        $el.data('la-leads-search-timer', timer);
+                    });
+                }
+
                 $el.find('.la-filter-tag').on('click', function () {
                     renderInbox($el, { showFollowupAction: showFollowupAction, statsEl: options.statsEl });
                 });
@@ -928,6 +1300,19 @@ jQuery(function ($) {
                         });
                     });
 
+                $el.find('.la-bulk-assign-apply').on('click', function () {
+                    var assignValue = $el.find('.la-bulk-assign').val();
+                    if (!assignValue || !selectedLeadIds.length) {
+                        return;
+                    }
+                    var assignedTo = assignValue === '_unassigned_' ? null : assignValue;
+                    apiRequest('POST', 'leads/bulk-assign', { ids: selectedLeadIds, assigned_to: assignedTo }).done(function () {
+                        selectedLeadIds = [];
+                        renderInbox($el, options);
+                    }).fail(function () {
+                        renderInbox($el, options);
+                    });
+                });
                 $el.find('.la-bulk-followup-apply').on('click', function () {
                     var statusValue = $el.find('.la-bulk-followup-status').val();
                     if (!statusValue || !selectedLeadIds.length) {
@@ -956,6 +1341,30 @@ jQuery(function ($) {
                         activeColumns = activeColumns.filter(function (item) { return item !== key; });
                     }
                     window.localStorage.setItem('leadAggregatorLeadColumns', JSON.stringify(activeColumns));
+                    var currentSearch = $el.find('.la-search').val();
+                    var currentStatus = statusFilter || '';
+                    var currentFollowupStatus = followupStatusFilter || '';
+                    renderRows(currentSearch, currentStatus, currentFollowupStatus);
+                });
+
+                $el.off('click.laLeadsSort').on('click.laLeadsSort', '.la-th-sortable', function () {
+                    if (outcomeMode) {
+                        return;
+                    }
+                    var $th = jQuery(this);
+                    var key = $th.data('sort-key');
+                    if (!key || activeColumns.indexOf(key) === -1) {
+                        return;
+                    }
+                    var storageKey = 'lead_aggregator_leads_table_sort';
+                    var newState = { key: key, dir: 'asc' };
+                    try {
+                        var stored = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+                        if (stored.key === key && (stored.dir === 'asc' || stored.dir === 'desc')) {
+                            newState.dir = stored.dir === 'asc' ? 'desc' : 'asc';
+                        }
+                    } catch (e) {}
+                    window.localStorage.setItem(storageKey, JSON.stringify(newState));
                     var currentSearch = $el.find('.la-search').val();
                     var currentStatus = statusFilter || '';
                     var currentFollowupStatus = followupStatusFilter || '';
@@ -1115,7 +1524,7 @@ jQuery(function ($) {
             followupValue = toLocalInputValue(now);
         }
 
-        var statusSelect = buildSelect('status', normalizePipelineStageValue(lead.status), statusOptions);
+        var statusSelect = buildStageSelect('status', normalizePipelineStageValue(lead.status), getPipelineStages());
         var followupSelect = buildSelect('followup_status', lead.followup_status || 'scheduled', followupOptions);
         var customFieldsHtml = buildFollowupCustomFields(customConfig, lead);
 
@@ -1192,7 +1601,7 @@ jQuery(function ($) {
             followupValue = toLocalInputValue(now);
         }
 
-        var statusSelect = buildSelect('status', normalizePipelineStageValue(lead.status), statusOptions);
+        var statusSelect = buildStageSelect('status', normalizePipelineStageValue(lead.status), getPipelineStages());
         var followupSelect = buildSelect('followup_status', lead.followup_status || 'scheduled', followupOptions);
         var customFieldsHtml = buildFollowupCustomFields(customConfig, lead);
 
@@ -1468,25 +1877,101 @@ jQuery(function ($) {
                     data[item.name] = item.value;
                 }
             });
-            var now = new Date();
-            now.setSeconds(0, 0);
-            data.followup_at = toLocalInputValue(now);
-            var noteValue = $(this).find('textarea[name="note"]').val();
+            var noteValue = ($(this).find('textarea[name="note"]').val() || '').trim();
+            data.followup_save = true;
+            if (noteValue) {
+                data.followup_note = noteValue;
+            }
 
             apiRequest('PUT', 'leads/' + lead.id, data).done(function () {
-                if (noteValue) {
-                    apiRequest('POST', 'leads/' + lead.id + '/notes', { note: noteValue }).always(function () {
-                        close();
-                        $(document).trigger('leadAggregator:refresh');
-                    });
-                } else {
-                    close();
-                    $(document).trigger('leadAggregator:refresh');
-                }
+                close();
+                $(document).trigger('leadAggregator:refresh');
             }).fail(function (xhr) {
                 var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unable to update lead.';
                 modal.find('.la-message').text(message);
             });
+        });
+    }
+
+    function openFollowupHistoryModal(lead) {
+        var contactName = ((lead.first_name || '') + ' ' + (lead.last_name || '')).trim() || 'No name';
+        var contactEmail = (lead.email || '').trim();
+        var contactPhone = (lead.phone || '').trim();
+        var mailtoLink = contactEmail ? ('mailto:' + encodeURIComponent(contactEmail)) : '#';
+        var telLink = contactPhone ? ('tel:' + encodeURIComponent(contactPhone)) : '#';
+
+        var emailPart = contactEmail ? '<a href="' + mailtoLink + '" class="la-followup-history-contact__link" target="_blank" rel="noopener noreferrer">' + contactEmail.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</a>' : '<span class="la-muted">No email</span>';
+        var phonePart = contactPhone ? '<a href="' + telLink + '" class="la-followup-history-contact__link">' + contactPhone.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</a>' : '<span class="la-muted">No phone</span>';
+        var divider = contactEmail && contactPhone ? '<span class="la-followup-history-contact__divider">·</span>' : '';
+        var contactHtml = '<div class="la-followup-history-contact">' +
+            '<div class="la-followup-history-contact__avatar">' + (contactName.charAt(0).toUpperCase()) + '</div>' +
+            '<div class="la-followup-history-contact__info">' +
+                '<div class="la-followup-history-contact__name">' + (contactName || '—').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' +
+                '<div class="la-followup-history-contact__meta">' + emailPart + divider + phonePart + '</div>' +
+            '</div>' +
+        '</div>';
+
+        var modal = $(
+            '<div class="la-modal-overlay">' +
+                '<div class="la-modal la-modal--wide">' +
+                '<div class="la-modal-header">' +
+                    '<div class="la-modal-title"><h4>Followup History</h4></div>' +
+                    '<button type="button" class="la-modal-close">×</button>' +
+                '</div>' +
+                '<div class="la-modal-body">' +
+                    '<div class="la-followup-history-contact-wrap">' + contactHtml + '</div>' +
+                    '<div class="la-followup-history-list"></div>' +
+                    '<div class="la-message"></div>' +
+                '</div>' +
+                '</div>' +
+            '</div>'
+        );
+        $('body').append(modal);
+
+        function close() {
+            modal.remove();
+        }
+
+        modal.find('.la-modal-close').on('click', close);
+        modal.on('click', function (event) {
+            if ($(event.target).is('.la-modal-overlay')) {
+                close();
+            }
+        });
+
+        apiRequest('GET', 'leads/' + lead.id + '/followup-history').done(function (history) {
+            var items = history || [];
+            if (!items.length) {
+                modal.find('.la-followup-history-list').html('<p class="la-muted">No followup history yet. Each time you save in the follow-up modal, a new entry is recorded.</p>');
+                return;
+            }
+            function formatDate(dateStr) {
+                if (!dateStr) return '';
+                var d = new Date(String(dateStr).replace(' ', 'T'));
+                return isNaN(d.getTime()) ? dateStr : d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            }
+            var html = '<table class="la-table"><thead><tr><th>Date</th><th>Pipeline Stage</th><th>Follow-up Status</th><th>Followup Date</th><th>Note</th></tr></thead><tbody>';
+            items.forEach(function (item) {
+                var statusChange = '';
+                if (item.status_before !== item.status_after) {
+                    statusChange = (item.status_before || '—') + ' → ' + (item.status_after || '—');
+                } else {
+                    statusChange = item.status_after || '—';
+                }
+                var followupStatusChange = '';
+                if (item.followup_status_before !== item.followup_status_after) {
+                    followupStatusChange = (item.followup_status_before || '—') + ' → ' + (item.followup_status_after || '—');
+                } else {
+                    followupStatusChange = item.followup_status_after || '—';
+                }
+                var note = (item.note || '').trim();
+                html += '<tr><td>' + formatDate(item.created_at) + '</td><td>' + statusChange + '</td><td>' + followupStatusChange + '</td><td>' + formatDate(item.followup_at) + '</td><td>' + (note ? note.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '—') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            modal.find('.la-followup-history-list').html(html);
+        }).fail(function (xhr) {
+            var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unable to load followup history.';
+            modal.find('.la-message').text(message);
         });
     }
 
@@ -1524,23 +2009,32 @@ jQuery(function ($) {
         }
 
         $el.html('<p>Loading lead...</p>');
+        var teamReq = apiRequest('GET', 'team/assignable').then(function (r) { return r; }, function () { return { users: [] }; });
+        var pipelineReq = apiRequest('GET', 'pipeline-stages').then(function (r) { return r; }, function () { return { stages: [] }; });
         $.when(
             apiRequest('GET', 'leads/' + leadId),
             apiRequest('GET', 'leads/' + leadId + '/notes'),
             apiRequest('GET', 'tags'),
             apiRequest('GET', 'custom-fields'),
-            apiRequest('GET', 'me')
-        ).done(function (leadRes, notesRes, tagsRes, customFieldsRes, meRes) {
-            var lead = leadRes[0];
-            var notes = notesRes[0] || [];
-            var tags = (tagsRes[0] || []).map(function (tag) {
+            apiRequest('GET', 'me'),
+            teamReq,
+            pipelineReq
+        ).done(function (leadRes, notesRes, tagsRes, customFieldsRes, meRes, teamRes, pipelineRes) {
+            var lead = (leadRes && typeof leadRes === 'object' && !Array.isArray(leadRes)) ? leadRes : (leadRes && leadRes[0] ? leadRes[0] : leadRes);
+            var notes = (Array.isArray(notesRes) ? notesRes : (notesRes && notesRes[0]) ? notesRes[0] : []) || [];
+            var tags = (Array.isArray(tagsRes) ? tagsRes : (tagsRes && tagsRes[0]) ? tagsRes[0] : []).map(function (tag) {
                 return {
                     id: parseInt(tag.id, 10),
                     name: tag.name
                 };
             });
-            var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
-            var me = meRes && meRes[0] ? meRes[0] : {};
+            var pipelineStages = (pipelineRes && pipelineRes.stages) ? pipelineRes.stages : [];
+            if (pipelineStages && pipelineStages.length) {
+                setPipelineStages(pipelineStages);
+            }
+            var customFields = (customFieldsRes && customFieldsRes.fields) ? customFieldsRes.fields : {};
+            var me = meRes || {};
+            var teamMembers = (teamRes && teamRes.users) ? teamRes.users : [];
             var readOnly = (me.access_level || 'full') === 'read';
             var fullName = (lead.first_name || '') + ' ' + (lead.last_name || '');
             var displayName = fullName.trim() || ('Lead #' + lead.id);
@@ -1575,7 +2069,7 @@ jQuery(function ($) {
                 '</div>';
             html += '<div class="la-detail-grid">';
 
-            var statusSelect = buildSelect('status', normalizePipelineStageValue(lead.status), statusOptions);
+            var statusSelect = buildStageSelect('status', normalizePipelineStageValue(lead.status), getPipelineStages());
             var followupSelect = buildSelect('followup_status', lead.followup_status || 'scheduled', followupOptions);
 
             html += '<form class="la-form la-update-form">' +
@@ -1607,6 +2101,14 @@ jQuery(function ($) {
                             '<div class="la-status-fields">' +
                                 '<div><label>Pipeline Stage ' + statusSelect + '</label></div>' +
                                 '<div><label>Follow-up Status ' + followupSelect + '</label></div>' +
+                                (teamMembers.length > 0 ? (function () {
+                                    var assignOpts = '<option value="">Unassigned</option>';
+                                    teamMembers.forEach(function (u) {
+                                        var sel = (lead.assigned_to && parseInt(lead.assigned_to, 10) === parseInt(u.id, 10)) ? ' selected' : '';
+                                        assignOpts += '<option value="' + u.id + '"' + sel + '>' + (u.name || u.email || '#' + u.id) + '</option>';
+                                    });
+                                    return '<div><label>Assigned To <select class="la-assigned-to" data-lead-id="' + lead.id + '">' + assignOpts + '</select></label><span class="la-assign-message"></span></div>';
+                                }()) : '') +
                             '</div>' +
                         '</div>' +
                     '</div>' +
@@ -1688,6 +2190,22 @@ jQuery(function ($) {
 
             $el.html(html);
 
+            if (!readOnly && teamMembers.length > 0) {
+                $el.find('.la-assigned-to').on('change', function () {
+                    var $select = jQuery(this);
+                    var $msg = $el.find('.la-assign-message');
+                    var val = $select.val();
+                    var payload = { assigned_to: val === '' ? null : val };
+                    $msg.text('').removeClass('la-message--error');
+                    apiRequest('PUT', 'leads/' + leadId, payload).done(function () {
+                        $msg.text('Saved.').addClass('la-message--success');
+                        setTimeout(function () { $msg.text(''); }, 2500);
+                    }).fail(function (xhr) {
+                        var err = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Update failed.';
+                        $msg.text(err).addClass('la-message--error');
+                    });
+                });
+            }
 
             function renderTagList(filter) {
                 var selectedHtml = '';
@@ -2094,6 +2612,7 @@ jQuery(function ($) {
                     if (!readOnly) {
                         html += '<td class="la-actions">' +
                             '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-lead-id="' + lead.id + '">' + icons.edit + 'Manage</button>' +
+                            '<button type="button" class="la-btn la-btn--ghost la-followup-history" data-lead-id="' + lead.id + '">' + icons.followupHistory + 'History</button>' +
                             '<button type="button" class="la-btn la-btn--ghost la-followup-complete" data-lead-id="' + lead.id + '">' + icons.check + 'Complete</button>' +
                             '<button type="button" class="la-btn la-btn--ghost la-followup-cancel" data-lead-id="' + lead.id + '">' + icons.trash + 'Cancel</button>' +
                             '</td>';
@@ -2219,7 +2738,7 @@ jQuery(function ($) {
                 row.show().find('td').html('<div class="la-followup-panel">Loading details...</div>');
                 apiRequest('GET', 'leads/' + leadId).done(function (lead) {
                     apiRequest('GET', 'leads/' + leadId + '/notes').done(function (notes) {
-                        var statusSelect = buildSelect('status', lead.status || 'open', statusOptions);
+                        var statusSelect = buildStageSelect('status', lead.status || 'open', getPipelineStages());
                         var followupSelect = buildSelect('followup_status', lead.followup_status || 'scheduled', followupOptions);
                         var panel = '<div class="la-followup-panel">' +
                             '<div class="la-followup-grid">' +
@@ -2256,13 +2775,18 @@ jQuery(function ($) {
                         row.find('td').html(panel);
 
                         row.find('.la-followup-save').on('click', function () {
+                            var noteValue = (row.find('.la-followup-note-input').val() || '').trim();
                             var data = {
                                 status: row.find('select[name="status"]').val(),
                                 followup_status: row.find('select[name="followup_status"]').val(),
                                 followup_at: row.find('input[name="followup_at"]').val(),
                                 due_at: row.find('input[name="due_at"]').val(),
-                                skip_reminders: row.find('input[name="skip_reminders"]').is(':checked') ? 1 : 0
+                                skip_reminders: row.find('input[name="skip_reminders"]').is(':checked') ? 1 : 0,
+                                followup_save: true
                             };
+                            if (noteValue) {
+                                data.followup_note = noteValue;
+                            }
                             apiRequest('PUT', 'leads/' + leadId, data).done(function () {
                                 renderCalendar($el);
                             });
@@ -2334,6 +2858,14 @@ jQuery(function ($) {
                         });
                     });
                 });
+            });
+
+            $el.find('.la-followup-history').on('click', function () {
+                var leadId = $(this).data('lead-id');
+                var lead = leads.find(function (item) { return String(item.id) === String(leadId); });
+                if (lead) {
+                    openFollowupHistoryModal(lead);
+                }
             });
 
             $el.find('.la-followup-complete').on('click', function () {
@@ -2523,12 +3055,22 @@ jQuery(function ($) {
 
     function renderFollowupsList($el) {
         $el.html('<p>Loading followups...</p>');
-        $.when(apiRequest('GET', 'leads'), apiRequest('GET', 'me'), apiRequest('GET', 'custom-fields')).done(function (leadsRes, meRes, customFieldsRes) {
-            var leads = leadsRes[0] || [];
-            var me = meRes && meRes[0] ? meRes[0] : {};
+        jQuery.when(
+            apiRequest('GET', 'pipeline-stages').then(function (r) { return r; }, function () { return { stages: [] }; }),
+            apiRequest('GET', 'me'),
+            apiRequest('GET', 'custom-fields')
+        ).done(function (pipelineRes, meRes, customFieldsRes) {
+            var pipelineStages = (pipelineRes && pipelineRes.stages) ? pipelineRes.stages : [];
+            if (pipelineStages && pipelineStages.length) {
+                setPipelineStages(pipelineStages);
+            }
+            var excludeStatus = getExcludeStatusFromStages();
+            apiRequest('GET', 'leads', { exclude_status: excludeStatus }).done(function (leadsRes) {
+            var leads = Array.isArray(leadsRes) ? leadsRes : [];
+            var me = meRes || {};
             var readOnly = (me.access_level || 'full') === 'read';
-            var customFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].fields) ? customFieldsRes[0].fields : {};
-            var followupFields = (customFieldsRes && customFieldsRes[0] && customFieldsRes[0].followup) ? customFieldsRes[0].followup : {};
+            var customFields = (customFieldsRes && customFieldsRes.fields) ? customFieldsRes.fields : {};
+            var followupFields = (customFieldsRes && customFieldsRes.followup) ? customFieldsRes.followup : {};
             var pipelineFilter = $el.data('followup-pipeline-filter') || '';
             var followupFilter = $el.data('followup-status-filter') || '';
             var searchValue = $el.data('followup-search') || '';
@@ -2591,6 +3133,7 @@ jQuery(function ($) {
                 { key: 'due_at', label: 'Followup Due' },
                 { key: 'status', label: 'Pipeline Stage' },
                 { key: 'followup_status', label: 'Follow-up Status' },
+                { key: 'created_at', label: 'Date Added' },
                 { key: 'last_actioned', label: 'Last Actioned' },
                 { key: 'last_contacted', label: 'Last Contacted' }
             ];
@@ -2634,6 +3177,9 @@ jQuery(function ($) {
                 if (key === 'followup_status') {
                     return followupStatusLabel(lead.followup_status);
                 }
+                if (key === 'created_at') {
+                    return formatDisplayDate(lead.created_at);
+                }
                 if (key === 'last_actioned') {
                     return formatDisplayDate(lead.last_actioned);
                 }
@@ -2643,7 +3189,13 @@ jQuery(function ($) {
                 return lead[key] ? lead[key] : '';
             }
 
+            /* Exclude won/lost (server-side does this; client-side safety fallback) */
+            function isExcludedWonOrLost(lead) {
+                var s = normalizePipelineStageValue(lead.status || '');
+                return s === 'won' || s === 'lost';
+            }
             var rows = leads.filter(function (lead) {
+                if (isExcludedWonOrLost(lead)) return false;
                 return lead.followup_at || lead.due_at;
             });
             if (searchValue) {
@@ -2675,6 +3227,16 @@ jQuery(function ($) {
                     });
                 }
             }
+            var followupsSortState = { key: 'lead', dir: 'asc' };
+            if (viewMode === 'table') {
+                try {
+                    var followupsStored = JSON.parse(window.localStorage.getItem('lead_aggregator_followups_table_sort') || '{}');
+                    if (followupsStored.key && activeColumns.indexOf(followupsStored.key) !== -1 && (followupsStored.dir === 'asc' || followupsStored.dir === 'desc')) {
+                        followupsSortState = { key: followupsStored.key, dir: followupsStored.dir };
+                    }
+                } catch (e) {}
+                rows = sortLeadRows(rows, followupsSortState.key, followupsSortState.dir, null);
+            }
             var countLabel = 'Showing ' + rows.length + ' lead' + (rows.length === 1 ? '' : 's');
 
             var columnMenuHtml = '';
@@ -2683,17 +3245,22 @@ jQuery(function ($) {
                 columnMenuHtml += '<label><input type="checkbox" data-key="' + col.key + '"' + checked + '> ' + col.label + '</label>';
             });
 
+            var viewMode = 'table';
+            try {
+                viewMode = window.localStorage.getItem('lead_aggregator_followups_view_mode') || 'table';
+                if (viewMode !== 'kanban' && viewMode !== 'table') {
+                    viewMode = 'table';
+                }
+            } catch (e) {
+                viewMode = 'table';
+            }
+
             var html = '<div class="la-section-header">' +
                 '<div class="la-section-actions la-followup-actions">' +
-                '<div class="la-leads-toolbar">' +
+                '<div class="la-leads-toolbar mml-toolbar mml-toolbar--followups">' +
+                '<div class="mml-toolbar-left">' +
                 '<div class="la-intent-row">' +
                 '<input type="text" class="la-search la-search--primary" placeholder="Search leads" value="' + (searchValue || '') + '">' +
-                '<div class="la-intent-actions">' +
-                '<div class="la-column-toggle-wrap" data-context="followups">' +
-                '<button type="button" class="la-btn la-btn--ghost la-column-toggle" data-context="followups">' + icons.columns + 'Columns</button>' +
-                '<div class="la-column-menu">' + columnMenuHtml + '</div>' +
-                '</div>' +
-                '</div>' +
                 '</div>' +
                 '<div class="la-context-row">' +
                 '<div class="la-filter-pill-group">' +
@@ -2701,10 +3268,11 @@ jQuery(function ($) {
                 '<button type="button" class="la-filter-pill" aria-haspopup="true" aria-expanded="false">Pipeline: <span class="la-filter-value">' + statusFilterLabel(pipelineFilter) + '</span> ▾</button>' +
                 '<div class="la-filter-menu">' +
                 '<button type="button" data-value="">All</button>';
-            statusOptions.forEach(function (option) {
-                var value = option.toLowerCase();
+            (pipelineStages && pipelineStages.length ? pipelineStages.filter(function (s) { return s.type !== 'won' && s.type !== 'lost'; }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); }) : statusOptions.filter(function (o) { var k = o.toLowerCase(); return k !== 'won' && k !== 'lost'; }).map(function (o) { return { key: o.toLowerCase(), label: o }; })).forEach(function (opt) {
+                var value = (opt.key || opt).toLowerCase ? (opt.key || opt).toLowerCase() : String(opt).toLowerCase();
+                var label = opt.label || opt;
                 var selected = value === String(pipelineFilter || '').toLowerCase() ? ' data-selected="1"' : '';
-                html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
+                html += '<button type="button" data-value="' + value + '"' + selected + '>' + label + '</button>';
             });
             html += '</div></div>';
             html += '<div class="la-filter-pill-wrap" data-filter="followup">';
@@ -2712,7 +3280,7 @@ jQuery(function ($) {
             html += '<div class="la-filter-menu">';
             html += '<button type="button" data-value="">All</button>';
             followupOptions.forEach(function (option) {
-                var value = option.toLowerCase().replace(/\\s+/g, '_');
+                var value = option.toLowerCase().replace(/\s+/g, '_');
                 var selected = value === String(followupFilter || '').toLowerCase() ? ' data-selected="1"' : '';
                 html += '<button type="button" data-value="' + value + '"' + selected + '>' + option + '</button>';
             });
@@ -2721,35 +3289,98 @@ jQuery(function ($) {
             html += '</div></div>';
             var clearDisabled = pipelineFilter || followupFilter || searchValue ? '' : ' disabled';
             html += '<button type="button" class="la-filter-pill la-filter-clear"' + clearDisabled + '>' + icons.clearFilters + 'Clear</button>';
-            html += '<div class="la-filter-count">' + countLabel + '</div>';
-            html += '</div></div></div></div></div>';
-            html += '<table class="la-table"><thead><tr>';
-            activeColumns.forEach(function (key) {
-                html += '<th>' + getColumnLabel(key) + '</th>';
-            });
-            html += '<th class="la-actions-cell">Actions</th></tr></thead><tbody>';
+            html += '</div></div>' +
+                '</div>' +
+                '<div class="mml-toolbar-right">' +
+                '<div class="la-view-toggle la-segmented">' +
+                '<button type="button" class="la-segmented-btn' + (viewMode === 'kanban' ? ' is-active' : '') + '" data-view="kanban">Kanban</button>' +
+                '<button type="button" class="la-segmented-btn' + (viewMode === 'table' ? ' is-active' : '') + '" data-view="table">Table</button>' +
+                '</div>' +
+                '<div class="la-column-toggle-wrap" data-context="followups"' + (viewMode === 'kanban' ? ' style="display:none;"' : '') + '>' +
+                '<button type="button" class="la-btn la-btn--ghost la-column-toggle" data-context="followups">' + icons.columns + 'Columns</button>' +
+                '<div class="la-column-menu">' + columnMenuHtml + '</div>' +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="la-followup-toolbar-count"><span class="la-filter-count">' + countLabel + '</span></div>' +
+                '</div></div>';
 
-            if (!rows.length) {
-                html += '<tr><td class="la-empty" colspan="' + (activeColumns.length + 1) + '">No followups scheduled.</td></tr>';
-            } else {
-                rows.forEach(function (lead) {
-                    html += '<tr>';
-                    activeColumns.forEach(function (key) {
-                        html += '<td>' + renderCell(lead, key) + '</td>';
-                    });
-                    if (readOnly) {
-                        html += '<td class="la-actions-cell"><button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button></td>';
-                    } else {
-                        html += '<td class="la-actions la-actions-cell">' +
-                            '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-id="' + lead.id + '">' + icons.action + 'Action</button>' +
-                            '<button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>' +
-                            '<button type="button" class="la-btn la-btn--ghost la-followup-remove" data-id="' + lead.id + '">' + icons.trash + 'Remove</button>' +
-                            '</td>';
-                    }
-                    html += '</tr>';
-                });
+            function buildKanbanCard(lead, isReadOnly) {
+                var name = (lead.first_name || '') + ' ' + (lead.last_name || '');
+                var displayName = name.trim() || ('Lead #' + lead.id);
+                var dueText = lead.due_at ? formatDisplayDate(lead.due_at) : 'No follow-up due';
+                var followupKey = normalizeFollowupStatusValue(lead.followup_status);
+                var followupLabel = followupStatusLabel(lead.followup_status);
+                var overdueClass = isOverdue(lead) ? ' la-kanban-card--overdue' : '';
+                var actionsHtml = '';
+                if (isReadOnly) {
+                    actionsHtml = '<button type="button" class="la-btn la-btn--ghost la-btn--sm la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>';
+                } else {
+                    actionsHtml = '<button type="button" class="la-btn la-btn--ghost la-btn--sm la-followup-manage" data-id="' + lead.id + '">' + icons.action + 'Action</button>' +
+                        '<button type="button" class="la-btn la-btn--ghost la-btn--sm la-followup-history" data-id="' + lead.id + '">' + icons.followupHistory + 'History</button>' +
+                        '<button type="button" class="la-btn la-btn--ghost la-btn--sm la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>' +
+                        '<button type="button" class="la-btn la-btn--ghost la-btn--sm la-followup-remove" data-id="' + lead.id + '">' + icons.trash + 'Remove</button>';
+                }
+                return '<div class="la-kanban-card' + overdueClass + '" data-lead-id="' + lead.id + '" data-stage="' + normalizePipelineStageValue(lead.status) + '">' +
+                    '<div class="la-kanban-card__content">' +
+                    '<div class="la-kanban-card__name">' + (displayName || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' +
+                    '<div class="la-kanban-card__due">' + dueText + '</div>' +
+                    '<div class="la-kanban-card__meta">' +
+                    '<span class="la-pill la-pill--' + followupKey + '">' + followupLabel + '</span>' +
+                    '</div>' +
+                    '<div class="la-kanban-card__actions">' + actionsHtml + '</div>' +
+                    '</div>' +
+                    '<div class="la-kanban-card__saving">Saving…</div>' +
+                    '</div>';
             }
-            html += '</tbody></table>';
+
+            var kanbanStages = (pipelineStages && pipelineStages.length ? pipelineStages.filter(function (s) { return s.type !== 'won' && s.type !== 'lost'; }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); }) : statusOptions.filter(function (o) { var k = o.toLowerCase(); return k !== 'won' && k !== 'lost'; }).map(function (o) { return { key: o.toLowerCase(), label: o }; }));
+            if (viewMode === 'kanban') {
+                html += '<div class="la-kanban-container">';
+                kanbanStages.forEach(function (opt) {
+                    var stageKey = (opt.key || opt).toLowerCase ? (opt.key || opt).toLowerCase() : String(opt).toLowerCase();
+                    var stageLabel = opt.label || opt;
+                    var colLeads = rows.filter(function (lead) { return normalizePipelineStageValue(lead.status) === stageKey; });
+                    html += '<div class="la-kanban-column" data-stage="' + stageKey + '">' +
+                        '<div class="la-kanban-column-header">' + stageLabel + ' (' + colLeads.length + ')</div>' +
+                        '<div class="la-kanban-cards">';
+                    colLeads.forEach(function (lead) {
+                        html += buildKanbanCard(lead, readOnly);
+                    });
+                    html += '</div></div>';
+                });
+                html += '</div>';
+            } else {
+                html += '<table class="la-table la-table--followups"><thead><tr>';
+                activeColumns.forEach(function (key) {
+                    var sortClass = 'la-th-sortable' + (followupsSortState.key === key ? ' la-th-sort-active la-th-sort-' + followupsSortState.dir : '');
+                    var sortIndicator = followupsSortState.key === key ? (followupsSortState.dir === 'asc' ? ' <span class="la-sort-indicator">▲</span>' : ' <span class="la-sort-indicator">▼</span>') : '';
+                    html += '<th class="' + sortClass + '" data-sort-key="' + key + '">' + getColumnLabel(key) + sortIndicator + '</th>';
+                });
+                html += '<th class="la-actions-cell">Actions</th></tr></thead><tbody>';
+                if (!rows.length) {
+                    html += '<tr><td class="la-empty" colspan="' + (activeColumns.length + 1) + '">No followups scheduled.</td></tr>';
+                } else {
+                    rows.forEach(function (lead) {
+                        html += '<tr>';
+                        activeColumns.forEach(function (key) {
+                            html += '<td>' + renderCell(lead, key) + '</td>';
+                        });
+                        if (readOnly) {
+                            html += '<td class="la-actions-cell"><button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button></td>';
+                        } else {
+                            html += '<td class="la-actions la-actions-cell">' +
+                                '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-id="' + lead.id + '">' + icons.action + 'Action</button>' +
+                                '<button type="button" class="la-btn la-btn--ghost la-followup-history" data-id="' + lead.id + '">' + icons.followupHistory + 'History</button>' +
+                                '<button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>' +
+                                '<button type="button" class="la-btn la-btn--ghost la-followup-remove" data-id="' + lead.id + '">' + icons.trash + 'Remove</button>' +
+                                '</td>';
+                        }
+                        html += '</tr>';
+                    });
+                }
+                html += '</tbody></table>';
+            }
             $el.html(html);
 
             function updateFollowupRows() {
@@ -2757,6 +3388,7 @@ jQuery(function ($) {
                 var currentPipeline = $el.data('followup-pipeline-filter') || '';
                 var currentFollowup = $el.data('followup-status-filter') || '';
                 var filteredRows = leads.filter(function (lead) {
+                    if (isExcludedWonOrLost(lead)) return false;
                     return lead.followup_at || lead.due_at;
                 });
                 if (currentSearch) {
@@ -2788,33 +3420,139 @@ jQuery(function ($) {
                         });
                     }
                 }
+                if ($el.find('.la-table').length) {
+                    var updateFollowupsSortState = { key: 'lead', dir: 'asc' };
+                    try {
+                        var updateFollowupsStored = JSON.parse(window.localStorage.getItem('lead_aggregator_followups_table_sort') || '{}');
+                        if (updateFollowupsStored.key && activeColumns.indexOf(updateFollowupsStored.key) !== -1 && (updateFollowupsStored.dir === 'asc' || updateFollowupsStored.dir === 'desc')) {
+                            updateFollowupsSortState = { key: updateFollowupsStored.key, dir: updateFollowupsStored.dir };
+                        }
+                    } catch (e) {}
+                    filteredRows = sortLeadRows(filteredRows, updateFollowupsSortState.key, updateFollowupsSortState.dir, null);
+                }
                 var countText = 'Showing ' + filteredRows.length + ' lead' + (filteredRows.length === 1 ? '' : 's');
                 $el.find('.la-filter-count').text(countText);
                 var shouldEnableClear = !!(currentSearch || currentPipeline || currentFollowup);
                 $el.find('.la-filter-clear').prop('disabled', !shouldEnableClear);
 
-                var bodyHtml = '';
-                if (!filteredRows.length) {
-                    bodyHtml = '<tr><td class="la-empty" colspan="' + (activeColumns.length + 1) + '">No followups scheduled.</td></tr>';
-                } else {
-                    filteredRows.forEach(function (lead) {
-                        bodyHtml += '<tr>';
-                        activeColumns.forEach(function (key) {
-                            bodyHtml += '<td>' + renderCell(lead, key) + '</td>';
+                if ($el.find('.la-kanban-container').length) {
+                    var updateKanbanStages = (pipelineStages && pipelineStages.length ? pipelineStages.filter(function (s) { return s.type !== 'won' && s.type !== 'lost'; }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); }) : statusOptions.filter(function (o) { var k = o.toLowerCase(); return k !== 'won' && k !== 'lost'; }).map(function (o) { return { key: o.toLowerCase(), label: o }; }));
+                    updateKanbanStages.forEach(function (opt) {
+                        var stageKey = (opt.key || opt).toLowerCase ? (opt.key || opt).toLowerCase() : String(opt).toLowerCase();
+                        var stageLabel = opt.label || opt;
+                        var colLeads = filteredRows.filter(function (lead) { return normalizePipelineStageValue(lead.status) === stageKey; });
+                        var $col = $el.find('.la-kanban-column[data-stage="' + stageKey + '"]');
+                        $col.find('.la-kanban-column-header').text(stageLabel + ' (' + colLeads.length + ')');
+                        var cardsHtml = '';
+                        colLeads.forEach(function (lead) {
+                            cardsHtml += buildKanbanCard(lead, readOnly);
                         });
-                        if (readOnly) {
-                            bodyHtml += '<td class="la-actions-cell"><button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button></td>';
-                        } else {
-                            bodyHtml += '<td class="la-actions la-actions-cell">' +
-                                '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-id="' + lead.id + '">' + icons.action + 'Action</button>' +
-                                '<button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>' +
-                                '<button type="button" class="la-btn la-btn--ghost la-followup-remove" data-id="' + lead.id + '">' + icons.trash + 'Remove</button>' +
-                                '</td>';
+                        var $cards = $col.find('.la-kanban-cards');
+                        var cardsEl = $cards[0];
+                        if (cardsEl && cardsEl.sortableInstance && typeof cardsEl.sortableInstance.destroy === 'function') {
+                            cardsEl.sortableInstance.destroy();
+                            cardsEl.sortableInstance = null;
                         }
-                        bodyHtml += '</tr>';
+                        $cards.html(cardsHtml);
+                        if (typeof Sortable !== 'undefined' && !readOnly) {
+                            initColumnSortable($col, $el, leads, buildKanbanCard, readOnly);
+                        }
                     });
+                } else {
+                    var bodyHtml = '';
+                    if (!filteredRows.length) {
+                        bodyHtml = '<tr><td class="la-empty" colspan="' + (activeColumns.length + 1) + '">No followups scheduled.</td></tr>';
+                    } else {
+                        filteredRows.forEach(function (lead) {
+                            bodyHtml += '<tr>';
+                            activeColumns.forEach(function (key) {
+                                bodyHtml += '<td>' + renderCell(lead, key) + '</td>';
+                            });
+                            if (readOnly) {
+                                bodyHtml += '<td class="la-actions-cell"><button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button></td>';
+                            } else {
+                                bodyHtml += '<td class="la-actions la-actions-cell">' +
+                                    '<button type="button" class="la-btn la-btn--ghost la-followup-manage" data-id="' + lead.id + '">' + icons.action + 'Action</button>' +
+                                    '<button type="button" class="la-btn la-btn--ghost la-followup-history" data-id="' + lead.id + '">' + icons.followupHistory + 'History</button>' +
+                                    '<button type="button" class="la-btn la-btn--ghost la-followup-open" data-id="' + lead.id + '">' + icons.external + 'Open</button>' +
+                                    '<button type="button" class="la-btn la-btn--ghost la-followup-remove" data-id="' + lead.id + '">' + icons.trash + 'Remove</button>' +
+                                    '</td>';
+                            }
+                            bodyHtml += '</tr>';
+                        });
+                    }
+                    $el.find('.la-table tbody').html(bodyHtml);
                 }
-                $el.find('.la-table tbody').html(bodyHtml);
+            }
+
+            function initColumnSortable($col, $container, leadsData, cardBuilder, isReadOnly) {
+                var cardsEl = $col.find('.la-kanban-cards')[0];
+                if (!cardsEl || isReadOnly) {
+                    return;
+                }
+                if (cardsEl.sortableInstance) {
+                    cardsEl.sortableInstance.destroy();
+                }
+                cardsEl.sortableInstance = new Sortable(cardsEl, {
+                    group: 'followup-kanban',
+                    animation: 150,
+                    ghostClass: 'la-kanban-card--ghost',
+                    chosenClass: 'la-kanban-card--chosen',
+                    dragClass: 'la-kanban-card--drag',
+                    filter: '.la-btn, .la-kanban-card__actions',
+                    preventOnFilter: true,
+                    onEnd: function (evt) {
+                        var leadId = $(evt.item).data('lead-id');
+                        var newStage = $(evt.to).closest('.la-kanban-column').data('stage');
+                        if (!leadId || !newStage) {
+                            return;
+                        }
+                        var $card = $(evt.item);
+                        $card.addClass('la-kanban-card--saving');
+                        apiRequest('PUT', 'leads/' + leadId, { status: newStage }).done(function () {
+                            /* When marked Won/Lost, refresh Follow-ups so lead disappears immediately */
+                            if (newStage === 'won' || newStage === 'lost') {
+                                renderFollowupsList($el);
+                                return;
+                            }
+                            var lead = leadsData.find(function (l) { return String(l.id) === String(leadId); });
+                            if (lead) {
+                                lead.status = newStage;
+                            }
+                            $card.removeClass('la-kanban-card--saving');
+                            $card.data('stage', newStage);
+                            var toStageKey = $(evt.to).closest('.la-kanban-column').data('stage');
+                            var toCount = $(evt.to).find('.la-kanban-card').length;
+                            $(evt.to).closest('.la-kanban-column').find('.la-kanban-column-header').text(
+                                pipelineStageLabel(toStageKey) + ' (' + toCount + ')'
+                            );
+                            var fromStageKey = $(evt.from).closest('.la-kanban-column').data('stage');
+                            var fromCount = $(evt.from).find('.la-kanban-card').length;
+                            $(evt.from).closest('.la-kanban-column').find('.la-kanban-column-header').text(
+                                pipelineStageLabel(fromStageKey) + ' (' + fromCount + ')'
+                            );
+                        }).fail(function () {
+                            $card.removeClass('la-kanban-card--saving');
+                            var ref = evt.from.children[evt.oldIndex] || null;
+                            evt.from.insertBefore(evt.item, ref);
+                            laToast('Unable to update pipeline stage.');
+                        });
+                    }
+                });
+            }
+
+            $el.find('.la-view-toggle .la-segmented-btn').on('click', function () {
+                var mode = $(this).data('view');
+                try {
+                    window.localStorage.setItem('lead_aggregator_followups_view_mode', mode);
+                } catch (e) {}
+                renderFollowupsList($el);
+            });
+
+            if (viewMode === 'kanban' && typeof Sortable !== 'undefined' && !readOnly) {
+                $el.find('.la-kanban-column').each(function () {
+                    initColumnSortable($(this), $el, leads, buildKanbanCard, readOnly);
+                });
             }
 
             $el.find('.la-search').on('input', function () {
@@ -2841,6 +3579,14 @@ jQuery(function ($) {
                 var lead = leads.find(function (item) { return String(item.id) === String(leadId); });
                 if (lead) {
                     openFollowupManageModal(lead, { labels: customFields, followup: followupFields });
+                }
+            });
+
+            $el.off('click.laFollowupHistory').on('click.laFollowupHistory', '.la-followup-history', function () {
+                var leadId = $(this).data('id') || $(this).data('lead-id');
+                var lead = leads.find(function (item) { return String(item.id) === String(leadId); });
+                if (lead) {
+                    openFollowupHistoryModal(lead);
                 }
             });
 
@@ -2919,9 +3665,120 @@ jQuery(function ($) {
                 window.localStorage.setItem('leadAggregatorFollowupColumns', JSON.stringify(activeColumns));
                 renderFollowupsList($el);
             });
+
+            jQuery(document).off('click.laFollowupsSort').on('click.laFollowupsSort', '.la-table--followups .la-th-sortable', function () {
+                var $th = jQuery(this);
+                var $panel = $th.closest('#la-panel-followups');
+                if (!$panel.length) {
+                    return;
+                }
+                var key = $th.data('sort-key');
+                var followupColumns = [];
+                try {
+                    followupColumns = JSON.parse(window.localStorage.getItem('leadAggregatorFollowupColumns') || '[]');
+                } catch (e) {}
+                if (!followupColumns.length) {
+                    followupColumns = ['lead', 'followup_at', 'due_at', 'status', 'followup_status'];
+                }
+                if (!key || followupColumns.indexOf(key) === -1) {
+                    return;
+                }
+                var storageKey = 'lead_aggregator_followups_table_sort';
+                var newState = { key: key, dir: 'asc' };
+                try {
+                    var stored = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+                    if (stored.key === key && (stored.dir === 'asc' || stored.dir === 'desc')) {
+                        newState.dir = stored.dir === 'asc' ? 'desc' : 'asc';
+                    }
+                } catch (e) {}
+                window.localStorage.setItem(storageKey, JSON.stringify(newState));
+                renderFollowupsList($panel);
+            });
+            }).fail(function () {
+                $el.html('<p>Unable to load leads.</p>');
+            });
         }).fail(function () {
             $el.html('<p>Unable to load followups.</p>');
         });
+    }
+
+    function renderOutcomeLeads($el, type) {
+        var isWon = type === 'won';
+        var rangeKey = 'leadAggregator' + (isWon ? 'Won' : 'Lost') + 'Range';
+        var defaultRange = 'last_30';
+        var range;
+        try {
+            range = window.localStorage.getItem(rangeKey) || defaultRange;
+        } catch (e) {
+            range = defaultRange;
+        }
+
+        $el.html('<div class="la-outcome-leads">' +
+            '<div class="mml-page">' +
+            '<div class="mml-page-header"><div class="la-section-header"><h3>' + (isWon ? 'Won Leads' : 'Lost Leads') + '</h3></div></div>' +
+            '<div class="mml-stats-grid"><div class="la-outcome-cards"></div></div>' +
+            '<div class="la-outcome-inbox"></div>' +
+            '</div></div>');
+
+        var $cards = $el.find('.la-outcome-cards');
+        var $inbox = $el.find('.la-outcome-inbox');
+        $el.find('.la-outcome-leads').data('outcomeRange', range);
+
+        function refresh() {
+            var rangeVal = $inbox.find('.la-outcome-range-select').val() || $el.find('.la-outcome-leads').data('outcomeRange') || defaultRange;
+            try {
+                window.localStorage.setItem(rangeKey, rangeVal);
+            } catch (e) {}
+            $el.find('.la-outcome-leads').data('outcomeRange', rangeVal);
+            var params = { range: rangeVal };
+            var analyticsUrl = 'analytics/' + type;
+            $.when(apiRequest('GET', analyticsUrl, params)).done(function (analyticsRes) {
+                var data = analyticsRes || {};
+                var hasData = (data.total_leads || 0) > 0;
+                var cardsHtml = '';
+                if (isWon) {
+                    var winRate = data.win_rate;
+                    var timeToClose = data.avg_days_to_close;
+                    var winsPeriod = data.wins_in_period || 0;
+                    cardsHtml = '<div class="la-outcome-card la-card"><h5>Win Rate</h5>' +
+                        (hasData ? '<div class="la-stat-value">' + (winRate != null ? winRate + '%' : '—') + '</div>' +
+                        '<div class="la-muted">' + (data.won_count || 0) + ' won out of ' + (data.total_leads || 0) + ' total leads</div>' : '<p class="la-muted">No leads yet</p>') + '</div>' +
+                        '<div class="la-outcome-card la-card"><h5>Time to Close</h5>' +
+                        (hasData && timeToClose != null ? '<div class="la-stat-value">Avg ' + Math.round(timeToClose) + ' days</div>' : '<p class="la-muted">' + (hasData ? 'Insufficient data' : 'No leads yet') + '</p>') + '</div>' +
+                        '<div class="la-outcome-card la-card"><h5>Wins This Period</h5>' +
+                        '<div class="la-stat-value">' + winsPeriod + '</div>' +
+                        '<div class="la-muted">Leads marked won in selected range</div></div>';
+                } else {
+                    var lossRate = data.loss_rate;
+                    var timeToLoss = data.avg_days_to_loss;
+                    var topReason = data.top_loss_reason || 'No response';
+                    var topPct = data.top_loss_reason_pct;
+                    cardsHtml = '<div class="la-outcome-card la-card"><h5>Loss Rate</h5>' +
+                        (hasData ? '<div class="la-stat-value">' + (lossRate != null ? lossRate + '%' : '—') + '</div>' +
+                        '<div class="la-muted">' + (data.lost_count || 0) + ' lost out of ' + (data.total_leads || 0) + ' total leads</div>' : '<p class="la-muted">No leads yet</p>') + '</div>' +
+                        '<div class="la-outcome-card la-card"><h5>Time to Loss</h5>' +
+                        (hasData && timeToLoss != null ? '<div class="la-stat-value">Avg ' + Math.round(timeToLoss) + ' days</div>' : '<p class="la-muted">' + (hasData ? 'Insufficient data' : 'No leads yet') + '</p>') + '</div>' +
+                        '<div class="la-outcome-card la-card"><h5>Top Loss Reason</h5>' +
+                        '<div class="la-stat-value">' + (topReason || 'No response').replace(/</g, '&lt;') + '</div>' +
+                        '<div class="la-muted">' + (topPct != null ? topPct + '% of lost leads' : '') + '</div></div>';
+                }
+                $cards.html(cardsHtml);
+                renderInbox($inbox, { statusFilter: type, filters: { status: type }, outcomeMode: type, outcomeRange: rangeVal, outcomeRangeKey: rangeKey, onOutcomeRefresh: refresh });
+            }).fail(function () {
+                $cards.html('<p class="la-muted">Unable to load analytics.</p>');
+                renderInbox($inbox, { statusFilter: type, filters: { status: type }, outcomeMode: type, outcomeRange: rangeVal, outcomeRangeKey: rangeKey, onOutcomeRefresh: refresh });
+            });
+        }
+
+        refresh();
+    }
+
+    function renderWonLeads($el) {
+        renderOutcomeLeads($el, 'won');
+    }
+
+    function renderLostLeads($el) {
+        renderOutcomeLeads($el, 'lost');
     }
 
     function renderExport($el) {
@@ -3295,117 +4152,126 @@ jQuery(function ($) {
                 }
             });
 
+            function sanitizeBusinessName(name) {
+                if (!name) return 'your business';
+                if (String(name).toLowerCase().indexOf('jazzedge') !== -1) return 'your business';
+                return name;
+            }
+
             function renderCountList(counts, emptyLabel) {
                 var keys = Object.keys(counts);
                 if (!keys.length) {
-                    return '<p class="la-muted">' + emptyLabel + '</p>';
+                    return '<div class="la-ai-sunken"><p class="la-muted">' + emptyLabel + '</p></div>';
                 }
                 keys.sort(function (a, b) {
                     return counts[b] - counts[a];
                 });
-                var html = '<ul class="la-ai-list">';
+                var html = '<div class="la-ai-sunken"><ul class="la-ai-list">';
                 keys.forEach(function (key) {
                     html += '<li><span>' + key + '</span><strong>' + counts[key] + '</strong></li>';
                 });
-                html += '</ul>';
+                html += '</ul></div>';
                 return html;
             }
 
             function renderScoredLeads(list) {
                 if (!list.length) {
-                    return '<p class="la-muted">No leads scored yet.</p>';
+                    return '<div class="la-ai-sunken"><p class="la-muted">No leads scored yet.</p></div>';
                 }
                 list.sort(function (a, b) {
                     return b.score - a.score;
                 });
-                var html = '<ul class="la-ai-list">';
+                var html = '<div class="la-ai-sunken"><ul class="la-ai-list">';
                 list.slice(0, 5).forEach(function (item) {
                     html += '<li><a href="/dashboard/?lead_id=' + item.id + '" class="la-link la-ai-lead-link">' + item.name + '</a><strong>' + item.score + '</strong></li>';
                 });
-                html += '</ul>';
+                html += '</ul></div>';
                 return html;
             }
 
             function renderStalledLeads(list) {
                 if (!list.length) {
-                    return '<p class="la-muted">No stalled leads found.</p>';
+                    return '<div class="la-ai-sunken"><p class="la-muted">No stalled leads found.</p></div>';
                 }
                 list.sort(function (a, b) {
                     return b.days - a.days;
                 });
-                var html = '<ul class="la-ai-list">';
+                var html = '<div class="la-ai-sunken"><ul class="la-ai-list">';
                 list.slice(0, 5).forEach(function (item) {
                     html += '<li><span>' + item.name + '</span><strong>' + item.days + 'd</strong></li>';
                 });
-                html += '</ul>';
+                html += '</ul></div>';
                 return html;
             }
 
             function renderSourceConversion() {
                 var keys = Object.keys(sourceCounts);
                 if (!keys.length) {
-                    return '<p class="la-muted">No lead sources yet.</p>';
+                    return '<div class="la-ai-sunken"><p class="la-muted">No lead sources yet.</p></div>';
                 }
                 keys.sort(function (a, b) {
                     var rateA = (sourceWon[a] || 0) / sourceCounts[a];
                     var rateB = (sourceWon[b] || 0) / sourceCounts[b];
                     return rateB - rateA;
                 });
-                var html = '<ul class="la-ai-list">';
+                var html = '<div class="la-ai-sunken"><ul class="la-ai-list">';
                 keys.slice(0, 5).forEach(function (key) {
                     var total = sourceCounts[key] || 0;
                     var won = sourceWon[key] || 0;
                     var rate = total ? Math.round((won / total) * 100) : 0;
                     html += '<li><span>' + key + '</span><strong>' + rate + '%</strong></li>';
                 });
-                html += '</ul>';
+                html += '</ul></div>';
                 return html;
             }
 
-            var businessName = profile.business_name || 'your business';
+            var businessName = sanitizeBusinessName(profile.business_name) || 'your business';
             var goal = profile.monthly_leads_goal ? 'Your monthly lead goal: ' + profile.monthly_leads_goal + '.' : '';
 
             var html = '<div class="la-ai-grid">';
             html += '<section class="la-ai-card">' +
-                '<h3>Lead Insights</h3>' +
-                '<p class="la-muted">Snapshot of what needs attention right now.</p>' +
-                '<div class="la-ai-stat"><strong>' + leads.length + '</strong> total leads</div>' +
-                '<div class="la-ai-stat"><strong>' + followedCount + '</strong> followed-up</div>' +
-                '<div class="la-ai-stat"><strong>' + dueCount + '</strong> follow-ups due</div>' +
-                (goal ? '<div class="la-ai-stat">' + goal + '</div>' : '') +
-                '</section>';
+                '<div class="la-ai-card-header"><h3>Lead Insights</h3></div>' +
+                '<p class="la-ai-desc">Snapshot of what needs attention right now.</p>' +
+                '<div class="la-ai-sunken la-ai-stats">' +
+                '<div class="la-ai-stat-row"><span>Total leads</span><strong>' + leads.length + '</strong></div>' +
+                '<div class="la-ai-stat-row"><span>Followed up</span><strong>' + followedCount + '</strong></div>' +
+                '<div class="la-ai-stat-row"><span>Follow-ups due</span><strong>' + dueCount + '</strong></div>' +
+                (goal ? '<div class="la-ai-stat-row"><span>Monthly lead goal</span><strong>' + profile.monthly_leads_goal + '</strong></div>' : '') +
+                '</div></section>';
 
             html += '<section class="la-ai-card">' +
-                '<h3>Top Sources</h3>' +
+                '<div class="la-ai-card-header"><h3>Top Sources</h3></div>' +
+                '<p class="la-ai-desc">Lead sources by volume.</p>' +
                 renderCountList(sourceCounts, 'No lead sources yet.') +
                 '</section>';
 
             html += '<section class="la-ai-card">' +
-                '<h3>Pipeline Breakdown</h3>' +
+                '<div class="la-ai-card-header"><h3>Pipeline Breakdown</h3></div>' +
+                '<p class="la-ai-desc">Leads by pipeline stage.</p>' +
                 renderCountList(stageCounts, 'No stages yet.') +
                 '</section>';
 
             html += '<section class="la-ai-card">' +
-                '<h3>Hot Leads</h3>' +
-                '<p class="la-muted">Top leads based on status, recency, and follow-ups.</p>' +
+                '<div class="la-ai-card-header"><h3>Hot Leads</h3></div>' +
+                '<p class="la-ai-desc">Top leads based on status, recency, and follow-ups.</p>' +
                 renderScoredLeads(scoredLeads) +
                 '</section>';
 
             html += '<section class="la-ai-card">' +
-                '<h3>Stalled Leads</h3>' +
-                '<p class="la-muted">No activity in 14+ days (not won/lost).</p>' +
+                '<div class="la-ai-card-header"><h3>Stalled Leads</h3></div>' +
+                '<p class="la-ai-desc">No activity in 14+ days (not won/lost).</p>' +
                 renderStalledLeads(stalledLeads) +
                 '</section>';
 
             html += '<section class="la-ai-card">' +
-                '<h3>Source Conversion</h3>' +
-                '<p class="la-muted">Won rate by source (top 5).</p>' +
+                '<div class="la-ai-card-header"><h3>Source Conversion</h3></div>' +
+                '<p class="la-ai-desc">Won rate by source (top 5).</p>' +
                 renderSourceConversion() +
                 '</section>';
 
             html += '<section class="la-ai-card">' +
-                '<h3>AI Follow-up Draft</h3>' +
-                '<p class="la-muted">Generate a draft for a selected lead. (AI coming next.)</p>' +
+                '<div class="la-ai-card-header"><h3>AI Follow-up Draft</h3></div>' +
+                '<p class="la-ai-desc">Generate a draft for a selected lead.</p>' +
                 '<div class="la-ai-draft">' +
                     '<select class="la-ai-lead-select"><option value="">Select a lead</option>' +
                     leads.map(function (lead) {
@@ -3421,14 +4287,14 @@ jQuery(function ($) {
                 '</section>';
 
             html += '<section class="la-ai-card">' +
-                '<h3>Growth Ideas</h3>' +
-                '<p class="la-muted">Based on ' + businessName + ', here are starter ideas you can try today.</p>' +
+                '<div class="la-ai-card-header"><h3>Growth Ideas</h3></div>' +
+                '<p class="la-ai-desc">Based on your leads and activity, here are starter ideas you can try today.</p>' +
+                '<div class="la-ai-sunken">' +
                 '<ul class="la-ai-bullets">' +
                     '<li>Create a simple lead magnet and promote it in your top channel.</li>' +
                     '<li>Add a follow-up sequence for leads that go quiet after 7 days.</li>' +
                     '<li>Ask recent leads for referrals or testimonials.</li>' +
-                '</ul>' +
-                '</section>';
+                '</ul></div></section>';
             html += '</div>';
 
             $el.html(html);
@@ -3489,20 +4355,19 @@ jQuery(function ($) {
         $el.html('<p>Loading billing...</p>');
         apiRequest('GET', 'billing/status').done(function (status) {
             var html = '<div class="la-section-header"><h3>Billing</h3></div>';
-            var planLabel = status.plan_label || 'Plan';
+            var planLabel = status.plan_label || (status.plan_key && status.plan_key !== 'none' ? status.plan_key : '');
+            var hasPlan = planLabel && status.plan_key && status.plan_key !== 'none';
             var limitLabel = formatPlanLimit(status.plan_limit);
-            if (status.status === 'active') {
-                html += '<div class="la-billing-summary">' +
-                    '<strong>Active:</strong> ' + planLabel + ' · ' + limitLabel +
-                    '</div>' +
-                    '<div class="la-billing-meta">Leads used: ' + status.lead_count + '</div>' +
-                    '<p class="la-muted">Billing is managed via FluentCart.</p>';
-                $el.html(html);
-            } else {
-                html += '<p class="la-muted">Subscription inactive. Billing is managed via FluentCart.</p>';
+            html += '<div class="la-card la-billing-plan-card">' +
+                '<div class="la-billing-plan-label">Your plan</div>' +
+                '<div class="la-billing-plan-value">' + (hasPlan ? planLabel : 'No active plan') + '</div>' +
+                '<div class="la-billing-plan-meta">' + limitLabel + '</div>' +
+                '<div class="la-billing-plan-usage">Leads used: ' + (status.lead_count != null ? status.lead_count : 0) + '</div>' +
+                '</div>';
+            if (status.status !== 'active') {
                 html += buildPlanGrid(status.plans || []);
-                $el.html(html);
             }
+            $el.html(html);
         }).fail(function () {
             $el.html('<p>Unable to load billing.</p>');
         });
@@ -3515,8 +4380,7 @@ jQuery(function ($) {
         }).fail(function () {
             apiRequest('GET', 'billing/plans').done(function (response) {
                 var plans = response && response.plans ? response.plans : [];
-                var html = '<div class="la-section-header"><h3>Choose Your Plan</h3>' +
-                    '<p class="la-muted">Billing is managed via FluentCart.</p></div>' +
+                var html = '<div class="la-section-header"><h3>Choose Your Plan</h3></div>' +
                     buildPlanGrid(plans);
                 $el.html(html);
             }).fail(function () {
@@ -3630,12 +4494,17 @@ jQuery(function ($) {
         if (!$el || !$el.length) {
             return;
         }
+        var reportingTeamMemberKey = 'lead_aggregator_reporting_team_member';
+        var storedTeamMember = '';
+        try {
+            storedTeamMember = window.localStorage.getItem(reportingTeamMemberKey) || '';
+        } catch (e) {}
         var state = {
             view: 'reporting',
             range: 'last_30',
             start: '',
             end: '',
-            actor: '',
+            actor: storedTeamMember,
             action: '',
             entity_type: '',
             search: '',
@@ -3649,6 +4518,7 @@ jQuery(function ($) {
             lead_updated: 'Lead updated',
             lead_deleted: 'Lead deleted',
             lead_bulk_deleted: 'Leads deleted',
+            lead_bulk_assigned: 'Leads assigned',
             pipeline_stage_changed: 'Pipeline stage changed',
             followup_status_changed: 'Follow-up status changed',
             followup_rescheduled: 'Follow-up rescheduled',
@@ -3709,7 +4579,7 @@ jQuery(function ($) {
 
             var $actor = container.find('.la-activity-actor');
             teamUsers.forEach(function (user) {
-                $actor.append('<option value="' + user.id + '">' + user.name + '</option>');
+                $actor.append('<option value="' + String(user.id) + '">' + (user.name || user.email || 'User ' + user.id) + '</option>');
             });
             var $action = container.find('.la-activity-action');
             Object.keys(actionLabels).forEach(function (key) {
@@ -3722,10 +4592,12 @@ jQuery(function ($) {
         }
 
         function loadTeamUsers() {
-            return apiRequest('GET', 'team').done(function (response) {
+            return apiRequest('GET', 'team/assignable').then(function (response) {
                 teamUsers = response && response.users ? response.users : [];
-            }).fail(function () {
+                return teamUsers;
+            }, function () {
                 teamUsers = [];
+                return [];
             });
         }
 
@@ -3759,7 +4631,7 @@ jQuery(function ($) {
                 } else {
                     auditRows.forEach(function (row, idx) {
                         var member = row.actor_name || row.actor_email || 'Unknown';
-                        var actionLabel = actionLabels[row.action] || row.action;
+                        var actionLabel = (row.action_display && row.action_display.trim()) ? row.action_display : (actionLabels[row.action] || row.action);
                         var item = row.entity_label || row.entity_type;
                         html += '<tr>' +
                             '<td>' + (row.created_at || '') + '</td>' +
@@ -3802,14 +4674,20 @@ jQuery(function ($) {
             var $view = $el.find('.la-activity-view--reporting');
             $view.html('<div class="la-loading">Loading reporting...</div>');
             var params = { range: state.range, start: state.start, end: state.end };
+            if (state.actor) {
+                params.team_member_id = state.actor;
+            }
             apiRequest('GET', 'activity/reporting', params).done(function (data) {
                 var summary = data.summary || {};
                 var charts = data.charts || {};
+                var isMemberFilter = !!state.actor;
+                var leadMetricLabel = isMemberFilter ? 'Leads assigned' : 'Leads created';
+                var leadMetricValue = isMemberFilter ? (summary.leads_assigned ?? summary.leads_created ?? 0) : (summary.leads_created || 0);
                 var html = '<div class="la-activity-panel">' +
                     '<div class="la-activity-panel__header"><h4>Reporting</h4></div>' +
                     '<div class="la-activity-panel__filters"></div>' +
                     '<div class="la-activity-summary">' +
-                    '<div class="la-card"><h5>Leads created</h5><div class="la-stat-value">' + (summary.leads_created || 0) + '</div></div>' +
+                    '<div class="la-card"><h5>' + leadMetricLabel + '</h5><div class="la-stat-value">' + leadMetricValue + '</div></div>' +
                     '<div class="la-card"><h5>Leads contacted</h5><div class="la-stat-value">' + (summary.leads_contacted || 0) + '</div></div>' +
                     '<div class="la-card"><h5>Follow-ups completed</h5><div class="la-stat-value">' + (summary.followups_completed || 0) + '</div></div>' +
                     '<div class="la-card"><h5>Avg time to first follow-up</h5><div class="la-stat-value">' + (summary.avg_time_to_first_followup || 0) + ' min</div></div>' +
@@ -3829,6 +4707,10 @@ jQuery(function ($) {
                 $view.find('.la-activity-range').val(state.range);
                 $view.find('.la-activity-start').val(state.start);
                 $view.find('.la-activity-end').val(state.end);
+                $view.find('.la-activity-actor').val(state.actor);
+                $view.find('.la-activity-action').val(state.action);
+                $view.find('.la-activity-entity').val(state.entity_type);
+                $view.find('.la-activity-search').val(state.search);
                 toggleCustomDates();
                 renderCharts(charts);
             }).fail(function (xhr) {
@@ -3849,43 +4731,67 @@ jQuery(function ($) {
                 });
                 return;
             }
-            console.info('[Lead Aggregator] Chart.js ready.');
+            var emptyMsg = 'No data for this range';
             var events = charts.events_over_time || [];
             var days = events.map(function (row) { return row.day; });
             var totals = events.map(function (row) { return row.total; });
-            new Chart(document.getElementById('la-activity-chart-events'), {
-                type: 'line',
-                data: { labels: days, datasets: [{ label: 'Events', data: totals, borderColor: '#0257ab', backgroundColor: 'rgba(2, 87, 171, 0.2)', tension: 0.3 }] },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+            if (days.length && totals.length) {
+                new Chart(document.getElementById('la-activity-chart-events'), {
+                    type: 'line',
+                    data: { labels: days, datasets: [{ label: 'Events', data: totals, borderColor: '#0257ab', backgroundColor: 'rgba(2, 87, 171, 0.2)', tension: 0.3 }] },
+                    options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 8, right: 12, bottom: 8, left: 8 } }, scales: { x: { ticks: { maxRotation: 45, minRotation: 0 } }, y: { beginAtZero: true } } }
+                });
+            } else {
+                jQuery('#la-activity-chart-events').closest('.la-card').find('canvas').replaceWith('<div class="la-chart-empty">' + emptyMsg + '</div>');
+            }
 
             var members = charts.by_member || [];
+            if (members.length) {
             new Chart(document.getElementById('la-activity-chart-members'), {
                 type: 'bar',
                 data: { labels: members.map(function (row) { return row.actor_name || row.actor_user_id; }), datasets: [{ label: 'Events', data: members.map(function (row) { return row.total; }), backgroundColor: '#13b1c4' }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 8, right: 12, bottom: 8, left: 8 } }, scales: { x: { ticks: { maxRotation: 45, minRotation: 0 } }, y: { beginAtZero: true } } }
             });
+            } else {
+                jQuery('#la-activity-chart-members').closest('.la-card').find('canvas').replaceWith('<div class="la-chart-empty">' + emptyMsg + '</div>');
+            }
 
             var stageData = charts.stage_changes || [];
+            var stageLabels = stageData.map(function (row) { return row.day; });
+            var stageVals = stageData.map(function (row) { return Object.values(row.values || {}).reduce(function (sum, val) { return sum + val; }, 0); });
+            if (stageLabels.length && stageVals.length) {
             new Chart(document.getElementById('la-activity-chart-stages'), {
                 type: 'bar',
-                data: { labels: stageData.map(function (row) { return row.day; }), datasets: [{ label: 'Stage changes', data: stageData.map(function (row) { return Object.values(row.values || {}).reduce(function (sum, val) { return sum + val; }, 0); }), backgroundColor: '#0257ab' }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                data: { labels: stageLabels, datasets: [{ label: 'Stage changes', data: stageVals, backgroundColor: '#0257ab' }] },
+                options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 8, right: 12, bottom: 8, left: 8 } }, scales: { x: { ticks: { maxRotation: 45, minRotation: 0 } }, y: { beginAtZero: true } } }
             });
+            } else {
+                jQuery('#la-activity-chart-stages').closest('.la-card').find('canvas').replaceWith('<div class="la-chart-empty">' + emptyMsg + '</div>');
+            }
 
             var followupData = charts.followup_completion || [];
+            var fpLabels = followupData.map(function (row) { return row.day; });
+            var fpRates = followupData.map(function (row) { return row.rate; });
+            if (fpLabels.length && fpRates.length) {
             new Chart(document.getElementById('la-activity-chart-followups'), {
                 type: 'line',
-                data: { labels: followupData.map(function (row) { return row.day; }), datasets: [{ label: 'Completion rate %', data: followupData.map(function (row) { return row.rate; }), borderColor: '#13b1c4', backgroundColor: 'rgba(19, 177, 196, 0.2)', tension: 0.3 }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                data: { labels: fpLabels, datasets: [{ label: 'Completion rate %', data: fpRates, borderColor: '#13b1c4', backgroundColor: 'rgba(19, 177, 196, 0.2)', tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 8, right: 12, bottom: 8, left: 8 } }, scales: { x: { ticks: { maxRotation: 45, minRotation: 0 } }, y: { beginAtZero: true, max: 100 } } }
             });
+            } else {
+                jQuery('#la-activity-chart-followups').closest('.la-card').find('canvas').replaceWith('<div class="la-chart-empty">' + emptyMsg + '</div>');
+            }
 
             var topActions = charts.top_actions || [];
+            if (topActions.length) {
             new Chart(document.getElementById('la-activity-chart-actions'), {
                 type: 'bar',
                 data: { labels: topActions.map(function (row) { return actionLabels[row.action] || row.action; }), datasets: [{ label: 'Count', data: topActions.map(function (row) { return row.total; }), backgroundColor: '#0257ab' }] },
-                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y' }
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', layout: { padding: { top: 8, right: 12, bottom: 8, left: 8 } }, scales: { x: { beginAtZero: true } } }
             });
+            } else {
+                jQuery('#la-activity-chart-actions').closest('.la-card').find('canvas').replaceWith('<div class="la-chart-empty">' + emptyMsg + '</div>');
+            }
         }
 
         function refreshView() {
@@ -3922,8 +4828,11 @@ jQuery(function ($) {
         });
 
         $el.on('change', '.la-activity-actor', function () {
-            state.actor = $(this).val();
+            state.actor = jQuery(this).val();
             state.page = 1;
+            try {
+                window.localStorage.setItem(reportingTeamMemberKey, state.actor || '');
+            } catch (e) {}
             refreshView();
         });
 
@@ -3982,15 +4891,22 @@ jQuery(function ($) {
         });
 
         $el.on('click', '.la-activity-details', function () {
-            var idx = parseInt($(this).data('index'), 10);
+            var idx = parseInt(jQuery(this).data('index'), 10);
             var row = auditRows[idx];
             if (!row) {
                 return;
             }
             var $drawer = $el.find('.la-activity-drawer');
             var $body = $drawer.find('.la-activity-drawer__body');
+            var summary = (row.action_display && row.action_display.trim()) ? row.action_display : (actionLabels[row.action] || row.action);
             var meta = row.metadata ? JSON.stringify(row.metadata, null, 2) : 'No additional details.';
-            $body.html('<pre>' + meta + '</pre>');
+            var html = '<p class="la-activity-detail-summary"><strong>' + summary + '</strong></p>';
+            if (row.metadata && Object.keys(row.metadata).length) {
+                html += '<p class="la-muted" style="margin-top:8px;font-size:12px;">Raw metadata:</p><pre>' + meta + '</pre>';
+            } else {
+                html += '<pre>' + meta + '</pre>';
+            }
+            $body.html(html);
             $drawer.addClass('is-open').attr('aria-hidden', 'false');
         });
 
@@ -3999,6 +4915,14 @@ jQuery(function ($) {
         });
 
         loadTeamUsers().always(function () {
+            if (storedTeamMember && !teamUsers.some(function (u) { return String(u.id) === String(storedTeamMember); })) {
+                state.actor = '';
+                try {
+                    window.localStorage.setItem(reportingTeamMemberKey, '');
+                } catch (e) {}
+            }
+            $el.find('.la-activity-view').hide();
+            $el.find('.la-activity-view--' + state.view).show();
             refreshView();
         });
     }
@@ -4188,6 +5112,7 @@ jQuery(function ($) {
             'la-settings-tags': 'Tags',
             'la-settings-team': 'Team',
             'la-settings-notifications': 'Notifications',
+            'la-settings-pipeline-stages': 'Pipeline Stages',
             'la-settings-quick-action': 'Quick Action',
             'la-settings-webhooks': 'Webhooks',
             'la-settings-billing': 'Billing',
@@ -4199,7 +5124,7 @@ jQuery(function ($) {
         var groups = [
             { label: 'Getting Started', items: ['la-settings-get-started'] },
             { label: 'Workspace', items: ['la-settings-business', 'la-settings-appearance', 'la-settings-team'] },
-            { label: 'CRM Defaults', items: ['la-settings-quick-action', 'la-settings-tags', 'la-settings-custom-fields'] },
+            { label: 'Pipeline & Lead Settings', items: ['la-settings-pipeline-stages', 'la-settings-quick-action', 'la-settings-tags', 'la-settings-custom-fields'] },
             { label: 'Automation', items: ['la-settings-notifications', 'la-settings-webhooks'] },
             { label: 'Billing', items: ['la-settings-billing', 'la-settings-export'] }
         ];
@@ -4295,13 +5220,158 @@ jQuery(function ($) {
         showSection(fromQuery || stored);
     }
 
+    function renderPipelineStagesSettings($el) {
+        $el.html('<p>Loading pipeline stages...</p>');
+        apiRequest('GET', 'pipeline-stages').done(function (res) {
+            var stages = (res && res.stages) ? res.stages : [];
+            var hasWon = stages.some(function (s) { return s.type === 'won'; });
+            var hasLost = stages.some(function (s) { return s.type === 'lost'; });
+
+            function renderList() {
+                var sorted = stages.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+                var html = '<div class="la-section-header"><h3>Pipeline Stages</h3><p class="la-muted">Reorder, rename, and mark outcome stages (Won/Lost). Existing leads stay linked by key.</p></div>' +
+                    '<ul class="la-pipeline-stages-list">';
+                sorted.forEach(function (stage, idx) {
+                    var canDelete = stages.length > 1;
+                    var outcomeOpts = '<option value="active"' + (stage.type === 'active' ? ' selected' : '') + '>Active</option>' +
+                        '<option value="won"' + (stage.type === 'won' ? ' selected' : '') + (hasWon && stage.type !== 'won' ? ' disabled' : '') + '>Won</option>' +
+                        '<option value="lost"' + (stage.type === 'lost' ? ' selected' : '') + (hasLost && stage.type !== 'lost' ? ' disabled' : '') + '>Lost</option>';
+                    html += '<li class="la-pipeline-stage-row" data-key="' + (stage.key || '') + '">' +
+                        '<span class="la-drag-handle" title="Drag to reorder">⋮⋮</span>' +
+                        '<input type="text" class="la-stage-label" value="' + (stage.label || '').replace(/"/g, '&quot;') + '" placeholder="Stage name" data-key="' + (stage.key || '') + '">' +
+                        '<select class="la-stage-type" data-key="' + (stage.key || '') + '">' + outcomeOpts + '</select>' +
+                        '<button type="button" class="la-btn la-btn--ghost la-stage-delete" data-key="' + (stage.key || '') + '"' + (!canDelete ? ' disabled title="At least one stage required"' : '') + '>' + icons.trash + 'Delete</button>' +
+                        '</li>';
+                });
+                html += '</ul>' +
+                    '<button type="button" class="la-btn la-btn--ghost la-add-stage">' + icons.plus + 'Add Stage</button>' +
+                    '<div class="la-pipeline-stages-message"></div>';
+                $el.html(html);
+
+                if (typeof Sortable !== 'undefined') {
+                    Sortable.create($el.find('.la-pipeline-stages-list')[0], {
+                        handle: '.la-drag-handle',
+                        animation: 150,
+                        onEnd: function () {
+                            var order = [];
+                            $el.find('.la-pipeline-stage-row').each(function (i) {
+                                var key = jQuery(this).data('key');
+                                var s = stages.find(function (st) { return st.key === key; });
+                                if (s) {
+                                    s.order = i + 1;
+                                    order.push(s);
+                                }
+                            });
+                            saveStages();
+                        }
+                    });
+                }
+
+                $el.find('.la-stage-label').on('change blur', function () {
+                    var key = jQuery(this).data('key');
+                    var label = jQuery(this).val().trim() || key;
+                    var s = stages.find(function (st) { return st.key === key; });
+                    if (s) {
+                        s.label = label;
+                        saveStages();
+                    }
+                });
+
+                $el.find('.la-stage-type').on('change', function () {
+                    var key = jQuery(this).data('key');
+                    var type = jQuery(this).val();
+                    var s = stages.find(function (st) { return st.key === key; });
+                    if (s) {
+                        s.type = type;
+                        saveStages();
+                        renderList();
+                    }
+                });
+
+                $el.find('.la-stage-delete').on('click', function () {
+                    var key = jQuery(this).data('key');
+                    var $btn = jQuery(this);
+                    if ($btn.prop('disabled')) {
+                        return;
+                    }
+                    apiRequest('GET', 'pipeline-stages/lead-count', { stage: key }).done(function (countRes) {
+                        var count = (countRes && countRes.count) ? countRes.count : 0;
+                        if (count > 0) {
+                            var otherStages = stages.filter(function (st) { return st.key !== key; });
+                            if (otherStages.length === 0) {
+                                laToast('Cannot delete the last stage.');
+                                return;
+                            }
+                            var opts = otherStages.map(function (st) {
+                                return '<option value="' + st.key + '">' + (st.label || st.key) + '</option>';
+                            }).join('');
+                            var $modal = jQuery('<div class="la-modal la-pipeline-delete-modal"><div class="la-modal-content"><h4>Move existing leads</h4><p class="la-muted">' + count + ' lead(s) are in this stage. Select where to move them:</p><select class="la-migrate-to">' + opts + '</select><div class="la-modal-actions"><button type="button" class="la-btn la-btn--ghost la-cancel-migrate">Cancel</button><button type="button" class="la-btn la-confirm-migrate">Move & Delete</button></div></div></div>');
+                            jQuery('body').append($modal);
+                            $modal.find('.la-cancel-migrate').on('click', function () { $modal.remove(); });
+                            $modal.find('.la-confirm-migrate').on('click', function () {
+                                var toKey = $modal.find('.la-migrate-to').val();
+                                apiRequest('POST', 'pipeline-stages/migrate', { from: key, to: toKey }).done(function () {
+                                    stages = stages.filter(function (st) { return st.key !== key; });
+                                    saveStages();
+                                    $modal.remove();
+                                    renderList();
+                                    laToast('Leads moved and stage deleted.');
+                                }).fail(function () {
+                                    laToast('Unable to migrate leads.');
+                                });
+                            });
+                        } else {
+                            stages = stages.filter(function (st) { return st.key !== key; });
+                            saveStages();
+                            renderList();
+                        }
+                    });
+                });
+
+                $el.find('.la-add-stage').on('click', function () {
+                    var base = 'stage';
+                    var num = 1;
+                    var used = {};
+                    stages.forEach(function (s) { used[s.key] = true; });
+                    while (used[base + num]) {
+                        num++;
+                    }
+                    var newKey = base + num;
+                    stages.push({ key: newKey, label: 'New Stage', order: stages.length + 1, type: 'active' });
+                    saveStages();
+                    renderList();
+                });
+            }
+
+            function saveStages() {
+                $el.find('.la-pipeline-stages-message').text('Saving...');
+                apiRequest('PUT', 'pipeline-stages', { stages: stages }).done(function () {
+                    $el.find('.la-pipeline-stages-message').text('Saved.').css('color', '');
+                    if (window.leadAggregatorRefreshPipelineStages) {
+                        window.leadAggregatorRefreshPipelineStages();
+                    }
+                }).fail(function () {
+                    $el.find('.la-pipeline-stages-message').text('Unable to save.').css('color', '#dc2626');
+                });
+            }
+
+            renderList();
+        }).fail(function () {
+            $el.html('<p>Unable to load pipeline stages.</p>');
+        });
+    }
+
     function renderQuickActionSettings($el) {
         $el.html('<p>Loading quick action...</p>');
-        apiRequest('GET', 'quick-action/settings').done(function (settings) {
-            settings = settings || {};
+        jQuery.when(apiRequest('GET', 'quick-action/settings'), apiRequest('GET', 'pipeline-stages').then(function (r) { return r; }, function () { return { stages: [] }; })).done(function (settingsRes, pipelineRes) {
+            var settings = settingsRes || {};
+            var stages = (pipelineRes && pipelineRes.stages) ? pipelineRes.stages : [];
+            if (stages && stages.length) {
+                setPipelineStages(stages);
+            }
             var status = settings.status || 'contacted';
             var followupStatus = settings.followup_status || 'scheduled';
-            var statusSelect = buildSelect('status', status, statusOptions);
+            var statusSelect = buildStageSelect('status', status, stages.length ? stages : null);
             var followupSelect = buildSelect('followup_status', followupStatus, followupOptions);
             var html = '<div class="la-section-header"><h3>Quick Action</h3><p class="la-muted">Set the default status updates for the Apply Quick Action button.</p></div>' +
                 '<form class="la-form la-quick-action-settings">' +
@@ -4361,8 +5431,8 @@ jQuery(function ($) {
         if (getStartedEnabled) {
             renderGetStarted($el.find('#la-panel-get-started'));
         }
-        renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true, statsEl: statsEl });
-        renderInbox($el.find('#la-panel-leads'));
+        renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true, statsEl: statsEl, filters: {} });
+        renderInbox($el.find('#la-panel-leads'), { filters: {} });
         renderFollowupsList($el.find('#la-panel-followups'));
         renderCalendarOnly($el.find('#la-panel-calendar'));
         renderAIHelp($el.find('#la-panel-ai-tools'));
@@ -4375,6 +5445,7 @@ jQuery(function ($) {
         renderExport($el.find('#la-settings-export'));
         renderBilling($el.find('#la-settings-billing'));
         renderNotificationSettings($el.find('#la-settings-notifications'));
+        renderPipelineStagesSettings($el.find('#la-settings-pipeline-stages'));
         renderQuickActionSettings($el.find('#la-settings-quick-action'));
         renderGetStartedSettings($el.find('#la-settings-get-started'), updateGetStartedVisibility);
         renderAppearanceSettings($el.find('#la-settings-appearance'));
@@ -4473,6 +5544,12 @@ jQuery(function ($) {
             renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true, statsEl: statsEl });
             renderInbox($el.find('#la-panel-leads'));
             renderFollowupsList($el.find('#la-panel-followups'));
+            if ($el.find('#la-panel-won-leads').hasClass('is-active')) {
+                renderWonLeads($el.find('#la-panel-won-leads'));
+            }
+            if ($el.find('#la-panel-lost-leads').hasClass('is-active')) {
+                renderLostLeads($el.find('#la-panel-lost-leads'));
+            }
             renderCalendarOnly($el.find('#la-panel-calendar'));
             refreshStats();
         });
@@ -4485,8 +5562,19 @@ jQuery(function ($) {
             $el.find('.la-tab-panel[data-tab="' + tab + '"]').addClass('is-active');
             clearLeadIdFromUrl();
 
+            if (tab === 'overview') {
+                try { window.localStorage.removeItem('leadAggregatorLeadsFilters'); } catch (e) {}
+                renderInbox($el.find('#la-panel-inbox'), { showFollowupAction: true, statsEl: statsEl, filters: {} });
+            }
             if (tab === 'leads') {
-                renderInbox($el.find('#la-panel-leads'));
+                try { window.localStorage.removeItem('leadAggregatorLeadsFilters'); } catch (e) {}
+                renderInbox($el.find('#la-panel-leads'), { filters: {} });
+            }
+            if (tab === 'won-leads') {
+                renderWonLeads($el.find('#la-panel-won-leads'));
+            }
+            if (tab === 'lost-leads') {
+                renderLostLeads($el.find('#la-panel-lost-leads'));
             }
             if (tab === 'ai-tools') {
                 renderAIHelp($el.find('#la-panel-ai-tools'));

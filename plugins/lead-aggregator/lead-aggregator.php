@@ -208,7 +208,56 @@ class Lead_Aggregator_Plugin {
         }
     }
 
-    public function run_fluentcart_reconcile() {
+    /**
+     * Force reconciliation now: expire plan cache for all users with a FluentCart plan,
+     * then run the normal reconcile. Use this to sync access immediately after a cancellation
+     * (e.g. when the webhook did not fire) without waiting for the cron.
+     *
+     * @param bool $collect_debug If true, returns array of debug info instead of running silently.
+     * @return array|null Debug data when $collect_debug is true, else null.
+     */
+    public function run_fluentcart_reconcile_now($collect_debug = false) {
+        if (!$this->fluentcart || !$this->fluentcart->is_active()) {
+            if ($collect_debug) {
+                $diag = $this->fluentcart ? $this->fluentcart->get_active_diagnostic() : array('message' => 'FluentCart module not loaded');
+                return array('error' => 'FluentCart not active', 'diagnostic' => $diag);
+            }
+            return null;
+        }
+        $debug = array(
+            'timestamp' => current_time('mysql'),
+            'expired' => array(),
+            'reconcile_batch' => array(),
+            'processed' => array(),
+        );
+
+        $users = get_users(array(
+            'fields' => array('ID'),
+            'number' => 1000,
+            'meta_query' => array(
+                'relation' => 'OR',
+                array('key' => 'lead_aggregator_plan_source', 'value' => 'fluentcart', 'compare' => '='),
+                array('key' => 'lead_aggregator_plan_key', 'compare' => 'EXISTS'),
+            ),
+        ));
+        foreach ($users as $user) {
+            $u = get_user_by('id', $user->ID);
+            $debug['expired'][] = array('user_id' => $user->ID, 'email' => $u ? $u->user_email : '');
+            update_user_meta($user->ID, 'lead_aggregator_plan_cache_expires_at', 0);
+        }
+
+        $reconcile_debug = $collect_debug ? array() : null;
+        $this->run_fluentcart_reconcile($reconcile_debug);
+
+        if ($collect_debug && is_array($reconcile_debug)) {
+            $debug['reconcile_batch'] = $reconcile_debug['batch'] ?? array();
+            $debug['processed'] = $reconcile_debug['processed'] ?? array();
+        }
+
+        return $collect_debug ? $debug : null;
+    }
+
+    public function run_fluentcart_reconcile(&$debug = null) {
         if (!$this->fluentcart || !$this->fluentcart->is_active()) {
             return;
         }
@@ -231,17 +280,70 @@ class Lead_Aggregator_Plugin {
             ),
         ));
 
+        if (is_array($debug)) {
+            $debug['batch'] = array();
+            $debug['processed'] = array();
+        }
+
         $workspace_ids = array();
         foreach ($users as $user) {
             $workspace_id = $this->audit ? $this->audit->resolve_workspace_id($user->ID) : $user->ID;
             if ($workspace_id) {
                 $workspace_ids[$workspace_id] = true;
             }
+            if (is_array($debug)) {
+                $u = get_user_by('id', $user->ID);
+                $debug['batch'][] = array('user_id' => $user->ID, 'workspace_id' => $workspace_id, 'email' => $u ? $u->user_email : '');
+            }
         }
 
+        $plans = $this->billing ? $this->billing->get_plans() : array();
         foreach (array_keys($workspace_ids) as $workspace_id) {
-            $plan = lead_aggregator_get_user_plan($workspace_id);
-            $this->fluentcart->set_cached_plan($workspace_id, $plan['plan_key'], $plan['lead_limit'], $plan['source']);
+            $before_source = get_user_meta($workspace_id, 'lead_aggregator_plan_source', true);
+            $before_key = get_user_meta($workspace_id, 'lead_aggregator_plan_key', true);
+            $before_limit = (int) get_user_meta($workspace_id, 'lead_aggregator_lead_limit', true);
+            $before_access = get_user_meta($workspace_id, 'lead_aggregator_access_enabled', true);
+
+            if ($before_source === 'fluentcart') {
+                $plan = lead_aggregator_get_user_plan($workspace_id);
+                $this->fluentcart->set_cached_plan($workspace_id, $plan['plan_key'], $plan['lead_limit'], $plan['source']);
+                $access_val = ($plan['plan_key'] && $plan['plan_key'] !== 'none') ? 1 : 0;
+                update_user_meta($workspace_id, 'lead_aggregator_access_enabled', $access_val);
+            } else {
+                $plan_key = get_user_meta($workspace_id, 'lead_aggregator_plan_key', true);
+                $limit = 0;
+                if ($plan_key && $plans && isset($plans[$plan_key])) {
+                    $limit = isset($plans[$plan_key]['lead_limit']) ? (int) $plans[$plan_key]['lead_limit'] : 0;
+                }
+                $this->fluentcart->set_cached_plan($workspace_id, $plan_key ?: 'none', $limit, 'legacy');
+                $plan = array('plan_key' => $plan_key ?: 'none', 'lead_limit' => $limit, 'source' => 'legacy');
+            }
+
+            if (is_array($debug)) {
+                $u = get_user_by('id', $workspace_id);
+                $email = $u ? $u->user_email : '';
+                $raw_subs = array();
+                if ($email && $this->fluentcart) {
+                    $raw = $this->fluentcart->get_user_subscriptions($email);
+                    foreach ($raw as $s) {
+                        $raw_subs[] = array(
+                            'product_id' => isset($s['product_id']) ? $s['product_id'] : '',
+                            'status' => isset($s['status']) ? $s['status'] : '',
+                        );
+                    }
+                }
+                $debug['processed'][] = array(
+                    'workspace_id' => $workspace_id,
+                    'email' => $email,
+                    'plan_key_before' => $before_key,
+                    'plan_key_after' => $plan['plan_key'],
+                    'lead_limit_after' => $plan['lead_limit'],
+                    'source' => $plan['source'],
+                    'access_enabled_before' => $before_access,
+                    'access_enabled_after' => $before_source === 'fluentcart' ? (string) get_user_meta($workspace_id, 'lead_aggregator_access_enabled', true) : '(not updated - manual/legacy)',
+                    'raw_subscriptions_from_api' => $raw_subs,
+                );
+            }
         }
     }
 }

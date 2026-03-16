@@ -34,7 +34,6 @@ class ALM_Frontend_Search {
         wp_register_style($css_handle, false);
         wp_enqueue_style($css_handle);
         $css = <<<'CSS'
-<style id="alm-search-results-css">
 /* Microtip Customization */
 :root {
     --microtip-transition-duration: 0.15s;
@@ -233,7 +232,6 @@ class ALM_Frontend_Search {
         font-size: 14px !important;
     }
 }
-</style>
 CSS;
         wp_add_inline_style($css_handle, $css);
         

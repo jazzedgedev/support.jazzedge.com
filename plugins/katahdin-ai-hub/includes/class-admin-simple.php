@@ -25,6 +25,7 @@ class Katahdin_AI_Hub_Admin {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
         add_action('wp_ajax_katahdin_ai_hub_test_api', array($this, 'ajax_test_api'));
+        add_action('wp_ajax_katahdin_ai_hub_clear_logs', array($this, 'ajax_clear_logs'));
         
         $this->initialized = true;
     }
@@ -58,10 +59,18 @@ class Katahdin_AI_Hub_Admin {
      */
     public function register_settings() {
         register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_openai_key');
-        register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_debug_mode');
         register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_usage_limit');
         register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_rate_limit');
-        register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_enable_logging');
+        register_setting('katahdin_ai_hub_settings', 'katahdin_ai_hub_enable_logging', array(
+            'sanitize_callback' => array($this, 'sanitize_checkbox')
+        ));
+    }
+
+    /**
+     * Sanitize checkbox: save 1 if checked, 0 if unchecked
+     */
+    public function sanitize_checkbox($value) {
+        return !empty($value) ? 1 : 0;
     }
     
     /**
@@ -127,26 +136,14 @@ class Katahdin_AI_Hub_Admin {
                         
                         <tr>
                             <th scope="row">
-                                <label for="katahdin_ai_hub_debug_mode"><?php _e('Debug Mode', 'katahdin-ai-hub'); ?></label>
+                                <label for="katahdin_ai_hub_enable_logging"><?php _e('Log AI usage', 'katahdin-ai-hub'); ?></label>
                             </th>
                             <td>
-                                <input type="checkbox" id="katahdin_ai_hub_debug_mode" name="katahdin_ai_hub_debug_mode" 
-                                       value="1" <?php checked(get_option('katahdin_ai_hub_debug_mode'), 1); ?> />
-                                <p class="description">
-                                    <?php _e('Enable detailed logging for debugging', 'katahdin-ai-hub'); ?>
-                                </p>
-                            </td>
-                        </tr>
-                        
-                        <tr>
-                            <th scope="row">
-                                <label for="katahdin_ai_hub_enable_logging"><?php _e('Enable Database Logging', 'katahdin-ai-hub'); ?></label>
-                            </th>
-                            <td>
+                                <input type="hidden" name="katahdin_ai_hub_enable_logging" value="0" />
                                 <input type="checkbox" id="katahdin_ai_hub_enable_logging" name="katahdin_ai_hub_enable_logging" 
                                        value="1" <?php checked(get_option('katahdin_ai_hub_enable_logging', 1), 1); ?> />
                                 <p class="description">
-                                    <?php _e('Enable logging to the database. Disable this to prevent the logs table from growing large.', 'katahdin-ai-hub'); ?>
+                                    <?php _e('Record when students use JAI, AI Practice Analysis, and other AI features. View recent entries in the AI Logs section below. Uncheck to disable.', 'katahdin-ai-hub'); ?>
                                 </p>
                             </td>
                         </tr>
@@ -165,6 +162,81 @@ class Katahdin_AI_Hub_Admin {
                     </button>
                     <div id="api-test-result" class="api-test-result"></div>
                 </div>
+            </div>
+
+            <!-- Logs Management -->
+            <div class="katahdin-card">
+                <h2><?php _e('AI Logs', 'katahdin-ai-hub'); ?></h2>
+                <p class="description">
+                    <?php
+                    $logs_count = katahdin_ai_hub()->usage_tracker->get_logs_count();
+                    printf(
+                        /* translators: %d: number of log entries */
+                        _n('Currently %d log entry in wp_katahdin_ai_logs.', 'Currently %d log entries in wp_katahdin_ai_logs.', $logs_count, 'katahdin-ai-hub'),
+                        number_format_i18n($logs_count)
+                    );
+                    ?>
+                </p>
+                <p>
+                    <button type="button" id="clear-ai-logs" class="button button-secondary" <?php echo $logs_count === 0 ? ' disabled' : ''; ?>>
+                        <?php _e('Clear All Logs', 'katahdin-ai-hub'); ?>
+                    </button>
+                    <span id="clear-logs-result" class="clear-logs-result"></span>
+                </p>
+                <?php
+                $recent_logs = katahdin_ai_hub()->usage_tracker->get_recent_logs(50);
+                if (!empty($recent_logs)) :
+                ?>
+                <h3 style="margin-top: 20px;"><?php _e('Last 50 entries', 'katahdin-ai-hub'); ?></h3>
+                <div class="katahdin-logs-table-wrap">
+                    <table class="widefat striped katahdin-logs-table">
+                        <thead>
+                            <tr>
+                                <th><?php _e('ID', 'katahdin-ai-hub'); ?></th>
+                                <th><?php _e('Time', 'katahdin-ai-hub'); ?></th>
+                                <th><?php _e('User', 'katahdin-ai-hub'); ?></th>
+                                <th><?php _e('Plugin', 'katahdin-ai-hub'); ?></th>
+                                <th><?php _e('Level', 'katahdin-ai-hub'); ?></th>
+                                <th><?php _e('Message', 'katahdin-ai-hub'); ?></th>
+                                <th><?php _e('Context', 'katahdin-ai-hub'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recent_logs as $log) :
+                                $context_obj = !empty($log['context']) ? json_decode($log['context']) : null;
+                                $username = ($context_obj && isset($context_obj->user_display)) ? $context_obj->user_display : (($context_obj && isset($context_obj->user_email)) ? $context_obj->user_email : '—');
+                            ?>
+                            <tr>
+                                <td><?php echo esc_html($log['id']); ?></td>
+                                <td><?php echo esc_html($log['created_at']); ?></td>
+                                <td><?php echo esc_html($username); ?></td>
+                                <td><?php echo esc_html($log['plugin_id']); ?></td>
+                                <td><?php echo esc_html($log['level']); ?></td>
+                                <td><?php echo esc_html($log['message']); ?></td>
+                                <td>
+                                    <?php
+                                    if (!empty($log['context'])) {
+                                        $context = $log['context'];
+                                        $decoded = $context_obj ?? json_decode($context);
+                                        if ($decoded) {
+                                            $context = wp_json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                                        }
+                                        echo '<details><summary>' . esc_html__('View', 'katahdin-ai-hub') . '</summary>';
+                                        echo '<pre style="max-width: 300px; max-height: 100px; overflow: auto; font-size: 11px;">' . esc_html($context) . '</pre>';
+                                        echo '</details>';
+                                    } else {
+                                        echo '—';
+                                    }
+                                    ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php elseif ($logs_count === 0) : ?>
+                <p><?php _e('No log entries.', 'katahdin-ai-hub'); ?></p>
+                <?php endif; ?>
             </div>
         </div>
         
@@ -204,6 +276,20 @@ class Katahdin_AI_Hub_Admin {
             color: #842029;
             border-color: #f5c2c7;
         }
+
+        .clear-logs-result {
+            margin-left: 10px;
+        }
+        .clear-logs-result.success { color: #00a32a; }
+        .clear-logs-result.error { color: #d63638; }
+
+        .katahdin-logs-table-wrap {
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        .katahdin-logs-table { margin-top: 0; }
+        .katahdin-logs-table td, .katahdin-logs-table th { vertical-align: top; }
+        .katahdin-logs-table td pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
         </style>
         
         <script>
@@ -231,6 +317,35 @@ class Katahdin_AI_Hub_Admin {
                     }
                 }).always(function() {
                     button.prop('disabled', false).text('Test API Connection');
+                });
+            });
+
+            // Clear AI logs
+            $('#clear-ai-logs').on('click', function() {
+                var button = $(this);
+                var resultSpan = $('#clear-logs-result');
+
+                button.prop('disabled', true);
+                resultSpan.removeClass('success error').text('<?php echo esc_js(__('Clearing...', 'katahdin-ai-hub')); ?>');
+
+                $.post(ajaxurl, {
+                    action: 'katahdin_ai_hub_clear_logs',
+                    nonce: '<?php echo wp_create_nonce('katahdin_ai_hub_nonce'); ?>'
+                }, function(response) {
+                    if (response.success) {
+                        var msg = response.data.deleted_count > 0
+                            ? '<?php echo esc_js(__('Cleared %d log entries.', 'katahdin-ai-hub')); ?>'.replace('%d', response.data.deleted_count)
+                            : '<?php echo esc_js(__('Logs cleared.', 'katahdin-ai-hub')); ?>';
+                        resultSpan.addClass('success').text(msg);
+                        button.prop('disabled', true);
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        resultSpan.addClass('error').text(response.data || '<?php echo esc_js(__('Error clearing logs.', 'katahdin-ai-hub')); ?>');
+                        button.prop('disabled', false);
+                    }
+                }).fail(function(xhr, status, err) {
+                    resultSpan.addClass('error').text('<?php echo esc_js(__('Error clearing logs.', 'katahdin-ai-hub')); ?>');
+                    button.prop('disabled', false);
                 });
             });
         });
@@ -278,6 +393,25 @@ class Katahdin_AI_Hub_Admin {
             ));
         } else {
             wp_send_json_error($response_data['error']['message'] ?? 'Connection failed');
+        }
+    }
+
+    /**
+     * AJAX: Clear all AI logs
+     */
+    public function ajax_clear_logs() {
+        check_ajax_referer('katahdin_ai_hub_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions', 'katahdin-ai-hub'));
+        }
+
+        $result = katahdin_ai_hub()->usage_tracker->clear_all_logs();
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error(__('Failed to clear logs', 'katahdin-ai-hub'));
         }
     }
     

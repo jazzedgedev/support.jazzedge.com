@@ -37,6 +37,94 @@ class ALM_Admin_Lessons {
         $this->wpdb = $wpdb;
         $this->database = new ALM_Database();
         $this->table_name = $this->database->get_table_name('lessons');
+        add_action('admin_init', array($this, 'maybe_process_form_early'), 1);
+    }
+    
+    /**
+     * Process lesson create/update form at admin_init (before admin_enqueue_scripts).
+     * Avoids memory exhaustion in class-wp-scripts when saving — we redirect before
+     * the admin page and its scripts load.
+     */
+    public function maybe_process_form_early() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return;
+        }
+        if ( isset( $_GET['page'] ) && $_GET['page'] === 'academy-manager-lessons' ) {
+            $this->alm_debug_log( 'maybe_process_form_early: POST to lessons page form_action=' . ( isset( $_POST['form_action'] ) ? $_POST['form_action'] : 'MISSING' ) );
+        }
+        if ( ! isset($_POST['form_action'])) {
+            return;
+        }
+        $form_action = sanitize_text_field($_POST['form_action']);
+        if ( ! in_array($form_action, array('create', 'update'), true)) {
+            return;
+        }
+        if ( ! isset($_GET['page']) || $_GET['page'] !== 'academy-manager-lessons') {
+            return;
+        }
+        if ( ! current_user_can('manage_options')) {
+            return;
+        }
+        $this->alm_debug_log( 'maybe_process_form_early START form_action=' . $form_action );
+        $this->handle_form_submission();
+        $this->alm_debug_log( 'maybe_process_form_early AFTER handle (unexpected - should redirect)' );
+        exit;
+    }
+
+    /**
+     * Check if FluentCart is active
+     */
+    private function is_fluentcart_active() {
+        return (
+            class_exists('\FluentCart\App\App') ||
+            class_exists('FluentCart\App\App') ||
+            class_exists('FluentCartPro\App\App') ||
+            function_exists('fluentCartApi') ||
+            function_exists('FluentCartApi')
+        );
+    }
+
+    /**
+     * Get FluentCart product ID for a lesson (from lesson column or post meta lookup).
+     * Verifies the product still exists; clears the link if it was deleted in FluentCart.
+     */
+    private function get_fluentcart_product_id_for_lesson($lesson_id) {
+        $lesson_row = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT fluentcart_product_id FROM {$this->table_name} WHERE ID = %d",
+            $lesson_id
+        ));
+        if ($lesson_row && !empty($lesson_row->fluentcart_product_id)) {
+            $product_id = (int) $lesson_row->fluentcart_product_id;
+            $post = get_post($product_id);
+            if (!$post || $post->post_type !== 'fluent-products' || $post->post_status === 'trash') {
+                $this->clear_fluentcart_product_id_from_lesson($lesson_id);
+                return 0;
+            }
+            return $product_id;
+        }
+        // Fallback: find product by _alm_lesson_id post meta (for products created before column existed)
+        $post_ids = get_posts([
+            'post_type'      => 'fluent-products',
+            'meta_key'       => '_alm_lesson_id',
+            'meta_value'     => $lesson_id,
+            'fields'         => 'ids',
+            'posts_per_page' => 1,
+            'post_status'    => 'any',
+        ]);
+        return !empty($post_ids) ? (int) $post_ids[0] : 0;
+    }
+
+    /**
+     * Clear fluentcart_product_id from a lesson (e.g. when product was deleted in FluentCart)
+     */
+    private function clear_fluentcart_product_id_from_lesson($lesson_id) {
+        $this->wpdb->update(
+            $this->table_name,
+            ['fluentcart_product_id' => 0],
+            ['ID' => $lesson_id],
+            ['%d'],
+            ['%d']
+        );
     }
     
     /**
@@ -166,6 +254,9 @@ class ALM_Admin_Lessons {
                     break;
                 case 'error':
                     echo '<div class="notice notice-error"><p>' . __('An error occurred. Please try again.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'sync_error':
+                    echo '<div class="notice notice-error"><p>' . __('Lesson saved to database but WordPress post sync failed. Check the error log for details.', 'academy-lesson-manager') . '</p></div>';
                     break;
                 case 'no_lessons_selected':
                     echo '<div class="notice notice-warning"><p>' . __('Please select at least one lesson.', 'academy-lesson-manager') . '</p></div>';
@@ -1442,7 +1533,26 @@ class ALM_Admin_Lessons {
         
         // Add Copy Transcript button
         echo '<button type="button" class="button alm-copy-transcript-btn" data-lesson-id="' . esc_attr($lesson->ID) . '" title="' . __('Copy Combined Transcript', 'academy-lesson-manager') . '"><span class="dashicons dashicons-clipboard"></span> ' . __('Copy Transcript', 'academy-lesson-manager') . '</button> ';
-        
+
+        // Add FluentCart Product button or link (only if FluentCart is active)
+        if ($this->is_fluentcart_active()) {
+            $fc_product_id = $this->get_fluentcart_product_id_for_lesson($lesson->ID);
+            $fc_edit_url = admin_url('admin.php?page=fluent-cart#/products/' . $fc_product_id);
+            if ($fc_product_id > 0) {
+                echo '<a href="' . esc_url($fc_edit_url) . '" class="button" target="_blank" rel="noopener noreferrer" title="' . esc_attr__('View product in FluentCart', 'academy-lesson-manager') . '"><span class="dashicons dashicons-cart"></span> ' . esc_html__('View FluentCart Product', 'academy-lesson-manager') . '</a> ';
+            } else {
+                $sample_video_url = isset($lesson->sample_video_url) ? $lesson->sample_video_url : '';
+                echo '<button type="button" class="button alm-create-fc-product-btn"
+                    data-lesson-id="' . esc_attr($lesson->ID) . '"
+                    data-lesson-title="' . esc_attr(stripslashes($lesson->lesson_title)) . '"
+                    data-lesson-description="' . esc_attr(stripslashes($lesson->lesson_description ?? '')) . '"
+                    data-sample-video-url="' . esc_attr($sample_video_url) . '"
+                    title="' . esc_attr__('Create FluentCart Product from this lesson', 'academy-lesson-manager') . '">
+                    <span class="dashicons dashicons-cart"></span> ' . esc_html__('Create FluentCart Product', 'academy-lesson-manager') . '
+                </button> ';
+            }
+        }
+
         $delete_action = admin_url('admin.php?page=academy-manager-lessons');
         echo '<form method="post" action="' . esc_url($delete_action) . '" style="display:inline;" onsubmit="return confirm(\'' . esc_js(__('Are you sure you want to delete this lesson?', 'academy-lesson-manager')) . '\');">';
         echo '<input type="hidden" name="alm_lesson_delete" value="1" />';
@@ -1474,6 +1584,12 @@ class ALM_Admin_Lessons {
                 case 'chapter-deleted':
                     echo '<div class="notice notice-success"><p>' . __('Chapter deleted successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
+                case 'sync_error':
+                    echo '<div class="notice notice-error"><p>' . __('Lesson saved to database but WordPress post sync failed. Check the error log for details.', 'academy-lesson-manager') . '</p></div>';
+                    break;
+                case 'error':
+                    echo '<div class="notice notice-error"><p>' . __('An error occurred. Please try again.', 'academy-lesson-manager') . '</p></div>';
+                    break;
             }
         }
         
@@ -1489,7 +1605,25 @@ class ALM_Admin_Lessons {
         echo '<th scope="row">' . __('Lesson ID', 'academy-lesson-manager') . '</th>';
         echo '<td>' . $lesson->ID . ' <a href="?page=academy-manager-chapters&action=add&lesson_id=' . $lesson->ID . '" class="button button-small" style="margin-left: 10px;">' . __('Add Chapter', 'academy-lesson-manager') . '</a></td>';
         echo '</tr>';
-        
+
+        // FluentCart Product ID (shown when FluentCart is active; available immediately after product creation, including drafts)
+        if ($this->is_fluentcart_active()) {
+            $fc_product_id = $this->get_fluentcart_product_id_for_lesson($lesson->ID);
+            echo '<tr>';
+            echo '<th scope="row">' . __('FluentCart Product ID', 'academy-lesson-manager') . '</th>';
+            echo '<td>';
+            if ($fc_product_id > 0) {
+                $fc_edit_url = admin_url('admin.php?page=fluent-cart#/products/' . $fc_product_id);
+                echo esc_html($fc_product_id) . ' <a href="' . esc_url($fc_edit_url) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View in FluentCart', 'academy-lesson-manager') . ' ↗</a>';
+                echo '<p class="description">' . esc_html__('Linked when product is created (draft or published).', 'academy-lesson-manager') . '</p>';
+            } else {
+                echo '—';
+                echo '<p class="description">' . esc_html__('Create a product using the button above to link one.', 'academy-lesson-manager') . '</p>';
+            }
+            echo '</td>';
+            echo '</tr>';
+        }
+
         // Add sync status indicator
         echo '<tr>';
         echo '<th scope="row">' . __('Sync Status', 'academy-lesson-manager') . '</th>';
@@ -2134,6 +2268,170 @@ class ALM_Admin_Lessons {
             to { transform: rotate(360deg); }
         }
         </style>';
+
+        // FluentCart Product Creation Modal
+        if ($this->is_fluentcart_active()) {
+            echo '
+            <div id="alm-fc-product-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100000; align-items:center; justify-content:center;">
+                <div style="background:#fff; border-radius:6px; padding:28px 32px; width:480px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+                    <h2 style="margin-top:0;">Create FluentCart Product</h2>
+                    <p style="color:#666; margin-bottom:20px;">Review and adjust the details below. The product will be created as a <strong>Draft</strong> — you can publish it from the FluentCart admin.</p>
+
+                    <table class="form-table" style="margin:0;">
+                        <tr>
+                            <th style="width:130px;"><label for="alm-fc-title">Product Title</label></th>
+                            <td><input type="text" id="alm-fc-title" class="regular-text" style="width:100%;" /></td>
+                        </tr>
+                        <tr>
+                            <th><label for="alm-fc-description">Description</label></th>
+                            <td>
+                                <textarea id="alm-fc-description" rows="4" style="width:100%;"></textarea>
+                                <p style="margin-top:8px;"><button type="button" id="alm-fc-generate-ai" class="button button-secondary"><span class="dashicons dashicons-admin-tools" style="vertical-align:middle;"></span> Generate with AI</button></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><label for="alm-fc-price">Price ($)</label></th>
+                            <td><input type="number" id="alm-fc-price" step="0.01" min="0" value="39.00" style="width:120px;" /></td>
+                        </tr>
+                        <tr>
+                            <th><label for="alm-fc-compare-price">Compare Price ($)</label></th>
+                            <td><input type="number" id="alm-fc-compare-price" step="0.01" min="0" value="59.00" style="width:120px;" />
+                            <p class="description">Original/crossed-out price. Leave 0 to skip.</p></td>
+                        </tr>
+                    </table>
+
+                    <div id="alm-fc-modal-result" style="margin-top:16px; display:none;"></div>
+
+                    <div style="margin-top:24px; text-align:right;">
+                        <button type="button" id="alm-fc-modal-cancel" class="button" style="margin-right:8px;">Cancel</button>
+                        <button type="button" id="alm-fc-modal-submit" class="button button-primary">
+                            <span class="dashicons dashicons-cart" style="vertical-align:middle; margin-top:-2px;"></span>
+                            Create Product
+                        </button>
+                    </div>
+                </div>
+            </div>
+            ';
+            echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                var modal   = document.getElementById("alm-fc-product-modal");
+                var cancel  = document.getElementById("alm-fc-modal-cancel");
+                var submit  = document.getElementById("alm-fc-modal-submit");
+                var result  = document.getElementById("alm-fc-modal-result");
+                var genBtn  = document.getElementById("alm-fc-generate-ai");
+                var almFcLessonId = 0;
+                var almFcSampleVideoUrl = "";
+
+                function almFcGenerateDescription(lessonId, onDone) {
+                    if (!lessonId) { if (onDone) onDone(""); return; }
+                    var descEl = document.getElementById("alm-fc-description");
+                    if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = "<span class=\"dashicons dashicons-update spin\" style=\"vertical-align:middle;\"></span> Generating…"; }
+                    jQuery.ajax({
+                        url: ajaxurl,
+                        type: "POST",
+                        data: { action: "alm_generate_product_description", lesson_id: lessonId, nonce: "' . wp_create_nonce('alm_admin_nonce') . '" },
+                        success: function(r) {
+                            if (r.success && r.data && r.data.description) descEl.value = r.data.description;
+                            if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = "<span class=\"dashicons dashicons-admin-tools\" style=\"vertical-align:middle;\"></span> Generate with AI"; }
+                            if (onDone) onDone(r.success ? (r.data && r.data.description ? r.data.description : "") : "");
+                        },
+                        error: function() {
+                            if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = "<span class=\"dashicons dashicons-admin-tools\" style=\"vertical-align:middle;\"></span> Generate with AI"; }
+                            if (onDone) onDone("");
+                        }
+                    });
+                }
+
+                document.addEventListener("click", function(e) {
+                    var btn = e.target.closest(".alm-create-fc-product-btn");
+                    if (!btn || !modal) return;
+                    e.preventDefault();
+                    almFcLessonId = btn.getAttribute("data-lesson-id") || "";
+                    almFcSampleVideoUrl = btn.getAttribute("data-sample-video-url") || "";
+                    document.getElementById("alm-fc-title").value = btn.getAttribute("data-lesson-title") || "";
+                    document.getElementById("alm-fc-description").value = btn.getAttribute("data-lesson-description") || "";
+                    document.getElementById("alm-fc-price").value = "39.00";
+                    document.getElementById("alm-fc-compare-price").value = "59.00";
+                    result.style.display = "none";
+                    result.innerHTML = "";
+                    modal.style.display = "flex";
+                    almFcGenerateDescription(almFcLessonId, function(gen) {
+                        if (gen) document.getElementById("alm-fc-description").value = gen;
+                    });
+                });
+
+                if (genBtn) genBtn.addEventListener("click", function() { almFcGenerateDescription(almFcLessonId, function(gen) { if (gen) document.getElementById("alm-fc-description").value = gen; }); });
+
+                cancel.addEventListener("click", function() { modal.style.display = "none"; });
+                modal.addEventListener("click", function(e) { if (e.target === modal) modal.style.display = "none"; });
+
+                submit.addEventListener("click", function() {
+                    var title        = document.getElementById("alm-fc-title").value.trim();
+                    var description  = document.getElementById("alm-fc-description").value.trim();
+                    var price        = parseFloat(document.getElementById("alm-fc-price").value) || 0;
+                    var comparePrice = parseFloat(document.getElementById("alm-fc-compare-price").value) || 0;
+                    var lessonId     = almFcLessonId;
+                    var sampleVideoUrl = almFcSampleVideoUrl;
+
+                    if (!title) {
+                        alert("Please enter a product title.");
+                        return;
+                    }
+
+                    submit.disabled    = true;
+                    submit.textContent = "Creating…";
+                    result.style.display = "none";
+
+                    jQuery.ajax({
+                        url:  ajaxurl,
+                        type: "POST",
+                        data: {
+                            action:        "alm_create_fluentcart_product",
+                            lesson_id:     lessonId,
+                            title:         title,
+                            description:   description,
+                            sample_video_url: sampleVideoUrl,
+                            price:         price,
+                            compare_price: comparePrice,
+                            _ajax_nonce:   "' . wp_create_nonce('alm_create_fc_product') . '"
+                        },
+                        success: function(response) {
+                            submit.disabled    = false;
+                            submit.innerHTML = "<span class=\"dashicons dashicons-cart\" style=\"vertical-align:middle; margin-top:-2px;\"></span> Create Product";
+                            if (response.success) {
+                                result.style.display    = "block";
+                                result.style.background = "#d4edda";
+                                result.style.padding    = "12px";
+                                result.style.borderRadius = "4px";
+                                result.innerHTML = "<strong>Product created!</strong> " +
+                                    "<a href=\"" + response.data.edit_url + "\" target=\"_blank\">Edit in FluentCart ↗</a> &nbsp; " +
+                                    "<a href=\"" + response.data.view_url + "\" target=\"_blank\">View product ↗</a> — " +
+                                    "<em>Refreshing to show FluentCart Product ID…</em>";
+                                var viewLink = "<a href=\"" + response.data.edit_url + "\" class=\"button\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"View product in FluentCart\"><span class=\"dashicons dashicons-cart\"></span> View FluentCart Product</a> ";
+                                var fcBtn = document.querySelector(".alm-create-fc-product-btn[data-lesson-id=\"" + lessonId + "\"]");
+                                if (fcBtn) fcBtn.outerHTML = viewLink;
+                                setTimeout(function() { location.reload(); }, 1500);
+                            } else {
+                                result.style.display    = "block";
+                                result.style.background = "#f8d7da";
+                                result.style.padding    = "12px";
+                                result.style.borderRadius = "4px";
+                                result.innerHTML = "<strong>Error:</strong> " + (response.data || "Unknown error");
+                            }
+                        },
+                        error: function() {
+                            submit.disabled    = false;
+                            submit.innerHTML = "<span class=\"dashicons dashicons-cart\" style=\"vertical-align:middle; margin-top:-2px;\"></span> Create Product";
+                            result.style.display    = "block";
+                            result.style.background = "#f8d7da";
+                            result.style.padding    = "12px";
+                            result.innerHTML = "<strong>AJAX error.</strong> Please try again.";
+                        }
+                    });
+                });
+            });
+            </script>';
+        }
     }
     
     /**
@@ -2374,6 +2672,7 @@ class ALM_Admin_Lessons {
         
         $form_action = sanitize_text_field($_POST['form_action']);
         
+        $this->alm_debug_log( 'handle_form_submission calling ' . $form_action );
         switch ($form_action) {
             case 'create':
                 $this->create_lesson();
@@ -2382,6 +2681,16 @@ class ALM_Admin_Lessons {
                 $this->update_lesson();
                 break;
         }
+        $this->alm_debug_log( 'handle_form_submission DONE (unexpected)' );
+    }
+    
+    /**
+     * Write to wp-content/alm-debug.log — always, so we can trace crashes even when error_log goes nowhere.
+     */
+    private function alm_debug_log( $msg ) {
+        $log_file = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR . '/alm-debug.log' : ABSPATH . 'wp-content/alm-debug.log';
+        $line = '[' . date( 'Y-m-d H:i:s' ) . '] ' . $msg . "\n";
+        @file_put_contents( $log_file, $line, FILE_APPEND | LOCK_EX );
     }
     
     /**
@@ -2451,6 +2760,11 @@ class ALM_Admin_Lessons {
             // Sync to WordPress post
             $sync = new ALM_Post_Sync();
             $post_id = $sync->sync_lesson_to_post($lesson_id);
+            
+            if ( ! $post_id ) {
+                wp_redirect(add_query_arg(array('message' => 'sync_error', 'action' => 'edit', 'id' => $lesson_id), admin_url('admin.php?page=academy-manager-lessons')));
+                exit;
+            }
             
             // Save teacher to ACF field
             if ($post_id && function_exists('update_field')) {
@@ -2564,15 +2878,23 @@ class ALM_Admin_Lessons {
             'status' => $lesson_status,
         );
         
+        $this->alm_debug_log( 'update_lesson: before wpdb update lesson_id=' . $lesson_id );
         $result = $this->wpdb->update($this->table_name, $data, array('ID' => $lesson_id));
         
         if ($result !== false) {
             // Update pathway assignments
             $this->update_lesson_pathways($lesson_id);
             
+            $this->alm_debug_log( 'update_lesson: before sync_lesson_to_post' );
             // Sync to WordPress post
             $sync = new ALM_Post_Sync();
             $post_id = $sync->sync_lesson_to_post($lesson_id);
+            $this->alm_debug_log( 'update_lesson: after sync_lesson_to_post post_id=' . ( $post_id ?: 'false' ) );
+            
+            if ( ! $post_id ) {
+                wp_redirect(add_query_arg('message', 'sync_error', admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . $lesson_id)));
+                exit;
+            }
             
             // Save teacher to ACF field
             if ($post_id && function_exists('update_field')) {
@@ -2711,7 +3033,7 @@ class ALM_Admin_Lessons {
             wp_redirect(add_query_arg('message', 'fixed', admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . $lesson_id)));
             exit;
         } else {
-            wp_redirect(add_query_arg('message', 'error', admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . $lesson_id)));
+            wp_redirect(add_query_arg('message', 'sync_error', admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . $lesson_id)));
             exit;
         }
     }

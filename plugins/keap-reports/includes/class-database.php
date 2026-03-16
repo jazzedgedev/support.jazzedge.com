@@ -138,6 +138,7 @@ class Keap_Reports_Database {
             year int(4) NOT NULL,
             month tinyint(2) NOT NULL,
             signup_count int(11) NOT NULL DEFAULT 0,
+            revenue decimal(10,2) NOT NULL DEFAULT 0.00,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY (id),
@@ -149,6 +150,12 @@ class Keap_Reports_Database {
         dbDelta($reports_sql);
         dbDelta($products_sql);
         dbDelta($starter_sql);
+        
+        // Add revenue column to starter signups if missing (existing installations)
+        $starter_cols = $wpdb->get_results("SHOW COLUMNS FROM {$starter_table} LIKE 'revenue'");
+        if (empty($starter_cols)) {
+            $wpdb->query("ALTER TABLE {$starter_table} ADD COLUMN revenue decimal(10,2) NOT NULL DEFAULT 0.00 AFTER signup_count");
+        }
         
         // Add filter_product_id column if it doesn't exist (for existing installations)
         $reports_table = $wpdb->prefix . 'keap_reports';
@@ -765,6 +772,75 @@ class Keap_Reports_Database {
             'orders_change' => $current_orders - $previous_orders,
             'orders_change_percent' => $previous_orders > 0 ? (($current_orders - $previous_orders) / $previous_orders) * 100 : 0,
             'ytd_orders' => $ytd_orders
+        );
+    }
+    
+    /**
+     * Get FluentCart completed orders count and revenue for a given month.
+     * Uses wp_fct_orders; only status = 'completed'. total_amount stored in cents.
+     *
+     * @param int $year
+     * @param int $month
+     * @return array { 'revenue' => float, 'orders' => int }
+     */
+    public function get_fluentcart_month_totals($year, $month) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fct_orders';
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT COUNT(*) AS orders, COALESCE(SUM(total_amount), 0) AS total FROM {$table} 
+                WHERE status = %s AND YEAR(completed_at) = %d AND MONTH(completed_at) = %d",
+                'completed',
+                $year,
+                $month
+            ),
+            ARRAY_A
+        );
+        if (!$row) {
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+        $orders = isset($row['orders']) ? intval($row['orders']) : 0;
+        $total_cents = isset($row['total']) ? floatval($row['total']) : 0;
+        return array(
+            'revenue' => $total_cents / 100.0,
+            'orders'  => $orders
+        );
+    }
+    
+    /**
+     * Get FluentCart YTD revenue and orders (Jan 1 through end of given month).
+     *
+     * @param int $year Year
+     * @param int $through_month Month (1-12) — through this month inclusive
+     * @return array { 'revenue' => float, 'orders' => int }
+     */
+    public function get_fluentcart_ytd($year, $through_month) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fct_orders';
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT COUNT(*) AS orders, COALESCE(SUM(total_amount), 0) AS total FROM {$table} 
+                WHERE status = %s AND YEAR(completed_at) = %d AND MONTH(completed_at) <= %d",
+                'completed',
+                $year,
+                $through_month
+            ),
+            ARRAY_A
+        );
+        if (!$row) {
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+        $orders = isset($row['orders']) ? intval($row['orders']) : 0;
+        $total_cents = isset($row['total']) ? floatval($row['total']) : 0;
+        return array(
+            'revenue' => $total_cents / 100.0,
+            'orders'  => $orders
         );
     }
     
@@ -2170,30 +2246,60 @@ class Keap_Reports_Database {
         // Check if table exists, if not return empty
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
         if (!$table_exists) {
-            return array('count' => 0);
+            return array('count' => 0, 'revenue' => 0.0);
         }
         
-        $result = $wpdb->get_var($wpdb->prepare(
-            "SELECT signup_count FROM {$table_name} 
-            WHERE signup_type = %s AND year = %d AND month = %d",
-            $type,
-            $year,
-            $month
-        ));
+        // Check if revenue column exists (added in a later update)
+        $has_revenue = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'revenue'");
+        if (!empty($has_revenue)) {
+            $row = $wpdb->get_row($wpdb->prepare(
+                "SELECT signup_count, COALESCE(revenue, 0) AS revenue FROM {$table_name} 
+                WHERE signup_type = %s AND year = %d AND month = %d",
+                $type,
+                $year,
+                $month
+            ), ARRAY_A);
+        } else {
+            $row = $wpdb->get_row($wpdb->prepare(
+                "SELECT signup_count FROM {$table_name} 
+                WHERE signup_type = %s AND year = %d AND month = %d",
+                $type,
+                $year,
+                $month
+            ), ARRAY_A);
+            if ($row && is_array($row)) {
+                $row['revenue'] = 0;
+            }
+        }
         
-        return array('count' => intval($result));
+        if (!$row) {
+            return array('count' => 0, 'revenue' => 0.0);
+        }
+        
+        $count = intval($row['signup_count']);
+        $revenue = isset($row['revenue']) ? floatval($row['revenue']) : 0.0;
+        // Paid starter is always $7 per signup; use stored revenue if present, else count × 7
+        if ($revenue <= 0 && $count > 0) {
+            $revenue = $count * 7.0;
+        }
+        
+        return array(
+            'count' => $count,
+            'revenue' => $revenue
+        );
     }
     
     /**
      * Save starter signups data
-     * 
+     *
      * @param string $type Type: 'paid_starter'
      * @param int $year Year
      * @param int $month Month
      * @param int $count Signup count
+     * @param float $revenue Revenue for the month (default 0)
      * @return bool Success
      */
-    public function save_starter_signups($type, $year, $month, $count) {
+    public function save_starter_signups($type, $year, $month, $count, $revenue = 0.0) {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'keap_starter_signups';
@@ -2210,12 +2316,15 @@ class Keap_Reports_Database {
             $month
         ));
         
+        $revenue = floatval($revenue);
+        
         if ($existing) {
             // Update
             return $wpdb->update(
                 $table_name,
                 array(
                     'signup_count' => $count,
+                    'revenue' => $revenue,
                     'updated_at' => current_time('mysql')
                 ),
                 array(
@@ -2223,7 +2332,7 @@ class Keap_Reports_Database {
                     'year' => $year,
                     'month' => $month
                 ),
-                array('%d', '%s'),
+                array('%d', '%f', '%s'),
                 array('%s', '%d', '%d')
             ) !== false;
         } else {
@@ -2235,10 +2344,11 @@ class Keap_Reports_Database {
                     'year' => $year,
                     'month' => $month,
                     'signup_count' => $count,
+                    'revenue' => $revenue,
                     'created_at' => current_time('mysql'),
                     'updated_at' => current_time('mysql')
                 ),
-                array('%s', '%d', '%d', '%d', '%s', '%s')
+                array('%s', '%d', '%d', '%d', '%f', '%s', '%s')
             ) !== false;
         }
     }
@@ -2260,6 +2370,7 @@ class Keap_Reports_Database {
             year int(4) NOT NULL,
             month tinyint(2) NOT NULL,
             signup_count int(11) NOT NULL DEFAULT 0,
+            revenue decimal(10,2) NOT NULL DEFAULT 0.00,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY (id),
@@ -2268,6 +2379,10 @@ class Keap_Reports_Database {
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+        // Ensure revenue column exists (migration for existing installs)
+        $cols = $wpdb->get_results("SHOW COLUMNS FROM {$table_name} LIKE 'revenue'");
+        if (empty($cols)) {
+            $wpdb->query("ALTER TABLE {$table_name} ADD COLUMN revenue decimal(10,2) NOT NULL DEFAULT 0.00 AFTER signup_count");
+        }
     }
 }
-

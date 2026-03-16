@@ -18,8 +18,33 @@ class ALM_Admin_Settings {
         global $wpdb;
         $this->wpdb = $wpdb;
         $this->database = new ALM_Database();
-        
+
+        add_action('admin_init', array($this, 'maybe_handle_intensive_actions'), 1);
         add_action('admin_init', array($this, 'register_settings'));
+    }
+
+    /**
+     * Handle intensive POST actions (save, delete, toggle_sale) via admin_init so wp_redirect works.
+     * Processing in render_settings_page runs after admin output → redirect fails → blank page.
+     */
+    public function maybe_handle_intensive_actions() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['intensive_action'])) {
+            return;
+        }
+        $page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
+        if ($page !== 'academy-manager-settings') {
+            return;
+        }
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+        check_admin_referer('alm_intensive_action', 'alm_intensive_nonce');
+        $action = isset($_POST['intensive_action']) ? sanitize_text_field($_POST['intensive_action']) : '';
+        if ($action === 'toggle_sale') {
+            $this->handle_intensive_sale_toggle();
+        } elseif ($action === 'save' || $action === 'delete') {
+            $this->handle_intensive_action();
+        }
     }
     
     /**
@@ -93,12 +118,6 @@ class ALM_Admin_Settings {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_webhook_logs'])) {
             $this->clear_webhook_logs();
             return; // Exit early after clear
-        }
-        
-        // Handle intensives actions
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['intensive_action'])) {
-            $this->handle_intensive_action();
-            return; // Exit early after action
         }
         
         // Handle AI prompts settings save
@@ -1974,12 +1993,16 @@ class ALM_Admin_Settings {
      * Render Intensives tab
      */
     private function render_intensives_tab() {
+        $this->database->ensure_intensives_sale_active_column();
+
         $intensives_table = $this->database->get_table_name('intensives');
         $intensives = $this->wpdb->get_results("SELECT * FROM {$intensives_table} ORDER BY display_order ASC, start_date DESC", ARRAY_A);
-        
+        $intensives = is_array($intensives) ? $intensives : array();
+
         $editing_id = isset($_GET['edit_intensive']) ? intval($_GET['edit_intensive']) : 0;
         $editing_intensive = $editing_id ? $this->wpdb->get_row($this->wpdb->prepare("SELECT * FROM {$intensives_table} WHERE ID = %d", $editing_id), ARRAY_A) : null;
-        
+        $edit = is_array($editing_intensive) ? $editing_intensive : array();
+
         // Show success messages
         if (isset($_GET['message'])) {
             $message = sanitize_text_field($_GET['message']);
@@ -1996,6 +2019,14 @@ class ALM_Admin_Settings {
             }
         }
         
+        $this->database->ensure_intensives_sale_active_column();
+        if (method_exists($this->database, 'check_and_add_intensive_fluentcart_product_url_column')) {
+            $this->database->check_and_add_intensive_fluentcart_product_url_column();
+        }
+        if (method_exists($this->database, 'check_and_add_intensive_available_for_sale_column')) {
+            $this->database->check_and_add_intensive_available_for_sale_column();
+        }
+
         echo '<div class="alm-intensives-section">';
         echo '<h2>' . __('6-Week Intensives', 'academy-lesson-manager') . '</h2>';
         echo '<p class="description">' . __('Manage your 6-week intensives. These will be displayed on the intensives landing page.', 'academy-lesson-manager') . '</p>';
@@ -2007,53 +2038,62 @@ class ALM_Admin_Settings {
         echo '<form method="post" action="">';
         wp_nonce_field('alm_intensive_action', 'alm_intensive_nonce');
         echo '<input type="hidden" name="intensive_action" value="save" />';
-        echo '<input type="hidden" name="intensive_id" value="' . esc_attr($editing_intensive['ID'] ?? 0) . '" />';
+        echo '<input type="hidden" name="intensive_id" value="' . esc_attr($edit['ID'] ?? 0) . '" />';
         
         echo '<table class="form-table"><tbody>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_title">' . __('Title', 'academy-lesson-manager') . ' <span class="required">*</span></label></th>';
-        echo '<td><input type="text" id="intensive_title" name="intensive_title" value="' . esc_attr($editing_intensive['title'] ?? '') . '" class="regular-text" required /></td>';
+        echo '<td><input type="text" id="intensive_title" name="intensive_title" value="' . esc_attr($edit['title'] ?? '') . '" class="regular-text" required /></td>';
         echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_song_name">' . __('Song Name', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="text" id="intensive_song_name" name="intensive_song_name" value="' . esc_attr($editing_intensive['song_name'] ?? '') . '" class="regular-text" placeholder="e.g., My Romance" /></td>';
+        echo '<td><input type="text" id="intensive_song_name" name="intensive_song_name" value="' . esc_attr($edit['song_name'] ?? '') . '" class="regular-text" placeholder="e.g., My Romance" /></td>';
         echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_description">' . __('Description', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><textarea id="intensive_description" name="intensive_description" rows="5" class="large-text">' . esc_textarea($editing_intensive['description'] ?? '') . '</textarea></td>';
+        echo '<td><textarea id="intensive_description" name="intensive_description" rows="5" class="large-text">' . esc_textarea($edit['description'] ?? '') . '</textarea></td>';
         echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_start_date">' . __('Start Date', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="date" id="intensive_start_date" name="intensive_start_date" value="' . esc_attr($editing_intensive['start_date'] ?? '') . '" class="regular-text" /></td>';
+        echo '<td><input type="date" id="intensive_start_date" name="intensive_start_date" value="' . esc_attr($edit['start_date'] ?? '') . '" class="regular-text" /></td>';
         echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_end_date">' . __('End Date', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="date" id="intensive_end_date" name="intensive_end_date" value="' . esc_attr($editing_intensive['end_date'] ?? '') . '" class="regular-text" /></td>';
+        echo '<td><input type="date" id="intensive_end_date" name="intensive_end_date" value="' . esc_attr($edit['end_date'] ?? '') . '" class="regular-text" /></td>';
         echo '</tr>';
         
         echo '<tr>';
-        echo '<th scope="row"><label for="intensive_order_form_url">' . __('Order Form URL', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="url" id="intensive_order_form_url" name="intensive_order_form_url" value="' . esc_url($editing_intensive['order_form_url'] ?? '') . '" class="regular-text" placeholder="https://jazzedge.academy/" /></td>';
+        echo '<th scope="row"><label for="intensive_fluentcart_product_url">' . __('FluentCart Order Form', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="url" id="intensive_fluentcart_product_url" name="intensive_fluentcart_product_url" value="' . esc_url($edit['fluentcart_product_url'] ?? '') . '" class="regular-text" placeholder="https://..." /> <span class="description">' . __('FluentCart product or checkout URL for this intensive.', 'academy-lesson-manager') . '</span></td>';
+        echo '</tr>';
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_available_for_sale">' . __('Available for sale', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="checkbox" id="intensive_available_for_sale" name="intensive_available_for_sale" value="1" ' . checked(1, $edit['available_for_sale'] ?? 1, false) . ' /> <label for="intensive_available_for_sale">' . __('Show order buttons in pricing modal; if unchecked, show coming soon and notify form.', 'academy-lesson-manager') . '</label></td>';
         echo '</tr>';
 
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_keap_tag_id">' . __('Keap Tag ID', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="number" id="intensive_keap_tag_id" name="intensive_keap_tag_id" value="' . esc_attr($editing_intensive['keap_tag_id'] ?? 0) . '" class="small-text" min="0" max="99999" step="1" /> <span class="description">' . __('Optional tag ID (up to 5 digits) associated with this intensive.', 'academy-lesson-manager') . '</span></td>';
+        echo '<td><input type="number" id="intensive_keap_tag_id" name="intensive_keap_tag_id" value="' . esc_attr($edit['keap_tag_id'] ?? 0) . '" class="small-text" min="0" max="99999" step="1" /> <span class="description">' . __('Optional tag ID (up to 5 digits) associated with this intensive.', 'academy-lesson-manager') . '</span></td>';
         echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_retail_price">' . __('Retail Price', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="number" id="intensive_retail_price" name="intensive_retail_price" value="' . esc_attr($editing_intensive['retail_price'] ?? '') . '" class="small-text" step="0.01" min="0" placeholder="247.00" /> <span class="description">' . __('Regular price for this intensive', 'academy-lesson-manager') . '</span></td>';
+        echo '<td><input type="number" id="intensive_retail_price" name="intensive_retail_price" value="' . esc_attr($edit['retail_price'] ?? '') . '" class="small-text" step="0.01" min="0" placeholder="247.00" /> <span class="description">' . __('Regular price for this intensive', 'academy-lesson-manager') . '</span></td>';
         echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_sale_price">' . __('Sale Price', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="number" id="intensive_sale_price" name="intensive_sale_price" value="' . esc_attr($editing_intensive['sale_price'] ?? '') . '" class="small-text" step="0.01" min="0" placeholder="147.00" /> <span class="description">' . __('Early access or sale price (leave empty if no sale)', 'academy-lesson-manager') . '</span></td>';
+        echo '<td><input type="number" id="intensive_sale_price" name="intensive_sale_price" value="' . esc_attr($edit['sale_price'] ?? '') . '" class="small-text" step="0.01" min="0" placeholder="147.00" /> <span class="description">' . __('Early access or sale price (leave empty if no sale)', 'academy-lesson-manager') . '</span></td>';
+        echo '</tr>';
+
+        echo '<tr>';
+        echo '<th scope="row"><label for="intensive_sale_active">' . __('Sale Active', 'academy-lesson-manager') . '</label></th>';
+        echo '<td><input type="checkbox" id="intensive_sale_active" name="intensive_sale_active" value="1" ' . checked(1, $edit['sale_active'] ?? 0, false) . ' /> <label for="intensive_sale_active">' . __('Show sale price on front end (requires sale price to be set)', 'academy-lesson-manager') . '</label></td>';
         echo '</tr>';
         
         echo '<tr>';
@@ -2066,7 +2106,7 @@ class ALM_Admin_Settings {
             'adv' => 'Advanced',
             'pro' => 'Professional'
         );
-        $current_skill_level = $editing_intensive['skill_level'] ?? 'beg';
+        $current_skill_level = $edit['skill_level'] ?? 'beg';
         foreach ($skill_levels as $value => $label) {
             echo '<option value="' . esc_attr($value) . '" ' . selected($current_skill_level, $value, false) . '>' . esc_html($label) . '</option>';
         }
@@ -2076,12 +2116,12 @@ class ALM_Admin_Settings {
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_display_order">' . __('Display Order', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="number" id="intensive_display_order" name="intensive_display_order" value="' . esc_attr($editing_intensive['display_order'] ?? 0) . '" class="small-text" min="0" /></td>';
+        echo '<td><input type="number" id="intensive_display_order" name="intensive_display_order" value="' . esc_attr($edit['display_order'] ?? 0) . '" class="small-text" min="0" /></td>';
         echo '</tr>';
         
         echo '<tr>';
         echo '<th scope="row"><label for="intensive_is_active">' . __('Active', 'academy-lesson-manager') . '</label></th>';
-        echo '<td><input type="checkbox" id="intensive_is_active" name="intensive_is_active" value="1" ' . checked(1, $editing_intensive['is_active'] ?? 1, false) . ' /> <label for="intensive_is_active">' . __('Show this intensive on the landing page', 'academy-lesson-manager') . '</label></td>';
+        echo '<td><input type="checkbox" id="intensive_is_active" name="intensive_is_active" value="1" ' . checked(1, $edit['is_active'] ?? 1, false) . ' /> <label for="intensive_is_active">' . __('Show this intensive on the landing page', 'academy-lesson-manager') . '</label></td>';
         echo '</tr>';
         
         echo '</tbody></table>';
@@ -2106,15 +2146,18 @@ class ALM_Admin_Settings {
             echo '<table class="wp-list-table widefat fixed striped">';
             echo '<thead>';
             echo '<tr>';
-            echo '<th style="width: 5%;">' . __('ID', 'academy-lesson-manager') . '</th>';
-            echo '<th style="width: 20%;">' . __('Title', 'academy-lesson-manager') . '</th>';
-            echo '<th style="width: 25%;">' . __('Description', 'academy-lesson-manager') . '</th>';
-            echo '<th style="width: 12%;">' . __('Dates', 'academy-lesson-manager') . '</th>';
-        echo '<th style="width: 8%;">' . __('Skill Level', 'academy-lesson-manager') . '</th>';
-        echo '<th style="width: 8%;">' . __('Keap Tag', 'academy-lesson-manager') . '</th>';
-            echo '<th style="width: 8%;">' . __('Order', 'academy-lesson-manager') . '</th>';
-            echo '<th style="width: 8%;">' . __('Status', 'academy-lesson-manager') . '</th>';
-            echo '<th style="width: 5%;">' . __('Actions', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 4%;">' . __('ID', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 16%;">' . __('Title', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 18%;">' . __('Description', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 10%;">' . __('Dates', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 6%;">' . __('Retail', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 6%;">' . __('Sale', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 6%;">' . __('Sale On', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 6%;">' . __('Skill Level', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 5%;">' . __('Keap Tag', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 5%;">' . __('Order', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 6%;">' . __('Status', 'academy-lesson-manager') . '</th>';
+            echo '<th style="width: 8%;">' . __('Actions', 'academy-lesson-manager') . '</th>';
             echo '</tr>';
             echo '</thead>';
             echo '<tbody>';
@@ -2123,6 +2166,19 @@ class ALM_Admin_Settings {
                 $start_date = $intensive['start_date'] ? date('M j, Y', strtotime($intensive['start_date'])) : '—';
                 $end_date = $intensive['end_date'] ? date('M j, Y', strtotime($intensive['end_date'])) : '—';
                 $status = $intensive['is_active'] ? '<span style="color: green;">●</span> Active' : '<span style="color: #ccc;">○</span> Inactive';
+
+                $retail_price_val = $intensive['retail_price'] ?? null;
+                $retail_price = ($retail_price_val !== null && $retail_price_val !== '') ? '$' . number_format((float) $retail_price_val, 2) : '—';
+                $sale_price_val = $intensive['sale_price'] ?? null;
+                $sale_price = ($sale_price_val !== null && $sale_price_val !== '') ? '$' . number_format((float) $sale_price_val, 2) : '—';
+                $sale_active = !empty($intensive['sale_active'] ?? 0);
+                $sale_active_display = $sale_active ? '<span style="color: green;">●</span> Yes' : '<span style="color: #ccc;">○</span> No';
+                $sale_toggle_form = '<form method="post" action="" style="display: inline;">';
+                $sale_toggle_form .= wp_nonce_field('alm_intensive_action', 'alm_intensive_nonce', false);
+                $sale_toggle_form .= '<input type="hidden" name="intensive_action" value="toggle_sale" />';
+                $sale_toggle_form .= '<input type="hidden" name="intensive_id" value="' . esc_attr($intensive['ID']) . '" />';
+                $sale_toggle_form .= '<button type="submit" class="button-link" style="padding: 0; background: none; border: none; cursor: pointer;">' . $sale_active_display . '</button>';
+                $sale_toggle_form .= '</form>';
                 
                 $skill_levels = array(
                     'beg' => 'Beginner',
@@ -2138,6 +2194,9 @@ class ALM_Admin_Settings {
                 echo '<td><strong>' . esc_html($intensive['title']) . '</strong></td>';
                 echo '<td>' . esc_html(wp_trim_words($intensive['description'] ?? '', 20)) . '</td>';
                 echo '<td>' . esc_html($start_date) . ' - ' . esc_html($end_date) . '</td>';
+                echo '<td>' . esc_html($retail_price) . '</td>';
+                echo '<td>' . esc_html($sale_price) . '</td>';
+                echo '<td>' . $sale_toggle_form . '</td>';
                 echo '<td>' . esc_html($skill_level_label) . '</td>';
                 echo '<td>' . esc_html(intval($intensive['keap_tag_id'] ?? 0)) . '</td>';
                 echo '<td>' . esc_html($intensive['display_order']) . '</td>';
@@ -2157,11 +2216,38 @@ class ALM_Admin_Settings {
             echo '</tbody>';
             echo '</table>';
         }
-        
         echo '</div>';
         echo '</div>';
     }
     
+    /**
+     * Handle intensive sale active toggle (quick toggle from list)
+     */
+    private function handle_intensive_sale_toggle() {
+        $intensive_id = isset($_POST['intensive_id']) ? intval($_POST['intensive_id']) : 0;
+        if ($intensive_id <= 0) {
+            wp_redirect(add_query_arg(array('page' => 'academy-manager-settings', 'tab' => 'intensives'), admin_url('admin.php')));
+            exit;
+        }
+
+        $intensives_table = $this->database->get_table_name('intensives');
+        $intensive = $this->wpdb->get_row($this->wpdb->prepare("SELECT * FROM {$intensives_table} WHERE ID = %d", $intensive_id), ARRAY_A);
+
+        if ($intensive) {
+            $new_value = !empty($intensive['sale_active'] ?? 0) ? 0 : 1;
+            $this->wpdb->update(
+                $intensives_table,
+                array('sale_active' => $new_value),
+                array('ID' => $intensive_id),
+                array('%d'),
+                array('%d')
+            );
+        }
+
+        wp_redirect(add_query_arg(array('page' => 'academy-manager-settings', 'tab' => 'intensives', 'message' => 'intensive_saved'), admin_url('admin.php')));
+        exit;
+    }
+
     /**
      * Handle intensive actions (save/delete)
      */
@@ -2174,7 +2260,7 @@ class ALM_Admin_Settings {
         
         $action = isset($_POST['intensive_action']) ? sanitize_text_field($_POST['intensive_action']) : '';
         $intensives_table = $this->database->get_table_name('intensives');
-        
+
         if ($action === 'save') {
             $intensive_id = isset($_POST['intensive_id']) ? intval($_POST['intensive_id']) : 0;
             $title = isset($_POST['intensive_title']) ? sanitize_text_field($_POST['intensive_title']) : '';
@@ -2182,10 +2268,12 @@ class ALM_Admin_Settings {
             $description = isset($_POST['intensive_description']) ? sanitize_textarea_field($_POST['intensive_description']) : '';
             $start_date = isset($_POST['intensive_start_date']) ? sanitize_text_field($_POST['intensive_start_date']) : null;
             $end_date = isset($_POST['intensive_end_date']) ? sanitize_text_field($_POST['intensive_end_date']) : null;
-            $order_form_url = isset($_POST['intensive_order_form_url']) ? esc_url_raw($_POST['intensive_order_form_url']) : '';
+            $fluentcart_product_url = isset($_POST['intensive_fluentcart_product_url']) ? esc_url_raw($_POST['intensive_fluentcart_product_url']) : '';
+            $available_for_sale = isset($_POST['intensive_available_for_sale']) ? 1 : 0;
             $keap_tag_id = isset($_POST['intensive_keap_tag_id']) ? intval($_POST['intensive_keap_tag_id']) : 0;
             $retail_price = isset($_POST['intensive_retail_price']) && $_POST['intensive_retail_price'] !== '' ? floatval($_POST['intensive_retail_price']) : null;
             $sale_price = isset($_POST['intensive_sale_price']) && $_POST['intensive_sale_price'] !== '' ? floatval($_POST['intensive_sale_price']) : null;
+            $sale_active = isset($_POST['intensive_sale_active']) ? 1 : 0;
             $skill_level = isset($_POST['intensive_skill_level']) ? sanitize_text_field($_POST['intensive_skill_level']) : 'beg';
             $display_order = isset($_POST['intensive_display_order']) ? intval($_POST['intensive_display_order']) : 0;
             $is_active = isset($_POST['intensive_is_active']) ? 1 : 0;
@@ -2211,14 +2299,18 @@ class ALM_Admin_Settings {
                 'description' => $description,
                 'start_date' => $start_date ? $start_date : null,
                 'end_date' => $end_date ? $end_date : null,
-                'order_form_url' => $order_form_url,
+                'fluentcart_product_url' => $fluentcart_product_url,
+                'available_for_sale' => $available_for_sale,
                 'keap_tag_id' => $keap_tag_id,
                 'retail_price' => $retail_price,
                 'sale_price' => $sale_price,
+                'sale_active' => $sale_active,
                 'skill_level' => $skill_level,
                 'display_order' => $display_order,
                 'is_active' => $is_active
             );
+
+            $format = array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%f', '%f', '%d', '%s', '%d', '%d');
             
             if ($intensive_id > 0) {
                 // Update existing
@@ -2226,7 +2318,7 @@ class ALM_Admin_Settings {
                     $intensives_table,
                     $data,
                     array('ID' => $intensive_id),
-                    array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%f', '%f', '%s', '%d', '%d'),
+                    $format,
                     array('%d')
                 );
             } else {
@@ -2234,7 +2326,7 @@ class ALM_Admin_Settings {
                 $result = $this->wpdb->insert(
                     $intensives_table,
                     $data,
-                    array('%s', '%s', '%s', '%s', '%s', '%s', '%d', '%f', '%f', '%s', '%d', '%d')
+                    $format
                 );
             }
             
@@ -2291,8 +2383,11 @@ class ALM_Admin_Settings {
      * Render AI Prompts tab
      */
     private function render_ai_prompts_tab() {
-        $default_prompt = 'Create a compelling lesson description based on the following transcript. Limit to 100 words or less. No emojis.';
-        $current_prompt = get_option('alm_ai_lesson_description_prompt', $default_prompt);
+        $default_lesson_prompt = 'Create a compelling lesson description based on the following transcript. Limit to 100 words or less. No emojis.';
+        $current_lesson_prompt = get_option('alm_ai_lesson_description_prompt', $default_lesson_prompt);
+
+        $default_product_prompt = 'Create a compelling product description for an online piano lesson based on the following chapter titles. Write 2-4 paragraphs that highlight what students will learn and why this lesson is valuable. Use a professional, engaging tone. No emojis.';
+        $current_product_prompt = get_option('alm_ai_product_description_prompt', $default_product_prompt);
         
         echo '<form method="post" action="">';
         echo '<h2>' . __('AI Prompts', 'academy-lesson-manager') . '</h2>';
@@ -2304,8 +2399,16 @@ class ALM_Admin_Settings {
         echo '<tr>';
         echo '<th scope="row"><label for="alm_ai_lesson_description_prompt">' . __('Lesson Description Prompt', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
-        echo '<textarea id="alm_ai_lesson_description_prompt" name="alm_ai_lesson_description_prompt" rows="5" cols="80" class="large-text">' . esc_textarea($current_prompt) . '</textarea>';
+        echo '<textarea id="alm_ai_lesson_description_prompt" name="alm_ai_lesson_description_prompt" rows="5" cols="80" class="large-text">' . esc_textarea($current_lesson_prompt) . '</textarea>';
         echo '<p class="description">' . __('This prompt is used when generating lesson descriptions from transcripts. The transcript text will be appended to this prompt.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+
+        echo '<tr>';
+        echo '<th scope="row"><label for="alm_ai_product_description_prompt">' . __('FluentCart Product Description Prompt', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        echo '<textarea id="alm_ai_product_description_prompt" name="alm_ai_product_description_prompt" rows="5" cols="80" class="large-text">' . esc_textarea($current_product_prompt) . '</textarea>';
+        echo '<p class="description">' . __('This prompt is used when generating product descriptions for FluentCart from lesson chapter titles. The chapter titles will be appended to this prompt.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
         
@@ -2330,9 +2433,11 @@ class ALM_Admin_Settings {
         
         check_admin_referer('alm_save_ai_prompts', 'alm_ai_prompts_nonce');
         
-        $prompt = isset($_POST['alm_ai_lesson_description_prompt']) ? sanitize_textarea_field($_POST['alm_ai_lesson_description_prompt']) : '';
+        $lesson_prompt = isset($_POST['alm_ai_lesson_description_prompt']) ? sanitize_textarea_field($_POST['alm_ai_lesson_description_prompt']) : '';
+        $product_prompt = isset($_POST['alm_ai_product_description_prompt']) ? sanitize_textarea_field($_POST['alm_ai_product_description_prompt']) : '';
         
-        update_option('alm_ai_lesson_description_prompt', $prompt);
+        update_option('alm_ai_lesson_description_prompt', $lesson_prompt);
+        update_option('alm_ai_product_description_prompt', $product_prompt);
         
         wp_redirect(add_query_arg(array(
             'page' => 'academy-manager-settings',
@@ -2849,10 +2954,6 @@ class ALM_Admin_Settings {
         }
         update_option('alm_starter_popup_days_before_repeat', $days_repeat);
         
-        // Debug logging
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[Starter Popup] Saving days_before_repeat: ' . $days_repeat . ' (POST value: ' . ($_POST['popup_days_before_repeat'] ?? 'not set') . ')');
-        }
         update_option('alm_starter_popup_test_mode', isset($_POST['popup_test_mode']) ? '1' : '0');
         update_option('alm_starter_popup_debug_mode', isset($_POST['popup_debug_mode']) ? '1' : '0');
         

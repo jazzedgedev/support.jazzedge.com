@@ -18,12 +18,12 @@ class Lead_Aggregator_Admin {
             add_action('admin_post_lead_aggregator_add_webhook', array($this, 'add_webhook_source'));
             add_action('admin_post_lead_aggregator_update_webhook', array($this, 'update_webhook_source'));
             add_action('admin_post_lead_aggregator_delete_webhook', array($this, 'delete_webhook_source'));
-            add_action('admin_post_lead_aggregator_grant_access', array($this, 'grant_access'));
+            add_action('admin_post_lead_aggregator_add_or_update_user', array($this, 'add_or_update_user'));
             add_action('admin_post_lead_aggregator_manage_user', array($this, 'manage_user'));
-            add_action('admin_post_lead_aggregator_create_user', array($this, 'create_user'));
             add_action('admin_post_lead_aggregator_delete_user', array($this, 'delete_user'));
             add_action('admin_post_lead_aggregator_clear_email_logs', array($this, 'clear_email_logs'));
             add_action('admin_post_lead_aggregator_clear_webhook_logs', array($this, 'clear_webhook_logs'));
+            add_action('admin_post_lead_aggregator_reconcile_fluentcart_now', array($this, 'reconcile_fluentcart_now'));
         }
     }
 
@@ -45,6 +45,19 @@ class Lead_Aggregator_Admin {
         }
 
         wp_enqueue_media();
+        wp_add_inline_style('wp-admin', '
+            .la-source-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; font-weight: 500; }
+            .la-source-fluentcart { background: #e7f5ff; color: #0c6cb8; }
+            .la-source-manual { background: #f0f0f1; color: #50575e; }
+            .la-set-manual { display: block; margin-top: 6px; font-size: 12px; color: #646970; cursor: pointer; }
+            .la-set-manual input { margin-right: 4px; vertical-align: middle; }
+            .la-select-compact { min-width: 120px; max-width: 160px; }
+            .la-checkbox-inline { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+            .la-checkbox-inline input { margin: 0; }
+            .la-ml-2 { margin-left: 12px; }
+            .la-actions-cell { white-space: nowrap; }
+            .la-actions-cell .button { margin-right: 8px; }
+        ');
         wp_add_inline_script(
             'jquery',
             'jQuery(function($){' .
@@ -72,20 +85,26 @@ class Lead_Aggregator_Admin {
             'jquery',
             'jQuery(function($){' .
                 'var $output = $("#lead-aggregator-fluentcart-plans");' .
+                'var $debug = $("#lead-aggregator-fluentcart-debug");' .
+                'var nonce = "' . esc_js(wp_create_nonce('wp_rest')) . '";' .
                 '$("#lead-aggregator-sync-fluentcart").on("click", function(e){' .
                     'e.preventDefault();' .
                     'var $btn = $(this);' .
                     '$btn.prop("disabled", true).text("Syncing...");' .
                     '$output.empty();' .
-                    'fetch("' . esc_url_raw(rest_url('lead-aggregator/v1/fluentcart/plans')) . '", {' .
+                    '$debug.empty();' .
+                    'fetch("' . esc_url_raw(rest_url('lead-aggregator/v1/fluentcart/plans')) . '?_wpnonce=" + encodeURIComponent(nonce), {' .
                         'method: "GET",' .
-                        'headers: { "X-WP-Nonce": "' . esc_js(wp_create_nonce('wp_rest')) . '" }' .
+                        'headers: { "X-WP-Nonce": nonce }' .
                     '})' .
                     '.then(function(response){ return response.json(); })' .
                     '.then(function(data){' .
                         'if (!data || !data.success) { throw new Error((data && data.message) ? data.message : "Unable to load FluentCart plans."); }' .
                         'var html = "<p><strong>Available subscriptions</strong></p><p class=\"description\">Show IDs: use these Product IDs in Plan Configuration.</p><ul>";' .
-                        'if (!data.data || !data.data.length) { html += "<li>No subscriptions found.</li>"; }' .
+                        'if (!data.data || !data.data.length) {' .
+                            'html += "<li>No subscriptions found.</li>";' .
+                            '$output.append("<p class=\\"description\\">Debug: Available subscriptions. Show IDs: use these Product IDs in Plan Configuration. No subscriptions found.</p>");' .
+                        '}' .
                         'else { data.data.forEach(function(item){ html += "<li>" + item.label + " (ID: " + item.id + ")</li>"; }); }' .
                         'html += "</ul>";' .
                         '$output.html(html);' .
@@ -95,6 +114,48 @@ class Lead_Aggregator_Admin {
                         '$output.html("<p>Unable to load FluentCart subscriptions.</p><p class=\\"description\\">Debug: " + message + "</p>");' .
                     '})' .
                     '.finally(function(){ $btn.prop("disabled", false).text("Sync FluentCart Plans"); });' .
+                '});' .
+                '$("#lead-aggregator-debug-fluentcart").on("click", function(e){' .
+                    'e.preventDefault();' .
+                    'var $btn = $(this);' .
+                    '$btn.prop("disabled", true).text("Debugging...");' .
+                    '$debug.empty();' .
+                    'fetch("' . esc_url_raw(rest_url('lead-aggregator/v1/fluentcart/debug')) . '?_wpnonce=" + encodeURIComponent(nonce), {' .
+                        'method: "GET",' .
+                        'headers: { "X-WP-Nonce": nonce }' .
+                    '})' .
+                    '.then(function(response){ return response.json(); })' .
+                    '.then(function(data){' .
+                        'var payload = data && data.data ? data.data : data;' .
+                        'var output = JSON.stringify(payload, null, 2);' .
+                        '$debug.html("<pre id=\\"lead-aggregator-fluentcart-debug-pre\\">" + output + "</pre>");' .
+                        '$debug.data("debug-json", output);' .
+                    '})' .
+                    '.catch(function(err){' .
+                        'var message = (err && err.message) ? err.message : "Unable to load FluentCart debug info.";' .
+                        '$debug.html("<p class=\\"description\\">Debug error: " + message + "</p>");' .
+                    '})' .
+                    '.finally(function(){ $btn.prop("disabled", false).text("Debug FluentCart"); });' .
+                '});' .
+                '$("#lead-aggregator-copy-fluentcart").on("click", function(e){' .
+                    'e.preventDefault();' .
+                    'var text = $debug.data("debug-json") || "";' .
+                    'if (!text) { return; }' .
+                    'if (navigator.clipboard && navigator.clipboard.writeText) {' .
+                        'navigator.clipboard.writeText(text);' .
+                    '}' .
+                '});' .
+                '$("#lead-aggregator-settings-form").on("submit", function(){' .
+                    'var plans = {};' .
+                    '$("#lead-aggregator-plans-table tbody tr[data-plan-key]").each(function(){' .
+                        'var key = $(this).data("plan-key");' .
+                        'var ids = ($(this).find(".la-plan-ids").val() || "").split(",").map(function(s){ return s.trim(); }).filter(Boolean);' .
+                        'var statuses = [];' .
+                        '$(this).find(".la-plan-status:checked").each(function(){ statuses.push($(this).val()); });' .
+                        'if (statuses.length === 0) { statuses = ["active","trialing","grace"]; }' .
+                        'plans[key] = { label: $(this).find(".la-plan-label").val() || key, lead_limit: parseInt($(this).find(".la-plan-limit").val(), 10) || 0, fluentcart: { subscription_ids: ids, allowed_statuses: statuses } };' .
+                    '});' .
+                    '$("#lead-aggregator-plans-json").val(JSON.stringify(plans));' .
                 '});' .
             '});'
         );
@@ -231,7 +292,46 @@ class Lead_Aggregator_Admin {
                     </tbody>
                 </table>
             <?php elseif ($current_tab === 'settings') : ?>
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <?php
+                if (isset($_GET['reconcile']) && $_GET['reconcile'] === 'debug') {
+                    $reconcile_debug = get_transient('lead_aggregator_reconcile_debug');
+                    delete_transient('lead_aggregator_reconcile_debug');
+                    if (is_array($reconcile_debug)) {
+                        $reconcile_json = wp_json_encode($reconcile_debug, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                        ?>
+                        <div class="notice notice-info" style="margin: 15px 0;">
+                            <p><strong>Reconcile debug results</strong> — <button type="button" class="button button-small" id="lead-aggregator-copy-reconcile-debug">Copy to clipboard</button></p>
+                            <pre id="lead-aggregator-reconcile-debug-output" style="background: #f5f5f5; padding: 12px; overflow: auto; max-height: 400px; font-size: 12px;"><?php echo esc_html($reconcile_json); ?></pre>
+                        </div>
+                        <script>
+                        (function(){
+                            var btn = document.getElementById('lead-aggregator-copy-reconcile-debug');
+                            var pre = document.getElementById('lead-aggregator-reconcile-debug-output');
+                            if (btn && pre) {
+                                btn.addEventListener('click', function(){
+                                    try {
+                                        navigator.clipboard.writeText(pre.textContent);
+                                        btn.textContent = 'Copied!';
+                                        setTimeout(function(){ btn.textContent = 'Copy to clipboard'; }, 2000);
+                                    } catch (e) {
+                                        var sel = window.getSelection();
+                                        var r = document.createRange();
+                                        r.selectNodeContents(pre);
+                                        sel.removeAllRanges();
+                                        sel.addRange(r);
+                                        document.execCommand('copy');
+                                        btn.textContent = 'Copied!';
+                                        setTimeout(function(){ btn.textContent = 'Copy to clipboard'; }, 2000);
+                                    }
+                                });
+                            }
+                        })();
+                        </script>
+                        <?php
+                    }
+                }
+                ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="lead-aggregator-settings-form">
                     <?php wp_nonce_field('lead_aggregator_save_settings', 'lead_aggregator_nonce'); ?>
                     <input type="hidden" name="action" value="lead_aggregator_save_settings">
 
@@ -275,7 +375,8 @@ class Lead_Aggregator_Admin {
                     </table>
 
                     <h3>Plan Configuration</h3>
-                    <table class="widefat striped" style="margin-top: 10px;">
+                    <input type="hidden" name="plans_json" id="lead-aggregator-plans-json" value="<?php echo esc_attr(wp_json_encode($plans)); ?>">
+                    <table class="widefat striped" style="margin-top: 10px;" id="lead-aggregator-plans-table">
                         <thead>
                             <tr>
                                 <th>Plan</th>
@@ -288,8 +389,9 @@ class Lead_Aggregator_Admin {
                             <?php
                             $default_plans = array(
                                 'starter' => array('label' => 'Starter', 'lead_limit' => 100),
-                                'growth' => array('label' => 'Growth', 'lead_limit' => 500),
-                                'pro' => array('label' => 'Pro', 'lead_limit' => 2000),
+                                'core' => array('label' => 'Core', 'lead_limit' => 500),
+                                'plus' => array('label' => 'Plus', 'lead_limit' => 2500),
+                                'enterprise' => array('label' => 'Enterprise', 'lead_limit' => 10000),
                             );
                             foreach ($default_plans as $plan_key => $plan_defaults) :
                                 $plan_settings = isset($plans[$plan_key]) && is_array($plans[$plan_key]) ? $plans[$plan_key] : array();
@@ -299,29 +401,47 @@ class Lead_Aggregator_Admin {
                                 $subscription_ids = isset($fluentcart['subscription_ids']) ? implode(',', (array) $fluentcart['subscription_ids']) : '';
                                 $allowed_statuses = isset($fluentcart['allowed_statuses']) ? (array) $fluentcart['allowed_statuses'] : array('active', 'trialing', 'grace');
                                 ?>
-                                <tr>
+                                <tr data-plan-key="<?php echo esc_attr($plan_key); ?>">
                                     <td>
                                         <strong><?php echo esc_html($label); ?></strong>
-                                        <input type="hidden" name="plans[<?php echo esc_attr($plan_key); ?>][label]" value="<?php echo esc_attr($label); ?>">
+                                        <input type="hidden" class="la-plan-label" value="<?php echo esc_attr($label); ?>">
                                     </td>
                                     <td>
-                                        <input type="number" min="0" name="plans[<?php echo esc_attr($plan_key); ?>][lead_limit]" value="<?php echo esc_attr($limit); ?>" />
+                                        <input type="number" min="0" class="la-plan-limit" value="<?php echo esc_attr($limit); ?>" />
                                     </td>
                                     <td>
-                                        <input type="text" name="plans[<?php echo esc_attr($plan_key); ?>][fluentcart_subscription_ids]" value="<?php echo esc_attr($subscription_ids); ?>" class="regular-text" placeholder="123,456" />
+                                        <input type="text" class="la-plan-ids regular-text" value="<?php echo esc_attr($subscription_ids); ?>" placeholder="123,456" />
                                     </td>
                                     <td>
-                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="active" <?php checked(in_array('active', $allowed_statuses, true)); ?>> Active</label><br>
-                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="trialing" <?php checked(in_array('trialing', $allowed_statuses, true)); ?>> Trialing</label><br>
-                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="grace" <?php checked(in_array('grace', $allowed_statuses, true)); ?>> Grace</label><br>
-                                        <label><input type="checkbox" name="plans[<?php echo esc_attr($plan_key); ?>][allowed_statuses][]" value="past_due" <?php checked(in_array('past_due', $allowed_statuses, true)); ?>> Past Due</label>
+                                        <label><input type="checkbox" class="la-plan-status" value="active" <?php checked(in_array('active', $allowed_statuses, true)); ?>> Active</label><br>
+                                        <label><input type="checkbox" class="la-plan-status" value="trialing" <?php checked(in_array('trialing', $allowed_statuses, true)); ?>> Trialing</label><br>
+                                        <label><input type="checkbox" class="la-plan-status" value="grace" <?php checked(in_array('grace', $allowed_statuses, true)); ?>> Grace</label><br>
+                                        <label><input type="checkbox" class="la-plan-status" value="past_due" <?php checked(in_array('past_due', $allowed_statuses, true)); ?>> Past Due</label>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
-                    <p><button type="button" class="button" id="lead-aggregator-sync-fluentcart">Sync FluentCart Plans</button></p>
+                    <p class="description">Enter Product IDs in the table above (use the list below to find IDs), then click <strong>Save Settings</strong> at the bottom of this page to save your plan configuration.</p>
+                    <p>
+                        <button type="button" class="button" id="lead-aggregator-sync-fluentcart">Sync FluentCart Plans</button>
+                        <button type="button" class="button" id="lead-aggregator-debug-fluentcart">Debug FluentCart</button>
+                        <button type="button" class="button" id="lead-aggregator-copy-fluentcart">Copy Debug</button>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                            <?php wp_nonce_field('lead_aggregator_reconcile_fluentcart_now', 'lead_aggregator_reconcile_nonce'); ?>
+                            <input type="hidden" name="action" value="lead_aggregator_reconcile_fluentcart_now">
+                            <?php submit_button('Reconcile plans now', 'secondary', 'reconcile_fluentcart', false); ?>
+                        </form>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                            <?php wp_nonce_field('lead_aggregator_reconcile_fluentcart_now', 'lead_aggregator_reconcile_nonce'); ?>
+                            <input type="hidden" name="action" value="lead_aggregator_reconcile_fluentcart_now">
+                            <input type="hidden" name="reconcile_debug" value="1">
+                            <?php submit_button('Reconcile with debug', 'secondary', 'reconcile_fluentcart_debug', false); ?>
+                        </form>
+                        <p class="description" style="margin-top: 6px;">Reconcile plans now re-checks FluentCart for all users with a plan and updates access (e.g. after a cancellation when the webhook did not fire). Use <strong>Reconcile with debug</strong> to see per-user results and copy them.</p>
+                    </p>
                     <div id="lead-aggregator-fluentcart-plans" style="margin-top: 10px;"></div>
+                    <div id="lead-aggregator-fluentcart-debug" style="margin-top: 10px;"></div>
 
                     <h2>App Mode</h2>
                     <table class="form-table">
@@ -393,51 +513,35 @@ class Lead_Aggregator_Admin {
                     <?php submit_button('Save Settings'); ?>
                 </form>
 
-                <h2>Manual Access</h2>
-                <p class="description">Grant or revoke access for a user when billing is handled manually.</p>
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                    <?php wp_nonce_field('lead_aggregator_grant_access', 'lead_aggregator_grant_access_nonce'); ?>
-                    <input type="hidden" name="action" value="lead_aggregator_grant_access">
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row">User Email</th>
-                            <td><input type="email" name="user_email" required class="regular-text" placeholder="user@example.com"></td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Access</th>
-                            <td>
-                                <label>
-                                    <input type="checkbox" name="access_enabled" value="1" checked>
-                                    Grant access (active)
-                                </label>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Access Level</th>
-                            <td>
-                                <select name="access_level">
-                                    <option value="full">Full access</option>
-                                    <option value="read">Read-only</option>
-                                </select>
-                            </td>
-                        </tr>
-                    </table>
-                    <?php submit_button('Update Access'); ?>
-                </form>
             <?php elseif ($current_tab === 'manage-users') : ?>
+                <?php
+                if (isset($_GET['updated'])) : ?>
+                    <div class="notice notice-success is-dismissible"><p>User updated.</p></div>
+                <?php elseif (isset($_GET['created'])) : ?>
+                    <div class="notice notice-success is-dismissible"><p>User created. A temporary password was set; it is shown in the table below.</p></div>
+                <?php elseif (isset($_GET['deleted'])) : ?>
+                    <div class="notice notice-success is-dismissible"><p>User deleted.</p></div>
+                <?php elseif (isset($_GET['error'])) :
+                    $err_msg = array('email' => 'Please enter a valid email.', 'exists' => 'A user with that email already exists.', 'create' => 'Unable to create user.');
+                    $msg = isset($err_msg[$_GET['error']]) ? $err_msg[$_GET['error']] : 'An error occurred.';
+                ?>
+                    <div class="notice notice-error is-dismissible"><p><?php echo esc_html($msg); ?></p></div>
+                <?php endif; ?>
                 <h2>Manage Users</h2>
                 <p class="description">Manage manager and sub-account access, roles, and passwords.</p>
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin: 12px 0;">
-                    <?php wp_nonce_field('lead_aggregator_create_user', 'lead_aggregator_create_user_nonce'); ?>
-                    <input type="hidden" name="action" value="lead_aggregator_create_user">
+                <h3>Add or Update User</h3>
+                <p class="description">Create a new user or update access for an existing user. Enter email to look up; if the user exists, access is updated. If not, a new user is created.</p>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <?php wp_nonce_field('lead_aggregator_add_or_update_user', 'lead_aggregator_add_or_update_user_nonce'); ?>
+                    <input type="hidden" name="action" value="lead_aggregator_add_or_update_user">
                     <table class="form-table">
                         <tr>
                             <th scope="row">Name</th>
-                            <td><input type="text" name="name" class="regular-text" placeholder="Jane Smith"></td>
+                            <td><input type="text" name="name" class="regular-text" placeholder="Jane Smith"><span class="description"> Used when creating a new user.</span></td>
                         </tr>
                         <tr>
                             <th scope="row">Email</th>
-                            <td><input type="email" name="email" class="regular-text" required></td>
+                            <td><input type="email" name="email" class="regular-text" required placeholder="user@example.com"></td>
                         </tr>
                         <tr>
                             <th scope="row">Type</th>
@@ -472,7 +576,7 @@ class Lead_Aggregator_Admin {
                             </td>
                         </tr>
                     </table>
-                    <?php submit_button('Add User'); ?>
+                    <?php submit_button('Add or Update User'); ?>
                 </form>
                 <table class="widefat striped">
                     <thead>
@@ -480,6 +584,7 @@ class Lead_Aggregator_Admin {
                             <th>Name</th>
                             <th>Email</th>
                             <th>Type</th>
+                            <th>Source</th>
                             <th>Manager</th>
                             <th>Access</th>
                             <th>Level</th>
@@ -489,7 +594,7 @@ class Lead_Aggregator_Admin {
                     <tbody>
                         <?php if (empty($all_users)) : ?>
                             <tr>
-                                <td colspan="7">No users found.</td>
+                                <td colspan="8">No users found.</td>
                             </tr>
                         <?php else : ?>
                             <?php foreach ($all_users as $user) : ?>
@@ -497,59 +602,69 @@ class Lead_Aggregator_Admin {
                                 $manager_id = (int) get_user_meta($user->ID, 'lead_aggregator_manager_id', true);
                                 $access_enabled = (int) get_user_meta($user->ID, 'lead_aggregator_access_enabled', true);
                                 $access_level = get_user_meta($user->ID, 'lead_aggregator_access_level', true) ?: 'full';
+                                $plan_source = get_user_meta($user->ID, 'lead_aggregator_plan_source', true);
                                 $type_label = $manager_id > 0 ? 'Sub-account' : 'Manager';
+                                $source_label = ($plan_source === 'fluentcart') ? 'FluentCart' : 'Manual';
                                 $temp_password = get_user_meta($user->ID, 'lead_aggregator_temp_password', true);
                                 ?>
+                                <?php $form_id = 'la-user-form-' . (int) $user->ID; ?>
                                 <tr>
                                     <td>
+                                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="<?php echo esc_attr($form_id); ?>">
+                                            <?php wp_nonce_field('lead_aggregator_manage_user', 'lead_aggregator_manage_user_nonce'); ?>
+                                            <input type="hidden" name="action" value="lead_aggregator_manage_user">
+                                            <input type="hidden" name="user_id" value="<?php echo esc_attr($user->ID); ?>">
+                                        </form>
                                         <?php echo esc_html($user->display_name); ?>
                                         <?php if ($temp_password) : ?>
-                                            <div class="description">Temp password: <strong><?php echo esc_html($temp_password); ?></strong></div>
+                                            <span class="description" style="display: block; margin-top: 2px; color: #d63638;">Temp password: <strong><?php echo esc_html($temp_password); ?></strong></span>
                                             <?php delete_user_meta($user->ID, 'lead_aggregator_temp_password'); ?>
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo esc_html($user->user_email); ?></td>
                                     <td><?php echo esc_html($type_label); ?></td>
                                     <td>
-                                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                            <?php wp_nonce_field('lead_aggregator_manage_user', 'lead_aggregator_manage_user_nonce'); ?>
-                                            <input type="hidden" name="action" value="lead_aggregator_manage_user">
-                                            <input type="hidden" name="user_id" value="<?php echo esc_attr($user->ID); ?>">
-                                            <select name="manager_id">
-                                                <option value="0" <?php selected($manager_id, 0); ?>>Set as a Manager</option>
-                                                <option value="" disabled>──────────</option>
-                                                <optgroup label="Assign to Manager...">
-                                                    <?php foreach ($manager_options as $manager) : ?>
-                                                        <option value="<?php echo esc_attr($manager->ID); ?>" <?php selected($manager_id, $manager->ID); ?>>
-                                                            <?php echo esc_html($manager->display_name); ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </optgroup>
-                                            </select>
+                                        <span class="la-source-badge la-source-<?php echo esc_attr($plan_source === 'fluentcart' ? 'fluentcart' : 'manual'); ?>"><?php echo esc_html($source_label); ?></span>
+                                        <?php if ($plan_source === 'fluentcart') : ?>
+                                            <label class="la-set-manual">
+                                                <input type="checkbox" name="set_source_manual" value="1" form="<?php echo esc_attr($form_id); ?>">
+                                                <span>Convert to manual</span>
+                                            </label>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
-                                            <label>
-                                                <input type="checkbox" name="access_enabled" value="1" <?php checked($access_enabled, 1); ?>>
-                                                Active
-                                            </label>
+                                        <select name="manager_id" form="<?php echo esc_attr($form_id); ?>" class="la-select-compact">
+                                            <option value="0" <?php selected($manager_id, 0); ?>>Manager</option>
+                                            <option value="" disabled>──────────</option>
+                                            <?php foreach ($manager_options as $manager) : ?>
+                                                <option value="<?php echo esc_attr($manager->ID); ?>" <?php selected($manager_id, $manager->ID); ?>>
+                                                    <?php echo esc_html($manager->display_name); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
                                     </td>
                                     <td>
-                                            <select name="access_level">
-                                                <option value="full" <?php selected($access_level, 'full'); ?>>Full</option>
-                                                <option value="read" <?php selected($access_level, 'read'); ?>>Read-only</option>
-                                            </select>
+                                        <label class="la-checkbox-inline">
+                                            <input type="checkbox" name="access_enabled" value="1" form="<?php echo esc_attr($form_id); ?>" <?php checked($access_enabled, 1); ?>>
+                                            <span>Active</span>
+                                        </label>
                                     </td>
                                     <td>
-                                            <label style="margin-right: 8px;">
-                                                <input type="checkbox" name="reset_password" value="1">
-                                                Reset password
-                                            </label>
-                                            <label style="margin-right: 8px;">
-                                                <input type="checkbox" name="delete_user" value="1">
-                                                Delete user
-                                            </label>
-                                            <?php submit_button('Save', 'secondary', '', false); ?>
-                                        </form>
+                                        <select name="access_level" form="<?php echo esc_attr($form_id); ?>" class="la-select-compact">
+                                            <option value="full" <?php selected($access_level, 'full'); ?>>Full</option>
+                                            <option value="read" <?php selected($access_level, 'read'); ?>>Read-only</option>
+                                        </select>
+                                    </td>
+                                    <td class="la-actions-cell">
+                                        <button type="submit" form="<?php echo esc_attr($form_id); ?>" class="button button-small button-primary">Save</button>
+                                        <label class="la-checkbox-inline la-ml-2">
+                                            <input type="checkbox" name="reset_password" value="1" form="<?php echo esc_attr($form_id); ?>">
+                                            <span>Reset pwd</span>
+                                        </label>
+                                        <label class="la-checkbox-inline la-ml-2">
+                                            <input type="checkbox" name="delete_user" value="1" form="<?php echo esc_attr($form_id); ?>">
+                                            <span>Delete</span>
+                                        </label>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -570,6 +685,7 @@ class Lead_Aggregator_Admin {
                     <table class="widefat striped" style="margin-top: 20px;">
                         <thead>
                             <tr>
+                                <th>User</th>
                                 <th>Webhook Endpoint</th>
                                 <th>Shared Secret</th>
                                 <th>Status</th>
@@ -580,8 +696,11 @@ class Lead_Aggregator_Admin {
                             <?php foreach ($webhooks as $webhook) : ?>
                                 <?php
                                 $endpoint = trailingslashit(rest_url('lead-aggregator/v1/webhooks/user/' . $webhook['webhook_token']));
+                                $owner = !empty($webhook['user_id']) ? get_user_by('id', (int) $webhook['user_id']) : null;
+                                $owner_label = $owner ? esc_html($owner->display_name) . ' <small>(' . esc_html($owner->user_email) . ')</small>' : '—';
                                 ?>
                                 <tr>
+                                    <td><?php echo $owner_label; ?></td>
                                     <td><code><?php echo esc_html($endpoint); ?></code></td>
                                     <td>
                                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
@@ -819,37 +938,48 @@ class Lead_Aggregator_Admin {
         $webhook_logging = isset($_POST['webhook_logging']) ? 1 : 0;
         $login_page_id = isset($_POST['login_page_id']) ? (int) $_POST['login_page_id'] : 0;
         $plans = array();
-        if (isset($_POST['plans']) && is_array($_POST['plans'])) {
-            foreach ($_POST['plans'] as $plan_key => $plan_data) {
-                $plan_key = sanitize_key($plan_key);
-                if (!$plan_key || !is_array($plan_data)) {
-                    continue;
-                }
-                $allowed_statuses = array();
-                if (!empty($plan_data['allowed_statuses']) && is_array($plan_data['allowed_statuses'])) {
-                    foreach ($plan_data['allowed_statuses'] as $status) {
-                        $allowed_statuses[] = sanitize_text_field($status);
+        if (!empty($_POST['plans_json'])) {
+            $raw = json_decode(wp_unslash($_POST['plans_json']), true);
+            if (is_array($raw)) {
+                $allowed = array('active', 'trialing', 'grace', 'past_due');
+                foreach ($raw as $plan_key => $plan_data) {
+                    $plan_key = sanitize_key($plan_key);
+                    if (!$plan_key || !is_array($plan_data)) {
+                        continue;
                     }
-                }
-                $subscription_ids = array();
-                if (!empty($plan_data['fluentcart_subscription_ids'])) {
-                    $ids = explode(',', $plan_data['fluentcart_subscription_ids']);
-                    foreach ($ids as $id) {
-                        $id = trim($id);
-                        if ($id !== '') {
-                            $subscription_ids[] = $id;
+                    $subscription_ids = array();
+                    if (!empty($plan_data['fluentcart']['subscription_ids']) && is_array($plan_data['fluentcart']['subscription_ids'])) {
+                        foreach ($plan_data['fluentcart']['subscription_ids'] as $id) {
+                            $id = trim((string) $id);
+                            if ($id !== '') {
+                                $subscription_ids[] = $id;
+                            }
                         }
                     }
+                    $statuses = array();
+                    if (!empty($plan_data['fluentcart']['allowed_statuses']) && is_array($plan_data['fluentcart']['allowed_statuses'])) {
+                        foreach ($plan_data['fluentcart']['allowed_statuses'] as $s) {
+                            if (in_array($s, $allowed, true)) {
+                                $statuses[] = $s;
+                            }
+                        }
+                    }
+                    if (empty($statuses)) {
+                        $statuses = array('active', 'trialing', 'grace');
+                    }
+                    $plans[$plan_key] = array(
+                        'label' => isset($plan_data['label']) ? sanitize_text_field($plan_data['label']) : ucfirst($plan_key),
+                        'lead_limit' => isset($plan_data['lead_limit']) ? (int) $plan_data['lead_limit'] : 0,
+                        'fluentcart' => array(
+                            'subscription_ids' => $subscription_ids,
+                            'allowed_statuses' => $statuses,
+                        ),
+                    );
                 }
-                $plans[$plan_key] = array(
-                    'label' => isset($plan_data['label']) ? sanitize_text_field($plan_data['label']) : ucfirst($plan_key),
-                    'lead_limit' => isset($plan_data['lead_limit']) ? (int) $plan_data['lead_limit'] : 0,
-                    'fluentcart' => array(
-                        'subscription_ids' => $subscription_ids,
-                        'allowed_statuses' => !empty($allowed_statuses) ? $allowed_statuses : array('active', 'trialing', 'grace'),
-                    ),
-                );
             }
+        }
+        if (empty($plans)) {
+            $plans = get_option('lead_aggregator_plans', array());
         }
 
         update_option('lead_aggregator_notify_enabled', $notify_enabled);
@@ -870,7 +1000,7 @@ class Lead_Aggregator_Admin {
             }
         }
 
-        wp_redirect(admin_url('admin.php?page=lead-aggregator&settings=updated'));
+        wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=settings&settings=updated'));
         exit;
     }
 
@@ -900,31 +1030,67 @@ class Lead_Aggregator_Admin {
         exit;
     }
 
-    public function grant_access() {
+    public function add_or_update_user() {
         if (!current_user_can('manage_options')) {
             wp_die('Insufficient permissions.');
         }
-        check_admin_referer('lead_aggregator_grant_access', 'lead_aggregator_grant_access_nonce');
+        check_admin_referer('lead_aggregator_add_or_update_user', 'lead_aggregator_add_or_update_user_nonce');
 
-        $email = isset($_POST['user_email']) ? sanitize_email($_POST['user_email']) : '';
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+        $manager_id = isset($_POST['manager_id']) ? (int) $_POST['manager_id'] : 0;
         $access_enabled = !empty($_POST['access_enabled']) ? 1 : 0;
         $access_level = isset($_POST['access_level']) ? sanitize_key($_POST['access_level']) : 'full';
         if (!in_array($access_level, array('full', 'read'), true)) {
             $access_level = 'full';
         }
 
-        if ($email) {
-            $user = get_user_by('email', $email);
-            if ($user) {
-                update_user_meta($user->ID, 'lead_aggregator_access_enabled', $access_enabled);
-                update_user_meta($user->ID, 'lead_aggregator_access_level', $access_level);
-                if ($access_enabled) {
-                    update_user_meta($user->ID, 'lead_aggregator_subscription_status', 'active');
-                }
-            }
+        if (!$email) {
+            wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&error=email'));
+            exit;
         }
 
-        wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=settings&access=updated'));
+        $user = get_user_by('email', $email);
+        if ($user) {
+            update_user_meta($user->ID, 'lead_aggregator_manager_id', $manager_id);
+            update_user_meta($user->ID, 'lead_aggregator_access_enabled', $access_enabled);
+            update_user_meta($user->ID, 'lead_aggregator_access_level', $access_level);
+            if ($access_enabled) {
+                update_user_meta($user->ID, 'lead_aggregator_subscription_status', 'active');
+            }
+            if ($name) {
+                wp_update_user(array('ID' => $user->ID, 'display_name' => $name));
+            }
+            wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&updated=1'));
+        } else {
+            $username = sanitize_user(strstr($email, '@', true));
+            if (!$username) {
+                $username = 'leaduser';
+            }
+            $base_username = $username;
+            $suffix = 1;
+            while (username_exists($username)) {
+                $username = $base_username . $suffix;
+                $suffix++;
+            }
+            $password = wp_generate_password(16, false, false);
+            $user_id = wp_create_user($username, $password, $email);
+            if (is_wp_error($user_id)) {
+                wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&error=create'));
+                exit;
+            }
+            if ($name) {
+                wp_update_user(array('ID' => $user_id, 'display_name' => $name));
+            }
+            update_user_meta($user_id, 'lead_aggregator_manager_id', $manager_id);
+            update_user_meta($user_id, 'lead_aggregator_access_enabled', $access_enabled);
+            update_user_meta($user_id, 'lead_aggregator_access_level', $access_level);
+            if ($access_enabled) {
+                update_user_meta($user_id, 'lead_aggregator_subscription_status', 'active');
+            }
+            update_user_meta($user_id, 'lead_aggregator_temp_password', $password);
+            wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&created=1'));
+        }
         exit;
     }
 
@@ -945,6 +1111,8 @@ class Lead_Aggregator_Admin {
             $access_level = 'full';
         }
 
+        $set_source_manual = !empty($_POST['set_source_manual']);
+
         if ($user_id && $delete_user) {
             wp_delete_user($user_id);
         } elseif ($user_id) {
@@ -954,6 +1122,11 @@ class Lead_Aggregator_Admin {
             if ($access_enabled) {
                 update_user_meta($user_id, 'lead_aggregator_subscription_status', 'active');
             }
+            if ($set_source_manual) {
+                update_user_meta($user_id, 'lead_aggregator_plan_source', 'legacy');
+                update_user_meta($user_id, 'lead_aggregator_plan_key', '');
+                delete_user_meta($user_id, 'lead_aggregator_plan_cache_expires_at');
+            }
             if ($reset_password) {
                 $password = wp_generate_password(16, false, false);
                 wp_set_password($password, $user_id);
@@ -962,57 +1135,6 @@ class Lead_Aggregator_Admin {
         }
 
         wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&updated=1'));
-        exit;
-    }
-
-    public function create_user() {
-        if (!current_user_can('manage_options')) {
-            wp_die('Insufficient permissions.');
-        }
-        check_admin_referer('lead_aggregator_create_user', 'lead_aggregator_create_user_nonce');
-
-        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
-        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
-        $manager_id = isset($_POST['manager_id']) ? (int) $_POST['manager_id'] : 0;
-        $access_enabled = !empty($_POST['access_enabled']) ? 1 : 0;
-        $access_level = isset($_POST['access_level']) ? sanitize_key($_POST['access_level']) : 'full';
-        if (!in_array($access_level, array('full', 'read'), true)) {
-            $access_level = 'full';
-        }
-
-        if (!$email || email_exists($email)) {
-            wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&error=exists'));
-            exit;
-        }
-
-        $username = sanitize_user(strstr($email, '@', true));
-        if (!$username) {
-            $username = 'leaduser';
-        }
-        $base_username = $username;
-        $suffix = 1;
-        while (username_exists($username)) {
-            $username = $base_username . $suffix;
-            $suffix++;
-        }
-        $password = wp_generate_password(16, false, false);
-        $user_id = wp_create_user($username, $password, $email);
-        if (is_wp_error($user_id)) {
-            wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&error=create'));
-            exit;
-        }
-        if ($name) {
-            wp_update_user(array('ID' => $user_id, 'display_name' => $name));
-        }
-        update_user_meta($user_id, 'lead_aggregator_manager_id', $manager_id);
-        update_user_meta($user_id, 'lead_aggregator_access_enabled', $access_enabled);
-        update_user_meta($user_id, 'lead_aggregator_access_level', $access_level);
-        if ($access_enabled) {
-            update_user_meta($user_id, 'lead_aggregator_subscription_status', 'active');
-        }
-        update_user_meta($user_id, 'lead_aggregator_temp_password', $password);
-
-        wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=manage-users&created=1'));
         exit;
     }
 
@@ -1086,6 +1208,29 @@ class Lead_Aggregator_Admin {
         $this->database->clear_webhook_logs();
 
         wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=webhook-log&webhooks=cleared'));
+        exit;
+    }
+
+    public function reconcile_fluentcart_now() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Insufficient permissions.');
+        }
+        check_admin_referer('lead_aggregator_reconcile_fluentcart_now', 'lead_aggregator_reconcile_nonce');
+
+        $with_debug = !empty($_POST['reconcile_debug']);
+        $plugin = lead_aggregator();
+        if ($plugin) {
+            if ($with_debug) {
+                $debug = $plugin->run_fluentcart_reconcile_now(true);
+                set_transient('lead_aggregator_reconcile_debug', $debug, 300);
+                wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=settings&reconcile=debug'));
+            } else {
+                $plugin->run_fluentcart_reconcile_now(false);
+                wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=settings&reconcile=done'));
+            }
+        } else {
+            wp_redirect(admin_url('admin.php?page=lead-aggregator&tab=settings'));
+        }
         exit;
     }
 

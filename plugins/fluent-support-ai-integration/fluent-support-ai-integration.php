@@ -29,8 +29,12 @@ define('FLUENT_SUPPORT_AI_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('FLUENT_SUPPORT_AI_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
 // JazzEdge API constants
-define('JAZZEDGE_MAIN_SITE_URL', 'https://jazzedge.com');
-define('JAZZEDGE_API_KEY', 'je_api_2024_K9m7nQ8vL3xR6tY2wE9rP5sA1dF4hJ7k');
+if ( ! defined( 'JAZZEDGE_MAIN_SITE_URL' ) ) {
+    define( 'JAZZEDGE_MAIN_SITE_URL', 'https://jazzedge.com' );
+}
+if ( ! defined( 'JAZZEDGE_API_KEY' ) ) {
+    define( 'JAZZEDGE_API_KEY', 'je_api_2024_K9m7nQ8vL3xR6tY2wE9rP5sA1dF4hJ7k' );
+}
 
 /**
  * Main plugin class

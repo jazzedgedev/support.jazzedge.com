@@ -1799,8 +1799,8 @@ class Wmyette_Shortcodes {
             return;
         }
         //include('/nas/content/live/'.INSTALL.'/willie/infusion_connect.php');
-        global $install, $app;
-		// include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+        global $app;
+		// include(ABSPATH . 'keap_isdk/infusion_connect.php');
         $returnFields = array('ContactId', 'Id', 'AutoCharge', 'BillingAmt', 'BillingCycle', 'LastBillDate', 'PaidThruDate', 'ProductId', 'StartDate', 'Status', 'BillingCycle', 'MerchantAccountId', 'MaxRetry', 'NumDaysBetweenRetry', 'PaymentGatewayId', 'ReasonStopped', 'SubscriptionPlanId', 'OriginatingOrderId', 'EndDate', 'NextBillDate');
         $contact_id = memb_getContactId();
         $ecd = keap_get_contact_fields($contact_id,array('_AcademyEligibleCancelDate'));
@@ -1958,8 +1958,8 @@ class Wmyette_Shortcodes {
         $security = generateRandomString(7);
 
         if ($step == 1) {
-        	global $install, $app;
-			include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+        	global $app;
+			include(ABSPATH . 'keap_isdk/infusion_connect.php');
 //            include('/nas/content/live/'.INSTALL.'/willie/infusion_connect.php');
             $returnFields = array('ContactId', 'Id', 'ProductId', 'SubscriptionPlanId', 'NextBillDate');
             $query = array('ContactId' => $contact_id, 'Status' => 'Active', 'Id' => intval($_GET['id']));
@@ -1977,8 +1977,8 @@ class Wmyette_Shortcodes {
                 exit;
             }
             global $wpdb;
-        	global $install, $app;
-			include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+        	global $app;
+			include(ABSPATH . 'keap_isdk/infusion_connect.php');
             
            //include('/nas/content/live/'.INSTALL.'/willie/infusion_connect.php');
             $returnFields = array('ContactId', 'Id', 'ProductId', 'SubscriptionPlanId', 'NextBillDate');
@@ -2075,8 +2075,8 @@ class Wmyette_Shortcodes {
             'je_list_payments'
         );
         $return_array = array();
-		global $install, $app;
-		// include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+		global $app;
+		// include(ABSPATH . 'keap_isdk/infusion_connect.php');
         
        // include('/nas/content/live/'.INSTALL.'/willie/infusion_connect.php');
         $contact_id = memb_getContactId();

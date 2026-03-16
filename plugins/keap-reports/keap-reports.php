@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Keap Reports
+ * Plugin Name: Income Reports
  * Plugin URI: https://jazzedge.com/
  * Description: Connect to Keap API, configure saved searches/reports, fetch data, and store monthly aggregated totals for comparison over time.
  * Version: 1.0.0

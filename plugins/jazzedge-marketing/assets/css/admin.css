@@ -1,0 +1,27 @@
+/* JEM Marketing - Admin styles */
+.wp-list-table .column-id { width: 50px; }
+.wp-list-table .column-name { width: 200px; }
+.wp-list-table .column-shortcode { width: 280px; }
+.wp-list-table .column-optins { width: 80px; }
+.wp-list-table .column-download_pct { width: 110px; }
+.wp-list-table .column-purchase_pct { width: 140px; }
+.wp-list-table .column-status { width: 80px; }
+.wp-list-table .column-actions { width: 80px; }
+
+.wp-list-table tfoot { display: none; }
+
+.jem-shortcode-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.jem-shortcode-cell input[type="text"] {
+    width: 180px;
+    font-size: 12px;
+    padding: 4px 6px;
+    font-family: monospace;
+}
+
+.jem-status-active { color: #00a32a; }
+.jem-status-inactive { color: #d63638; }

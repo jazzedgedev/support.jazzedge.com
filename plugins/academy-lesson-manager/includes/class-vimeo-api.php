@@ -36,8 +36,8 @@ class ALM_Vimeo_API {
         // Try to load Vimeo PHP library (same path as in oxygen-functions.php)
         // Try multiple possible paths
         $possible_paths = array(
+            ABSPATH . 'willie/ja-admin/vimeo.php-3.0.2/src/Vimeo/Vimeo.php',
             ABSPATH . '../willie/ja-admin/vimeo.php-3.0.2/src/Vimeo/Vimeo.php',
-            '/nas/content/live/jazzacademy/willie/ja-admin/vimeo.php-3.0.2/src/Vimeo/Vimeo.php',
             dirname(ABSPATH) . '/willie/ja-admin/vimeo.php-3.0.2/src/Vimeo/Vimeo.php'
         );
         

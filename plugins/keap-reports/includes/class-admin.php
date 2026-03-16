@@ -69,8 +69,8 @@ class Keap_Reports_Admin {
      */
     public function add_admin_menu() {
         add_menu_page(
-            'Keap Reports',
-            'Keap Reports',
+            'Income Reports',
+            'Income Reports',
             'manage_options',
             'keap-reports',
             array($this, 'render_dashboard_page'),
@@ -318,7 +318,7 @@ class Keap_Reports_Admin {
         
         ?>
         <div class="wrap">
-            <h1>Keap Reports Settings</h1>
+            <h1>Income Reports Settings</h1>
             
             <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=keap-reports-settings')); ?>">
                 <?php wp_nonce_field('keap_reports_save_settings'); ?>
@@ -1126,7 +1126,7 @@ class Keap_Reports_Admin {
         
         ?>
         <div class="wrap">
-            <h1>Keap Reports</h1>
+            <h1>Income Reports</h1>
             
             <div style="margin: 20px 0;">
                 <form method="get" action="">
@@ -1283,7 +1283,7 @@ class Keap_Reports_Admin {
         
         ?>
         <div class="wrap">
-            <h1>Keap Reports Logs</h1>
+            <h1>Income Reports Logs</h1>
             
             <div class="keap-reports-logs-stats" style="margin: 20px 0;">
                 <h2>Log Statistics</h2>
@@ -1712,6 +1712,35 @@ class Keap_Reports_Admin {
         $paid_starter_change = $paid_starter_current['count'] - $paid_starter_prev['count'];
         $paid_starter_change_percent = $paid_starter_prev['count'] > 0 ? ($paid_starter_change / $paid_starter_prev['count']) * 100 : ($paid_starter_change > 0 ? 100 : 0);
         
+        // FluentCart orders (completed only) for dashboard card
+        $fluentcart_current = $this->database->get_fluentcart_month_totals($current_year, $current_month);
+        $fluentcart_prev = $this->database->get_fluentcart_month_totals($prev_year, $prev_month);
+        $fluentcart_last_year = $this->database->get_fluentcart_month_totals($last_year, $current_month);
+        $fluentcart_orders_change = $fluentcart_current['orders'] - $fluentcart_prev['orders'];
+        $fluentcart_orders_change_percent = $fluentcart_prev['orders'] > 0 ? ($fluentcart_orders_change / $fluentcart_prev['orders']) * 100 : ($fluentcart_orders_change > 0 ? 100 : 0);
+        $fluentcart_revenue_change = $fluentcart_current['revenue'] - $fluentcart_prev['revenue'];
+        $fluentcart_revenue_change_percent = $fluentcart_prev['revenue'] > 0 ? ($fluentcart_revenue_change / $fluentcart_prev['revenue']) * 100 : ($fluentcart_revenue_change > 0 ? 100 : 0);
+        
+        // Combined income (Keap + FluentCart) for "This Month Revenue" card
+        $total_income_current = $total_current_revenue + $fluentcart_current['revenue'];
+        $total_income_last = $total_last_revenue + $fluentcart_prev['revenue'];
+        $total_income_last_year = $total_last_year_revenue + $fluentcart_last_year['revenue'];
+        $revenue_change_combined = $total_income_current - $total_income_last;
+        $revenue_change_combined_percent = $total_income_last > 0 ? ($revenue_change_combined / $total_income_last) * 100 : ($revenue_change_combined > 0 ? 100 : 0);
+        $revenue_change_vs_last_year_combined = $total_income_current - $total_income_last_year;
+        $revenue_change_vs_last_year_combined_percent = $total_income_last_year > 0 ? ($revenue_change_vs_last_year_combined / $total_income_last_year) * 100 : ($revenue_change_vs_last_year_combined > 0 ? 100 : 0);
+        
+        // YTD includes FluentCart (Jan through current month)
+        $fluentcart_ytd = $this->database->get_fluentcart_ytd($current_year, $current_month);
+        $total_ytd_revenue_display = $total_ytd_revenue + $fluentcart_ytd['revenue'];
+        $total_ytd_orders_display = $total_ytd_orders + $fluentcart_ytd['orders'];
+        
+        // Total orders (all sources) for replacement KPI card
+        $total_orders_combined_current = $total_current_orders + $fluentcart_current['orders'];
+        $total_orders_combined_prev = $total_last_orders + $fluentcart_prev['orders'];
+        $total_orders_combined_change = $total_orders_combined_current - $total_orders_combined_prev;
+        $total_orders_combined_change_percent = $total_orders_combined_prev > 0 ? ($total_orders_combined_change / $total_orders_combined_prev) * 100 : ($total_orders_combined_change > 0 ? 100 : 0);
+        
         ?>
         <div class="wrap">
             <h1>Business Performance Dashboard</h1>
@@ -1736,6 +1765,7 @@ class Keap_Reports_Admin {
                 .keap-kpi-card.trials { border-left-color: #8c8f94; }
                 .keap-kpi-card.paid-starter { border-left-color: #646970; }
                 .keap-kpi-card.intensives { border-left-color: #d63638; }
+                .keap-kpi-card.fluentcart { border-left-color: #7c3aed; }
                 .keap-kpi-card.ytd { border-left-color: #f0b849; }
                 .keap-kpi-label {
                     font-size: 14px;
@@ -1825,16 +1855,16 @@ class Keap_Reports_Admin {
             <div class="keap-dashboard-kpi">
                 <div class="keap-kpi-card revenue">
                     <div class="keap-kpi-label">This Month Revenue</div>
-                    <div class="keap-kpi-value">$<?php echo number_format($total_current_revenue, 2); ?></div>
-                    <div class="keap-kpi-change <?php echo $revenue_change_vs_last_year >= 0 ? 'positive' : 'negative'; ?>">
-                        <?php echo $revenue_change_vs_last_year >= 0 ? '↑' : '↓'; ?> 
-                        $<?php echo number_format(abs($revenue_change_vs_last_year), 2); ?>
-                        (<?php echo number_format(abs($revenue_change_vs_last_year_percent), 1); ?>%)
+                    <div class="keap-kpi-value">$<?php echo number_format($total_income_current, 2); ?></div>
+                    <div class="keap-kpi-change <?php echo $revenue_change_vs_last_year_combined >= 0 ? 'positive' : 'negative'; ?>">
+                        <?php echo $revenue_change_vs_last_year_combined >= 0 ? '↑' : '↓'; ?> 
+                        $<?php echo number_format(abs($revenue_change_vs_last_year_combined), 2); ?>
+                        (<?php echo number_format(abs($revenue_change_vs_last_year_combined_percent), 1); ?>%)
                         vs <?php echo esc_html($last_year_month_name); ?>
                     </div>
-                    <div class="keap-kpi-change keap-kpi-change-secondary <?php echo $revenue_change >= 0 ? 'positive' : 'negative'; ?>" style="font-size: 0.85em; margin-top: 4px; opacity: 0.9;">
-                        <?php echo $revenue_change >= 0 ? '↑' : '↓'; ?> 
-                        $<?php echo number_format(abs($revenue_change), 2); ?> (<?php echo number_format(abs($revenue_change_percent), 1); ?>%) vs last month
+                    <div class="keap-kpi-change keap-kpi-change-secondary <?php echo $revenue_change_combined >= 0 ? 'positive' : 'negative'; ?>" style="font-size: 0.85em; margin-top: 4px; opacity: 0.9;">
+                        <?php echo $revenue_change_combined >= 0 ? '↑' : '↓'; ?> 
+                        $<?php echo number_format(abs($revenue_change_combined), 2); ?> (<?php echo number_format(abs($revenue_change_combined_percent), 1); ?>%) vs last month
                     </div>
                 </div>
                 
@@ -1871,6 +1901,8 @@ class Keap_Reports_Admin {
                 <div class="keap-kpi-card paid-starter">
                     <div class="keap-kpi-label">Paid Starter Signups</div>
                     <div class="keap-kpi-value"><?php echo number_format($paid_starter_current['count']); ?></div>
+                    <?php $paid_starter_revenue = (isset($paid_starter_current['revenue']) && $paid_starter_current['revenue'] > 0) ? floatval($paid_starter_current['revenue']) : ($paid_starter_current['count'] * 7.0); ?>
+                    <div class="keap-kpi-value" style="font-size: 20px; margin-top: 5px;">$<?php echo number_format($paid_starter_revenue, 2); ?></div>
                     <div class="keap-kpi-change <?php echo $paid_starter_change >= 0 ? 'positive' : 'negative'; ?>">
                         <?php echo $paid_starter_change >= 0 ? '↑' : '↓'; ?> 
                         <?php echo number_format(abs($paid_starter_change_percent), 1); ?>% 
@@ -1878,9 +1910,37 @@ class Keap_Reports_Admin {
                     </div>
                 </div>
                 
+                <div class="keap-kpi-card fluentcart">
+                    <div class="keap-kpi-label">FluentCart Orders</div>
+                    <div class="keap-kpi-value"><?php echo number_format($fluentcart_current['orders']); ?> orders</div>
+                    <div class="keap-kpi-value" style="font-size: 20px; margin-top: 5px;">$<?php echo number_format($fluentcart_current['revenue'], 2); ?></div>
+                    <div class="keap-kpi-change <?php echo $fluentcart_orders_change >= 0 ? 'positive' : 'negative'; ?>">
+                        <?php echo $fluentcart_orders_change >= 0 ? '↑' : '↓'; ?> 
+                        <?php echo number_format(abs($fluentcart_orders_change_percent), 1); ?>% 
+                        vs last month
+                    </div>
+                </div>
+                
                 <?php
-                // Display dashboard reports that have show_on_dashboard enabled
+                // Display dashboard reports that have show_on_dashboard enabled (skip All Intensives Bundle - replaced by FluentCart card; replace COCKTAIL_INTENSIVE_2026 with Total Orders card)
                 foreach ($dashboard_reports as $dashboard_report) {
+                    if (isset($dashboard_report['name']) && $dashboard_report['name'] === 'All Intensives Bundle') {
+                        continue;
+                    }
+                    if (isset($dashboard_report['name']) && $dashboard_report['name'] === 'COCKTAIL_INTENSIVE_2026') {
+                        ?>
+                        <div class="keap-kpi-card orders">
+                            <div class="keap-kpi-label">Total Orders (All Sources)</div>
+                            <div class="keap-kpi-value"><?php echo number_format($total_orders_combined_current); ?></div>
+                            <div class="keap-kpi-change <?php echo $total_orders_combined_change >= 0 ? 'positive' : 'negative'; ?>">
+                                <?php echo $total_orders_combined_change >= 0 ? '↑' : '↓'; ?>
+                                <?php echo number_format(abs($total_orders_combined_change_percent), 1); ?>%
+                                vs last month
+                            </div>
+                        </div>
+                        <?php
+                        continue;
+                    }
                     $dashboard_comparison = $this->reports->get_monthly_comparison($dashboard_report['id'], $current_year, $current_month);
                     $dashboard_current_orders = $dashboard_comparison['current_orders'];
                     $dashboard_current_revenue = $dashboard_comparison['current_revenue'];
@@ -1923,9 +1983,9 @@ class Keap_Reports_Admin {
                 
                 <div class="keap-kpi-card ytd">
                     <div class="keap-kpi-label">Year-to-Date Revenue</div>
-                    <div class="keap-kpi-value">$<?php echo number_format($total_ytd_revenue, 2); ?></div>
+                    <div class="keap-kpi-value">$<?php echo number_format($total_ytd_revenue_display, 2); ?></div>
                     <div class="keap-kpi-change">
-                        <?php echo number_format($total_ytd_orders); ?> orders
+                        <?php echo number_format($total_ytd_orders_display); ?> orders
                     </div>
                 </div>
             </div>
@@ -2000,6 +2060,8 @@ class Keap_Reports_Admin {
                     <div class="keap-kpi-card">
                         <div class="keap-kpi-label">Paid Starter Signups (This Month)</div>
                         <div class="keap-kpi-value"><?php echo number_format($paid_starter_current['count']); ?></div>
+                        <?php $paid_starter_revenue_section = (isset($paid_starter_current['revenue']) && $paid_starter_current['revenue'] > 0) ? floatval($paid_starter_current['revenue']) : ($paid_starter_current['count'] * 7.0); ?>
+                        <div class="keap-kpi-value" style="font-size: 20px; margin-top: 5px;">$<?php echo number_format($paid_starter_revenue_section, 2); ?></div>
                         <div class="keap-kpi-change <?php echo $paid_starter_change >= 0 ? 'positive' : 'negative'; ?>">
                             <?php echo $paid_starter_change >= 0 ? '↑' : '↓'; ?> 
                             <?php echo number_format(abs($paid_starter_change_percent), 1); ?>% 
@@ -2419,6 +2481,13 @@ class Keap_Reports_Admin {
                         backgroundColor: 'rgba(0, 163, 42, 0.1)',
                         tension: 0.4,
                         fill: true
+                    }, {
+                        label: 'FluentCart ($)',
+                        data: revenueData.map(d => (d.fluentcart_revenue !== undefined ? d.fluentcart_revenue : 0)),
+                        borderColor: '#7c3aed',
+                        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                        tension: 0.4,
+                        fill: false
                     }];
                     
                 if (hasCompare && compareData.length > 0) {
@@ -2460,26 +2529,54 @@ class Keap_Reports_Admin {
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
-                                        const label = context.dataset.label + ': $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                                        
-                                        // Add orders count if available
                                         const dataIndex = context.dataIndex;
-                                        if (context.dataset.label === 'Revenue ($)' && revenueData[dataIndex] && revenueData[dataIndex].orders !== undefined) {
-                                            return [
-                                                label,
-                                                'Orders: ' + revenueData[dataIndex].orders.toLocaleString('en-US')
-                                            ];
-                                        } else if (hasCompare && compareData.length > 0 && context.dataset.label !== 'Revenue ($)') {
-                                            // For comparison data, try to get orders from compareData
-                                            if (compareData[dataIndex] && compareData[dataIndex].orders !== undefined) {
-                                                return [
-                                                    label,
-                                                    'Orders: ' + compareData[dataIndex].orders.toLocaleString('en-US')
+                                        const fmt = function(n) { return n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+                                        // Primary Revenue line: show Keap vs FluentCart breakdown if available
+                                        if (context.dataset.label === 'Revenue ($)' && revenueData[dataIndex]) {
+                                            const d = revenueData[dataIndex];
+                                            if (d.keap_revenue !== undefined && d.fluentcart_revenue !== undefined) {
+                                                const lines = [
+                                                    'Keap: $' + fmt(d.keap_revenue) + ' (' + (d.keap_orders || 0).toLocaleString('en-US') + ' orders)',
+                                                    'FluentCart: $' + fmt(d.fluentcart_revenue) + ' (' + (d.fluentcart_orders || 0).toLocaleString('en-US') + ' orders)',
+                                                    'Total: $' + fmt(d.revenue || context.parsed.y) + ' (' + (d.orders || 0).toLocaleString('en-US') + ' orders)'
                                                 ];
+                                                if (hasCompare && compareData[dataIndex]) {
+                                                    const curr = parseFloat(d.revenue) || 0;
+                                                    const prev = parseFloat(compareData[dataIndex].revenue) || 0;
+                                                    const diff = curr - prev;
+                                                    let pct = '';
+                                                    if (prev > 0) {
+                                                        const change = (diff / prev) * 100;
+                                                        pct = (diff >= 0 ? '↑ ' : '↓ ') + '$' + Math.abs(diff).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + Math.abs(change).toFixed(1) + '%)';
+                                                    } else {
+                                                        pct = curr > 0 ? '↑ $' + curr.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (—)' : '—';
+                                                    }
+                                                    lines.push('vs last year: ' + pct);
+                                                }
+                                                return lines;
                                             }
+                                            const label = context.dataset.label + ': $' + fmt(context.parsed.y);
+                                            const fallbackLines = [label];
+                                            if (d.orders !== undefined) fallbackLines.push('Orders: ' + d.orders.toLocaleString('en-US'));
+                                            if (hasCompare && compareData[dataIndex]) {
+                                                const curr = parseFloat(d.revenue) || context.parsed.y || 0;
+                                                const prev = parseFloat(compareData[dataIndex].revenue) || 0;
+                                                const diff = curr - prev;
+                                                if (prev > 0) {
+                                                    const change = (diff / prev) * 100;
+                                                    fallbackLines.push('vs last year: ' + (diff >= 0 ? '↑ ' : '↓ ') + '$' + Math.abs(diff).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + Math.abs(change).toFixed(1) + '%)');
+                                                } else if (curr > 0) fallbackLines.push('vs last year: ↑ $' + curr.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (—)');
+                                            }
+                                            return fallbackLines.length > 1 ? fallbackLines : fallbackLines[0];
                                         }
-                                        
-                                        return label;
+                                        if (hasCompare && compareData.length > 0 && context.dataset.label !== 'Revenue ($)') {
+                                            const label = context.dataset.label + ': $' + fmt(context.parsed.y);
+                                            if (compareData[dataIndex] && compareData[dataIndex].orders !== undefined) {
+                                                return [label, 'Orders: ' + compareData[dataIndex].orders.toLocaleString('en-US')];
+                                            }
+                                            return label;
+                                        }
+                                        return context.dataset.label + ': $' + fmt(context.parsed.y);
                                     }
                                 }
                             }
@@ -2543,8 +2640,8 @@ class Keap_Reports_Admin {
                         {
                             label: 'Paid Starter Signups',
                             data: starterData.map(d => d.paid_signups || 0),
-                            borderColor: '#8c8f94',
-                            backgroundColor: 'rgba(140, 143, 148, 0.1)',
+                            borderColor: '#00a32a',
+                            backgroundColor: 'rgba(0, 163, 42, 0.1)',
                             tension: 0.4,
                             fill: true,
                             hidden: false
@@ -2576,8 +2673,8 @@ class Keap_Reports_Admin {
                         starterDatasets.push({
                             label: compareLabel + ' (Paid)',
                             data: starterCompareData.map(d => d.paid_signups || 0),
-                            borderColor: '#8c8f94',
-                            backgroundColor: 'rgba(140, 143, 148, 0.05)',
+                            borderColor: '#00a32a',
+                            backgroundColor: 'rgba(0, 163, 42, 0.05)',
                             borderDash: [5, 5],
                             tension: 0.4,
                             fill: false,
@@ -2602,6 +2699,17 @@ class Keap_Reports_Admin {
                                 tooltip: {
                                     callbacks: {
                                         label: function(context) {
+                                            const dataIndex = context.dataIndex;
+                                            if (context.dataset.label === 'Paid Starter Signups' && starterData[dataIndex]) {
+                                                const d = starterData[dataIndex];
+                                                const rev = (d.paid_revenue !== undefined && d.paid_revenue > 0) ? d.paid_revenue : ((d.paid_signups || 0) * 7);
+                                                return context.dataset.label + ': ' + context.parsed.y.toLocaleString('en-US') + ' ($' + rev.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ')';
+                                            }
+                                            if (context.dataset.label.indexOf('(Paid)') !== -1 && starterCompareData[dataIndex]) {
+                                                const d = starterCompareData[dataIndex];
+                                                const rev = (d.paid_revenue !== undefined && d.paid_revenue > 0) ? d.paid_revenue : ((d.paid_signups || 0) * 7);
+                                                return context.dataset.label + ': ' + context.parsed.y.toLocaleString('en-US') + ' ($' + rev.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ')';
+                                            }
                                             return context.dataset.label + ': ' + context.parsed.y.toLocaleString('en-US');
                                         }
                                     }
@@ -4105,6 +4213,8 @@ class Keap_Reports_Admin {
                 // Sum all months in this quarter
                 $quarter_revenue = 0;
                 $quarter_orders = 0;
+                $quarter_fc_revenue = 0;
+                $quarter_fc_orders = 0;
                 for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
                     foreach ($reports as $report) {
                         $month_data = $this->database->get_report_data($report['id'], $year, $m);
@@ -4113,12 +4223,18 @@ class Keap_Reports_Admin {
                             $quarter_orders += intval($month_data['num_orders']);
                         }
                     }
+                    $fc = $this->database->get_fluentcart_month_totals($year, $m);
+                    $quarter_fc_revenue += $fc['revenue'];
+                    $quarter_fc_orders += $fc['orders'];
                 }
-                
                 $data[] = array(
                     'month' => $quarter_label,
-                    'revenue' => $quarter_revenue,
-                    'orders' => $quarter_orders,
+                    'revenue' => $quarter_revenue + $quarter_fc_revenue,
+                    'orders' => $quarter_orders + $quarter_fc_orders,
+                    'keap_revenue' => $quarter_revenue,
+                    'keap_orders' => $quarter_orders,
+                    'fluentcart_revenue' => $quarter_fc_revenue,
+                    'fluentcart_orders' => $quarter_fc_orders,
                     'year' => $year,
                     'quarter' => $quarter
                 );
@@ -4147,11 +4263,15 @@ class Keap_Reports_Admin {
                         $month_orders += intval($month_data['num_orders']);
                     }
                 }
-                
+                $fc = $this->database->get_fluentcart_month_totals($year, $month);
                 $data[] = array(
                     'month' => $month_name,
-                    'revenue' => $month_revenue,
-                    'orders' => $month_orders,
+                    'revenue' => $month_revenue + $fc['revenue'],
+                    'orders' => $month_orders + $fc['orders'],
+                    'keap_revenue' => $month_revenue,
+                    'keap_orders' => $month_orders,
+                    'fluentcart_revenue' => $fc['revenue'],
+                    'fluentcart_orders' => $fc['orders'],
                     'year' => $year,
                     'month_num' => $month
                 );
@@ -4177,6 +4297,8 @@ class Keap_Reports_Admin {
                     
                     $quarter_revenue = 0;
                     $quarter_orders = 0;
+                    $quarter_fc_revenue = 0;
+                    $quarter_fc_orders = 0;
                     for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
                         foreach ($reports as $report) {
                             $month_data = $this->database->get_report_data($report['id'], $year, $m);
@@ -4185,12 +4307,18 @@ class Keap_Reports_Admin {
                                 $quarter_orders += intval($month_data['num_orders']);
                             }
                         }
+                        $fc = $this->database->get_fluentcart_month_totals($year, $m);
+                        $quarter_fc_revenue += $fc['revenue'];
+                        $quarter_fc_orders += $fc['orders'];
                     }
-                    
                     $compare_data[] = array(
                         'month' => $quarter_label,
-                        'revenue' => $quarter_revenue,
-                        'orders' => $quarter_orders
+                        'revenue' => $quarter_revenue + $quarter_fc_revenue,
+                        'orders' => $quarter_orders + $quarter_fc_orders,
+                        'keap_revenue' => $quarter_revenue,
+                        'keap_orders' => $quarter_orders,
+                        'fluentcart_revenue' => $quarter_fc_revenue,
+                        'fluentcart_orders' => $quarter_fc_orders
                     );
                     
                     $current->modify('+3 months');
@@ -4214,11 +4342,15 @@ class Keap_Reports_Admin {
                             $month_orders += intval($month_data['num_orders']);
                         }
                     }
-                    
+                    $fc = $this->database->get_fluentcart_month_totals($year, $month);
                     $compare_data[] = array(
                         'month' => $month_name,
-                        'revenue' => $month_revenue,
-                        'orders' => $month_orders
+                        'revenue' => $month_revenue + $fc['revenue'],
+                        'orders' => $month_orders + $fc['orders'],
+                        'keap_revenue' => $month_revenue,
+                        'keap_orders' => $month_orders,
+                        'fluentcart_revenue' => $fc['revenue'],
+                        'fluentcart_orders' => $fc['orders']
                     );
                     
                     $current->modify('+1 month');
@@ -4230,9 +4362,10 @@ class Keap_Reports_Admin {
                 $compare_year = $data_point['year'] - 1;
                 $compare_revenue = 0;
                 $compare_orders = 0;
+                $compare_fc_revenue = 0;
+                $compare_fc_orders = 0;
                 
                 if ($view === 'quarterly') {
-                    // For quarterly view, compare to same quarter last year
                     $quarter = $data_point['quarter'];
                     for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
                         foreach ($reports as $report) {
@@ -4242,9 +4375,11 @@ class Keap_Reports_Admin {
                                 $compare_orders += intval($month_data['num_orders']);
                             }
                         }
+                        $fc = $this->database->get_fluentcart_month_totals($compare_year, $m);
+                        $compare_fc_revenue += $fc['revenue'];
+                        $compare_fc_orders += $fc['orders'];
                     }
                 } else {
-                    // For monthly view, compare to same month last year
                     $month = $data_point['month_num'];
                     foreach ($reports as $report) {
                         $month_data = $this->database->get_report_data($report['id'], $compare_year, $month);
@@ -4253,12 +4388,15 @@ class Keap_Reports_Admin {
                             $compare_orders += intval($month_data['num_orders']);
                         }
                     }
+                    $fc = $this->database->get_fluentcart_month_totals($compare_year, $month);
+                    $compare_fc_revenue = $fc['revenue'];
+                    $compare_fc_orders = $fc['orders'];
                 }
                 
                 $compare_data[] = array(
                     'month' => $data_point['month'],
-                    'revenue' => $compare_revenue,
-                    'orders' => $compare_orders
+                    'revenue' => $compare_revenue + $compare_fc_revenue,
+                    'orders' => $compare_orders + $compare_fc_orders
                 );
             }
         } elseif ($compare === 'month') {
@@ -4267,9 +4405,10 @@ class Keap_Reports_Admin {
                 $compare_year = $data_point['year'] - 1;
                 $compare_revenue = 0;
                 $compare_orders = 0;
+                $compare_fc_revenue = 0;
+                $compare_fc_orders = 0;
                 
                 if ($view === 'quarterly') {
-                    // For quarterly view, still compare quarter to same quarter last year
                     $quarter = $data_point['quarter'];
                     for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
                         foreach ($reports as $report) {
@@ -4279,9 +4418,11 @@ class Keap_Reports_Admin {
                                 $compare_orders += intval($month_data['num_orders']);
                             }
                         }
+                        $fc = $this->database->get_fluentcart_month_totals($compare_year, $m);
+                        $compare_fc_revenue += $fc['revenue'];
+                        $compare_fc_orders += $fc['orders'];
                     }
                 } else {
-                    // For monthly view, compare to same month last year
                     $month = $data_point['month_num'];
                     foreach ($reports as $report) {
                         $month_data = $this->database->get_report_data($report['id'], $compare_year, $month);
@@ -4290,12 +4431,15 @@ class Keap_Reports_Admin {
                             $compare_orders += intval($month_data['num_orders']);
                         }
                     }
+                    $fc = $this->database->get_fluentcart_month_totals($compare_year, $month);
+                    $compare_fc_revenue = $fc['revenue'];
+                    $compare_fc_orders = $fc['orders'];
                 }
                 
                 $compare_data[] = array(
                     'month' => $data_point['month'],
-                    'revenue' => $compare_revenue,
-                    'orders' => $compare_orders
+                    'revenue' => $compare_revenue + $compare_fc_revenue,
+                    'orders' => $compare_orders + $compare_fc_orders
                 );
             }
         }
@@ -4543,17 +4687,20 @@ class Keap_Reports_Admin {
                 // Sum all months in this year
                 $year_free = 0;
                 $year_paid = 0;
+                $year_paid_revenue = 0.0;
                 for ($m = 1; $m <= 12; $m++) {
                     $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
                     $paid_data = $this->database->get_starter_signups('paid_starter', $year, $m);
                     $year_free += $free_data['count'];
                     $year_paid += $paid_data['count'];
+                    $year_paid_revenue += isset($paid_data['revenue']) ? floatval($paid_data['revenue']) : ($paid_data['count'] * 7.0);
                 }
                 
                 $data[] = array(
                     'month' => $year_label,
                     'free_signups' => $year_free,
                     'paid_signups' => $year_paid,
+                    'paid_revenue' => $year_paid_revenue,
                     'year' => $year
                 );
                 
@@ -4571,17 +4718,20 @@ class Keap_Reports_Admin {
                 // Sum all months in this quarter
                 $quarter_free = 0;
                 $quarter_paid = 0;
+                $quarter_paid_revenue = 0.0;
                 for ($m = ($quarter - 1) * 3 + 1; $m <= $quarter * 3; $m++) {
                     $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $m);
                     $paid_data = $this->database->get_starter_signups('paid_starter', $year, $m);
                     $quarter_free += $free_data['count'];
                     $quarter_paid += $paid_data['count'];
+                    $quarter_paid_revenue += isset($paid_data['revenue']) ? floatval($paid_data['revenue']) : ($paid_data['count'] * 7.0);
                 }
                 
                 $data[] = array(
                     'month' => $quarter_label,
                     'free_signups' => $quarter_free,
                     'paid_signups' => $quarter_paid,
+                    'paid_revenue' => $quarter_paid_revenue,
                     'year' => $year,
                     'quarter' => $quarter
                 );
@@ -4603,11 +4753,13 @@ class Keap_Reports_Admin {
                 
                 $free_data = $this->database->get_free_trial_signups(48, 'month', $year, $month);
                 $paid_data = $this->database->get_starter_signups('paid_starter', $year, $month);
+                $paid_revenue = isset($paid_data['revenue']) && $paid_data['revenue'] > 0 ? floatval($paid_data['revenue']) : ($paid_data['count'] * 7.0);
                 
                 $data[] = array(
                     'month' => $month_name,
                     'free_signups' => $free_data['count'],
                     'paid_signups' => $paid_data['count'],
+                    'paid_revenue' => $paid_revenue,
                     'year' => $year,
                     'month_num' => $month
                 );

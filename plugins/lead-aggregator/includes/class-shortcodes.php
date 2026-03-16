@@ -44,6 +44,14 @@ class Lead_Aggregator_Shortcodes {
             true
         );
 
+        wp_enqueue_script(
+            'sortablejs',
+            'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js',
+            array(),
+            '1.15.0',
+            true
+        );
+
         wp_enqueue_style(
             'lead-aggregator-frontend',
             LEAD_AGGREGATOR_PLUGIN_URL . 'assets/css/frontend.css',
@@ -54,7 +62,7 @@ class Lead_Aggregator_Shortcodes {
         wp_enqueue_script(
             'lead-aggregator-frontend',
             LEAD_AGGREGATOR_PLUGIN_URL . 'assets/js/frontend-v2.js',
-            array('jquery', 'lead-aggregator-chartjs'),
+            array('jquery', 'lead-aggregator-chartjs', 'sortablejs'),
             file_exists($js_path) ? filemtime($js_path) . '-forced' : LEAD_AGGREGATOR_VERSION . '-forced',
             true
         );
@@ -203,6 +211,8 @@ class Lead_Aggregator_Shortcodes {
             'overview' => 'Leads',
             'leads' => 'Leads',
             'followups' => 'Follow-ups',
+            'won-leads' => 'Won Leads',
+            'lost-leads' => 'Lost Leads',
             'calendar' => 'Calendar',
             'ai-tools' => 'AI Tools',
         );
@@ -211,7 +221,7 @@ class Lead_Aggregator_Shortcodes {
         }
         $tabs['settings'] = 'Settings';
 
-        $html = '<div class="lead-aggregator-view lead-aggregator-dashboard" data-view="dashboard" data-get-started="' . ($show_get_started ? '1' : '0') . '">';
+        $html = '<div class="mml-app"><div class="lead-aggregator-view lead-aggregator-dashboard" data-view="dashboard" data-get-started="' . ($show_get_started ? '1' : '0') . '">';
         $html .= '<div class="la-dashboard">';
         $html .= '<div class="la-dashboard-header">';
         $html .= '<div><h2>Lead Dashboard</h2><p>Manage leads, follow-ups, and pipeline stages.</p></div>';
@@ -237,6 +247,8 @@ class Lead_Aggregator_Shortcodes {
         $html .= '</div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="leads" id="la-panel-leads"></div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="followups" id="la-panel-followups"></div>';
+        $html .= '<div class="la-panel la-tab-panel" data-tab="won-leads" id="la-panel-won-leads"></div>';
+        $html .= '<div class="la-panel la-tab-panel" data-tab="lost-leads" id="la-panel-lost-leads"></div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="calendar" id="la-panel-calendar"></div>';
         $html .= '<div class="la-panel la-tab-panel" data-tab="ai-tools" id="la-panel-ai-tools"></div>';
         if ($is_manager) {
@@ -250,6 +262,7 @@ class Lead_Aggregator_Shortcodes {
         $html .= '<section class="la-settings-card" id="la-settings-tags"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-team"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-notifications"></section>';
+        $html .= '<section class="la-settings-card" id="la-settings-pipeline-stages"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-quick-action"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-webhooks"></section>';
         $html .= '<section class="la-settings-card" id="la-settings-billing"></section>';
@@ -258,7 +271,7 @@ class Lead_Aggregator_Shortcodes {
         $html .= '<section class="la-settings-card" id="la-settings-export"></section>';
         $html .= '</div>';
         $html .= '</div>';
-        $html .= '</div></div>';
+        $html .= '</div></div></div>';
 
         return $html;
     }

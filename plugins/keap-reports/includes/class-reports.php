@@ -832,64 +832,168 @@ class Keap_Reports_Reports {
         $current_year = intval(date('Y'));
         $current_month = intval(date('n'));
         
-        // For running total, we expect a count or total value
-        // The data might be:
-        // 1. A single number (count)
-        // 2. An array with a count field
-        // 3. An array of records where we count them
-        
-        $total_count = 0;
-        
-        if (is_numeric($data)) {
-            // Data is a direct number
-            $total_count = intval($data);
-        } elseif (is_array($data)) {
-            if (count($data) > 0) {
-                // Check if first item has a count field
-                if (isset($data[0]['Count']) || isset($data[0]['count']) || isset($data[0]['Total']) || isset($data[0]['total'])) {
-                    // Sum up all counts
-                    foreach ($data as $item) {
-                        if (isset($item['Count'])) {
-                            $total_count += intval($item['Count']);
-                        } elseif (isset($item['count'])) {
-                            $total_count += intval($item['count']);
-                        } elseif (isset($item['Total'])) {
-                            $total_count += intval($item['Total']);
-                        } elseif (isset($item['total'])) {
-                            $total_count += intval($item['total']);
+        // If we have an array of records with order dates, aggregate by month (so "this month" = orders in that month only)
+        if (is_array($data) && count($data) > 0) {
+            $first = $data[0];
+            $order_date_key = null;
+            if (isset($first['OrderDate'])) {
+                $order_date_key = 'OrderDate';
+            } elseif (isset($first['Orderdate'])) {
+                $order_date_key = 'Orderdate';
+            } elseif (isset($first['orderdate'])) {
+                $order_date_key = 'orderdate';
+            }
+            
+            if ($order_date_key !== null) {
+                $monthly_counts = array(); // year => month => count
+                $monthly_revenue = array(); // year => month => revenue
+                $order_total_key = null;
+                if (isset($first['OrderTotal'])) {
+                    $order_total_key = 'OrderTotal';
+                } elseif (isset($first['Ordertotal'])) {
+                    $order_total_key = 'Ordertotal';
+                } elseif (isset($first['ordertotal'])) {
+                    $order_total_key = 'ordertotal';
+                }
+                $records_skipped = 0;
+                
+                foreach ($data as $record) {
+                    if (!is_array($record) || empty($record[$order_date_key])) {
+                        $records_skipped++;
+                        continue;
+                    }
+                    $year = null;
+                    $month = null;
+                    $this->parse_order_date_for_paid_starter($record[$order_date_key], $year, $month);
+                    
+                    if (!$year || !$month || $month < 1 || $month > 12) {
+                        $records_skipped++;
+                        continue;
+                    }
+                    if (!isset($monthly_counts[$year])) {
+                        $monthly_counts[$year] = array();
+                    }
+                    if (!isset($monthly_revenue[$year])) {
+                        $monthly_revenue[$year] = array();
+                    }
+                    if (!isset($monthly_counts[$year][$month])) {
+                        $monthly_counts[$year][$month] = 0;
+                        $monthly_revenue[$year][$month] = 0.0;
+                    }
+                    $monthly_counts[$year][$month]++;
+                    if ($order_total_key !== null && isset($record[$order_total_key])) {
+                        $amt = $record[$order_total_key];
+                        if (is_string($amt)) {
+                            $amt = preg_replace('/[^0-9.]/', '', $amt);
+                        }
+                        $monthly_revenue[$year][$month] += floatval($amt);
+                    }
+                }
+                
+                $this->database->add_log('Paid starter aggregated by order date', 'info', array(
+                    'report_id' => $report['report_id'],
+                    'records_total' => count($data),
+                    'records_skipped' => $records_skipped,
+                    'monthly_counts' => $monthly_counts
+                ));
+                
+                $saved_months = 0;
+                foreach ($monthly_counts as $year => $months) {
+                    foreach ($months as $month => $count) {
+                        $revenue = isset($monthly_revenue[$year][$month]) ? floatval($monthly_revenue[$year][$month]) : 0.0;
+                        if ($this->database->save_starter_signups('paid_starter', $year, $month, $count, $revenue)) {
+                            $saved_months++;
                         }
                     }
-                } else {
-                    // Just count the number of records
-                    $total_count = count($data);
+                }
+                
+                if ($saved_months > 0) {
+                    $current_count = isset($monthly_counts[$current_year][$current_month]) ? $monthly_counts[$current_year][$current_month] : 0;
+                    return array(
+                        'success' => true,
+                        'message' => sprintf('Paid starter saved by month: %d months updated. This month (%s %d): %d signups.', $saved_months, date('F', mktime(0, 0, 0, $current_month, 1)), $current_year, $current_count)
+                    );
                 }
             }
         }
         
-        // Log the snapshot
-        $this->database->add_log('Running total snapshot for report "' . $report['name'] . '": ' . $total_count, 'info', array(
-            'report_id' => $report['report_id'],
-            'report_name' => $report['name'],
-            'snapshot_value' => $total_count,
-            'snapshot_month' => $current_month,
-            'snapshot_year' => $current_year,
-            'data_type' => gettype($data),
-            'data_count' => is_array($data) ? count($data) : 'N/A'
-        ));
+        // Fallback: no order dates or non-array data — treat as single snapshot for current month only
+        $total_count = 0;
+        if (is_numeric($data)) {
+            $total_count = intval($data);
+        } elseif (is_array($data) && count($data) > 0) {
+            if (isset($data[0]['Count']) || isset($data[0]['count']) || isset($data[0]['Total']) || isset($data[0]['total'])) {
+                foreach ($data as $item) {
+                    if (isset($item['Count'])) {
+                        $total_count += intval($item['Count']);
+                    } elseif (isset($item['count'])) {
+                        $total_count += intval($item['count']);
+                    } elseif (isset($item['Total'])) {
+                        $total_count += intval($item['Total']);
+                    } elseif (isset($item['total'])) {
+                        $total_count += intval($item['total']);
+                    }
+                }
+            } else {
+                $total_count = count($data);
+            }
+        }
         
-        // Save as snapshot for current month using dedicated starter signups table
-        $saved = $this->database->save_starter_signups('paid_starter', $current_year, $current_month, $total_count);
-        
+        $saved = $this->database->save_starter_signups('paid_starter', $current_year, $current_month, $total_count, 0.0);
         if ($saved) {
             return array(
                 'success' => true,
-                'message' => sprintf('Paid starter snapshot saved: %d paid starter students (as of %s %d)', $total_count, date('F', mktime(0, 0, 0, $current_month, 1)), $current_year)
+                'message' => sprintf('Paid starter snapshot saved: %d (current month only; no OrderDate in data)', $total_count)
             );
-        } else {
-            return array(
-                'success' => false,
-                'message' => 'Failed to save paid starter snapshot to database'
-            );
+        }
+        return array(
+            'success' => false,
+            'message' => 'Failed to save paid starter snapshot to database'
+        );
+    }
+    
+    /**
+     * Parse order date string from Keap (multiple formats) into year and month.
+     * Supports: YYYYMMDD, YYYYMMDDTHH:MM:SS, M/D/YYYY, M-D-YYYY, YYYY-MM-DD.
+     *
+     * @param string $order_date Raw value from API
+     * @param int|null $year Output year
+     * @param int|null $month Output month (1-12)
+     */
+    private function parse_order_date_for_paid_starter($order_date, &$year, &$month) {
+        $year = null;
+        $month = null;
+        $order_date = trim((string) $order_date);
+        if ($order_date === '') {
+            return;
+        }
+        // Format: 20260106 or 20260106T18:04:22
+        if (preg_match('/^(\d{4})(\d{2})(\d{2})/', $order_date, $m)) {
+            $year = intval($m[1]);
+            $month = intval($m[2]);
+            return;
+        }
+        // Format: M/D/YYYY or M-D-YYYY (e.g. 2/19/2026, 02/19/2026)
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $order_date, $m)) {
+            $month = intval($m[1]);
+            $day = intval($m[2]);
+            $year = intval($m[3]);
+            if ($month >= 1 && $month <= 12) {
+                return;
+            }
+            $year = null;
+            $month = null;
+            return;
+        }
+        // Format: YYYY-MM-DD or YYYY/MM/DD
+        if (preg_match('/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/', $order_date, $m)) {
+            $year = intval($m[1]);
+            $month = intval($m[2]);
+            if ($month >= 1 && $month <= 12) {
+                return;
+            }
+            $year = null;
+            $month = null;
         }
     }
     

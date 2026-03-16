@@ -747,6 +747,9 @@ class ALM_Shortcodes_Plugin {
         add_action('wp_ajax_alm_delete_note', array($this, 'ajax_delete_note'));
         add_action('wp_ajax_alm_get_lessons_list', array($this, 'ajax_get_lessons_list'));
         add_action('wp_ajax_alm_process_shortcode', array($this, 'ajax_process_shortcode'));
+        add_action('wp_ajax_alm_add_video_timestamp', array($this, 'ajax_add_video_timestamp'));
+        add_action('wp_ajax_alm_get_video_timestamps', array($this, 'ajax_get_video_timestamps'));
+        add_action('wp_ajax_alm_delete_video_timestamp', array($this, 'ajax_delete_video_timestamp'));
         
         // Create ALM notes table on activation
         add_action('init', array($this, 'create_alm_notes_table'));
@@ -1065,11 +1068,7 @@ class ALM_Shortcodes_Plugin {
         add_shortcode('quick_navigation', array($this, 'quick_navigation_shortcode'));
         add_shortcode('12days-of-xmas', array($this, 'twelve_days_of_xmas_shortcode'));
         add_shortcode('6_week_intensives', array($this, 'six_week_intensives_shortcode'));
-        
-        // Add debugging
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('ALM Shortcodes: Plugin initialized and shortcodes registered');
-        }
+        add_shortcode('CSMP_program', array($this, 'csmp_program_shortcode'));
     }
     
     public function add_admin_menu() {
@@ -1194,7 +1193,8 @@ class ALM_Shortcodes_Plugin {
             // Localize script with AJAX URL and nonce
             wp_localize_script('alm-shortcodes-frontend', 'almAjax', array(
                 'ajaxurl' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('alm_completion_nonce')
+                'nonce' => wp_create_nonce('alm_completion_nonce'),
+                'timestamps_nonce' => wp_create_nonce('alm_timestamps_nonce')
             ));
         }
     }
@@ -1509,14 +1509,16 @@ class ALM_Shortcodes_Plugin {
                         <code>[6_week_intensives]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[6_week_intensives]">Copy</button>
                     </div>
-                    <div class="shortcode-example" style="margin-top: 8px;">
-                        <code>[6_week_intensives order_form="https://jazzedge.academy/order"]</code>
-                        <button class="button button-small copy-shortcode" data-shortcode='[6_week_intensives order_form="https://jazzedge.academy/order"]'>Copy</button>
+                    <p style="margin-top: 8px; font-size: 12px; color: #666;">Order form URL is set per intensive in Settings → Intensives (Keap or FluentCart).</p>
+                </div>
+                
+                <div class="alm-shortcode-card">
+                    <h3>CSMP Program Landing Page</h3>
+                    <p>Chord Shell Mastery Program (CSMP) landing page with hero, video, what you'll get, who it's for, founders price callout, and form. Outputs HTML/CSS for Oxygen Code Block.</p>
+                    <div class="shortcode-example">
+                        <code>[CSMP_program]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[CSMP_program]">Copy</button>
                     </div>
-                    <p style="margin-top: 8px; font-size: 12px; color: #666;"><strong>Attributes:</strong></p>
-                    <ul style="margin-top: 4px; font-size: 11px; color: #666; padding-left: 20px;">
-                        <li><code>order_form</code> (default: "https://jazzedge.academy/") - URL for the order form/purchase link</li>
-                    </ul>
                 </div>
                 
                 <div class="alm-shortcode-card">
@@ -1610,6 +1612,15 @@ class ALM_Shortcodes_Plugin {
                     <div class="shortcode-example">
                         <code>[jph_stats_widget]</code>
                         <button class="button button-small copy-shortcode" data-shortcode="[jph_stats_widget]">Copy</button>
+                    </div>
+                </div>
+
+                <div class="alm-shortcode-card">
+                    <h3>Streak Accounting</h3>
+                    <p>Detailed streak breakdown page with missing dates and fixes</p>
+                    <div class="shortcode-example">
+                        <code>[streak_accounting]</code>
+                        <button class="button button-small copy-shortcode" data-shortcode="[streak_accounting]">Copy</button>
                     </div>
                 </div>
                 
@@ -2806,6 +2817,14 @@ class ALM_Shortcodes_Plugin {
             $return .= '</div>';
             $return .= '</div>';
             
+            if ($has_access && $user_id) {
+                $timestamp_video_id = !empty($current_chapter->ID) ? intval($current_chapter->ID) : 0;
+                $return .= '<div class="alm-timestamp-toolbar" data-lesson-id="' . esc_attr($atts['lesson_id']) . '" data-video-id="' . esc_attr($timestamp_video_id) . '">';
+                $return .= '<button type="button" class="alm-add-timestamp-btn">Add Timestamp</button>';
+                $return .= '<span class="alm-timestamp-helper">Bookmark key moments to revisit later.</span>';
+                $return .= '</div>';
+            }
+            
             // Progress bar - calculate based on actual completion
             $completed_chapters = 0;
             $total_chapters = count($chapters);
@@ -3715,7 +3734,7 @@ class ALM_Shortcodes_Plugin {
                     // Individual intensive purchase option
                     $return .= '<div class="alm-upgrade-card" style="background: #ffffff; border: 2px solid #f04e23; border-radius: 12px; padding: 16px 24px; margin: 0; text-align: center; box-shadow: 0 4px 12px rgba(240, 78, 35, 0.15); max-width: 550px; width: 100%; margin-left: auto; margin-right: auto;">';
                     $return .= '<div style="font-size: 14px; font-weight: 700; color: #004555; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Purchase Individual Intensive</div>';
-                    $return .= '<p style="margin: 0 0 16px 0; font-size: 14px; color: #495057; line-height: 1.5;">Get access to this 6-week intensive program with lessons, practice actions, coaching sessions, and community support.</p>';
+                    $return .= '<p style="margin: 0 0 16px 0; font-size: 14px; color: #495057; line-height: 1.5;">Get access to this 6-week intensive program with lessons, practice actions, and community support.</p>';
                     $return .= '<a href="https://jazzedge.academy/intensive" class="alm-upgrade-card-btn" style="display: block; width: 100%; background: linear-gradient(135deg, #f04e23 0%, #d93d1a 100%); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(240, 78, 35, 0.3); text-align: center;">View Intensive Details →</a>';
                     $return .= '</div>';
                     
@@ -4208,6 +4227,43 @@ class ALM_Shortcodes_Plugin {
         // RIGHT COLUMN: Resources, Details, Collection
         $return .= '<div class="alm-sidebar-column">';
         
+        $timestamp_video_id = !empty($current_chapter->ID) ? intval($current_chapter->ID) : 0;
+        if ($has_access && $user_id && $timestamp_video_id) {
+            $timestamps = $wpdb->get_results($wpdb->prepare(
+                "SELECT ID, seconds, description FROM {$wpdb->prefix}alm_lesson_timestamps WHERE user_id = %d AND video_id = %d ORDER BY seconds ASC",
+                $user_id,
+                $timestamp_video_id
+            ));
+            
+            $return .= '<div class="alm-sidebar-card alm-timestamps-card" data-lesson-id="' . esc_attr($atts['lesson_id']) . '" data-video-id="' . esc_attr($timestamp_video_id) . '">';
+            $return .= '<div class="alm-card-header">TIMESTAMP BOOKMARKS</div>';
+            $return .= '<div class="alm-card-content">';
+            $return .= '<div class="alm-timestamp-card-actions">';
+            $return .= '<button type="button" class="alm-add-timestamp-btn">Add Timestamp</button>';
+            $return .= '</div>';
+            
+            if (empty($timestamps)) {
+                $return .= '<div class="alm-timestamp-empty">No timestamps yet. Pause the video and click Add Timestamp to bookmark a moment.</div>';
+            } else {
+                $return .= '<div class="alm-timestamp-list">';
+                foreach ($timestamps as $timestamp) {
+                    $seconds = intval($timestamp->seconds);
+                    $return .= '<div class="alm-timestamp-row" data-timestamp-id="' . esc_attr($timestamp->ID) . '" data-seconds="' . esc_attr($seconds) . '">';
+                    $return .= '<div class="alm-timestamp-time">' . esc_html($this->format_timestamp_time($seconds)) . '</div>';
+                    $return .= '<div class="alm-timestamp-description">' . esc_html($timestamp->description) . '</div>';
+                    $return .= '<div class="alm-timestamp-actions">';
+                    $return .= '<button type="button" class="alm-timestamp-view-btn">View this section</button>';
+                    $return .= '<button type="button" class="alm-timestamp-delete-btn" aria-label="Delete timestamp">Delete</button>';
+                    $return .= '</div>';
+                    $return .= '</div>';
+                }
+                $return .= '</div>';
+            }
+            
+            $return .= '</div>';
+            $return .= '</div>';
+        }
+        
         // Teacher Info Section
         $teacher_name = '';
         if (!empty($lesson->post_id) && function_exists('get_field')) {
@@ -4513,6 +4569,28 @@ class ALM_Shortcodes_Plugin {
             $return .= $lesson_debug_html;
         }
         $return .= '</div>'; // End alm-main-content-grid
+        
+        if ($has_access && $user_id) {
+            $return .= '<div id="alm-timestamp-modal" class="alm-timestamp-modal" style="display: none;">';
+            $return .= '<div class="alm-timestamp-modal-overlay"></div>';
+            $return .= '<div class="alm-timestamp-modal-content">';
+            $return .= '<div class="alm-timestamp-modal-header">';
+            $return .= '<h3>Add Timestamp</h3>';
+            $return .= '<button type="button" class="alm-timestamp-modal-close" aria-label="Close">×</button>';
+            $return .= '</div>';
+            $return .= '<div class="alm-timestamp-modal-body">';
+            $return .= '<div class="alm-timestamp-time-display">Time: <span id="alm-timestamp-current-time">0:00</span></div>';
+            $return .= '<label for="alm-timestamp-description">Description (optional)</label>';
+            $return .= '<input type="text" id="alm-timestamp-description" maxlength="50" placeholder="Key point about warm-up" />';
+            $return .= '<input type="hidden" id="alm-timestamp-seconds" value="0" />';
+            $return .= '</div>';
+            $return .= '<div class="alm-timestamp-modal-footer">';
+            $return .= '<button type="button" class="alm-timestamp-cancel-btn">Cancel</button>';
+            $return .= '<button type="button" class="alm-timestamp-save-btn">Add</button>';
+            $return .= '</div>';
+            $return .= '</div>';
+            $return .= '</div>';
+        }
         $return .= '</div>'; // End alm-lesson-complete
         
         // Add JavaScript for favorite button
@@ -9587,6 +9665,329 @@ class ALM_Shortcodes_Plugin {
             wp_send_json_error('Failed to delete note');
         }
     }
+
+    /**
+     * Normalize membership level to 0-3 scale for lesson access checks.
+     */
+    private function get_normalized_membership_level() {
+        $numeric_level = 0;
+        if (class_exists('ALM_Membership_Checker')) {
+            $numeric_level = intval(ALM_Membership_Checker::return_membership_level('numeric'));
+        }
+        
+        if ($numeric_level >= 99) {
+            return 3;
+        }
+        if ($numeric_level >= 20) {
+            return 2;
+        }
+        if ($numeric_level >= 1) {
+            return 1;
+        }
+        return 0;
+    }
+
+    /**
+     * Check if user can access a lesson.
+     */
+    private function user_can_access_lesson($lesson, $user_id, $user_level) {
+        if (!$user_id || !$lesson) {
+            return false;
+        }
+        
+        if (current_user_can('administrator')) {
+            return true;
+        }
+        
+        global $wpdb;
+        $has_access = false;
+        
+        // Check for old credit system purchases
+        $current_post_id = get_the_ID();
+        $lesson_post_id = !empty($lesson->post_id) ? $lesson->post_id : null;
+        $credit_log_purchase = null;
+        if ($current_post_id) {
+            $credit_log_purchase = $wpdb->get_var($wpdb->prepare(
+                "SELECT ID FROM academy_user_credit_log WHERE user_id = %d AND post_id = %d",
+                $user_id,
+                $current_post_id
+            ));
+        }
+        if (empty($credit_log_purchase) && $lesson_post_id && $lesson_post_id != $current_post_id) {
+            $credit_log_purchase = $wpdb->get_var($wpdb->prepare(
+                "SELECT ID FROM academy_user_credit_log WHERE user_id = %d AND post_id = %d",
+                $user_id,
+                $lesson_post_id
+            ));
+        }
+        if (!empty($credit_log_purchase)) {
+            $has_access = true;
+        }
+        
+        // Allow access via Keap tag override (if configured on lesson)
+        if (!$has_access && !empty($lesson->keap_tag_id) && function_exists('memb_hasAnyTags')) {
+            $tag_id = intval($lesson->keap_tag_id);
+            if ($tag_id > 0 && memb_hasAnyTags(array($tag_id))) {
+                $has_access = true;
+            }
+        }
+        
+        $lesson_level = intval($lesson->membership_level);
+        if (!$has_access) {
+            if ($lesson_level == 0) {
+                if ($user_level > 0) {
+                    $has_access = true;
+                }
+            } else {
+                $has_access = $user_level >= $lesson_level;
+            }
+        }
+        
+        // Essentials library access for Studio-level lessons
+        if (!$has_access && $user_level == 1 && $lesson_level == 2) {
+            if (class_exists('ALM_Essentials_Library')) {
+                $library = new ALM_Essentials_Library();
+                if ($library->has_lesson_in_library($user_id, intval($lesson->ID))) {
+                    $has_access = true;
+                }
+            }
+        }
+        
+        // Starter program lesson access for free users
+        if (!$has_access && $user_level == 0 && !empty($lesson->post_id)) {
+            $keap_tags = get_option('alm_keap_tags', array());
+            $starter_free_tag_ids = !empty($keap_tags['starter_free']) ? array_map('intval', array_filter(explode(',', $keap_tags['starter_free']))) : array();
+            $starter_paid_tag_ids = !empty($keap_tags['starter_paid']) ? array_map('intval', array_filter(explode(',', $keap_tags['starter_paid']))) : array();
+            
+            $has_starter_free = false;
+            $has_starter_paid = false;
+            
+            if (!empty($starter_free_tag_ids) && function_exists('memb_hasAnyTags')) {
+                $has_starter_free = memb_hasAnyTags($starter_free_tag_ids) === true;
+            }
+            if (!empty($starter_paid_tag_ids) && function_exists('memb_hasAnyTags')) {
+                $has_starter_paid = memb_hasAnyTags($starter_paid_tag_ids) === true;
+            }
+            
+            if ($has_starter_free) {
+                $free_trial_lesson_ids = get_option('alm_free_trial_lesson_ids', array());
+                $free_trial_lesson_ids = array_map('intval', $free_trial_lesson_ids);
+                $free_trial_lesson_ids = array_filter($free_trial_lesson_ids);
+                if (!empty($free_trial_lesson_ids) && in_array(intval($lesson->post_id), $free_trial_lesson_ids, true)) {
+                    $has_access = true;
+                }
+            }
+            
+            if (!$has_access && $has_starter_paid) {
+                $free_trial_lesson_ids = get_option('alm_free_trial_lesson_ids', array());
+                $starter_paid_lesson_ids = get_option('alm_starter_paid_lesson_ids', array());
+                $all_starter_lesson_ids = array_merge(
+                    array_map('intval', $free_trial_lesson_ids),
+                    array_map('intval', $starter_paid_lesson_ids)
+                );
+                $all_starter_lesson_ids = array_filter($all_starter_lesson_ids);
+                
+                if (!empty($all_starter_lesson_ids) && in_array(intval($lesson->post_id), $all_starter_lesson_ids, true)) {
+                    $has_access = true;
+                }
+            }
+        }
+        
+        return $has_access;
+    }
+
+    /**
+     * Format seconds into M:SS or H:MM:SS
+     */
+    private function format_timestamp_time($seconds) {
+        $seconds = intval($seconds);
+        if ($seconds <= 0) {
+            return '0:00';
+        }
+        
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        $secs = $seconds % 60;
+        
+        if ($hours > 0) {
+            return sprintf('%d:%02d:%02d', $hours, $minutes, $secs);
+        }
+        return sprintf('%d:%02d', $minutes, $secs);
+    }
+
+    /**
+     * AJAX handler: Add video timestamp
+     */
+    public function ajax_add_video_timestamp() {
+        check_ajax_referer('alm_timestamps_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        $video_id = isset($_POST['video_id']) ? intval($_POST['video_id']) : 0;
+        $seconds = isset($_POST['seconds']) ? intval($_POST['seconds']) : 0;
+        $description = isset($_POST['description']) ? sanitize_text_field(wp_unslash($_POST['description'])) : '';
+        
+        if (!$lesson_id || !$video_id) {
+            wp_send_json_error('Lesson and video are required');
+        }
+        
+        if ($seconds < 0) {
+            $seconds = 0;
+        }
+        
+        if (strlen($description) > 50) {
+            $description = substr($description, 0, 50);
+        }
+        
+        global $wpdb;
+        $lesson = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}alm_lessons WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            wp_send_json_error('Lesson not found');
+        }
+        
+        $user_level = $this->get_normalized_membership_level();
+        if (!$this->user_can_access_lesson($lesson, $user_id, $user_level)) {
+            wp_send_json_error('Access denied');
+        }
+        
+        $table_name = $wpdb->prefix . 'alm_lesson_timestamps';
+        $inserted = $wpdb->insert(
+            $table_name,
+            array(
+                'user_id' => $user_id,
+                'video_id' => $video_id,
+                'seconds' => $seconds,
+                'description' => $description,
+                'created_at' => current_time('mysql')
+            ),
+            array('%d', '%d', '%d', '%s', '%s')
+        );
+        
+        if (!$inserted) {
+            wp_send_json_error('Failed to save timestamp');
+        }
+        
+        wp_send_json_success(array(
+            'id' => $wpdb->insert_id,
+            'seconds' => $seconds,
+            'time' => $this->format_timestamp_time($seconds),
+            'description' => $description
+        ));
+    }
+
+    /**
+     * AJAX handler: Get video timestamps
+     */
+    public function ajax_get_video_timestamps() {
+        check_ajax_referer('alm_timestamps_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        $video_id = isset($_POST['video_id']) ? intval($_POST['video_id']) : 0;
+        
+        if (!$lesson_id || !$video_id) {
+            wp_send_json_error('Lesson and video are required');
+        }
+        
+        global $wpdb;
+        $lesson = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}alm_lessons WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            wp_send_json_error('Lesson not found');
+        }
+        
+        $user_level = $this->get_normalized_membership_level();
+        if (!$this->user_can_access_lesson($lesson, $user_id, $user_level)) {
+            wp_send_json_error('Access denied');
+        }
+        
+        $table_name = $wpdb->prefix . 'alm_lesson_timestamps';
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID, seconds, description, created_at FROM {$table_name} WHERE user_id = %d AND video_id = %d ORDER BY seconds ASC",
+            $user_id,
+            $video_id
+        ), ARRAY_A);
+        
+        $timestamps = array();
+        foreach ($rows as $row) {
+            $seconds = intval($row['seconds']);
+            $timestamps[] = array(
+                'id' => intval($row['ID']),
+                'seconds' => $seconds,
+                'time' => $this->format_timestamp_time($seconds),
+                'description' => $row['description']
+            );
+        }
+        
+        wp_send_json_success(array('timestamps' => $timestamps));
+    }
+
+    /**
+     * AJAX handler: Delete video timestamp
+     */
+    public function ajax_delete_video_timestamp() {
+        check_ajax_referer('alm_timestamps_nonce', 'nonce');
+        
+        $user_id = get_current_user_id();
+        if (!$user_id) {
+            wp_send_json_error('User not logged in');
+        }
+        
+        $timestamp_id = isset($_POST['timestamp_id']) ? intval($_POST['timestamp_id']) : 0;
+        $lesson_id = isset($_POST['lesson_id']) ? intval($_POST['lesson_id']) : 0;
+        
+        if (!$timestamp_id || !$lesson_id) {
+            wp_send_json_error('Timestamp and lesson are required');
+        }
+        
+        global $wpdb;
+        $lesson = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}alm_lessons WHERE ID = %d",
+            $lesson_id
+        ));
+        
+        if (!$lesson) {
+            wp_send_json_error('Lesson not found');
+        }
+        
+        $user_level = $this->get_normalized_membership_level();
+        if (!$this->user_can_access_lesson($lesson, $user_id, $user_level)) {
+            wp_send_json_error('Access denied');
+        }
+        
+        $table_name = $wpdb->prefix . 'alm_lesson_timestamps';
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT ID FROM {$table_name} WHERE ID = %d AND user_id = %d",
+            $timestamp_id,
+            $user_id
+        ));
+        
+        if (!$row) {
+            wp_send_json_error('Timestamp not found or access denied');
+        }
+        
+        $deleted = $wpdb->delete($table_name, array('ID' => $timestamp_id), array('%d'));
+        if ($deleted) {
+            wp_send_json_success(array('message' => 'Timestamp deleted'));
+        }
+        
+        wp_send_json_error('Failed to delete timestamp');
+    }
     
     /**
      * AJAX handler: Get lessons list for dropdown
@@ -9649,12 +10050,12 @@ class ALM_Shortcodes_Plugin {
             return '<p class="center bold_red">Membership functions are not available. Please contact support.</p>';
         }
 
-        global $install, $app;
+        global $app;
         
         // Initialize Keap connection if needed
         if (!isset($app) || !is_object($app)) {
-            // Try to include Keap connection
-            $keap_path = '/nas/content/live/' . (defined('INSTALL') ? INSTALL : $install) . '/keap_isdk/infusion_connect.php';
+            // Try to include Keap connection (uses ABSPATH for server-agnostic path)
+            $keap_path = ABSPATH . 'keap_isdk/infusion_connect.php';
             if (file_exists($keap_path)) {
                 include($keap_path);
             } else {
@@ -9793,16 +10194,15 @@ class ALM_Shortcodes_Plugin {
                     <h2>We\'re Sorry to See You Go</h2>
                     <div class="alm-modal-body">
                         <div class="alm-retention-message">
-                            <p><strong>Before you cancel, please consider:</strong></p>
+                            <p><strong>Before you cancel, we\'d love you to consider:</strong></p>
                             <ul class="alm-retention-list">
-                                <li><strong>You\'ll lose your special pricing:</strong> If you cancel and decide to return later, you\'ll need to pay the current membership rates, which may be higher than what you\'re paying now.</li>
-                                <li><strong>Your progress and data may be deleted:</strong> Canceling your membership may result in the loss of your practice progress, lesson history, favorites, notes, and other personalized data.</li>
-                                <li><strong>You\'ll lose access to all content:</strong> Once canceled, you\'ll immediately lose access to thousands of lessons, courses, classes, and resources you\'ve been enjoying.</li>
-                                <li><strong>Your learning momentum will be interrupted:</strong> Consistency is key to musical progress. Taking a break can make it harder to get back into your practice routine.</li>
+                                <li><strong>Think about how far you\'ve come:</strong> Every lesson you\'ve worked through has been building real playing ability. The progress you\'ve made—those moments when something finally clicked—that\'s yours, and we want to keep supporting you as you build on it.</li>
+                                <li><strong>You\'re on a path to real breakthroughs:</strong> The gains you\'ve made with our lessons are just the beginning. Staying with it means more of those moments when the music finally flows the way you\'ve been working toward.</li>
+                                <li><strong>Your momentum matters:</strong> The consistency you\'ve built—showing up, practicing, growing—is what turns lessons into lasting skills. We\'d hate to see that momentum slip when you\'re so close to the next breakthrough.</li>
                             </ul>
                             <div class="alm-retention-cta">
-                                <p><strong>Is there something we can help with instead?</strong></p>
-                                <p>If you\'re experiencing any issues or have concerns, please reach out to our support team. We\'re here to help make your membership work better for you.</p>
+                                <p><strong>We\'re here to help you.</strong></p>
+                                <p>If something isn\'t working, or you\'re feeling stuck, or you just need to talk it through—reach out. We\'re not a faceless support team. We\'re here for you, and we want to help you succeed.</p>
                             </div>
                         </div>
                         
@@ -9833,7 +10233,7 @@ class ALM_Shortcodes_Plugin {
                 background: #fff;
                 padding: 40px;
                 border-radius: 8px;
-                max-width: 700px;
+                max-width: 900px;
                 max-height: 90vh;
                 width: 90%;
                 position: relative;
@@ -17203,8 +17603,10 @@ class ALM_Shortcodes_Plugin {
             'days_repeat' => '' // days before showing again (overrides settings)
         ), $atts);
         
-        // Debug logging
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        $popup_debug_mode = get_option('alm_starter_popup_debug_mode', '0');
+        
+        // Debug logging (only when popup debug mode is explicitly enabled in admin)
+        if ($popup_debug_mode === '1') {
             error_log('[Starter Popup] Shortcode called with atts: ' . print_r($atts, true));
             error_log('[Starter Popup] Is front page: ' . (is_front_page() ? 'yes' : 'no'));
             error_log('[Starter Popup] Current page ID: ' . get_queried_object_id());
@@ -17217,7 +17619,7 @@ class ALM_Shortcodes_Plugin {
         $cache_version = get_option('alm_starter_popup_cache_version', '1');
         
         if ($popup_enabled !== '1') {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
+            if ($popup_debug_mode === '1') {
                 error_log('[Starter Popup] Popup is disabled, returning empty');
             }
             return ''; // Don't show anything if disabled
@@ -17231,29 +17633,27 @@ class ALM_Shortcodes_Plugin {
         // Get days before repeat - allow 0 (show immediately)
         $popup_days_before_repeat = !empty($atts['days_repeat']) ? absint($atts['days_repeat']) : absint(get_option('alm_starter_popup_days_before_repeat', 7));
         
-        // Debug logging
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        if ($popup_debug_mode === '1') {
             error_log('[Starter Popup] Days before repeat from option: ' . get_option('alm_starter_popup_days_before_repeat', 'NOT SET'));
             error_log('[Starter Popup] Days before repeat final value: ' . $popup_days_before_repeat);
         }
         $popup_test_mode = get_option('alm_starter_popup_test_mode', '0');
-        $popup_debug_mode = get_option('alm_starter_popup_debug_mode', '0');
         
         // Check audience
         $is_logged_in = is_user_logged_in();
         
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        if ($popup_debug_mode === '1') {
             error_log('[Starter Popup] Audience check: setting=' . $popup_audience . ', is_logged_in=' . ($is_logged_in ? 'yes' : 'no'));
         }
         
         if ($popup_audience === 'logged_in' && !$is_logged_in) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
+            if ($popup_debug_mode === '1') {
                 error_log('[Starter Popup] Filtered out: audience is logged_in but user is not logged in');
             }
             return '';
         }
         if ($popup_audience === 'logged_out' && $is_logged_in) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
+            if ($popup_debug_mode === '1') {
                 error_log('[Starter Popup] Filtered out: audience is logged_out but user is logged in');
             }
             return '';
@@ -17301,14 +17701,13 @@ class ALM_Shortcodes_Plugin {
             }
         }
         
-        // Check page targeting
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        if ($popup_debug_mode === '1') {
             error_log('[Starter Popup] Page targeting: target=' . $popup_page_target . ', target_page_ids=' . implode(',', $popup_target_page_ids) . ', exclude_page_ids=' . implode(',', $popup_exclude_page_ids) . ', current_page_id=' . $current_page_id);
         }
         
         // First check: if page is in exclude list, don't show
         if (!empty($popup_exclude_page_ids) && in_array($current_page_id, $popup_exclude_page_ids)) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
+            if ($popup_debug_mode === '1') {
                 error_log('[Starter Popup] Filtered out: page is in exclude list');
             }
             return ''; // Don't show popup if page is excluded
@@ -17317,26 +17716,25 @@ class ALM_Shortcodes_Plugin {
         // Second check: if specific pages are set, only show on those pages
         if ($popup_page_target === 'specific' && !empty($popup_target_page_ids)) {
             if (!in_array($current_page_id, $popup_target_page_ids)) {
-                if (defined('WP_DEBUG') && WP_DEBUG) {
+                if ($popup_debug_mode === '1') {
                     error_log('[Starter Popup] Filtered out: page not in target list');
                 }
                 return ''; // Don't show popup if not in target pages
             }
         }
         
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        if ($popup_debug_mode === '1') {
             error_log('[Starter Popup] Page targeting: popup will show on this page');
         }
         
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        if ($popup_debug_mode === '1') {
             error_log('[Starter Popup] All checks passed, rendering popup HTML');
             error_log('[Starter Popup] Days before repeat from DB: ' . $popup_days_before_repeat);
         }
         
         ob_start();
         
-        // Add debug output if WP_DEBUG is enabled
-        if (defined('WP_DEBUG') && WP_DEBUG) {
+        if ($popup_debug_mode === '1') {
             echo '<!-- Starter Popup Debug: Enabled=' . esc_html($popup_enabled) . ', Page Target=' . esc_html($popup_page_target) . ', Target Page IDs=' . esc_html(implode(',', $popup_target_page_ids)) . ', Exclude Page IDs=' . esc_html(implode(',', $popup_exclude_page_ids)) . ', Current Page ID=' . esc_html($current_page_id) . ', Is Front Page=' . (is_front_page() ? 'yes' : 'no') . ', Audience=' . esc_html($popup_audience) . ', Is Logged In=' . ($is_logged_in ? 'yes' : 'no') . ', Days Repeat=' . esc_html($popup_days_before_repeat) . ' -->';
         }
         ?>
@@ -19106,7 +19504,7 @@ class ALM_Shortcodes_Plugin {
         <?php
         return ob_get_clean();
     }
-    
+
     /**
      * 6-Week Intensives Landing Page Shortcode
      * 
@@ -19114,9 +19512,7 @@ class ALM_Shortcodes_Plugin {
      * @return string HTML output
      */
     public function six_week_intensives_shortcode($atts) {
-        $atts = shortcode_atts(array(
-            'order_form' => 'https://jazzedge.academy/'
-        ), $atts);
+        $atts = shortcode_atts(array(), $atts);
         
         // Enqueue microtip CSS for tooltips
         wp_enqueue_style('microtip', 'https://unpkg.com/microtip/microtip.css', array(), null);
@@ -19127,8 +19523,8 @@ class ALM_Shortcodes_Plugin {
         $intensives_table = $database->get_table_name('intensives');
         $intensive = $wpdb->get_row("SELECT order_form_url, skill_level, title, song_name, start_date, end_date, retail_price, sale_price FROM {$intensives_table} WHERE is_active = 1 ORDER BY display_order ASC, start_date DESC LIMIT 1", ARRAY_A);
         
-        // Use database order form URL if available, otherwise use shortcode attribute
-        $order_form_url = !empty($intensive['order_form_url']) ? esc_url($intensive['order_form_url']) : esc_url($atts['order_form']);
+        // Order form URL from database only (no shortcode attribute)
+        $order_form_url = !empty($intensive['order_form_url']) ? esc_url($intensive['order_form_url']) : esc_url(home_url('/join'));
         $join_url = esc_url(home_url('/join'));
         
         // Get pricing from database
@@ -19154,8 +19550,8 @@ class ALM_Shortcodes_Plugin {
         );
         $skill_level_label = isset($skill_levels[$skill_level]) ? $skill_levels[$skill_level] : ucfirst($skill_level);
         
-        // Get all intensives for "What's Coming Next" section
-        $all_intensives = $wpdb->get_results("SELECT ID, title, song_name, description, start_date, end_date, skill_level, display_order FROM {$intensives_table} WHERE is_active = 1 ORDER BY display_order ASC, start_date ASC", ARRAY_A);
+        // Get all intensives for "What's Coming Next" section (include pricing & sale state)
+        $all_intensives = $wpdb->get_results("SELECT ID, title, song_name, description, start_date, end_date, skill_level, display_order, retail_price, sale_price, sale_active, fluentcart_product_url, available_for_sale FROM {$intensives_table} WHERE is_active = 1 ORDER BY display_order ASC, start_date ASC", ARRAY_A);
         
         // Get song name for main intensive
         $song_name = !empty($intensive['song_name']) ? $intensive['song_name'] : '';
@@ -19185,25 +19581,28 @@ class ALM_Shortcodes_Plugin {
                 overflow: hidden;
             }
             
-            .intensives-hero::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                right: 0;
-                width: 40%;
-                height: 100%;
-                background-image: url('https://jazzedge.academy/wp-content/uploads/2025/02/3-Must-Know-Blues-Endings-1.jpg');
-                background-size: cover;
-                background-position: center;
-                opacity: 0.15;
-                z-index: 0;
-            }
-            
             .intensives-hero > * {
                 position: relative;
                 z-index: 1;
             }
             
+            .intensives-videos-side-by-side {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+                margin-top: 40px;
+                max-width: 1000px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            @media (max-width: 768px) {
+                .intensives-videos-side-by-side {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .intensives-videos-side-by-side .video-wrapper {
+                margin: 0;
+            }
             .hero-video-container {
                 margin-bottom: 40px;
                 border-radius: 16px;
@@ -19219,6 +19618,21 @@ class ALM_Shortcodes_Plugin {
                 height: auto;
                 display: block;
                 background: #000;
+            }
+            
+            .intensives-hero .hero-eyebrow {
+                margin: 0 0 16px 0;
+            }
+            .hero-eyebrow-pill {
+                display: inline-block;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: #004555;
+                background: rgba(255, 255, 255, 0.95);
+                padding: 10px 20px;
+                border-radius: 50px;
             }
             
             .intensives-hero h1 {
@@ -19254,28 +19668,28 @@ class ALM_Shortcodes_Plugin {
                 border: 2px solid #239B90;
             }
             
-            .intensive-primary-header {
+            .intensive-featured > div:first-child {
                 text-align: center;
                 margin-bottom: 40px;
                 padding-bottom: 30px;
                 border-bottom: 3px solid #239B90;
             }
             
-            .intensive-primary-header .intensive-title {
+            .intensive-featured .intensive-title {
                 font-size: 42px;
                 font-weight: 800;
                 color: #004555;
                 margin: 0 0 16px 0;
             }
             
-            .intensive-primary-header .intensive-subtitle {
+            .intensive-featured .intensive-subtitle {
                 font-size: 24px;
                 color: #6c757d;
                 font-weight: 500;
                 margin: 0;
             }
             
-            .intensive-primary-header .skill-level-badge {
+            .intensive-featured .skill-level-badge {
                 display: inline-block;
                 padding: 6px 16px;
                 color: white;
@@ -19288,23 +19702,23 @@ class ALM_Shortcodes_Plugin {
             }
             
             /* Skill level badge colors matching lesson collections */
-            .intensive-primary-header .skill-level-badge.beg,
-            .intensive-primary-header .skill-level-badge.beginner {
+            .intensive-featured .skill-level-badge.beg,
+            .intensive-featured .skill-level-badge.beginner {
                 background: #46b450;
             }
             
-            .intensive-primary-header .skill-level-badge.int,
-            .intensive-primary-header .skill-level-badge.intermediate {
+            .intensive-featured .skill-level-badge.int,
+            .intensive-featured .skill-level-badge.intermediate {
                 background: #239B90;
             }
             
-            .intensive-primary-header .skill-level-badge.adv,
-            .intensive-primary-header .skill-level-badge.advanced {
+            .intensive-featured .skill-level-badge.adv,
+            .intensive-featured .skill-level-badge.advanced {
                 background: #f0ad4e;
             }
             
-            .intensive-primary-header .skill-level-badge.pro,
-            .intensive-primary-header .skill-level-badge.professional {
+            .intensive-featured .skill-level-badge.pro,
+            .intensive-featured .skill-level-badge.professional {
                 background: #dc3232;
             }
             
@@ -19317,7 +19731,7 @@ class ALM_Shortcodes_Plugin {
                 flex-wrap: wrap;
             }
             
-            .intensive-primary-header .intensive-dates {
+            .intensive-featured .intensive-dates {
                 margin-top: 30px;
                 margin-bottom: 0;
             }
@@ -19391,7 +19805,7 @@ class ALM_Shortcodes_Plugin {
             }
             
             /* Who This Is For Section */
-            .intensive-audience {
+            .intensive-featured > div:nth-child(2) {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 40px;
@@ -19522,10 +19936,9 @@ class ALM_Shortcodes_Plugin {
             }
             
             .structure-grid {
-                display: flex;
-                flex-direction: column;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
                 gap: 24px;
-                max-width: 800px;
                 margin: 0 auto;
             }
             
@@ -19685,23 +20098,23 @@ class ALM_Shortcodes_Plugin {
             .intensive-process {
                 background: linear-gradient(135deg, #004555 0%, #239B90 100%);
                 border-radius: 16px;
-                padding: 60px;
-                margin: 60px 0;
+                padding: 36px 40px;
+                margin: 40px 0;
                 color: white;
             }
             
             .intensive-process h3 {
-                font-size: 36px;
+                font-size: 28px;
                 font-weight: 700;
-                margin: 0 0 50px 0;
+                margin: 0 0 28px 0;
                 text-align: center;
             }
             
             .process-steps {
-                display: flex;
-                flex-direction: column;
-                gap: 30px;
-                max-width: 800px;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 20px;
+                max-width: 1000px;
                 margin: 0 auto;
             }
             
@@ -19709,9 +20122,8 @@ class ALM_Shortcodes_Plugin {
                 background: rgba(255, 255, 255, 0.1);
                 backdrop-filter: blur(10px);
                 border-radius: 12px;
-                padding: 30px;
+                padding: 20px;
                 border: 1px solid rgba(255, 255, 255, 0.2);
-                width: 100%;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -19719,32 +20131,33 @@ class ALM_Shortcodes_Plugin {
             
             .process-step-image {
                 width: 100%;
-                max-width: 400px;
-                height: 250px;
+                max-width: 200px;
+                height: 120px;
                 object-fit: cover;
-                border-radius: 12px;
-                margin-bottom: 24px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+                border-radius: 8px;
+                margin-bottom: 12px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             }
             
             .process-step-number {
                 display: inline-block;
                 background: white;
                 color: #004555;
-                width: 50px;
-                height: 50px;
+                width: 36px;
+                height: 36px;
                 border-radius: 50%;
-                line-height: 50px;
+                line-height: 36px;
                 text-align: center;
-                font-size: 24px;
+                font-size: 18px;
                 font-weight: 800;
-                margin-bottom: 20px;
+                margin-bottom: 12px;
             }
             
             .process-step h4 {
-                font-size: 24px;
+                font-size: 18px;
                 font-weight: 700;
-                margin: 0 0 16px 0;
+                margin: 0 0 10px 0;
+                text-align: center;
             }
             
             .process-step ul {
@@ -19754,17 +20167,17 @@ class ALM_Shortcodes_Plugin {
             }
             
             .process-step li {
-                padding: 10px 0 10px 28px;
+                padding: 4px 0 4px 18px;
                 position: relative;
-                font-size: 16px;
-                line-height: 1.6;
+                font-size: 14px;
+                line-height: 1.45;
             }
             
             .process-step li::before {
                 content: '•';
                 position: absolute;
                 left: 0;
-                font-size: 24px;
+                font-size: 18px;
                 line-height: 1;
             }
             
@@ -20076,39 +20489,50 @@ class ALM_Shortcodes_Plugin {
             
             /* Why This Works */
             .intensive-positioning {
-                background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-                border-radius: 16px;
-                padding: 60px;
-                margin: 60px 0;
-                text-align: center;
-                border: 2px solid #e9ecef;
-                display: flex;
-                flex-direction: column;
+                display: grid;
+                grid-template-columns: 220px 1fr;
+                gap: 32px;
                 align-items: center;
+                background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+                border-radius: 12px;
+                padding: 28px 36px;
+                margin: 40px 0;
+                border-left: 5px solid #239B90;
+                box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
             }
             
             .intensive-positioning-image {
                 width: 100%;
-                max-width: 600px;
-                height: 350px;
+                height: 160px;
                 object-fit: cover;
-                border-radius: 12px;
-                margin-bottom: 40px;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+            
+            .intensive-positioning-content {
+                min-width: 0;
             }
             
             .intensive-positioning h3 {
-                font-size: 32px;
+                font-size: 22px;
                 font-weight: 700;
                 color: #004555;
-                margin: 0 0 24px 0;
+                margin: 0 0 12px 0;
             }
             
             .intensive-positioning p {
-                font-size: 18px;
-                line-height: 1.8;
+                font-size: 15px;
+                line-height: 1.55;
                 color: #212529;
-                margin: 0 0 20px 0;
+                margin: 0 0 8px 0;
+            }
+            
+            .intensive-positioning p:last-child {
+                margin-top: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                color: #004555;
+                margin-bottom: 0;
             }
             
             /* Upcoming Intensives */
@@ -20231,8 +20655,10 @@ class ALM_Shortcodes_Plugin {
                 border-top: 1px solid #e9ecef;
             }
             
-            .intensive-card-order-btn {
-                display: inline-block;
+            .intensive-card-order-btn,
+            .btn-view-pricing {
+                display: block;
+                width: 100%;
                 background: linear-gradient(135deg, #239B90 0%, #1e7a6b 100%);
                 color: white;
                 padding: 12px 24px;
@@ -20244,9 +20670,12 @@ class ALM_Shortcodes_Plugin {
                 transition: all 0.3s ease;
                 margin-top: auto;
                 box-shadow: 0 2px 8px rgba(35, 155, 144, 0.3);
+                border: none;
+                cursor: pointer;
             }
             
-            .intensive-card-order-btn:hover {
+            .intensive-card-order-btn:hover,
+            .btn-view-pricing:hover {
                 transform: translateY(-2px);
                 box-shadow: 0 4px 12px rgba(35, 155, 144, 0.4);
                 color: white;
@@ -20288,50 +20717,112 @@ class ALM_Shortcodes_Plugin {
             
             /* Final CTA */
             .final-cta {
-                background: linear-gradient(135deg, #004555 0%, #239B90 100%);
-                border-radius: 16px;
-                padding: 60px;
-                margin: 60px 0;
+                background: linear-gradient(135deg, #004555 0%, #1e7a6b 100%);
+                border-radius: 20px;
+                padding: 56px 48px;
+                margin: 64px 0;
                 text-align: center;
                 color: white;
+                border: 3px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 12px 40px rgba(0, 69, 85, 0.35);
             }
             
             .final-cta h3 {
-                font-size: 36px;
-                font-weight: 700;
-                margin: 0 0 24px 0;
+                font-size: 32px;
+                font-weight: 800;
+                margin: 0 0 16px 0;
+                letter-spacing: -0.02em;
             }
             
             .final-cta p {
-                font-size: 20px;
-                line-height: 1.7;
-                margin: 0 0 30px 0;
+                font-size: 18px;
+                line-height: 1.65;
+                margin: 0 0 28px 0;
                 opacity: 0.95;
+                max-width: 640px;
+                margin-left: auto;
+                margin-right: auto;
             }
             
             .final-cta .cta-button {
                 display: inline-block;
-                background: white;
-                color: #004555;
-                padding: 20px 50px;
+                background: #f04e23;
+                color: white;
+                padding: 18px 44px;
                 border-radius: 12px;
                 text-decoration: none;
-                font-size: 20px;
+                font-size: 18px;
                 font-weight: 700;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-                transition: all 0.3s ease;
+                box-shadow: 0 4px 20px rgba(240, 78, 35, 0.4);
+                transition: all 0.25s ease;
             }
             
             .final-cta .cta-button:hover {
-                transform: translateY(-3px);
-                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 28px rgba(240, 78, 35, 0.5);
+                color: white;
             }
-            
+
+            /* Student review pull quotes */
+            .intensives-review-quotes {
+                margin: 56px 0;
+            }
+            .intensives-review-quotes h3 {
+                font-size: 28px;
+                font-weight: 700;
+                text-align: center;
+                margin: 0 0 32px 0;
+                color: #1e293b;
+            }
+            .intensives-review-quotes-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 24px;
+                max-width: 1100px;
+                margin: 0 auto;
+            }
+            .intensives-review-card {
+                display: flex;
+                flex-direction: column;
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                padding: 28px 24px;
+                box-shadow: 0 4px 16px rgba(0, 69, 85, 0.08);
+                min-height: 220px;
+            }
+            .intensives-review-card .review-quote {
+                flex: 1;
+                font-size: 16px;
+                line-height: 1.6;
+                color: #334155;
+                margin: 0 0 20px 0;
+            }
+            .intensives-review-card .review-attribution {
+                font-size: 14px;
+                font-weight: 600;
+                color: #004555;
+                margin: 0;
+            }
+            @media (max-width: 900px) {
+                .intensives-review-quotes-grid {
+                    grid-template-columns: 1fr;
+                }
+                .intensives-review-card {
+                    min-height: 180px;
+                }
+            }
             
             /* Responsive */
             @media (max-width: 768px) {
                 .intensives-hero {
                     padding: 50px 30px;
+                }
+                
+                .hero-eyebrow-pill {
+                    font-size: 11px;
+                    padding: 8px 16px;
+                    letter-spacing: 0.15em;
                 }
                 
                 .intensives-hero h1 {
@@ -20350,7 +20841,7 @@ class ALM_Shortcodes_Plugin {
                     padding: 40px 30px;
                 }
                 
-                .intensive-primary-header .intensive-title {
+                .intensive-featured .intensive-title {
                     font-size: 32px;
                 }
                 
@@ -20393,7 +20884,7 @@ class ALM_Shortcodes_Plugin {
                     font-size: 16px;
                 }
                 
-                .intensive-audience {
+                .intensive-featured > div:nth-child(2) {
                     grid-template-columns: 1fr;
                 }
                 
@@ -20402,6 +20893,7 @@ class ALM_Shortcodes_Plugin {
                 }
                 
                 .structure-grid {
+                    grid-template-columns: 1fr;
                     max-width: 100%;
                 }
                 
@@ -20418,6 +20910,7 @@ class ALM_Shortcodes_Plugin {
                 }
                 
                 .process-steps {
+                    grid-template-columns: 1fr;
                     max-width: 100%;
                 }
                 
@@ -20436,9 +20929,19 @@ class ALM_Shortcodes_Plugin {
                     padding: 40px 20px;
                 }
                 
-                .structure-item-image,
-                .process-step-image,
+                .intensive-positioning {
+                    grid-template-columns: 1fr;
+                    gap: 20px;
+                }
+                
                 .intensive-positioning-image {
+                    max-width: 200px;
+                    height: 120px;
+                    justify-self: start;
+                }
+                
+                .structure-item-image,
+                .process-step-image {
                     max-width: 100%;
                     height: auto;
                 }
@@ -20448,399 +20951,439 @@ class ALM_Shortcodes_Plugin {
                     height: auto;
                 }
             }
+
+            /* Recorded callout */
+            .intensives-recorded-callout {
+                display: flex;
+                align-items: flex-start;
+                gap: 16px;
+                background: linear-gradient(135deg, #f0f8f7 0%, #e8f5e9 100%);
+                border-left: 5px solid #239B90;
+                border-radius: 0 12px 12px 0;
+                padding: 20px 24px;
+                margin: 24px 0;
+                font-size: 16px;
+                color: #004555;
+                line-height: 1.6;
+                box-shadow: 0 2px 12px rgba(35, 155, 144, 0.12);
+            }
+            .intensives-recorded-icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 36px;
+                height: 36px;
+                min-width: 36px;
+                background: #239B90;
+                color: #fff;
+                border-radius: 50%;
+                font-size: 12px;
+                padding-left: 3px;
+            }
+
+            /* Enrollment / Coming Soon pills */
+            .intensive-status-pill {
+                display: inline-block;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .intensive-status-pill.enrollment-open {
+                background: #46b450;
+                color: #fff;
+            }
+            .intensive-status-pill.coming-soon {
+                background: #9ca3af;
+                color: #fff;
+            }
+
+            /* Sticky Bundle Bar */
+            .sticky-bundle-bar {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: #0f4a4a;
+                color: #fff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 14px 24px;
+                z-index: 9998;
+                transform: translateY(100%);
+                transition: transform 0.3s ease;
+            }
+            .sticky-bundle-bar-content {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 20px;
+                flex-wrap: wrap;
+            }
+            .sticky-bundle-bar.is-visible {
+                transform: translateY(0);
+            }
+            .sticky-bundle-cta {
+                background: #f04e23;
+                color: #fff;
+                padding: 8px 20px;
+                border-radius: 6px;
+                font-weight: 700;
+                text-decoration: none;
+                white-space: nowrap;
+            }
+            .sticky-bundle-cta:hover {
+                color: #fff;
+                background: #d6391c;
+            }
+            #sticky-bundle-close {
+                position: absolute;
+                right: 16px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: #fff;
+                font-size: 1.4rem;
+                cursor: pointer;
+                opacity: 0.7;
+            }
+
+            /* Video wrapper */
+            .video-wrapper {
+                position: relative;
+                padding-bottom: 56.25%;
+                height: 0;
+                overflow: hidden;
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+                margin: 24px 0;
+            }
+            .video-wrapper iframe,
+            .video-wrapper video {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                border: 0;
+            }
+
+            /* Pricing Modal */
+            #intensives-pricing-modal {
+                display: none;
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                align-items: center;
+                justify-content: center;
+            }
+            #intensives-pricing-modal.is-open {
+                display: flex;
+            }
+            .intensives-modal-overlay {
+                position: absolute;
+                inset: 0;
+                background: rgba(0,0,0,0.6);
+            }
+            .intensives-modal-inner {
+                position: relative;
+                z-index: 1;
+                background: #fff;
+                border-radius: 20px;
+                padding: 40px 44px 44px;
+                max-width: 860px;
+                width: 92%;
+                max-height: 90vh;
+                overflow-y: auto;
+                box-shadow: 0 24px 64px rgba(0,0,0,0.25);
+            }
+            .intensives-modal-header {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                margin-bottom: 24px;
+                padding-right: 52px;
+            }
+            .intensives-modal-header h3 {
+                margin: 0;
+                font-size: 24px;
+                color: #004555;
+                text-align: center;
+                max-width: 100%;
+            }
+            .intensives-modal-close {
+                position: absolute;
+                right: 0;
+                top: 0;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: rgba(0, 0, 0, 0.06);
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                font-size: 1.25rem;
+                line-height: 1;
+                cursor: pointer;
+                color: #6c757d;
+                padding: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.2s, color 0.2s;
+            }
+            .intensives-modal-close:hover {
+                background: rgba(0, 0, 0, 0.12);
+                color: #004555;
+            }
+            .intensives-modal-level-badge {
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                color: #fff;
+            }
+            .intensives-modal-level-badge.beg,
+            .intensives-modal-level-badge.beginner { background: #46b450; }
+            .intensives-modal-level-badge.int,
+            .intensives-modal-level-badge.intermediate { background: #239B90; }
+            .intensives-modal-level-badge.adv,
+            .intensives-modal-level-badge.advanced { background: #f0ad4e; }
+            .intensives-modal-level-badge.pro,
+            .intensives-modal-level-badge.professional { background: #dc3232; }
+            .intensives-modal-premier {
+                margin-top: 28px;
+                padding: 28px 32px 32px;
+                background: linear-gradient(180deg, #f8fafb 0%, #fff 100%);
+                border-radius: 12px;
+                border: 1px solid #e5e7eb;
+                text-align: center;
+            }
+            .intensives-modal-premier h4 {
+                margin: 0 0 12px 0;
+                font-size: 17px;
+                font-weight: 700;
+                color: #004555;
+                letter-spacing: -0.01em;
+            }
+            .intensives-modal-premier-lead {
+                margin: 0 0 8px 0;
+                font-size: 15px;
+                line-height: 1.5;
+                color: #475569;
+            }
+            .intensives-modal-premier-coaching {
+                margin: 0 0 20px 0;
+                font-size: 14px;
+                color: #64748b;
+                line-height: 1.45;
+            }
+            .intensives-modal-premier-coaching strong {
+                color: #004555;
+                font-weight: 600;
+            }
+            .intensives-modal-cta-premier {
+                display: inline-block;
+                padding: 14px 32px;
+                background: #004555 !important;
+                color: #fff !important;
+                font-weight: 700;
+                font-size: 15px;
+                border-radius: 10px;
+                text-decoration: none;
+                transition: background 0.2s, transform 0.15s;
+            }
+            .intensives-modal-cta-premier:hover {
+                background: #003540 !important;
+                color: #fff !important;
+                transform: translateY(-1px);
+            }
+            .intensives-modal-coming-soon {
+                padding: 20px 0 0;
+            }
+            .intensives-modal-coming-soon-message {
+                font-size: 16px;
+                color: #334155;
+                margin: 0 0 20px 0;
+                line-height: 1.5;
+            }
+            .intensives-modal-coming-soon-cta {
+                font-size: 15px;
+                font-weight: 600;
+                color: #004555;
+                margin: 0 0 16px 0;
+            }
+            .intensives-modal-cards {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                margin-top: 24px;
+            }
+            @media (max-width: 600px) {
+                .intensives-modal-inner {
+                    padding: 28px 24px 32px;
+                }
+                .intensives-modal-cards {
+                    grid-template-columns: 1fr;
+                }
+                .intensives-modal-premier {
+                    padding: 22px 20px 26px;
+                }
+            }
+            .intensives-modal-card {
+                border: 2px solid #e0e0e0;
+                border-radius: 12px;
+                padding: 24px;
+                display: flex;
+                flex-direction: column;
+            }
+            .intensives-modal-card-best {
+                border-color: #f04e23;
+                position: relative;
+            }
+            .intensives-modal-card-best::before {
+                content: "BEST VALUE";
+                position: absolute;
+                top: -12px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #1a7a6e;
+                color: #fff;
+                font-size: 0.65rem;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                padding: 3px 12px;
+                border-radius: 20px;
+            }
+            .intensives-modal-card h4 {
+                margin: 0 0 16px 0;
+                font-size: 18px;
+                color: #004555;
+            }
+            .intensives-modal-price {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin: 8px 0 16px;
+                flex-wrap: wrap;
+            }
+            .intensives-modal-price .price-sale,
+            .intensives-modal-price .price-regular {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #1a7a6e;
+            }
+            .intensives-modal-price .price-retail-strikethrough {
+                font-size: 1.25rem;
+                color: #999;
+                text-decoration: line-through;
+            }
+            .intensives-modal-price .badge-discount {
+                background: #e8533a;
+                color: #fff;
+                font-size: 0.7rem;
+                font-weight: 700;
+                letter-spacing: 0.05em;
+                padding: 3px 8px;
+                border-radius: 4px;
+                text-transform: uppercase;
+            }
+            .intensives-modal-individual-desc,
+            .intensives-modal-bundle-message {
+                font-size: 15px;
+                line-height: 1.5;
+                color: #495057;
+                margin: 12px 0 16px 0;
+                font-weight: 400;
+            }
+            .intensives-modal-bundle-price-line {
+                font-size: 1.25rem;
+                margin-bottom: 12px;
+            }
+            .intensives-modal-bundle-price-line .price-retail {
+                text-decoration: line-through;
+                color: #999;
+                font-weight: 400;
+            }
+            .intensives-modal-bundle-price-line .price-sale {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #1a7a6e;
+            }
+            .intensives-modal-bundle-price-line .price-save {
+                color: #0f4a4a;
+                font-weight: 600;
+            }
+            .intensives-modal-strikethrough,
+            .intensives-modal-save,
+            .intensives-modal-note {
+                display: block;
+                font-size: 14px;
+                color: #6c757d;
+                margin-bottom: 8px;
+            }
+            .intensives-modal-strikethrough {
+                text-decoration: line-through;
+            }
+            .intensives-modal-card .intensives-modal-cta {
+                margin-top: auto;
+            }
+            .intensives-modal-cta {
+                display: inline-block;
+                margin-top: 16px;
+                padding: 12px 24px;
+                background: #1a7a6e;
+                color: #fff;
+                border-radius: 8px;
+                font-weight: 700;
+                text-decoration: none;
+            }
+            .intensives-modal-cta:hover {
+                color: #fff;
+            }
+            .intensives-modal-cta-bundle {
+                background: #0f4a4a;
+            }
             </style>
             
             <!-- Hero Section -->
             <div class="intensives-hero">
-                <div class="hero-video-container">
-                    <video id="intensives-hero-video" class="hero-video" controls playsinline poster="https://jazzedge.academy/wp-content/uploads/2026/01/intensives-promo-splash.jpg">
-                        <source src="https://vz-0696d3da-4b7.b-cdn.net/0f2f3504-c500-4210-af10-82c712fcb3ba/playlist.m3u8" type="application/x-mpegURL">
-                        Your browser does not support the video tag.
-                    </video>
+                <p class="hero-eyebrow"><span class="hero-eyebrow-pill">6-WEEK PIANO INTENSIVES</span></p>
+                <h1>Learn Piano in a Stepwise Way — Without Overwhelm</h1>
+                <p class="hero-subheadline">6-Week Guided Intensives That Build Real Skills, One Focus at a Time</p>
+                <p class="hero-supporting">A clear, repeatable system for learning piano — whether jazz, rock, blues, or gospel. No theory overload. No guessing. Just a structured path that works.</p>
+                <div class="intensives-videos-side-by-side">
+                    <div class="video-wrapper">
+                        <video id="intensives-hero-video" class="hero-video" controls playsinline poster="https://jazzedge.academy/wp-content/uploads/2026/01/intensives-promo-splash.jpg" loading="lazy">
+                            <source src="https://vz-0696d3da-4b7.b-cdn.net/0f2f3504-c500-4210-af10-82c712fcb3ba/playlist.m3u8" type="application/x-mpegURL">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div class="video-wrapper">
+                        <video id="intensives-presentation-video" class="hero-video" controls playsinline poster="https://jazzedge.academy/wp-content/uploads/2026/01/intensives-full.jpg" loading="lazy">
+                            <source src="https://vz-0696d3da-4b7.b-cdn.net/2000c166-44e0-4c3d-b749-aa9cff767456/playlist.m3u8" type="application/x-mpegURL">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
                 </div>
-                <h1>Build a Complete Jazz Piano Arrangement — Step by Step — Without Overwhelm</h1>
-                <p class="hero-subheadline">A 6-Week Guided Intensive for Beginners Using My Romance</p>
-                <p class="hero-supporting">Learn a clear, repeatable way to turn a lead sheet into a confident, elegant cocktail-style piano arrangement — even if jazz harmony has always felt confusing.</p>
             </div>
-            
-            <!-- Intensives Presentation Video -->
-            <div id="intensives-presentation" class="intensives-presentation-section" style="max-width: 1200px; margin: 60px auto; padding: 0 20px;">
-                <div class="hero-video-container">
-                    <video id="intensives-presentation-video" class="hero-video" controls playsinline poster="https://jazzedge.academy/wp-content/uploads/2026/01/intensives-full.jpg">
-                        <source src="https://vz-0696d3da-4b7.b-cdn.net/2000c166-44e0-4c3d-b749-aa9cff767456/playlist.m3u8" type="application/x-mpegURL">
-                        Your browser does not support the video tag.
-                    </video>
+
+            <!-- Sticky Bundle CTA Bar -->
+            <div id="sticky-bundle-bar" class="sticky-bundle-bar">
+                <div class="sticky-bundle-bar-content">
+                    <span>Get All 6 Intensives for <strong>$597</strong> — Save $900</span>
+                    <a href="https://ft217.infusionsoft.com/app/orderForms/intensives-bundle" class="sticky-bundle-cta">Claim Bundle Deal &rarr;</a>
                 </div>
-            </div>
-            
-            <!-- Intensive #1 - Primary Offer -->
-            <div class="intensive-primary">
-                <div class="intensive-primary-header">
-                    <h2 class="intensive-title"><?php echo !empty($song_name) ? esc_html($song_name) : 'My Romance'; ?></h2>
-                    <p class="intensive-subtitle"><?php echo !empty($intensive['title']) ? esc_html($intensive['title']) : 'Cocktail Piano & Jazz Standards for Beginners'; ?></p>
-                    <span class="skill-level-badge <?php echo esc_attr(strtolower($skill_level)); ?>"><?php echo esc_html($skill_level_label); ?></span>
-                </div>
-                
-                <!-- Who This Is For -->
-                <div class="intensive-audience">
-                    <div class="audience-box for">
-                        <h3>Who This Is For</h3>
-                        <ul>
-                            <li>Beginner to early-intermediate pianists</li>
-                            <li>Players new to jazz standards</li>
-                            <li>Anyone who freezes when opening a lead sheet</li>
-                            <li>Pianists who want clarity instead of theory overload</li>
-                        </ul>
-                    </div>
-                    <div class="audience-box not-for">
-                        <h3>Who This Is NOT For</h3>
-                        <ul>
-                            <li>Players looking for fast tempos or advanced reharmonization</li>
-                            <li>Those wanting heavy improvisation right away</li>
-                            <li>Students who want dozens of options instead of one clear path</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- What You Will Learn -->
-                <div class="intensive-outcomes">
-                    <h3>What You Will Learn</h3>
-                    <p style="text-align: center; font-size: 18px; color: #495057; margin-bottom: 30px;">By the end of this Intensive, you will be able to:</p>
-                    <ul>
-                        <li>Play the entire tune with confidence</li>
-                        <li>Use Root–7 shell chords in the left hand</li>
-                        <li>Support the melody musically and steadily</li>
-                        <li>Add the 3rd under the melody where appropriate</li>
-                        <li>Reinforce harmony on strong beats — even when the melody rests</li>
-                        <li>Understand why notes are being added, not just what to play</li>
-                    </ul>
-                    <p style="text-align: center; font-size: 16px; color: #6c757d; margin-top: 30px; font-style: italic;">This Intensive focuses on clarity, structure, and musical confidence — not complexity.</p>
-                </div>
-                
-                <!-- How The Intensive Works -->
-                <div class="intensive-structure">
-                    <h3>How The Intensive Works</h3>
-                    <div class="structure-grid">
-                        <div class="structure-item">
-                            <img src="https://jazzedge.academy/wp-content/uploads/2026/01/how-works-3.jpg" alt="Weekly Teaching Lessons" class="structure-item-image">
-                            <h4>Weekly Teaching Lessons</h4>
-                            <p>One recorded lesson released each week. Clear focus for that week — no jumping ahead. Designed to reduce overwhelm and decision fatigue.</p>
-                        </div>
-                        <div class="structure-item practice-actions-highlight">
-                            <img src="https://jazzedge.academy/wp-content/uploads/2026/01/sarah-ipad.jpg" alt="Practice Actions" class="structure-item-image">
-                            <div class="game-changer-badge">THE GAME CHANGER</div>
-                            <h4>Practice Actions</h4>
-                            <p><strong>This is where the magic happens.</strong> You get the "big" lesson video, but these Practice Actions are the real game changer.</p>
-                            <ul style="text-align: left; margin-top: 16px; padding-left: 0;">
-                                <li>Short, focused videos — little to no talking</li>
-                                <li>Practice with Willie — just play along</li>
-                                <li>Released throughout the week — no overwhelm</li>
-                                <li>Reinforces the week's lesson without adding new material</li>
-                            </ul>
-                            <p style="margin-top: 16px; font-weight: 600; color: #239B90;">Just practice with Willie and you're all set!</p>
-                        </div>
-                        <div class="structure-item coaching-image">
-                            <img src="https://jazzedge.academy/wp-content/uploads/2024/08/premier-community-zoom-call-02.gif" alt="Live Coaching Sessions with Willie">
-                            <h4>Live Coaching</h4>
-                            <p>Two live group coaching sessions with Willie during the 6 weeks. Focused on musical feedback and clarity (not re-teaching lessons).</p>
-                        </div>
-                        <div class="structure-item">
-                            <img src="https://jazzedge.academy/wp-content/uploads/2026/01/how-works-4.jpg" alt="Community Accountability" class="structure-item-image">
-                            <h4>Community Accountability</h4>
-                            <p>Dedicated private community space for this Intensive. Students are encouraged to post short practice or performance clips. Accountability through visibility, not pressure.</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Learn at Your Own Pace - No Live Commitment -->
-                <div class="intensive-flexibility">
-                    <h3>Learn at Your Own Pace — No Live Commitment</h3>
-                    <p class="intensive-flexibility-lead">You do <strong>not</strong> need to join anything live. Jump in anytime.</p>
-                    <ul class="intensive-flexibility-list">
-                        <li><strong>Lessons are recorded.</strong> Watch weekly teaching lessons and Practice Actions whenever it fits your schedule.</li>
-                        <li><strong>Only the 2 coaching sessions are live</strong> — and they're recorded too, so you can watch the replay if you can't make it.</li>
-                        <li><strong>Start whenever you're ready.</strong> Join at the beginning, middle, or end of the 6 weeks. All content is available on your timeline.</li>
-                    </ul>
-                </div>
-                
-                <!-- 3-Step Process -->
-                <div class="intensive-process">
-                    <h3>The 3-Step Process</h3>
-                    <div class="process-steps">
-                        <div class="process-step">
-                            <img src="https://jazzedge.academy/wp-content/uploads/2026/01/how-works-3.jpg" alt="Step 1: Outer Notes" class="process-step-image">
-                            <div class="process-step-number">1</div>
-                            <h4>Outer Notes (Foundation)</h4>
-                            <ul>
-                                <li>Left hand: roots only</li>
-                                <li>Right hand: melody</li>
-                                <li>Learn the form and harmonic movement</li>
-                                <li>Build confidence immediately</li>
-                            </ul>
-                        </div>
-                        <div class="process-step">
-                            <img src="https://jazzedge.academy/wp-content/uploads/2026/01/how-works-4.jpg" alt="Step 2: Root-7 Shells" class="process-step-image">
-                            <div class="process-step-number">2</div>
-                            <h4>Root–7 Shells (Stability)</h4>
-                            <ul>
-                                <li>Left hand: Root–7 shell chords (root always on bottom)</li>
-                                <li>Right hand: melody</li>
-                                <li>Establish real jazz harmony with steady time</li>
-                            </ul>
-                        </div>
-                        <div class="process-step">
-                            <img src="https://jazzedge.academy/wp-content/uploads/2026/01/how-works-5.jpg" alt="Step 3: Adding the 3rd" class="process-step-image">
-                            <div class="process-step-number">3</div>
-                            <h4>Adding the 3rd + Downbeat Awareness (Musicality)</h4>
-                            <ul>
-                                <li>Add the 3rd under the melody when appropriate</li>
-                                <li>Reinforce harmony on strong beats, even during melody rests</li>
-                                <li>Make sparse arrangements sound full and intentional</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Pricing & Access -->
-                <div class="intensive-pricing" id="intensive-pricing">
-                    <h3>Choose Your Access</h3>
-                    <div class="pricing-options">
-                        <!-- Premier Option -->
-                        <div class="pricing-card premier-card">
-                            <div class="pricing-card-header">
-                                <div class="pricing-badge premier-badge">Maximum Support</div>
-                                <h4>Premier Membership</h4>
-                                <div class="pricing-tagline">All Intensives Included</div>
-                            </div>
-                            <div class="pricing-features">
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>All 6 Intensives</span>
-                                    <span class="info-icon" role="tooltip" aria-label="All intensives included at no additional cost. Full access to lessons, practice videos, coaching, and community for each intensive." data-microtip-position="top" data-microtip-size="large">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>340+ Premier Lessons</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Exclusive Premier-only lessons including Super Simple Standards™, Blues Piano, Advanced Jazz Arranging, and The Confident Improviser™" data-microtip-position="top" data-microtip-size="large">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>Weekly Coaching</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Interactive coaching every week with hot seats and Q&A sessions for personalized support and guidance" data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>Direct Access to Willie</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Ask questions and get personalized feedback directly from Willie Myette, the creator of Jazzedge Academy" data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>All Studio Features</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Everything in Studio including all lessons, tools, tracking, learning paths, and practice curriculum" data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="pricing-amount">
-                                <div class="price-included">Included</div>
-                                <div class="price-note">Part of Premier membership</div>
-                            </div>
-                            <a href="<?php echo $join_url; ?>" class="pricing-cta premier-cta">Join Premier</a>
-                        </div>
-                        
-                        <!-- Single Intensive Option -->
-                        <div class="pricing-card single-card">
-                            <div class="pricing-card-header">
-                                <?php if ($has_sale): ?>
-                                    <div class="pricing-badge sale-badge">Individual Access</div>
-                                <?php endif; ?>
-                                <h4>My Romance Intensive</h4>
-                                <div class="pricing-tagline">One-Time Purchase</div>
-                            </div>
-                            <div class="pricing-features">
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>Full 6-Week Program</span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>Lessons + Practice Actions</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Weekly teaching lessons plus short Practice Action videos released throughout the week. Practice with Willie—just play along!" data-microtip-position="top" data-microtip-size="large">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>(2) coaching sessions with me</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Two live group coaching sessions with Willie during the 6 weeks with musical feedback and clarity." data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>Community Support</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Dedicated private community space. Post practice clips and get feedback from the community throughout the 6 weeks." data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="pricing-amount">
-                                <?php if ($has_sale): ?>
-                                    <div class="price-main">
-                                        <span class="price-currency">$</span>
-                                        <span class="price-value"><?php echo number_format($sale_price, 0); ?></span>
-                                    </div>
-                                    <div class="price-original">
-                                        <span>Regular: $<?php echo number_format($retail_price, 0); ?></span>
-                                    </div>
-                                    <div class="price-note">Save <?php echo $single_discount_percent; ?>% • One-time payment</div>
-                                <?php else: ?>
-                                    <div class="price-main">
-                                        <span class="price-currency">$</span>
-                                        <span class="price-value"><?php echo number_format($retail_price, 0); ?></span>
-                                    </div>
-                                    <div class="price-note">One-time payment</div>
-                                <?php endif; ?>
-                            </div>
-                            <a href="<?php echo $order_form_url; ?>" class="pricing-cta single-cta">Purchase Now</a>
-                        </div>
-                        
-                        <!-- Bundle Option -->
-                        <div class="pricing-card bundle-card">
-                            <div class="pricing-card-header">
-                                <div class="pricing-badge lifetime-badge">Lifetime Access</div>
-                                <h4>Intensives Bundle</h4>
-                                <div class="pricing-tagline">Live & Lifetime Access</div>
-                            </div>
-                            <div class="pricing-features">
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span>All 6 Intensives</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Full access to all 6 intensives with live coaching and community access during each active period" data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                    </svg>
-                                    <span>Live Access During Each Intensive</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Get full live access when each intensive is active, including lessons, Practice Actions, coaching sessions, and community support" data-microtip-position="top" data-microtip-size="large">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                                    </svg>
-                                    <span>Coaching for Each Live Intensive</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Receive live coaching sessions with feedback for each intensive while it's active, plus access to all coaching replays" data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                                    </svg>
-                                    <span>All Coaching Replays</span>
-                                    <span class="info-icon" role="tooltip" aria-label="Access to all recorded coaching session replays from every intensive, so you can review and learn at your own pace" data-microtip-position="top" data-microtip-size="medium">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                                <div class="feature-item highlight-feature">
-                                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
-                                    </svg>
-                                    <span>Lifetime Download Access</span>
-                                    <span class="info-icon" role="tooltip" aria-label="After each intensive ends, you get full lifetime download access to all lessons and Practice Actions. Own all 6 programs forever—no expiration, no recurring fees!" data-microtip-position="top" data-microtip-size="large">
-                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="pricing-amount">
-                                <div class="price-main">
-                                    <span class="price-currency">$</span>
-                                    <span class="price-value"><?php echo number_format($bundle_sale_price, 0); ?></span>
-                                </div>
-                                <div class="price-original">
-                                    <span>Regular: $<?php echo number_format($bundle_retail_price, 0); ?></span>
-                                </div>
-                                <div class="price-note">Save <?php echo $bundle_discount_percent; ?>% • One-time payment</div>
-                            </div>
-                            <a href="<?php echo esc_url($bundle_order_url); ?>" class="pricing-cta bundle-cta">Purchase Bundle</a>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Why This Works -->
-                <div class="intensive-positioning">
-                    <img src="https://jazzedge.academy/wp-content/uploads/2026/01/man-at-keyboard-with-mic.jpg" alt="Why This Works" class="intensive-positioning-image">
-                    <h3>Why This Works</h3>
-                    <p><strong>Most pianists don't struggle because they lack ability.</strong></p>
-                    <p>They struggle because they don't have a repeatable way to build music.</p>
-                    <p>This Intensive teaches you how to think through an arrangement — calmly, deliberately, and musically — so you're no longer guessing.</p>
-                    <p style="font-size: 20px; font-weight: 600; margin-top: 30px; color: #004555;">This isn't an extra lesson.<br>It's the missing link between knowing chords and making music.</p>
-                </div>
+                <button type="button" id="sticky-bundle-close" aria-label="Dismiss">&times;</button>
             </div>
             
             <!-- Upcoming Intensives -->
             <div class="upcoming-intensives">
                 <h3>All 2026 Jazzedge Academy Intensives</h3>
-                <p class="intro-text">All of the following are 6-Week Jazzedge Intensives included for Premier members.</p>
+                <p class="intro-text">All of the following are 6-Week Jazzedge Intensives included for Premier members, or purchase lifetime access below.</p>
                 
                 <div class="intensives-grid">
                     <?php
@@ -20852,6 +21395,15 @@ class ALM_Shortcodes_Plugin {
                             $start_date_formatted = !empty($int['start_date']) ? date('F j', strtotime($int['start_date'])) . ' – ' . date('F j, Y', strtotime($int['end_date'])) : '';
                             $main_title = !empty($int['title']) ? $int['title'] : '';
                             $song_title = !empty($int['song_name']) ? $int['song_name'] : '';
+
+                            $retail_price = isset($int['retail_price']) && $int['retail_price'] !== null && $int['retail_price'] !== '' ? floatval($int['retail_price']) : 247;
+                            $sale_price = isset($int['sale_price']) && $int['sale_price'] !== null && $int['sale_price'] !== '' ? floatval($int['sale_price']) : null;
+                            $sale_active = !empty($int['sale_active']);
+                            $order_form_url = !empty($int['fluentcart_product_url']) ? esc_url($int['fluentcart_product_url']) : esc_url(home_url('/join'));
+                            $available_for_sale = isset($int['available_for_sale']) ? (int) $int['available_for_sale'] : 1;
+                            $is_on_sale = ($sale_active && !empty($sale_price));
+                            $display_price = $is_on_sale ? $sale_price : $retail_price;
+
                             ?>
                             <div class="intensive-card">
                                 <div class="intensive-card-header">
@@ -20862,7 +21414,7 @@ class ALM_Shortcodes_Plugin {
                                 </div>
                                 <div class="intensive-card-content">
                                     <?php if (!empty($start_date_formatted)): ?>
-                                        <div class="intensive-card-date">Live Dates: <?php echo esc_html($start_date_formatted); ?></div>
+                                        <div class="intensive-card-date">Released on: <?php echo esc_html(!empty($int['start_date']) ? date('F j, Y', strtotime($int['start_date'])) : $start_date_formatted); ?></div>
                                     <?php endif; ?>
                                     <h4><?php echo esc_html($main_title); ?></h4>
                                     <?php if (!empty($song_title)): ?>
@@ -20871,7 +21423,18 @@ class ALM_Shortcodes_Plugin {
                                     <?php if (!empty($int['description'])): ?>
                                         <p class="intensive-focus"><strong>Focus:</strong> <?php echo esc_html($int['description']); ?></p>
                                     <?php endif; ?>
-                                    <a href="#intensive-pricing" class="intensive-card-order-btn">View Pricing & Order</a>
+                                    <button type="button" class="btn-view-pricing intensive-card-order-btn"
+                                        data-intensive-name="<?php echo esc_attr($main_title . ($song_title ? ': ' . $song_title : '')); ?>"
+                                        data-intensive-description="<?php echo esc_attr(!empty($int['description']) ? (strlen($int['description']) > 140 ? substr($int['description'], 0, 137) . '...' : $int['description']) : ''); ?>"
+                                        data-individual-url="<?php echo esc_attr($order_form_url); ?>"
+                                        data-display-price="<?php echo esc_attr(number_format($display_price, 0)); ?>"
+                                        data-retail-price="<?php echo esc_attr(number_format($retail_price, 0)); ?>"
+                                        data-is-on-sale="<?php echo $is_on_sale ? 'true' : 'false'; ?>"
+                                        data-available-for-sale="<?php echo $available_for_sale ? 'true' : 'false'; ?>"
+                                        data-intensive-level="<?php echo esc_attr($int_skill_level_label); ?>"
+                                        data-intensive-level-slug="<?php echo esc_attr(strtolower($int_skill_level)); ?>">
+                                        View Pricing &amp; Order
+                                    </button>
                                 </div>
                             </div>
                             <?php
@@ -20889,6 +21452,7 @@ class ALM_Shortcodes_Plugin {
                         );
                         foreach ($fallback_intensives as $fallback) {
                             $fallback_skill_label = isset($skill_levels[$fallback['skill']]) ? $skill_levels[$fallback['skill']] : ucfirst($fallback['skill']);
+                            $fallback_name = $fallback['title'] . ': ' . $fallback['song'];
                             ?>
                             <div class="intensive-card">
                                 <div class="intensive-card-header">
@@ -20898,11 +21462,22 @@ class ALM_Shortcodes_Plugin {
                                     </div>
                                 </div>
                                 <div class="intensive-card-content">
-                                    <div class="intensive-card-date">Live Dates: <?php echo esc_html($fallback['dates']); ?></div>
+                                    <div class="intensive-card-date">Released on: <?php echo esc_html($fallback['dates']); ?></div>
                                     <h4><?php echo esc_html($fallback['title']); ?></h4>
                                     <p class="intensive-song"><?php echo esc_html($fallback['song']); ?></p>
                                     <p class="intensive-focus"><strong>Focus:</strong> <?php echo esc_html($fallback['focus']); ?></p>
-                                    <a href="#intensive-pricing" class="intensive-card-order-btn">View Pricing & Order</a>
+                                    <button type="button" class="btn-view-pricing intensive-card-order-btn"
+                                        data-intensive-name="<?php echo esc_attr($fallback_name); ?>"
+                                        data-intensive-description="<?php echo esc_attr(strlen($fallback['focus']) > 140 ? substr($fallback['focus'], 0, 137) . '...' : $fallback['focus']); ?>"
+                                        data-individual-url="<?php echo esc_attr(esc_url(home_url('/join'))); ?>"
+                                        data-display-price="247"
+                                        data-retail-price="247"
+                                        data-is-on-sale="false"
+                                        data-available-for-sale="true"
+                                        data-intensive-level="<?php echo esc_attr($fallback_skill_label); ?>"
+                                        data-intensive-level-slug="<?php echo esc_attr(strtolower($fallback['skill'])); ?>">
+                                        View Pricing &amp; Order
+                                    </button>
                                 </div>
                             </div>
                             <?php
@@ -20911,11 +21486,70 @@ class ALM_Shortcodes_Plugin {
                     ?>
                 </div>
             </div>
+
+            <!-- Pricing Modal -->
+            <div id="intensives-pricing-modal" class="intensives-pricing-modal" aria-hidden="true">
+                <div id="modal-overlay" class="intensives-modal-overlay"></div>
+                <div class="intensives-modal-inner">
+                    <div class="intensives-modal-header">
+                        <h3 id="modal-intensive-name"></h3>
+                        <button type="button" id="modal-close" class="intensives-modal-close" aria-label="Close">&times;</button>
+                    </div>
+                    <div id="modal-available-content" class="intensives-modal-available" style="display: none;">
+                        <div class="intensives-modal-cards">
+                            <div class="intensives-modal-card">
+                                <h4>Lifetime access</h4>
+                                <div id="modal-individual-price" class="intensives-modal-price"></div>
+                                <p id="modal-individual-description" class="intensives-modal-individual-desc"></p>
+                                <a id="modal-individual-cta" href="#" class="intensives-modal-cta">Purchase Intensive &rarr;</a>
+                            </div>
+                            <div class="intensives-modal-card intensives-modal-card-best">
+                                <h4>Full Bundle ★ BEST VALUE</h4>
+                                <div class="intensives-modal-bundle-price-line">
+                                    <span class="price-retail">$1,497</span> <strong class="price-sale">$597</strong> — <span class="price-save">Save 60%</span>
+                                </div>
+                                <p class="intensives-modal-bundle-message">One payment. All 6 intensives. Lifetime access — learn at your pace, no rush, no overwhelm. Each intensive builds skills step-by-step: cocktail piano, rock, Latin, blues, group jazz, and soul/gospel.</p>
+                                <a href="https://ft217.infusionsoft.com/app/orderForms/intensives-bundle" class="intensives-modal-cta intensives-modal-cta-bundle">Get Full Bundle &rarr;</a>
+                            </div>
+                        </div>
+                        <div class="intensives-modal-premier">
+                            <h4>Premier Membership</h4>
+                            <p class="intensives-modal-premier-lead">All intensives included — plus 340+ exclusive lessons, private community, and ongoing support.</p>
+                            <p class="intensives-modal-premier-coaching">Need help with an intensive? Premier members get <strong>live group coaching with Willie</strong> when you need it.</p>
+                            <a href="<?php echo esc_url($join_url); ?>" class="intensives-modal-cta intensives-modal-cta-premier">Join Premier &rarr;</a>
+                        </div>
+                    </div>
+                    <div id="modal-coming-soon-content" class="intensives-modal-coming-soon" style="display: none;">
+                        <p class="intensives-modal-coming-soon-message">This intensive is coming soon. Get notified when the next intensive is available for purchase.</p>
+                        <p class="intensives-modal-coming-soon-cta">Notify me when available</p>
+                        <?php echo do_shortcode('[fluentform id="56"]'); ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Student review pull quotes (exact text from intensives feedback) -->
+            <div class="intensives-review-quotes">
+                <h3>What students are saying</h3>
+                <div class="intensives-review-quotes-grid">
+                    <div class="intensives-review-card">
+                        <p class="review-quote">Your teaching is clear, calm, and -- always joyful. Your love of teaching shines through!</p>
+                        <p class="review-attribution">— Tom H.</p>
+                    </div>
+                    <div class="intensives-review-card">
+                        <p class="review-quote">I am amazed at how Willie took such a complicated subject and simplified the basic steps such that I, 5 weeks later, find myself playing professional sounding piano, albeit somewhat simply.</p>
+                        <p class="review-attribution">— James N.</p>
+                    </div>
+                    <div class="intensives-review-card">
+                        <p class="review-quote">The Intensives feel like being handed a road map. Every stop is clearly marked, and the destination is always in sight.</p>
+                        <p class="review-attribution">— Kelly S.</p>
+                    </div>
+                </div>
+            </div>
             
             <!-- Final CTA -->
             <div class="final-cta">
-                <h3>You can join one Intensive to solve today's problem.</h3>
-                <p>Or you can become a Premier member and gain access to every stage of becoming a complete piano player.</p>
+                <h3>Premier members get group coaching with Willie.</h3>
+                <p>Join Premier for live group coaching (not one-on-one), all 6 intensives, 340+ lessons, and the full path to becoming a complete piano player.</p>
                 <a href="<?php echo $join_url; ?>" class="cta-button">Join Premier Membership</a>
             </div>
             
@@ -20925,6 +21559,64 @@ class ALM_Shortcodes_Plugin {
         
         <script>
         (function() {
+            // Pricing modal
+            function closeIntensivesModal() {
+                var modal = document.getElementById('intensives-pricing-modal');
+                if (modal) modal.classList.remove('is-open');
+            }
+            document.querySelectorAll('.btn-view-pricing').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var availableForSale = this.dataset.availableForSale === 'true';
+                    var name = this.dataset.intensiveName || '';
+                    var nameEl = document.getElementById('modal-intensive-name');
+                    if (nameEl && name) nameEl.textContent = name;
+                    var availableContent = document.getElementById('modal-available-content');
+                    var comingSoonContent = document.getElementById('modal-coming-soon-content');
+                    if (availableForSale) {
+                        if (availableContent) availableContent.style.display = '';
+                        if (comingSoonContent) comingSoonContent.style.display = 'none';
+                        var isOnSale = this.dataset.isOnSale === 'true';
+                        var displayPrice = this.dataset.displayPrice;
+                        var retailPrice = this.dataset.retailPrice;
+                        var indivUrl = this.dataset.individualUrl;
+                        var description = this.dataset.intensiveDescription || '';
+                        var priceBlock = document.getElementById('modal-individual-price');
+                        if (priceBlock) {
+                            if (isOnSale) {
+                                priceBlock.innerHTML = '<span class="price-sale">$' + displayPrice + '</span><span class="price-retail-strikethrough">$' + retailPrice + '</span><span class="badge-discount">Sale</span>';
+                            } else {
+                                priceBlock.innerHTML = '<span class="price-regular">$' + displayPrice + '</span>';
+                            }
+                        }
+                        var ctaEl = document.getElementById('modal-individual-cta');
+                        if (ctaEl) ctaEl.href = indivUrl || '#';
+                        var descEl = document.getElementById('modal-individual-description');
+                        if (descEl) { descEl.textContent = description; descEl.style.display = description ? 'block' : 'none'; }
+                    } else {
+                        if (availableContent) availableContent.style.display = 'none';
+                        if (comingSoonContent) comingSoonContent.style.display = 'block';
+                    }
+                    document.getElementById('intensives-pricing-modal').classList.add('is-open');
+                });
+            });
+            var modalClose = document.getElementById('modal-close');
+            var modalOverlay = document.getElementById('modal-overlay');
+            if (modalClose) modalClose.addEventListener('click', closeIntensivesModal);
+            if (modalOverlay) modalOverlay.addEventListener('click', closeIntensivesModal);
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeIntensivesModal();
+            });
+
+            // Sticky bundle bar
+            var stickyBar = document.getElementById('sticky-bundle-bar');
+            if (stickyBar) {
+                window.addEventListener('scroll', function() {
+                    if (window.scrollY > 400) stickyBar.classList.add('is-visible');
+                });
+                var stickyClose = document.getElementById('sticky-bundle-close');
+                if (stickyClose) stickyClose.addEventListener('click', function() { stickyBar.style.display = 'none'; });
+            }
+
             var video = document.getElementById('intensives-hero-video');
             if (video && typeof Hls !== 'undefined') {
                 if (Hls.isSupported()) {
@@ -20957,6 +21649,345 @@ class ALM_Shortcodes_Plugin {
             }
         })();
         </script>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * CSMP (Chord Shell Mastery Program) Landing Page Shortcode
+     * Outputs HTML/CSS for Oxygen Code Block usage.
+     *
+     * @param array $atts Shortcode attributes
+     * @return string HTML output
+     */
+    public function csmp_program_shortcode($atts) {
+        ob_start();
+        ?>
+<div class="csmp-landing">
+    <section id="csmp-video" class="csmp-video-section">
+        <div class="csmp-video-wrap">
+            <?php echo do_shortcode('[fvplayer src="https://vz-0696d3da-4b7.b-cdn.net/0e80f26b-bd27-4fd3-8f75-8c4a9ac1d299/playlist.m3u8" autoplay="false" splash="https://jazzedge.academy/wp-content/uploads/2026/02/csmp-splash.jpg"]'); ?>
+        </div>
+    </section>
+
+    <section class="csmp-benefits">
+        <h2 class="csmp-section-title">What You'll Get</h2>
+        <div class="csmp-benefits-grid">
+            <div class="csmp-benefit-item">
+                <div class="csmp-benefit-icon">✓</div>
+                <h3>Practice Actions</h3>
+                <p>Short videos with minimal talking—practice directly along with Willie. No lengthy lectures, just focused play-along time.</p>
+            </div>
+            <div class="csmp-benefit-item">
+                <div class="csmp-benefit-icon">✓</div>
+                <h3>Complete Backing Tracks</h3>
+                <p>All backing tracks and music are included. Everything you need to practice is right there.</p>
+            </div>
+            <div class="csmp-benefit-item">
+                <div class="csmp-benefit-icon">✓</div>
+                <h3>Bite-Sized Lessons</h3>
+                <p>Short, focused segments that won't overwhelm. Learn at your own pace without feeling buried in content.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="csmp-audience">
+        <h2 class="csmp-section-title">More Than Lessons—It's a System</h2>
+        <p class="csmp-audience-text">CSMP isn't just another collection of lessons. It's a complete practice system designed to get you playing. You'll follow along with Willie, build your chord shell vocabulary in real time, and develop muscle memory through repetition—all without getting bogged down in theory or notation.</p>
+    </section>
+
+    <section class="csmp-price-callout">
+        <div class="csmp-price-inner">
+            <span class="csmp-price-label">Founders Price</span>
+            <span class="csmp-price-amount">$99</span>
+            <p class="csmp-price-note">Limited-time offer for early adopters</p>
+            <a href="#csmp-form" class="csmp-btn csmp-btn-primary csmp-btn-large">Claim Your Spot</a>
+        </div>
+    </section>
+
+    <section id="csmp-form" class="csmp-form-section">
+        <h2 class="csmp-section-title">Reserve Your Spot</h2>
+        <div class="csmp-form-wrap">
+            <?php echo do_shortcode('[fluentform id="54"]'); ?>
+            <p class="csmp-form-note">Keep an eye out for emails over the coming days…</p>
+        </div>
+    </section>
+
+    <section class="csmp-faq">
+        <h2 class="csmp-section-title">Frequently Asked Questions</h2>
+        <div class="csmp-faq-list">
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">What's inside CSMP?</summary>
+                <div class="csmp-faq-answer">
+                    <p>6 weeks of structured lessons (15–20 min each), short 3–5 minute Practice Actions where you play along with Willie, sheet music, iReal Pro files, MP3 backing tracks, and a clear, step-by-step system designed to eliminate overwhelm.</p>
+                </div>
+            </details>
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">Is this part of my membership?</summary>
+                <div class="csmp-faq-answer">
+                    <p>No. This is a separate, one-off program. It is not part of any membership.</p>
+                </div>
+            </details>
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">What do I get when I purchase?</summary>
+                <div class="csmp-faq-answer">
+                    <p>Lifetime access to the material. You have 1 year to complete your download.</p>
+                </div>
+            </details>
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">When does purchasing open?</summary>
+                <div class="csmp-faq-answer">
+                    <p>Wednesday, February 18th.</p>
+                </div>
+            </details>
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">When does Founders pricing end?</summary>
+                <div class="csmp-faq-answer">
+                    <p>Founders pricing ends Saturday, February 28th. After that, retail is $197. Founders price is $99.</p>
+                </div>
+            </details>
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">Do members get a discount?</summary>
+                <div class="csmp-faq-answer">
+                    <p>Premier members: $30 off the $99 Founders price. Studio members: $15 off the $99 Founders price.</p>
+                </div>
+            </details>
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">When will the program be released?</summary>
+                <div class="csmp-faq-answer">
+                    <p>The program will be available for download by March 15th (maybe sooner) if we get enough interest. Only those who fill out the form now qualify for Founders pricing.</p>
+                </div>
+            </details>
+            <details class="csmp-faq-item">
+                <summary class="csmp-faq-question">I'm a Premier member. Will this be in my library?</summary>
+                <div class="csmp-faq-answer">
+                    <p>Yes—CSMP will be added to Premier members' library in Summer 2026. If you want it sooner with lifetime access, purchase it now.</p>
+                </div>
+            </details>
+        </div>
+    </section>
+</div>
+
+<style>
+.csmp-landing {
+    --csmp-primary: #004555;
+    --csmp-accent: #f04e23;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1f2933;
+}
+html { scroll-behavior: smooth; }
+.csmp-landing * { box-sizing: border-box; }
+
+/* Buttons (used in price callout) */
+.csmp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.csmp-btn:hover { transform: translateY(-2px); }
+.csmp-btn-primary {
+    background: #fff;
+    color: var(--csmp-primary);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.csmp-btn-primary:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.2); }
+.csmp-btn-accent {
+    background: var(--csmp-accent);
+    color: #fff;
+    border: 2px solid rgba(255,255,255,0.5);
+}
+.csmp-btn-large { padding: 14px 28px; font-size: 17px; }
+
+/* Video */
+.csmp-video-section {
+    margin-bottom: 48px;
+}
+.csmp-section-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--csmp-primary);
+    text-align: center;
+    margin: 0 0 24px 0;
+}
+@media (min-width: 768px) {
+    .csmp-section-title { font-size: 28px; }
+}
+.csmp-video-wrap {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0, 69, 85, 0.12);
+    border: 1px solid #e6edf0;
+}
+.csmp-video-wrap .fvplayer,
+.csmp-video-wrap iframe,
+.csmp-video-wrap video { width: 100%; display: block; }
+
+/* Benefits */
+.csmp-benefits { margin-bottom: 48px; }
+.csmp-benefits-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+@media (min-width: 600px) {
+    .csmp-benefits-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.csmp-benefit-item {
+    background: #fff;
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid #e6edf0;
+    box-shadow: 0 4px 12px rgba(0, 69, 85, 0.06);
+}
+.csmp-benefit-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--csmp-accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+.csmp-benefit-item h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--csmp-primary);
+    margin: 0 0 8px 0;
+}
+.csmp-benefit-item p {
+    font-size: 15px;
+    color: #5f6b7a;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Audience */
+.csmp-audience {
+    margin-bottom: 48px;
+    padding: 32px;
+    background: #f8fafb;
+    border-radius: 12px;
+    border: 1px solid #e6edf0;
+}
+.csmp-audience-text {
+    font-size: 16px;
+    line-height: 1.65;
+    color: #3d4f5c;
+    margin: 0;
+    text-align: center;
+}
+
+/* Price callout */
+.csmp-price-callout {
+    background: linear-gradient(135deg, var(--csmp-accent) 0%, #d94518 100%);
+    border-radius: 16px;
+    padding: 36px;
+    margin-bottom: 48px;
+    box-shadow: 0 8px 24px rgba(240, 78, 35, 0.3);
+    text-align: center;
+}
+.csmp-price-inner { color: #fff; }
+.csmp-price-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+}
+.csmp-price-amount {
+    font-size: 42px;
+    font-weight: 800;
+    display: block;
+    margin-bottom: 8px;
+}
+@media (min-width: 768px) {
+    .csmp-price-amount { font-size: 52px; }
+}
+.csmp-price-note {
+    font-size: 14px;
+    opacity: 0.9;
+    margin: 0 0 20px 0;
+}
+.csmp-price-callout .csmp-btn-primary {
+    background: #fff;
+    color: var(--csmp-accent);
+}
+
+/* Form */
+.csmp-form-section { margin-bottom: 24px; }
+.csmp-form-wrap {
+    background: #fff;
+    padding: 32px;
+    border-radius: 12px;
+    border: 1px solid #e6edf0;
+    box-shadow: 0 4px 16px rgba(0, 69, 85, 0.08);
+}
+.csmp-form-note {
+    font-size: 14px;
+    color: #5f6b7a;
+    margin: 16px 0 0 0;
+    font-style: italic;
+}
+
+/* FAQ */
+.csmp-faq {
+    margin-top: 48px;
+    margin-bottom: 48px;
+}
+.csmp-faq-list {
+    max-width: 720px;
+    margin: 0 auto;
+}
+.csmp-faq-item {
+    background: #fff;
+    border: 1px solid #e6edf0;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 69, 85, 0.04);
+}
+.csmp-faq-question {
+    padding: 18px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--csmp-primary);
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.csmp-faq-question::-webkit-details-marker { display: none; }
+.csmp-faq-question::after {
+    content: '+';
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--csmp-accent);
+}
+[open] .csmp-faq-question::after { content: '−'; }
+.csmp-faq-answer {
+    padding: 0 20px 18px 20px;
+    border-top: 1px solid #e6edf0;
+}
+.csmp-faq-answer p {
+    margin: 8px 0 0 0;
+    font-size: 15px;
+    color: #5f6b7a;
+    line-height: 1.6;
+}
+</style>
         <?php
         return ob_get_clean();
     }

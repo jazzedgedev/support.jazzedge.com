@@ -3,3 +3,16 @@ node_modules/
 vendor/
 .env
 plugins.backup/php_errorlog
+
+# Large data files - never commit these
+*.sql
+streak_data/
+backups/
+*.bak
+*.backup
+
+# Large binary/media files
+*.zip
+*.tar
+*.tar.gz
+*.gz

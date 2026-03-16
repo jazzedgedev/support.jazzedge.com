@@ -128,9 +128,8 @@ class Keap_Reports_API {
         } else {
             // Check if iSDK library is available
             $isdk_paths = array(
-                '/keap_isdk/infusion_connect.php',
-                '/nas/content/live/jazzacademy/keap_isdk/infusion_connect.php',
-                ABSPATH . '../keap_isdk/infusion_connect.php',
+                ABSPATH . 'keap_isdk/infusion_connect.php',
+                WP_CONTENT_DIR . '/../keap_isdk/infusion_connect.php',
             );
             
             $isdk_loaded = false;
@@ -1158,9 +1157,8 @@ class Keap_Reports_API {
         // Use the existing infusion_connect.php file that already works (matches user's working code pattern)
         // This file sets up the global $app object with proper authentication
         $infusion_connect_paths = array(
-            '/nas/content/live/jazzacademy/keap_isdk/infusion_connect.php',
-            '/keap_isdk/infusion_connect.php',
-            ABSPATH . '../keap_isdk/infusion_connect.php',
+            ABSPATH . 'keap_isdk/infusion_connect.php',
+            WP_CONTENT_DIR . '/../keap_isdk/infusion_connect.php',
         );
         
         $infusion_connect_loaded = false;
@@ -1176,7 +1174,7 @@ class Keap_Reports_API {
         
         if (!$infusion_connect_loaded) {
             $this->log_debug('infusion_connect.php not found. Tried paths: ' . implode(', ', $infusion_connect_paths), 'warning');
-            return new WP_Error('infusion_connect_not_found', 'infusion_connect.php not found. Please ensure the Keap iSDK library is installed at /nas/content/live/jazzacademy/keap_isdk/infusion_connect.php');
+            return new WP_Error('infusion_connect_not_found', 'infusion_connect.php not found. Please ensure the Keap iSDK library is installed at ' . ABSPATH . 'keap_isdk/infusion_connect.php');
         }
         
         // Get iSDK app object from global scope (set up by infusion_connect.php)

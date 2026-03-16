@@ -8,10 +8,18 @@ Author:			Willie
 Author URI:		https://example.com
 */
 
-$install = 'jazzacademy';
-require_once('/nas/content/live/'.$install.'/willie/ja-admin/vimeo.php-3.0.2/src/Vimeo/Vimeo.php');
-require_once('/nas/content/live/'.$install.'/wp-load.php');
+require_once(ABSPATH . 'willie/ja-admin/vimeo.php-3.0.2/src/Vimeo/Vimeo.php');
 use Vimeo\Vimeo;
+
+/**
+ * WP 6.9.1: Ensure heartbeat is registered for wp-auth-check when plugins (e.g. Asset CleanUp) deregister it.
+ * Fixes: "script 'wp-auth-check' enqueued with unregistered dependency: heartbeat"
+ */
+add_action('admin_enqueue_scripts', function () {
+    if (is_admin() && !wp_script_is('heartbeat', 'registered')) {
+        wp_register_script('heartbeat', includes_url('js/heartbeat.min.js'), array('jquery'), false, true);
+    }
+}, 9999);
 
 /*
 function ja_enqueue_custom_scripts() {
@@ -140,6 +148,9 @@ add_action('login_enqueue_scripts', 'my_login_logo');
 
 // Start session and set user preferences
 function start_session() {
+    if (!is_user_logged_in()) {
+        return;
+    }
     if (!session_id()) {
         session_start();
     }
@@ -160,6 +171,190 @@ function start_session() {
     $_SESSION['user-timezone'] = $timezone;
 }
 // add_action('init', 'start_session', 1);
+
+/**
+ * Performance: Remove PHPSESSID Set-Cookie header for logged-out visitors
+ * so SiteGround Dynamic Cache can serve cached pages (sg-f-cache: HIT).
+ *
+ * Root cause: Memberium 4.0.15 calls session_start() for all visitors,
+ * setting Set-Cookie: PHPSESSID which triggers:
+ *   sg-f-cache: BYPASS
+ *   x-proxy-cache-info: SKIP_CACHE_SET_COOKIE
+ * even on fully public pages with zero personalized content.
+ *
+ * SiteGround confirmed they cannot configure NGINX to ignore this cookie.
+ * Fix: strip PHPSESSID from response headers for guests on cacheable pages.
+ * Session-critical pages (login, checkout, signup, forms) are excluded.
+ */
+add_action('template_redirect', function() {
+
+    // Only target logged-out visitors
+    if (is_user_logged_in()) {
+        return;
+    }
+
+    // Pages where Memberium or WooCommerce NEED guest sessions:
+    // login/auth flows, checkout, signup funnels, account management, forms
+    $session_required_slugs = [
+        // Auth
+        'login',
+        'logout',
+        'lost-password',
+        'reset',
+        // Account & billing
+        'account',
+        'billing',
+        'user-preferences',
+        'credit-log',
+        // Purchase & checkout flows
+        'checkout',
+        'cart',
+        'shop',
+        'receipt',
+        'order-processing',
+        'thankyou',
+        'sale',
+        'stay-a-member',
+        // Signup & optin funnels
+        'join',
+        'start',
+        'academy-starter-plan',
+        'signup-new-signup-options-new',
+        'list-signup',
+        'step1',
+        'step1b',
+        // Post-action confirmation pages
+        'welcome',
+        'received',
+        'request-received',
+        // Member-state pages
+        'members-only',
+        'expired',
+        'resource-download-limit',
+        // Form submission pages
+        'submit-milestone',
+        'site-feedback',
+    ];
+
+    if (is_page($session_required_slugs)) {
+        return;
+    }
+
+    // Safety check: bail if headers already sent
+    if (headers_sent()) {
+        return;
+    }
+
+    // Capture all currently queued headers BEFORE we modify anything
+    $all_headers = headers_list();
+
+    // Remove ALL Set-Cookie headers (clears Memberium's PHPSESSID)
+    header_remove('Set-Cookie');
+
+    // Re-add any Set-Cookie headers that are NOT PHPSESSID
+    // (preserves WordPress test cookie or other legitimate guest cookies)
+    foreach ($all_headers as $header_line) {
+        if (stripos($header_line, 'Set-Cookie:') === 0 &&
+            stripos($header_line, 'PHPSESSID=') === false) {
+            header($header_line, false);
+        }
+    }
+
+    // Also override the no-cache headers that PHP session_start() sets automatically.
+    // When Memberium calls session_start(), PHP injects these three headers:
+    //   Cache-Control: no-store, no-cache, must-revalidate
+    //   Pragma: no-cache
+    //   Expires: Thu, 19 Nov 1981 08:52:00 GMT
+    // SiteGround NGINX honors these and refuses to cache the page (x-proxy-cache-info: DT:1).
+    // We override them here for logged-out visitors on public pages.
+    header('Cache-Control: public, max-age=3600');
+    header_remove('Pragma');
+    header_remove('Expires');
+
+}, PHP_INT_MAX);
+
+/**
+ * Performance: Inject missing width/height attributes on Oxygen builder images
+ * to prevent Cumulative Layout Shift (CLS).
+ *
+ * Oxygen renders images as <img id="image-{attachment_id}-{post_id}" class="ct-image">
+ * without width/height. The browser can't reserve layout space, causing shifts
+ * as images load. We use a full-page output buffer callback to:
+ *   1. Find all img tags missing width/height with an Oxygen-style id attribute
+ *   2. Extract the WordPress attachment ID from the id
+ *   3. Look up pixel dimensions from wp_get_attachment_metadata()
+ *   4. Inject width and height attributes
+ *
+ * Scoped to front page only. WordPress object cache means no duplicate DB queries.
+ */
+add_action('template_redirect', function() {
+
+    if (!is_front_page() && !is_home()) {
+        return;
+    }
+
+    ob_start(function($html) {
+
+        return preg_replace_callback(
+            '/<img(\s[^>]*)>/is',
+            function($matches) {
+                $tag   = $matches[0];
+                $attrs = $matches[1];
+
+                // Skip images that already have both width and height
+                $has_width  = (bool) preg_match('/\bwidth\s*=/i', $attrs);
+                $has_height = (bool) preg_match('/\bheight\s*=/i', $attrs);
+                if ($has_width && $has_height) {
+                    return $tag;
+                }
+
+                // Only process Oxygen images: id="image-{attachment_id}-{post_id}"
+                if (!preg_match('/\bid\s*=\s*["\']image-(\d+)-\d+["\']/i', $attrs, $id_match)) {
+                    return $tag;
+                }
+
+                $attachment_id = (int) $id_match[1];
+                $meta = wp_get_attachment_metadata($attachment_id);
+
+                if (empty($meta['width']) || empty($meta['height'])) {
+                    return $tag;
+                }
+
+                $width  = (int) $meta['width'];
+                $height = (int) $meta['height'];
+
+                // Detect self-closing tags: <img ... /> vs <img ... >
+                $trimmed = rtrim($tag);
+                if (substr($trimmed, -2) === '/>') {
+                    $base    = rtrim(substr($trimmed, 0, -2));
+                    $closing = '/>';
+                } else {
+                    $base    = substr($tag, 0, -1);
+                    $closing = '>';
+                }
+
+                if (!$has_width) {
+                    $base .= ' width="' . $width . '"';
+                }
+                if (!$has_height) {
+                    $base .= ' height="' . $height . '"';
+                }
+
+                return $base . $closing;
+            },
+            $html
+        );
+
+    });
+
+}, 1);
+
+// Tell SiteGround Dynamic Cache to ignore PHPSESSID cookie
+add_filter('sgo_ignored_query_params', 'add_sgo_ignored_query_params');
+function add_sgo_ignored_query_params($ignored_query_params) {
+    $ignored_query_params[] = 'PHPSESSID';
+    return $ignored_query_params;
+}
 
 // End session on logout and login
 function end_session() {
@@ -450,6 +645,38 @@ function enqueue_recently_viewed_scripts() {
 }
 add_action('wp_enqueue_scripts', 'enqueue_recently_viewed_scripts');
 
+// Performance: remove jQuery UI sortable from footer via output buffer
+add_action('wp_footer', function() {
+    ob_start();
+}, 0);
+
+add_action('wp_footer', function() {
+    $html = ob_get_clean();
+    // Remove jQuery UI (admin only, not needed on frontend)
+    $html = preg_replace('/<script[^>]+jquery\/ui\/sortable\.min\.js[^>]*><\/script>\n?/i', '', $html);
+    $html = preg_replace('/<script[^>]+jquery\/ui\/mouse\.min\.js[^>]*><\/script>\n?/i', '', $html);
+    $html = preg_replace('/<script[^>]+jquery\/ui\/core\.min\.js[^>]*><\/script>\n?/i', '', $html);
+    // Remove HLS.js on pages that don't need video playback
+    if (!is_singular(['lesson', 'mini-lesson'])) {
+        $html = preg_replace('/<script[^>]+hls\.js[^>]*><\/script>\n?/i', '', $html);
+    }
+    echo $html;
+}, PHP_INT_MAX);
+
+// Performance: strip unpkg microtip CSS from head output via buffering
+add_action('wp_head', function() {
+    ob_start();
+}, 0);
+
+add_action('wp_head', function() {
+    $html = ob_get_clean();
+    // Remove duplicate microtip CSS from unpkg CDN
+    $html = preg_replace('/<link[^>]+unpkg\.com\/microtip[^>]+>\n?/i', '', $html);
+    // Remove jQuery UI sortable (admin-only, not needed on frontend)
+    $html = preg_replace('/<script[^>]+jquery\/ui\/sortable\.min\.js[^>]*><\/script>\n?/i', '', $html);
+    echo $html;
+}, PHP_INT_MAX);
+
 // Add class to navigation menu links
 add_filter('nav_menu_link_attributes', function($atts) {
     $atts['class'] = "academy_menu_link";
@@ -552,8 +779,8 @@ add_filter('searchwp\swp_query\args', function($args) {
 add_action( 'academy_update_active_memb_dbase_cron', 'academy_update_active_memb_dbase' );
 function academy_update_active_memb_dbase() {
 //	include( '/nas/content/live/jazzacademy/willie/infusion_connect.php' );
-	global $install, $app, $wpdb;
-	include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+	global $app, $wpdb;
+	include(ABSPATH . 'keap_isdk/infusion_connect.php');
 
 	$studio_monthly = $app->savedSearchAllFields(1938, 1, $x);
 	foreach ($studio_monthly AS $sm) {
@@ -830,8 +1057,12 @@ add_filter('fluentform/validate_input_item_select', function($error, $field) {
  */
 
 // Configuration constants
-define('JAZZEDGE_MAIN_SITE_URL', 'https://jazzedge.com');
-define('JAZZEDGE_API_KEY', 'je_api_2024_K9m7nQ8vL3xR6tY2wE9rP5sA1dF4hJ7k');
+if ( ! defined( 'JAZZEDGE_MAIN_SITE_URL' ) ) {
+    define( 'JAZZEDGE_MAIN_SITE_URL', 'https://jazzedge.com' );
+}
+if ( ! defined( 'JAZZEDGE_API_KEY' ) ) {
+    define( 'JAZZEDGE_API_KEY', 'je_api_2024_K9m7nQ8vL3xR6tY2wE9rP5sA1dF4hJ7k' );
+}
 
 add_filter('fluent_support/customer_extra_widgets', 'je_enhanced_support_widget', 40, 2);
 
@@ -877,7 +1108,7 @@ function je_enhanced_support_widget($widgets, $customer) {
  * Get Keap/InfusionSoft data
  */
 function je_get_keap_data($customer_email) {
-    global $wpdb, $install, $app;
+    global $wpdb, $app;
     
     $data = [
         'keap_id' => 0,
@@ -899,7 +1130,7 @@ function je_get_keap_data($customer_email) {
     }
 
     // Connect to Keap if available
-    include_once('/nas/content/live/' . $install . '/keap_isdk/infusion_connect.php');
+    include_once(ABSPATH . 'keap_isdk/infusion_connect.php');
     
     if ($data['keap_id'] <= 0) {
         $data['keap_id'] = keap_find_contact_id($customer_email);
@@ -2446,7 +2677,6 @@ function format_money($num) {
 }
 
 function keap_add_new_user($email,$fname,$lname) {
-    global $install;
     //include('/nas/content/live/'.$install.'/willie/infusion_connect.php');
     if (empty($email)) { return; }
     $contact_id = keap_find_contact_id($email);
@@ -2472,8 +2702,8 @@ function keap_has_card() {
     if ($keap_id < 1) { return ; }
 	global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
 	$returnFields = array('Id','last4','CardType','ExpirationMonth','NameOnCard');
  	$query = array('ContactId' => $keap_id);
@@ -2487,8 +2717,8 @@ function keap_tag_contact($contact_id,$tag_id) {
 	if ($contact_id < 1) { return ; }
     global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
 	$tagged = $app->grpAssign($contact_id,$tag_id);
 	return $tagged;
@@ -2501,8 +2731,8 @@ function keap_check_contact_tag($contact_id, $tag_id) {
     
     global $app;
     if (!$app) {
-        global $install, $app;
-        include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+        global $app;
+        include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
     
     // Define the return fields and query for the contact tags
@@ -2530,8 +2760,8 @@ function keap_removetag_contact($contact_id,$tag_id) {
 	if ($contact_id < 1) { return ; }
     global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
 	$tagged = $app->grpRemove($contact_id,$tag_id);
 	return $tagged;
@@ -2542,8 +2772,8 @@ function keap_goal_contact($contact_id,$keap_api_goal) {
 	if ($contact_id < 1) { return ; }
     global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
 	$goal = $app->achieveGoal('ft217', $keap_api_goal, $contact_id); 
 	return $goal;
@@ -2554,8 +2784,8 @@ function keap_find_contact_id($email_address) {
 	$contact_id = null;
     global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
 	$contact =  $app->findByEmail($email_address,array('Id'));
 	$contact_id = $contact[0]['Id'];
@@ -2566,8 +2796,8 @@ function keap_update_contact($contact_id,$update_array) {
 	if ($contact_id < 1) { return ; }
  	global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
 	$u = $app->updateCon($contact_id,$update_array);
 	return $u;
@@ -2577,8 +2807,8 @@ function keap_get_contact_fields($contact_id,$field_array) {
 	if ($contact_id < 1) { return ; }
     global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
 	$u = $app->loadCon($contact_id,$field_array);
 	return $u;
@@ -2589,8 +2819,8 @@ function keap_has_lesson_suggestions($data = '') {
 	if ($keap_id < 1) { return ; }
     global $app;
     if (!$app) {
-    	global $install, $app;
-		include('/nas/content/live/'.$install.'/keap_isdk/infusion_connect.php');
+    	global $app;
+		include(ABSPATH . 'keap_isdk/infusion_connect.php');
     }
     $field_array = array('_MostInterestedInLearning','_SkillLevel');
 	$u = $app->loadCon($keap_id,$field_array);
@@ -6488,10 +6718,14 @@ function piano_show_simple_column($column, $post_id) {
  */
 
 /**
- * Configuration - Update these values
+ * Configuration - Update these values (wrapped in defined() to avoid redefinition)
  */
-define('JAZZEDGE_MAIN_SITE_URL', 'https://jazzedge.com');
-define('JAZZEDGE_API_KEY', 'je_api_2024_K9m7nQ8vL3xR6tY2wE9rP5sA1dF4hJ7k'); // Updated API key
+if ( ! defined( 'JAZZEDGE_MAIN_SITE_URL' ) ) {
+    define( 'JAZZEDGE_MAIN_SITE_URL', 'https://jazzedge.com' );
+}
+if ( ! defined( 'JAZZEDGE_API_KEY' ) ) {
+    define( 'JAZZEDGE_API_KEY', 'je_api_2024_K9m7nQ8vL3xR6tY2wE9rP5sA1dF4hJ7k' );
+}
 
 /**
  * Get membership data from main JazzEdge site

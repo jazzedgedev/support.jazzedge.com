@@ -115,6 +115,261 @@ jQuery(document).ready(function($) {
             }
         });
     });
+
+    initLessonTimestamps();
+
+    function initLessonTimestamps() {
+        var $toolbar = $('.alm-timestamp-toolbar');
+        var $listCard = $('.alm-timestamps-card');
+        var $modal = $('#alm-timestamp-modal');
+        
+        if (!$modal.length || (!$toolbar.length && !$listCard.length)) {
+            if (window.console && console.warn) {
+                console.warn('ALM timestamps: modal or container missing', {
+                    hasModal: $modal.length > 0,
+                    hasToolbar: $toolbar.length > 0,
+                    hasListCard: $listCard.length > 0
+                });
+            }
+            return;
+        }
+        
+        var lessonId = $toolbar.data('lesson-id') || $listCard.data('lesson-id');
+        var videoId = $toolbar.data('video-id') || $listCard.data('video-id');
+        var $videoContainer = $('.alm-video-section');
+        
+        function getPlayerAPI() {
+            if (typeof window.fv_player === 'function') {
+                try {
+                    var fvInstance = window.fv_player(0);
+                    if (fvInstance) {
+                        return {
+                            getCurrentTime: function() {
+                                if (typeof fvInstance.currentTime === 'number') {
+                                    return fvInstance.currentTime;
+                                }
+                                if (typeof fvInstance.currentTime === 'function') {
+                                    return fvInstance.currentTime();
+                                }
+                                if (typeof fvInstance.getTime === 'function') {
+                                    return fvInstance.getTime();
+                                }
+                                return 0;
+                            },
+                            setCurrentTime: function(seconds) {
+                                if (typeof fvInstance.currentTime === 'number') {
+                                    fvInstance.currentTime = seconds;
+                                } else if (typeof fvInstance.setCurrentTime === 'function') {
+                                    fvInstance.setCurrentTime(seconds);
+                                } else if (typeof fvInstance.seek === 'function') {
+                                    fvInstance.seek(seconds);
+                                }
+                            },
+                            play: function() {
+                                if (typeof fvInstance.play === 'function') {
+                                    fvInstance.play();
+                                }
+                            },
+                            pause: function() {
+                                if (typeof fvInstance.pause === 'function') {
+                                    fvInstance.pause();
+                                }
+                            }
+                        };
+                    }
+                } catch (e) {
+                    // fall through to HTML5 video
+                }
+            }
+            
+            var videoEl = document.querySelector('.alm-video-section video');
+            if (!videoEl) {
+                return null;
+            }
+            return {
+                getCurrentTime: function() { return videoEl.currentTime || 0; },
+                setCurrentTime: function(seconds) { videoEl.currentTime = seconds; },
+                play: function() { videoEl.play(); },
+                pause: function() { videoEl.pause(); }
+            };
+        }
+        
+        function formatTime(seconds) {
+            seconds = Math.max(0, Math.floor(seconds || 0));
+            var hours = Math.floor(seconds / 3600);
+            var minutes = Math.floor((seconds % 3600) / 60);
+            var secs = seconds % 60;
+            if (hours > 0) {
+                return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            }
+            return minutes + ':' + String(secs).padStart(2, '0');
+        }
+        
+        function openModal(seconds) {
+            $('#alm-timestamp-current-time').text(formatTime(seconds));
+            $('#alm-timestamp-seconds').val(Math.floor(seconds));
+            $('#alm-timestamp-description').val('').focus();
+            $modal.fadeIn(200);
+        }
+        
+        function closeModal() {
+            $modal.fadeOut(200);
+        }
+        
+        function handleAddTimestampClick() {
+            lessonId = $toolbar.data('lesson-id') || $listCard.data('lesson-id');
+            videoId = $toolbar.data('video-id') || $listCard.data('video-id');
+            if (window.console && console.log) {
+                console.log('ALM timestamps: add clicked', { lessonId: lessonId, videoId: videoId });
+            }
+            var player = getPlayerAPI();
+            if (!player) {
+                if (window.console && console.warn) {
+                    console.warn('ALM timestamps: player not ready');
+                }
+                alert('Start playing the video, pause the video then click add timestamp');
+                return;
+            }
+            player.pause();
+            var seconds = player.getCurrentTime() || 0;
+            openModal(seconds);
+        }
+
+        $toolbar.on('click', '.alm-add-timestamp-btn', handleAddTimestampClick);
+        $listCard.on('click', '.alm-add-timestamp-btn', handleAddTimestampClick);
+        
+        $modal.on('click', '.alm-timestamp-modal-close, .alm-timestamp-cancel-btn, .alm-timestamp-modal-overlay', function(e) {
+            e.preventDefault();
+            closeModal();
+        });
+        
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape' && $modal.is(':visible')) {
+                closeModal();
+            }
+            if (e.key === 'Enter' && $modal.is(':visible')) {
+                e.preventDefault();
+                $modal.find('.alm-timestamp-save-btn').trigger('click');
+            }
+        });
+        
+        $modal.on('click', '.alm-timestamp-save-btn', function() {
+            var seconds = parseInt($('#alm-timestamp-seconds').val(), 10) || 0;
+            var description = $('#alm-timestamp-description').val().trim();
+            
+            $.ajax({
+                url: almAjax.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'alm_add_video_timestamp',
+                    nonce: almAjax.timestamps_nonce,
+                    lesson_id: lessonId,
+                    video_id: videoId,
+                    seconds: seconds,
+                    description: description
+                },
+                success: function(response) {
+                    if (response.success && response.data) {
+                        appendTimestampRow(response.data);
+                        closeModal();
+                    } else {
+                        alert(response.data || 'Failed to save timestamp.');
+                    }
+                },
+                error: function() {
+                    alert('Failed to save timestamp.');
+                }
+            });
+        });
+        
+        $listCard.on('click', '.alm-timestamp-view-btn', function() {
+            var $row = $(this).closest('.alm-timestamp-row');
+            var seconds = parseInt($row.data('seconds'), 10) || 0;
+            var player = getPlayerAPI();
+            if (!player) {
+                return;
+            }
+            player.setCurrentTime(seconds);
+            player.play();
+            if ($videoContainer.length) {
+                $videoContainer.get(0).scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+        
+        $listCard.on('click', '.alm-timestamp-delete-btn', function() {
+            var $row = $(this).closest('.alm-timestamp-row');
+            var timestampId = $row.data('timestamp-id');
+            if (!timestampId) {
+                return;
+            }
+            
+            $.ajax({
+                url: almAjax.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'alm_delete_video_timestamp',
+                    nonce: almAjax.timestamps_nonce,
+                    lesson_id: lessonId,
+                    timestamp_id: timestampId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $row.remove();
+                        toggleEmptyState();
+                    } else {
+                        alert(response.data || 'Failed to delete timestamp.');
+                    }
+                },
+                error: function() {
+                    alert('Failed to delete timestamp.');
+                }
+            });
+        });
+        
+        function appendTimestampRow(data) {
+            var $list = $listCard.find('.alm-timestamp-list');
+            if (!$list.length) {
+                $list = $('<div class="alm-timestamp-list"></div>');
+                $listCard.find('.alm-card-content').append($list);
+            }
+            
+            var description = data.description ? data.description : '';
+            var $row = $('<div class="alm-timestamp-row" data-timestamp-id="' + data.id + '" data-seconds="' + data.seconds + '"></div>');
+            $row.append('<div class="alm-timestamp-time">' + data.time + '</div>');
+            $row.append('<div class="alm-timestamp-description">' + description + '</div>');
+            $row.append('<div class="alm-timestamp-actions"><button type="button" class="alm-timestamp-view-btn">View this section</button><button type="button" class="alm-timestamp-delete-btn" aria-label="Delete timestamp">Delete</button></div>');
+            
+            $list.append($row);
+            sortTimestampList($list);
+            toggleEmptyState();
+        }
+        
+        function sortTimestampList($list) {
+            var $rows = $list.children('.alm-timestamp-row').get();
+            $rows.sort(function(a, b) {
+                var aSec = parseInt($(a).data('seconds'), 10) || 0;
+                var bSec = parseInt($(b).data('seconds'), 10) || 0;
+                return aSec - bSec;
+            });
+            $.each($rows, function(idx, row) {
+                $list.append(row);
+            });
+        }
+        
+        function toggleEmptyState() {
+            var $empty = $listCard.find('.alm-timestamp-empty');
+            var hasRows = $listCard.find('.alm-timestamp-row').length > 0;
+            if (hasRows) {
+                $empty.hide();
+            } else {
+                if (!$empty.length) {
+                    $listCard.find('.alm-card-content').prepend('<div class="alm-timestamp-empty">No timestamps yet. Pause the video and click Add Timestamp to bookmark a moment.</div>');
+                } else {
+                    $empty.show();
+                }
+            }
+        }
+    }
 });
 
 // Helper function to update chapter completion status

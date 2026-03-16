@@ -152,6 +152,9 @@ class ALM_Membership_Checker {
             return 'false'; 
         }
         
+        if ( ! function_exists( 'memb_hasMembership' ) ) {
+            return 'false';
+        }
         foreach ($memberships as $membership) {
             if (memb_hasMembership($membership) === true) {
                 return 'true';
@@ -166,8 +169,12 @@ class ALM_Membership_Checker {
      * @return string 'true' if expired, 'false' if not expired or no expiration date
      */
     public static function return_membership_expired() {
-        $academy_expiration_date = strtotime(memb_getContactField('_AcademyExpirationDate'));
-        if (empty($academy_expiration_date)) {
+        if ( ! function_exists( 'memb_getContactField' ) ) {
+            return 'false';
+        }
+        $expiration_value = memb_getContactField( '_AcademyExpirationDate' );
+        $academy_expiration_date = strtotime( (string) $expiration_value );
+        if ( empty( $academy_expiration_date ) ) {
             return 'false';
         }
         $now = time();

@@ -37,6 +37,33 @@ class ALM_Admin_Chapters {
         $this->wpdb = $wpdb;
         $this->database = new ALM_Database();
         $this->table_name = $this->database->get_table_name('chapters');
+        add_action('admin_init', array($this, 'maybe_process_form_early'), 2);
+    }
+
+    /**
+     * Process chapter form at admin_init (before any output) so wp_redirect works.
+     * After a server move, processing in render_page runs after admin header is sent → redirect fails → blank screen.
+     */
+    public function maybe_process_form_early() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return;
+        }
+        $page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
+        if ($page !== 'academy-manager-chapters') {
+            return;
+        }
+        if (isset($_POST['form_action']) && !empty($_POST['form_action'])) {
+            $this->handle_form_submission();
+            return;
+        }
+        if (isset($_POST['action']) && $_POST['action'] !== '-1') {
+            $this->handle_bulk_action();
+            return;
+        }
+        if (isset($_POST['bulk_update_slugs'])) {
+            $this->handle_bulk_update_slugs();
+            return;
+        }
     }
     
     /**
@@ -808,9 +835,9 @@ class ALM_Admin_Chapters {
             // Check if we came from a lesson page
             $lesson_id_param = isset($_GET['lesson_id']) ? intval($_GET['lesson_id']) : 0;
             if ($lesson_id_param) {
-                wp_redirect(add_query_arg(array('page' => 'academy-manager-lessons', 'action' => 'edit', 'id' => $lesson_id_param, 'message' => 'chapter_added')));
+                wp_redirect(add_query_arg(array('action' => 'edit', 'id' => $lesson_id_param, 'message' => 'chapter_added'), admin_url('admin.php?page=academy-manager-lessons')));
             } else {
-                wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'action' => 'edit', 'id' => $chapter_id, 'message' => 'created')));
+                wp_redirect(add_query_arg(array('action' => 'edit', 'id' => $chapter_id, 'message' => 'created'), admin_url('admin.php?page=academy-manager-chapters')));
             }
             exit;
         } else {
@@ -933,7 +960,7 @@ class ALM_Admin_Chapters {
         }
         
         if ($result !== false) {
-            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'action' => 'edit', 'id' => $chapter_id, 'message' => 'updated')));
+            wp_redirect(add_query_arg(array('action' => 'edit', 'id' => $chapter_id, 'message' => 'updated'), admin_url('admin.php?page=academy-manager-chapters')));
             exit;
         } else {
             wp_die(__('Error updating chapter.', 'academy-lesson-manager'));
@@ -997,7 +1024,7 @@ class ALM_Admin_Chapters {
         }
         
         // Redirect back to list page with success message
-        wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'slugs_updated', 'updated_count' => $updated_count)));
+        wp_redirect(add_query_arg(array('message' => 'slugs_updated', 'updated_count' => $updated_count), admin_url('admin.php?page=academy-manager-chapters')));
         exit;
     }
     
@@ -1009,7 +1036,7 @@ class ALM_Admin_Chapters {
         $chapters = isset($_POST['chapter']) ? array_map('intval', $_POST['chapter']) : array();
         
         if (empty($chapters)) {
-            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'no_selection')));
+            wp_redirect(add_query_arg('message', 'no_selection', admin_url('admin.php?page=academy-manager-chapters')));
             exit;
         }
         
@@ -1025,7 +1052,7 @@ class ALM_Admin_Chapters {
             }
             
             // Redirect back to list page with success message
-            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'bulk_deleted', 'deleted_count' => $deleted_count)));
+            wp_redirect(add_query_arg(array('message' => 'bulk_deleted', 'deleted_count' => $deleted_count), admin_url('admin.php?page=academy-manager-chapters')));
             exit;
         } elseif ($action === 'update_slugs') {
             $updated_count = 0;
@@ -1054,7 +1081,7 @@ class ALM_Admin_Chapters {
             }
             
             // Redirect back to list page with success message
-            wp_redirect(add_query_arg(array('page' => 'academy-manager-chapters', 'message' => 'bulk_slugs_updated', 'updated_count' => $updated_count)));
+            wp_redirect(add_query_arg(array('message' => 'bulk_slugs_updated', 'updated_count' => $updated_count), admin_url('admin.php?page=academy-manager-chapters')));
             exit;
         }
     }

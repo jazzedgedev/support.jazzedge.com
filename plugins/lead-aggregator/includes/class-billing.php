@@ -16,23 +16,31 @@ class Lead_Aggregator_Billing {
                 'label' => 'Starter',
                 'lead_limit' => 100,
                 'fluentcart' => array(
-                    'subscription_ids' => array(),
+                    'subscription_ids' => array('46'),
                     'allowed_statuses' => array('active', 'trialing', 'grace'),
                 ),
             ),
-            'growth' => array(
-                'label' => 'Growth',
+            'core' => array(
+                'label' => 'Core',
                 'lead_limit' => 500,
                 'fluentcart' => array(
-                    'subscription_ids' => array(),
+                    'subscription_ids' => array('48'),
                     'allowed_statuses' => array('active', 'trialing', 'grace'),
                 ),
             ),
-            'pro' => array(
-                'label' => 'Pro',
-                'lead_limit' => 2000,
+            'plus' => array(
+                'label' => 'Plus',
+                'lead_limit' => 2500,
                 'fluentcart' => array(
-                    'subscription_ids' => array(),
+                    'subscription_ids' => array('50'),
+                    'allowed_statuses' => array('active', 'trialing', 'grace'),
+                ),
+            ),
+            'enterprise' => array(
+                'label' => 'Enterprise',
+                'lead_limit' => 10000,
+                'fluentcart' => array(
+                    'subscription_ids' => array('52'),
                     'allowed_statuses' => array('active', 'trialing', 'grace'),
                 ),
             ),

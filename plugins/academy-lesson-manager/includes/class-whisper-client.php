@@ -425,6 +425,114 @@ class ALM_Whisper_Client {
     }
     
     /**
+     * Transcribe an uploaded audio file (standalone, not linked to lesson/chapter)
+     * Supports text or vtt output format.
+     *
+     * @param string $file_path Path to audio file
+     * @param string $output_format 'text' or 'vtt'
+     * @return array Result with success, content, message
+     */
+    public function transcribe_upload($file_path, $output_format = 'text') {
+        if (empty($this->api_key)) {
+            return array(
+                'success' => false,
+                'message' => __('OpenAI API key not configured. Please set it in Katahdin AI Hub or Fluent Support AI settings.', 'academy-lesson-manager')
+            );
+        }
+
+        if (!file_exists($file_path)) {
+            return array(
+                'success' => false,
+                'message' => __('File not found.', 'academy-lesson-manager')
+            );
+        }
+
+        $file_size_mb = filesize($file_path) / 1024 / 1024;
+        if ($file_size_mb > 25) {
+            return array(
+                'success' => false,
+                'message' => sprintf(__('File too large: %s MB. OpenAI Whisper API limit is 25 MB.', 'academy-lesson-manager'), number_format($file_size_mb, 2))
+            );
+        }
+
+        $format = in_array($output_format, array('text', 'vtt')) ? $output_format : 'text';
+
+        $file_ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+        $mime_type = 'audio/mpeg';
+        if ($file_ext === 'mp3') {
+            $mime_type = 'audio/mpeg';
+        } elseif ($file_ext === 'm4a') {
+            $mime_type = 'audio/mp4';
+        } elseif ($file_ext === 'wav') {
+            $mime_type = 'audio/wav';
+        } elseif ($file_ext === 'mp4') {
+            $mime_type = 'video/mp4';
+        } elseif ($file_ext === 'webm') {
+            $mime_type = 'audio/webm';
+        }
+
+        $absolute_file_path = realpath($file_path);
+        if ($absolute_file_path === false) {
+            return array('success' => false, 'message' => __('Could not resolve file path.', 'academy-lesson-manager'));
+        }
+
+        $file_content = file_get_contents($absolute_file_path);
+        if ($file_content === false) {
+            return array('success' => false, 'message' => __('Failed to read file.', 'academy-lesson-manager'));
+        }
+
+        $upload_filename = basename($absolute_file_path);
+        $boundary = 'WebKitFormBoundary' . uniqid();
+        $eol = "\r\n";
+
+        $body = '';
+        $body .= '--' . $boundary . $eol;
+        $body .= 'Content-Disposition: form-data; name="file"; filename="' . addslashes($upload_filename) . '"' . $eol;
+        $body .= 'Content-Type: ' . $mime_type . $eol . $eol;
+        $body .= $file_content . $eol;
+        $body .= '--' . $boundary . $eol;
+        $body .= 'Content-Disposition: form-data; name="model"' . $eol . $eol . 'whisper-1' . $eol;
+        $body .= '--' . $boundary . $eol;
+        $body .= 'Content-Disposition: form-data; name="language"' . $eol . $eol . 'en' . $eol;
+        $body .= '--' . $boundary . $eol;
+        $body .= 'Content-Disposition: form-data; name="response_format"' . $eol . $eol . $format . $eol;
+        $body .= '--' . $boundary . '--' . $eol;
+
+        $ch = curl_init($this->api_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Authorization: Bearer ' . $this->api_key,
+            'Content-Type: multipart/form-data; boundary=' . $boundary
+        ));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 1800);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 60);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
+        curl_close($ch);
+
+        if ($curl_error) {
+            return array('success' => false, 'message' => 'cURL error: ' . $curl_error);
+        }
+
+        if ($http_code !== 200) {
+            $error_data = json_decode($response, true);
+            $error_message = isset($error_data['error']['message']) ? $error_data['error']['message'] : 'HTTP ' . $http_code;
+            return array('success' => false, 'message' => 'API error: ' . $error_message);
+        }
+
+        return array(
+            'success' => true,
+            'content' => $response,
+            'format' => $format
+        );
+    }
+
+    /**
      * Get duration of audio file using ffprobe (if available) or estimate
      */
     private function get_file_duration($file_path) {

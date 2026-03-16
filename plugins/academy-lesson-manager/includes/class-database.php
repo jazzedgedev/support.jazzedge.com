@@ -52,7 +52,9 @@ class ALM_Database {
             'teachers' => $wpdb->prefix . 'alm_teachers',
             'starter_plan' => $wpdb->prefix . 'alm_starter_plan',
             'intensives' => $wpdb->prefix . 'alm_intensives',
-            'search_logs' => $wpdb->prefix . 'alm_search_logs'
+            'search_logs' => $wpdb->prefix . 'alm_search_logs',
+            'whisper_transcripts' => $wpdb->prefix . 'alm_whisper_transcripts',
+            'lesson_timestamps' => $wpdb->prefix . 'alm_lesson_timestamps'
         );
     }
     
@@ -80,6 +82,8 @@ class ALM_Database {
         $this->create_starter_plan_table();
         $this->create_intensives_table();
         $this->create_search_logs_table();
+        $this->create_whisper_transcripts_table();
+        $this->create_lesson_timestamps_table();
         
         // Insert default FAQs if table is empty
         $this->insert_default_faqs();
@@ -117,6 +121,9 @@ class ALM_Database {
         // Ensure tags table exists (migration for existing installations)
         $this->ensure_tags_table();
 
+        // Ensure lesson_timestamps table exists (migration for existing installations)
+        $this->ensure_lesson_timestamps_table();
+
         // Ensure FULLTEXT indexes for search performance
         $this->ensure_fulltext_indexes();
         
@@ -129,6 +136,9 @@ class ALM_Database {
         // Check and add status column to lessons table if it doesn't exist
         $this->check_and_add_lesson_status_column();
 
+        // Check and add fluentcart_product_id column to lessons table if it doesn't exist
+        $this->check_and_add_fluentcart_product_id_column();
+
         // Ensure notifications table has a category column for tagging
         $this->check_and_add_notification_category_column();
         
@@ -137,6 +147,9 @@ class ALM_Database {
         
         // Ensure search_logs table exists (for existing installations)
         $this->ensure_search_logs_table();
+
+        // Ensure whisper_transcripts table exists (for Transcribe tool)
+        $this->ensure_whisper_transcripts_table();
 
         // Ensure essentials selections table has grants_paused column
         $this->check_and_add_essentials_pause_column();
@@ -635,6 +648,18 @@ class ALM_Database {
     public function get_table_name($table) {
         return isset($this->tables[$table]) ? $this->tables[$table] : '';
     }
+
+    /**
+     * Ensure intensives table has sale_active column (for migrations that may not have run yet)
+     */
+    public function ensure_intensives_sale_active_column() {
+        $table_name = $this->tables['intensives'];
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+        if ($columns && !in_array('sale_active', $columns)) {
+            $after = in_array('sale_price', $columns) ? ' AFTER sale_price' : (in_array('skill_level', $columns) ? ' AFTER skill_level' : '');
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN sale_active tinyint(1) DEFAULT 0{$after}");
+        }
+    }
     
     /**
      * Get all table names
@@ -996,12 +1021,15 @@ class ALM_Database {
             start_date date DEFAULT NULL,
             end_date date DEFAULT NULL,
             order_form_url varchar(500) DEFAULT '',
+            fluentcart_product_url varchar(500) DEFAULT '',
             keap_tag_id int(11) DEFAULT 0,
             retail_price decimal(10,2) DEFAULT NULL,
             sale_price decimal(10,2) DEFAULT NULL,
+            sale_active tinyint(1) DEFAULT 0,
             skill_level varchar(20) DEFAULT 'beg',
             display_order int(11) DEFAULT 0,
             is_active tinyint(1) DEFAULT 1,
+            available_for_sale tinyint(1) DEFAULT 1,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (ID),
@@ -1026,8 +1054,39 @@ class ALM_Database {
         // Check and add pricing columns if they don't exist (for existing installations)
         $this->check_and_add_intensive_pricing_columns();
 
+        // Check and add sale_active column if it doesn't exist (for existing installations)
+        $this->check_and_add_intensive_sale_active_column();
+
         // Check and add keap_tag_id column if it doesn't exist (for existing installations)
         $this->check_and_add_intensive_keap_tag_id_column();
+
+        // Check and add fluentcart_product_url column if it doesn't exist
+        $this->check_and_add_intensive_fluentcart_product_url_column();
+
+        // Check and add available_for_sale column if it doesn't exist
+        $this->check_and_add_intensive_available_for_sale_column();
+    }
+
+    /**
+     * Check and add available_for_sale column to intensives table
+     */
+    public function check_and_add_intensive_available_for_sale_column() {
+        $table_name = $this->tables['intensives'];
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+        if (!in_array('available_for_sale', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN available_for_sale tinyint(1) DEFAULT 1 AFTER is_active");
+        }
+    }
+
+    /**
+     * Check and add fluentcart_product_url column to intensives table
+     */
+    public function check_and_add_intensive_fluentcart_product_url_column() {
+        $table_name = $this->tables['intensives'];
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+        if (!in_array('fluentcart_product_url', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN fluentcart_product_url varchar(500) DEFAULT '' AFTER order_form_url");
+        }
     }
     
     /**
@@ -1074,6 +1133,19 @@ class ALM_Database {
         
         if (!in_array('sale_price', $columns)) {
             $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN sale_price decimal(10,2) DEFAULT NULL AFTER retail_price");
+        }
+    }
+
+    /**
+     * Check and add sale_active column to intensives table
+     */
+    private function check_and_add_intensive_sale_active_column() {
+        $table_name = $this->tables['intensives'];
+
+        $columns = $this->wpdb->get_col("SHOW COLUMNS FROM {$table_name}");
+
+        if (!in_array('sale_active', $columns)) {
+            $this->wpdb->query("ALTER TABLE {$table_name} ADD COLUMN sale_active tinyint(1) DEFAULT 0 AFTER sale_price");
         }
     }
 
@@ -1269,6 +1341,18 @@ class ALM_Database {
             $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN status enum('published','draft','archived') DEFAULT 'published' AFTER sample_chapter_id, ADD KEY status (status)");
         }
     }
+
+    /**
+     * Check and add fluentcart_product_id column to lessons table
+     */
+    public function check_and_add_fluentcart_product_id_column() {
+        $lessons_table = $this->tables['lessons'];
+
+        $fc_columns = $this->wpdb->get_results("SHOW COLUMNS FROM $lessons_table LIKE 'fluentcart_product_id'");
+        if (empty($fc_columns)) {
+            $this->wpdb->query("ALTER TABLE $lessons_table ADD COLUMN fluentcart_product_id int(11) DEFAULT 0 AFTER status, ADD KEY fluentcart_product_id (fluentcart_product_id)");
+        }
+    }
     
     /**
      * Ensure search_logs table exists (for existing installations)
@@ -1281,6 +1365,77 @@ class ALM_Database {
         if (!$table_exists) {
             // Create the table
             $this->create_search_logs_table();
+        }
+    }
+
+    /**
+     * Create whisper transcripts table (standalone uploads from Transcribe tool)
+     */
+    private function create_whisper_transcripts_table() {
+        $table_name = $this->tables['whisper_transcripts'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            file_name varchar(255) NOT NULL,
+            output_format varchar(10) NOT NULL DEFAULT 'text',
+            content longtext NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * Create lesson timestamps table
+     */
+    private function create_lesson_timestamps_table() {
+        $table_name = $this->tables['lesson_timestamps'];
+        
+        $charset_collate = $this->wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            ID int(11) NOT NULL AUTO_INCREMENT,
+            user_id int(11) NOT NULL,
+            video_id int(11) NOT NULL,
+            seconds int(11) NOT NULL,
+            description varchar(500) DEFAULT '',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (ID),
+            KEY user_id (user_id),
+            KEY video_id (video_id),
+            KEY user_video (user_id, video_id)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * Ensure whisper_transcripts table exists (for existing installations)
+     */
+    private function ensure_whisper_transcripts_table() {
+        $table_name = $this->tables['whisper_transcripts'];
+        
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") == $table_name;
+        if (!$table_exists) {
+            $this->create_whisper_transcripts_table();
+        }
+    }
+
+    /**
+     * Ensure lesson_timestamps table exists (for existing installations)
+     */
+    private function ensure_lesson_timestamps_table() {
+        $table_name = $this->tables['lesson_timestamps'];
+        
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") == $table_name;
+        if (!$table_exists) {
+            $this->create_lesson_timestamps_table();
         }
     }
     

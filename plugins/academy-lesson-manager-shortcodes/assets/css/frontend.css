@@ -122,6 +122,235 @@
     color: white;
 }
 
+/* Timestamp Bookmarks */
+.alm-timestamp-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: #f8f9fb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+.alm-add-timestamp-btn {
+    background: #239B90;
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.alm-add-timestamp-btn:hover {
+    background: #1f857c;
+    transform: translateY(-1px);
+}
+
+.alm-timestamp-helper {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.alm-timestamp-card-actions {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.alm-timestamps-card .alm-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.alm-timestamp-empty {
+    font-size: 14px;
+    color: #6b7280;
+    background: #f9fafb;
+    border: 1px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.alm-timestamp-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.alm-timestamp-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.alm-timestamp-time {
+    font-weight: 600;
+    color: #111827;
+    font-size: 14px;
+}
+
+.alm-timestamp-description {
+    font-size: 14px;
+    color: #374151;
+}
+
+.alm-timestamp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.alm-timestamp-view-btn {
+    background: #f04e23;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.alm-timestamp-view-btn:hover {
+    background: #d4431e;
+}
+
+.alm-timestamp-delete-btn {
+    background: #fff;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.alm-timestamp-delete-btn:hover {
+    background: #fee2e2;
+}
+
+.alm-timestamp-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+}
+
+.alm-timestamp-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.alm-timestamp-modal-content {
+    position: relative;
+    max-width: 480px;
+    width: calc(100% - 32px);
+    margin: 80px auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    z-index: 1;
+}
+
+.alm-timestamp-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.alm-timestamp-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #111827;
+}
+
+.alm-timestamp-modal-close {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #6b7280;
+}
+
+.alm-timestamp-modal-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.alm-timestamp-time-display {
+    font-size: 14px;
+    color: #374151;
+    font-weight: 600;
+}
+
+.alm-timestamp-modal-body label {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.alm-timestamp-modal-body input[type="text"] {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+}
+
+.alm-timestamp-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.alm-timestamp-cancel-btn {
+    background: #f3f4f6;
+    color: #111827;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.alm-timestamp-save-btn {
+    background: #239B90;
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .alm-timestamp-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .alm-timestamp-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
 .alm-status-icon.pending {
     background: #e9ecef;
     color: #6c757d;

@@ -81,6 +81,19 @@ class Katahdin_AI_Hub_API_Manager {
         $success = $response_code === 200;
         $error_message = $success ? null : ($response_data['error']['message'] ?? 'Unknown error');
         $this->log_usage($plugin_id, $endpoint, $tokens_used, $cost, $response_time, $success, $error_message);
+
+        // Log AI usage to wp_katahdin_ai_logs when enabled (for visibility: who used what, when)
+        if ($success && $endpoint === 'chat/completions' && function_exists('katahdin_ai_hub')) {
+            $user_id = get_current_user_id();
+            $user = $user_id ? get_userdata($user_id) : null;
+            $feature_name = $plugin_id === 'academy-practice-hub' ? 'AI Practice Analysis' : ($plugin_id === 'academy-ai-assistant' ? 'JAI' : $plugin_id);
+            katahdin_ai_hub()->log('info', "Student used {$feature_name}", array(
+                'plugin_id' => $plugin_id,
+                'user_id' => $user_id,
+                'user_display' => $user ? $user->display_name : '',
+                'user_email' => $user ? $user->user_email : '',
+            ));
+        }
         
         if ($success) {
             return $response_data;

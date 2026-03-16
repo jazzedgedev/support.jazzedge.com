@@ -2004,6 +2004,7 @@ class JPH_REST_API {
             
             delete_transient( 'aph_lesson_favorites_' . $user_id );
             delete_transient( 'aph_dashboard_init_' . $user_id );
+            delete_transient( 'aph_fav_check_' . $user_id . '_' . md5( $title ) );
 
             return rest_ensure_response(array(
                 'success' => true,
@@ -2043,6 +2044,7 @@ class JPH_REST_API {
             
             delete_transient( 'aph_lesson_favorites_' . $user_id );
             delete_transient( 'aph_dashboard_init_' . $user_id );
+            delete_transient( 'aph_fav_check_' . $user_id . '_' . md5( $title ) );
             
             return rest_ensure_response(array(
                 'success' => true,
@@ -2072,14 +2074,21 @@ class JPH_REST_API {
             if (empty($title)) {
                 return new WP_Error('missing_fields', 'Title is required', array('status' => 400));
             }
+
+            $cache_key = 'aph_fav_check_' . $user_id . '_' . md5($title);
+            $cached = get_transient($cache_key);
+            if (false !== $cached) {
+                return rest_ensure_response($cached);
+            }
             
             $favorite_id = $this->database->is_lesson_favorited($user_id, $title);
-            
-            return rest_ensure_response(array(
+            $response_data = array(
                 'success' => true,
                 'is_favorited' => $favorite_id !== false,
                 'favorite_id' => $favorite_id
-            ));
+            );
+            set_transient($cache_key, $response_data, 60);
+            return rest_ensure_response($response_data);
             
         } catch (Exception $e) {
             return new WP_Error('check_lesson_favorite_error', 'Error: ' . $e->getMessage(), array('status' => 500));

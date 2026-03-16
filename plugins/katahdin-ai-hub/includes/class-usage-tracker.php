@@ -359,6 +359,54 @@ class Katahdin_AI_Hub_Usage_Tracker {
     }
     
     /**
+     * Clear all logs from the database
+     *
+     * @return array{deleted_count: int, success: bool}
+     */
+    public function clear_all_logs() {
+        global $wpdb;
+        $logs_table = $wpdb->prefix . 'katahdin_ai_logs';
+
+        // Use fast approximate count (COUNT(*) on millions of rows can timeout)
+        $count_before = $this->get_logs_count();
+        $result = $wpdb->query("TRUNCATE TABLE `{$logs_table}`");
+
+        return array(
+            'deleted_count' => $result !== false ? $count_before : 0,
+            'success' => $result !== false
+        );
+    }
+
+    /**
+     * Get recent log entries (newest first)
+     *
+     * @param int $limit
+     * @return array
+     */
+    public function get_recent_logs($limit = 50) {
+        global $wpdb;
+        $logs_table = $wpdb->prefix . 'katahdin_ai_logs';
+
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT id, plugin_id, level, message, context, created_at FROM `{$logs_table}` ORDER BY id DESC LIMIT %d",
+            $limit
+        ), ARRAY_A);
+    }
+
+    /**
+     * Get current logs count
+     * Uses MAX(id) for speed - index-only, instant even on millions of rows.
+     * Accurate for tables with sequential inserts (no bulk deletes).
+     */
+    public function get_logs_count() {
+        global $wpdb;
+        $logs_table = $wpdb->prefix . 'katahdin_ai_logs';
+
+        $max_id = $wpdb->get_var("SELECT MAX(id) FROM `{$logs_table}`");
+        return $max_id !== null ? (int) $max_id : 0;
+    }
+
+    /**
      * Clean up old logs (older than 90 days)
      */
     public function cleanup_old_logs() {
