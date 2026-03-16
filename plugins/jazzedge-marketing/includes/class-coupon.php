@@ -28,9 +28,18 @@ class JEM_Coupon {
 
 		$table = $wpdb->prefix . 'fct_coupons';
 
-		$included_products = array();
+		// The funnel stores the FluentCart post_id — we need the variation id from fct_product_variations
+		$variation_id = null;
 		if ( ! empty( $funnel->product_id ) ) {
-			$included_products = array( (string) $funnel->product_id );
+			$variation = $wpdb->get_row( $wpdb->prepare(
+				"SELECT id FROM {$wpdb->prefix}fct_product_variations 
+				 WHERE post_id = %d 
+				 LIMIT 1",
+				absint( $funnel->product_id )
+			) );
+			if ( $variation ) {
+				$variation_id = (string) $variation->id;
+			}
 		}
 
 		$conditions = wp_json_encode( array(
@@ -41,7 +50,7 @@ class JEM_Coupon {
 			'max_per_customer'     => 1,
 			'apply_to_quantity'    => 'no',
 			'excluded_products'    => array(),
-			'included_products'    => $included_products,
+			'included_products'    => $variation_id ? array( $variation_id ) : array(),
 			'email_restrictions'   => '',
 			'apply_to_whole_cart'  => 'yes',
 			'excluded_categories'  => array(),

@@ -1,51 +1,68 @@
-/**
- * JEM Marketing - Frontend form AJAX submit
- */
-(function ($) {
-    'use strict';
+jQuery(document).ready(function($) {
 
-    $(function () {
-        $('.jem-optin-form').on('submit', function (e) {
-            e.preventDefault();
-            var $form = $(this);
-            var $btn = $form.find('.jem-submit-btn, .jem-submit');
-            var $msg = $form.siblings('.jem-message').length ? $form.siblings('.jem-message') : $form.find('.jem-message');
-            var funnelId = $form.data('funnel-id');
-
-            $msg.hide().removeClass('jem-error jem-success').text('');
-
-            if (!window.jemData || !window.jemData.ajaxUrl || !window.jemData.nonce) {
-                $msg.addClass('jem-error').text('Configuration error. Please refresh the page.').show();
-                return;
-            }
-
-            $btn.prop('disabled', true);
-
-            $.ajax({
-                url: window.jemData.ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'jem_optin',
-                    nonce: window.jemData.nonce,
-                    funnel_id: funnelId,
-                    first_name: $form.find('[name="first_name"]').val(),
-                    last_name: $form.find('[name="last_name"]').val(),
-                    email: $form.find('[name="email"]').val(),
-                    jem_hp: $form.find('[name="jem_hp"]').val()
-                },
-                success: function (response) {
-                    if (response.success && response.data && response.data.redirect) {
-                        window.location.href = response.data.redirect;
-                        return;
-                    }
-                    $msg.addClass('jem-error').text(response.data && response.data.message ? response.data.message : 'An error occurred.').show();
-                    $btn.prop('disabled', false);
-                },
-                error: function (xhr, status, err) {
-                    $msg.addClass('jem-error').text('An error occurred. Please try again.').show();
-                    $btn.prop('disabled', false);
-                }
+    $(document).on('click', '#jem-purchase-btn, .jem-btn-purchase[data-lead]', function() {
+        var leadId = $(this).data('lead');
+        var funnelId = $(this).data('funnel');
+        if (leadId && funnelId) {
+            $.post(jemAjax.ajaxurl, {
+                action: 'jem_track_event',
+                nonce: jemAjax.nonce,
+                lead_id: leadId,
+                funnel_id: funnelId,
+                event: 'purchase_click'
             });
+        }
+    });
+
+    $(document).on('click', '#jem-download-btn', function() {
+        var leadId = $(this).data('lead');
+        var funnelId = $(this).data('funnel');
+        if (leadId && funnelId) {
+            $.post(jemAjax.ajaxurl, {
+                action: 'jem_track_event',
+                nonce: jemAjax.nonce,
+                lead_id: leadId,
+                funnel_id: funnelId,
+                event: 'download_click'
+            });
+        }
+    });
+
+    $('#jem-optin-form').on('submit', function(e) {
+        e.preventDefault();
+
+        var $form    = $(this);
+        var $btn     = $form.find('.jem-submit-btn');
+        var $message = $('#jem-form-message');
+
+        $btn.prop('disabled', true).text('Please wait...');
+        $message.hide().removeClass('success error');
+
+        $.ajax({
+            url:  jemAjax.ajaxurl,
+            type: 'POST',
+            data: {
+                action:     'jem_optin',
+                nonce:      jemAjax.nonce,
+                invite_code: $form.find('input[name="invite_code"]').val(),
+                first_name: $form.find('input[name="first_name"]').val(),
+                last_name:  $form.find('input[name="last_name"]').val(),
+                email:      $form.find('input[name="email"]').val(),
+                jem_hp:     $form.find('input[name="jem_hp"]').val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    window.location.href = response.data.redirect;
+                } else {
+                    $message.addClass('error').text(response.data.message).show();
+                    $btn.prop('disabled', false).text('Get Free Access →');
+                }
+            },
+            error: function() {
+                $message.addClass('error').text('Something went wrong. Please try again.').show();
+                $btn.prop('disabled', false).text('Get Free Access →');
+            }
         });
     });
-})(jQuery);
+
+});

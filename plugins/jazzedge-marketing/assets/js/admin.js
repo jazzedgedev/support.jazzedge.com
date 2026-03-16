@@ -26,6 +26,33 @@
             mediaFrame.open();
         });
 
+        $(document).on('click', '.jem-regenerate-invite-code, #jem-regenerate-invite-code', function (e) {
+            e.preventDefault();
+            var $btn = $(e.target).closest('button');
+            var funnelId = $btn.data('funnel-id');
+            if (!funnelId) return;
+            if (!confirm('Regenerating will break any existing links using this code. Are you sure?')) return;
+
+            $btn.prop('disabled', true);
+            $.post(jemAdmin.ajaxurl, {
+                action: 'jem_regenerate_invite_code',
+                nonce: jemAdmin.nonce,
+                funnel_id: funnelId
+            }).done(function (r) {
+                if (r.success && r.data && r.data.invite_code) {
+                    var code = r.data.invite_code;
+                    if ($btn.attr('id') === 'jem-regenerate-invite-code') {
+                        $('#jem-invite-code-display').text(code);
+                    } else {
+                        var $cell = $btn.closest('td');
+                        $cell.find('code').first().text(code);
+                    }
+                }
+            }).always(function () {
+                $btn.prop('disabled', false);
+            });
+        });
+
         $(document).on('click', '.jem-copy-shortcode, .jem-copy-btn', function (e) {
             var $btn = $(e.target);
             var text = $btn.data('copy') || $btn.closest('.jem-shortcode-wrap').find('.jem-shortcode-input').val() || $btn.closest('.jem-shortcode-cell').find('input').val() || '';

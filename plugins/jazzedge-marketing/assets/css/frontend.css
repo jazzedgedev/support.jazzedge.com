@@ -1,157 +1,620 @@
 /* JEM Marketing - Frontend styles */
 
-/* ===== Honeypot - must be completely invisible ===== */
+/* ===== HONEYPOT — must be completely invisible ===== */
 .jem-honeypot-field {
     display: none !important;
     visibility: hidden !important;
     position: absolute !important;
     left: -9999px !important;
+    height: 0 !important;
+    overflow: hidden !important;
 }
 
 /* ===== JEM Marketing Opt-in Form ===== */
+.jem-optin-form {
+    display: block !important;
+}
+
 .jem-optin-wrapper {
-    max-width: 480px;
-    margin: 0 auto;
-    background: #ffffff;
-    padding: 40px;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    max-width: 480px !important;
+    margin: 40px auto !important;
+    background: #ffffff !important;
+    padding: 40px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
+    font-family: inherit !important;
 }
 
 .jem-optin-wrapper h2 {
-    font-size: 26px;
-    font-weight: 700;
-    color: #1a1a1a;
-    margin-bottom: 8px;
-    text-align: center;
+    font-size: 26px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 8px !important;
+    text-align: center !important;
 }
 
 .jem-optin-wrapper p.jem-subheading {
-    font-size: 15px;
-    color: #555;
-    text-align: center;
-    margin-bottom: 28px;
+    font-size: 15px !important;
+    color: #555 !important;
+    text-align: center !important;
+    margin-bottom: 28px !important;
 }
 
 .jem-form-group {
-    margin-bottom: 16px;
+    display: block !important;
+    margin-bottom: 20px !important;
+    width: 100% !important;
 }
 
 .jem-form-group label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 5px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    display: block !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.6px !important;
+    color: #444 !important;
+    margin-bottom: 6px !important;
 }
 
 .jem-form-group input[type="text"],
 .jem-form-group input[type="email"] {
-    width: 100%;
-    padding: 12px 16px;
-    font-size: 15px;
-    border: 1.5px solid #ddd;
-    border-radius: 5px;
-    transition: border-color 0.2s ease;
-    box-sizing: border-box;
-    color: #1a1a1a;
+    display: block !important;
+    width: 100% !important;
+    padding: 12px 16px !important;
+    font-size: 15px !important;
+    border: 1.5px solid #ddd !important;
+    border-radius: 5px !important;
+    box-sizing: border-box !important;
+    background: #fff !important;
+    color: #1a1a1a !important;
+    box-shadow: none !important;
+    margin: 0 !important;
 }
 
-.jem-form-group input:focus {
-    outline: none;
-    border-color: #0a7c7c;
-    box-shadow: 0 0 0 3px rgba(10, 124, 124, 0.1);
+.jem-form-group input[type="text"]:focus,
+.jem-form-group input[type="email"]:focus {
+    border-color: #0a7c7c !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(10,124,124,0.12) !important;
 }
 
 .jem-submit-btn {
-    width: 100%;
-    padding: 14px;
-    background: #0a7c7c;
-    color: #ffffff;
-    font-size: 17px;
-    font-weight: 700;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    transition: background 0.2s ease, transform 0.1s ease;
-    margin-top: 8px;
+    display: block !important;
+    width: 100% !important;
+    padding: 14px !important;
+    background: #f04e23 !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    border: none !important;
+    border-radius: 5px !important;
+    cursor: pointer !important;
+    margin-top: 8px !important;
+    box-shadow: none !important;
 }
 
 .jem-submit-btn:hover {
-    background: #085f5f;
+    background: #d03d15 !important;
 }
 
 .jem-submit-btn:active {
-    transform: scale(0.98);
+    transform: scale(0.98) !important;
 }
 
 .jem-submit-btn:disabled {
-    background: #aaa;
-    cursor: not-allowed;
+    background: #aaa !important;
+    cursor: not-allowed !important;
 }
 
 .jem-message {
-    padding: 12px 16px;
-    border-radius: 5px;
-    margin-top: 16px;
-    font-size: 14px;
-    text-align: center;
+    padding: 12px 16px !important;
+    border-radius: 5px !important;
+    margin-top: 16px !important;
+    font-size: 14px !important;
+    text-align: center !important;
 }
 
 .jem-message.success {
-    background: #e6f7f1;
-    color: #1a7a4a;
-    border: 1px solid #a8dfc4;
+    background: #e6f7f1 !important;
+    color: #1a7a4a !important;
+    border: 1px solid #a8dfc4 !important;
 }
 
 .jem-message.error {
-    background: #fdecea;
-    color: #c0392b;
-    border: 1px solid #f5aca6;
+    background: #fdecea !important;
+    color: #c0392b !important;
+    border: 1px solid #f5aca6 !important;
 }
 
 .jem-privacy-note {
-    font-size: 12px;
-    color: #999;
-    text-align: center;
-    margin-top: 14px;
+    display: block !important;
+    font-size: 12px !important;
+    color: #999 !important;
+    text-align: center !important;
+    margin-top: 14px !important;
 }
 
 /* ===== Thank You Page ===== */
-.jem-thank-you section { margin: 1.5em 0; }
+.jem-thank-you section { margin: 1.5em 0 !important; }
 
 .jem-download-btn,
 .jem-purchase-btn {
-    display: inline-block;
-    padding: 12px 20px;
-    background: #0a7c7c;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 5px;
-    font-weight: 600;
+    display: inline-block !important;
+    padding: 12px 20px !important;
+    background: #0a7c7c !important;
+    color: #fff !important;
+    text-decoration: none !important;
+    border-radius: 5px !important;
+    font-weight: 600 !important;
 }
 
 .jem-download-btn:hover,
 .jem-purchase-btn:hover {
-    background: #085f5f;
-    color: #fff;
+    background: #085f5f !important;
+    color: #fff !important;
 }
 
 .jem-coupon-box {
-    padding: 1em;
-    background: #f0f0f1;
-    border-radius: 4px;
-    margin: 1em 0;
+    padding: 1em !important;
+    background: #f0f0f1 !important;
+    border-radius: 4px !important;
+    margin: 1em 0 !important;
 }
 
-.jem-coupon-code { font-size: 1.2em; font-weight: bold; }
+.jem-coupon-code { font-size: 1.2em !important; font-weight: bold !important; }
 
-.jem-countdown { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; }
+.jem-countdown { font-size: 1.5em !important; font-weight: bold !important; margin: 0.5em 0 !important; }
 
 .jem-hidden { display: none !important; }
 
-.jem-expired-msg { color: #646970; font-style: italic; }
+.jem-expired-msg { color: #646970 !important; font-style: italic !important; }
+
+/* === Thank You Page === */
+.jem-thankyou-wrapper {
+    max-width: 620px !important;
+    margin: 40px auto !important;
+    font-family: inherit !important;
+}
+
+.jem-section {
+    background: #fff !important;
+    border-radius: 10px !important;
+    padding: 40px !important;
+    margin-bottom: 24px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+    text-align: center !important;
+}
+
+.jem-checkmark {
+    width: 60px !important;
+    height: 60px !important;
+    background: #27ae60 !important;
+    color: #fff !important;
+    border-radius: 50% !important;
+    font-size: 28px !important;
+    line-height: 60px !important;
+    margin: 0 auto 20px !important;
+}
+
+.jem-section h1 {
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 10px !important;
+}
+
+.jem-section h2 {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 10px !important;
+}
+
+.jem-sub {
+    font-size: 15px !important;
+    color: #555 !important;
+    margin-bottom: 24px !important;
+}
+
+.jem-btn {
+    display: inline-block !important;
+    padding: 16px 32px !important;
+    border-radius: 6px !important;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    border: none !important;
+    transition: background 0.2s !important;
+}
+
+.jem-btn-download {
+    background: #27ae60 !important;
+    color: #fff !important;
+    font-size: 20px !important;
+    padding: 20px 40px !important;
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+    margin-top: 10px !important;
+}
+
+.jem-btn-download:hover {
+    background: #1e8449 !important;
+    color: #fff !important;
+}
+
+.jem-btn-purchase {
+    background: #0a7c7c !important;
+    color: #fff !important;
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    text-align: center !important;
+    margin-top: 20px !important;
+    font-size: 18px !important;
+}
+
+.jem-btn-purchase:hover {
+    background: #085f5f !important;
+    color: #fff !important;
+}
+
+.jem-countdown-wrapper {
+    margin: 20px 0 !important;
+}
+
+.jem-countdown {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.jem-countdown-block {
+    background: #1a1a1a !important;
+    color: #fff !important;
+    border-radius: 8px !important;
+    padding: 12px 18px !important;
+    min-width: 70px !important;
+    text-align: center !important;
+}
+
+.jem-countdown-block span {
+    display: block !important;
+    font-size: 32px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+}
+
+.jem-countdown-block label {
+    display: block !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    margin-top: 4px !important;
+    color: #aaa !important;
+}
+
+.jem-countdown-sep {
+    font-size: 28px !important;
+    font-weight: 800 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 18px !important;
+}
+
+.jem-coupon-box {
+    background: #f8f9fa !important;
+    border: 2px dashed #0a7c7c !important;
+    border-radius: 8px !important;
+    padding: 20px !important;
+    margin: 20px 0 !important;
+}
+
+.jem-coupon-label {
+    font-size: 13px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.6px !important;
+    color: #666 !important;
+    margin-bottom: 10px !important;
+}
+
+.jem-coupon-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 12px !important;
+    flex-wrap: wrap !important;
+}
+
+.jem-coupon-code {
+    font-size: 28px !important;
+    font-weight: 800 !important;
+    font-family: monospace !important;
+    letter-spacing: 3px !important;
+    color: #0a7c7c !important;
+}
+
+.jem-btn-copy {
+    background: #0a7c7c !important;
+    color: #fff !important;
+    padding: 10px 20px !important;
+    font-size: 14px !important;
+    border-radius: 5px !important;
+}
+
+.jem-btn-copy:hover {
+    background: #085f5f !important;
+}
+
+.jem-coupon-note {
+    color: #27ae60 !important;
+    font-weight: 600 !important;
+    margin-top: 8px !important;
+}
+
+.jem-disclaimer {
+    font-size: 12px !important;
+    color: #999 !important;
+    margin-top: 10px !important;
+}
+
+.jem-divider {
+    text-align: center !important;
+    position: relative !important;
+    margin: 10px 0 !important;
+}
+
+.jem-divider span {
+    background: #f0f0f0 !important;
+    padding: 6px 16px !important;
+    border-radius: 20px !important;
+    font-size: 14px !important;
+    color: #777 !important;
+    font-style: italic !important;
+}
+
+.jem-expired-section { display: none !important; }
+.jem-expired-icon {
+    font-size: 48px !important;
+    margin-bottom: 16px !important;
+}
+
+.jem-expired-inline { font-size: 16px !important; color: #666 !important; margin: 0 !important; }
+
+/* ===== Thank You — Price Stack & Offer Redesign ===== */
+.jem-ty-urgent-badge {
+    background: #f04e23 !important;
+    color: #fff !important;
+    text-align: center !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    margin-bottom: 16px !important;
+}
+
+.jem-ty-offer-title {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 10px !important;
+    line-height: 1.3 !important;
+}
+
+.jem-ty-offer-title em {
+    color: #0a7c7c !important;
+    font-style: normal !important;
+}
+
+.jem-ty-price-stack {
+    background: #f8f9fa !important;
+    border-radius: 10px !important;
+    padding: 16px !important;
+    margin: 12px 0 !important;
+}
+
+.jem-ty-price-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 6px 0 !important;
+    font-size: 14px !important;
+}
+
+.jem-ty-price-label {
+    color: #666 !important;
+    font-size: 13px !important;
+}
+
+.jem-ty-price-val {
+    font-weight: 700 !important;
+    font-size: 16px !important;
+}
+
+.jem-ty-strikethrough {
+    text-decoration: line-through !important;
+    color: #aaa !important;
+}
+
+.jem-ty-strikethrough-light {
+    text-decoration: line-through !important;
+    color: #bbb !important;
+}
+
+.jem-ty-price-yours {
+    border-top: 2px solid #27ae60 !important;
+    margin-top: 6px !important;
+    padding-top: 10px !important;
+}
+
+.jem-ty-price-yours .jem-ty-price-label {
+    color: #27ae60 !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+}
+
+.jem-ty-price-big {
+    font-size: 28px !important;
+    font-weight: 900 !important;
+    color: #27ae60 !important;
+}
+
+.jem-ty-you-save-banner {
+    background: #f04e23 !important;
+    color: #fff !important;
+    text-align: center !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    margin-top: 10px !important;
+    font-weight: 600 !important;
+}
+
+.jem-ty-coupon-wrap {
+    margin: 16px 0 !important;
+}
+
+.jem-ty-coupon-wrap .jem-ty-coupon-label {
+    font-size: 13px !important;
+    color: #666 !important;
+    margin-bottom: 8px !important;
+}
+
+.jem-ty-copy-confirm {
+    color: #27ae60 !important;
+    font-weight: 600 !important;
+    margin-top: 8px !important;
+}
+
+.jem-ty-countdown-label {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+    margin: 12px 0 8px !important;
+}
+
+.jem-ty-disclaimer {
+    font-size: 12px !important;
+    color: #999 !important;
+    margin-top: 12px !important;
+}
+
+.jem-ty-expired-box {
+    text-align: center !important;
+    padding: 20px 0 !important;
+}
+
+.jem-ty-expired-box h3 {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 12px !important;
+}
+
+.jem-ty-copy-btn,
+.jem-ty-btn {
+    display: inline-block !important;
+}
+
+/* Step by Step */
+.jem-ty-steps {
+    margin: 14px 0 !important;
+    text-align: left !important;
+}
+
+.jem-ty-steps-title {
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.6px !important;
+    color: #444 !important;
+    margin-bottom: 12px !important;
+    text-align: center !important;
+}
+
+.jem-ty-step {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 14px !important;
+    background: #f8f9fa !important;
+    border-radius: 8px !important;
+    padding: 14px !important;
+    margin-bottom: 10px !important;
+    border-left: 4px solid #0a7c7c !important;
+}
+
+.jem-ty-step-num {
+    background: #0a7c7c !important;
+    color: #fff !important;
+    font-size: 18px !important;
+    font-weight: 900 !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+}
+
+.jem-ty-step-content {
+    flex: 1 !important;
+}
+
+.jem-ty-step-content strong {
+    display: block !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 4px !important;
+}
+
+.jem-ty-step-content p {
+    font-size: 13px !important;
+    color: #555 !important;
+    margin: 0 0 8px !important;
+    line-height: 1.5 !important;
+}
+
+/* Step 4 warning */
+.jem-ty-step-warning {
+    background: #fff8f0 !important;
+    border-left: 4px solid #f04e23 !important;
+}
+
+.jem-ty-step-num-warning {
+    background: #f04e23 !important;
+}
+
+.jem-ty-step-warning .jem-ty-step-content strong {
+    color: #c0392b !important;
+    font-size: 14px !important;
+}
+
+.jem-ty-step-warning .jem-ty-step-content p {
+    color: #c0392b !important;
+    font-weight: 600 !important;
+}
+
+/* Inline code reference */
+.jem-ty-tip {
+    background: #fff !important;
+    border: 1px solid #ddd !important;
+    border-radius: 5px !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    color: #555 !important;
+    margin-top: 6px !important;
+}
+
+.jem-ty-inline-code {
+    font-family: monospace !important;
+    font-weight: 800 !important;
+    font-size: 15px !important;
+    color: #0a7c7c !important;
+    letter-spacing: 1px !important;
+}

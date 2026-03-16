@@ -15,6 +15,7 @@ if (!defined('ABSPATH')) {
 }
 
 define('JEM_VERSION', '1.0.0');
+define('JEM_DB_VERSION', 2);
 define('JEM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('JEM_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -67,9 +68,20 @@ class JEM_Plugin {
 
     private function init_hooks() {
         register_activation_hook(__FILE__, array($this, 'activate'));
+        register_deactivation_hook(__FILE__, array($this, 'deactivate'));
         add_action('init', array($this, 'maybe_create_tables'));
+        add_action('init', array($this, 'maybe_upgrade_tables'));
         add_action('admin_notices', array($this, 'check_fluentcart_table'));
         add_action('template_redirect', array($this->download, 'handle'));
+        add_action('jem_cleanup_expired_coupons', array($this, 'cleanup_expired_coupons'));
+    }
+
+    public function maybe_upgrade_tables() {
+        $current = (int) get_option('jem_db_version', 1);
+        if ($current < JEM_DB_VERSION) {
+            $this->database->create_tables();
+            update_option('jem_db_version', JEM_DB_VERSION);
+        }
     }
 
     public function maybe_create_tables() {
@@ -78,6 +90,7 @@ class JEM_Plugin {
         foreach ($tables as $table) {
             if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
                 $this->database->create_tables();
+                update_option('jem_db_version', JEM_DB_VERSION);
                 break;
             }
         }
@@ -86,6 +99,28 @@ class JEM_Plugin {
     public function activate() {
         $this->database->create_tables();
         flush_rewrite_rules();
+        if ( ! wp_next_scheduled( 'jem_cleanup_expired_coupons' ) ) {
+            wp_schedule_event( time(), 'weekly', 'jem_cleanup_expired_coupons' );
+        }
+    }
+
+    public function deactivate() {
+        wp_clear_scheduled_hook( 'jem_cleanup_expired_coupons' );
+    }
+
+    /**
+     * Cron callback: delete expired JEM coupons from FluentCart.
+     */
+    public function cleanup_expired_coupons() {
+        global $wpdb;
+        $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->prefix}fct_coupons 
+             WHERE end_date < %s 
+             AND end_date IS NOT NULL 
+             AND end_date != '0000-00-00 00:00:00'
+             AND notes IN (SELECT email FROM {$wpdb->prefix}jem_leads)",
+            current_time( 'mysql' )
+        ) );
     }
 
     /**

@@ -23,6 +23,7 @@ class JEM_Admin {
             add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
             add_action('admin_init', array($this, 'maybe_save_funnel'));
             add_action('admin_init', array($this, 'maybe_save_settings'));
+            add_action('wp_ajax_jem_regenerate_invite_code', array($this, 'ajax_regenerate_invite_code'));
         }
     }
 
@@ -77,6 +78,10 @@ class JEM_Admin {
         wp_enqueue_media();
         wp_enqueue_style('jem-admin', JEM_PLUGIN_URL . 'assets/css/admin.css', array(), JEM_VERSION);
         wp_enqueue_script('jem-admin', JEM_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), JEM_VERSION, true);
+        wp_localize_script('jem-admin', 'jemAdmin', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('jem_admin_nonce'),
+        ));
     }
 
     public function funnels_page() {
@@ -98,6 +103,11 @@ class JEM_Admin {
             delete_transient('jem_funnel_message');
             $type = $message[0] === 'success' ? 'success' : 'error';
             echo '<div class="notice notice-' . esc_attr($type) . ' is-dismissible"><p>' . esc_html($message[1]) . '</p></div>';
+        }
+        $optin_id = get_option('jem_optin_page_id');
+        $thankyou_id = get_option('jem_thankyou_page_id');
+        if (!$optin_id || !$thankyou_id) {
+            echo '<div class="notice notice-warning"><p><strong>JEM Marketing:</strong> ' . esc_html__('Please configure your', 'jazzedge-marketing') . ' <a href="' . esc_url(admin_url('admin.php?page=jem-settings')) . '">' . esc_html__('Opt-in and Thank You pages in Settings', 'jazzedge-marketing') . '</a> ' . esc_html__('before using funnels.', 'jazzedge-marketing') . '</p></div>';
         }
         require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
         require_once JEM_PLUGIN_DIR . 'includes/class-funnels-list-table.php';
@@ -179,6 +189,16 @@ class JEM_Admin {
                         <th><label for="jem_funnel_name"><?php esc_html_e('Funnel Name', 'jazzedge-marketing'); ?></label></th>
                         <td><input type="text" id="jem_funnel_name" name="jem_funnel_name" value="<?php echo $is_edit ? esc_attr($funnel->name) : ''; ?>" class="regular-text" required /></td>
                     </tr>
+                    <?php if ($is_edit) : ?>
+                    <tr>
+                        <th><label><?php esc_html_e('Invite Code', 'jazzedge-marketing'); ?></label></th>
+                        <td>
+                            <code id="jem-invite-code-display" style="font-family:monospace;font-size:12px;"><?php echo esc_html(!empty($funnel->invite_code) ? $funnel->invite_code : '—'); ?></code>
+                            <button type="button" id="jem-regenerate-invite-code" class="button button-secondary" data-funnel-id="<?php echo (int) $funnel->id; ?>"><?php esc_html_e('Regenerate Code', 'jazzedge-marketing'); ?></button>
+                            <p class="description"><?php esc_html_e('Invite Code (do not share publicly — used for form security). Regenerating will break any existing links using this code.', 'jazzedge-marketing'); ?></p>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                     <tr>
                         <th><label for="jem_webhook_url"><?php esc_html_e('Webhook URL', 'jazzedge-marketing'); ?></label></th>
                         <td><input type="url" id="jem_webhook_url" name="jem_webhook_url" value="<?php echo $is_edit ? esc_attr($funnel->webhook_url) : ''; ?>" class="large-text" required /></td>
@@ -196,8 +216,11 @@ class JEM_Admin {
                         <td><input type="url" id="jem_product_url" name="jem_product_url" value="<?php echo $is_edit ? esc_attr($funnel->product_url) : ''; ?>" class="large-text" required /></td>
                     </tr>
                     <tr>
-                        <th><label for="jem_product_id"><?php esc_html_e('FluentCart Product ID', 'jazzedge-marketing'); ?></label></th>
-                        <td><input type="text" id="jem_product_id" name="jem_product_id" value="<?php echo $is_edit ? esc_attr($funnel->product_id) : ''; ?>" class="regular-text" placeholder="<?php esc_attr_e('Used in coupon included_products', 'jazzedge-marketing'); ?>" /></td>
+                        <th><label for="jem_product_id"><?php esc_html_e('FluentCart Product ID (Post ID)', 'jazzedge-marketing'); ?></label></th>
+                        <td>
+                            <input type="text" id="jem_product_id" name="jem_product_id" value="<?php echo $is_edit ? esc_attr($funnel->product_id) : ''; ?>" class="regular-text" placeholder="<?php esc_attr_e('e.g. 17054', 'jazzedge-marketing'); ?>" />
+                            <p class="description"><?php esc_html_e('Enter the post ID of the FluentCart product (found in the product URL, e.g. post=17054). The plugin will automatically find the correct variation ID.', 'jazzedge-marketing'); ?></p>
+                        </td>
                     </tr>
                     <tr>
                         <th><label for="jem_coupon_prefix"><?php esc_html_e('Coupon Prefix', 'jazzedge-marketing'); ?></label></th>
@@ -270,6 +293,7 @@ class JEM_Admin {
             $result = $this->database->update_funnel($id, $data);
             $msg = $result ? __('Funnel updated.', 'jazzedge-marketing') : __('Update failed.', 'jazzedge-marketing');
         } else {
+            $data['invite_code'] = strtolower(wp_generate_password(24, false));
             $data['created_at'] = current_time('mysql');
             $insert_id = $this->database->insert_funnel($data);
             $result = (bool) $insert_id;
@@ -284,18 +308,72 @@ class JEM_Admin {
         if (!current_user_can('manage_options')) {
             wp_die(__('You do not have sufficient permissions.', 'jazzedge-marketing'));
         }
+
+        // Handle coupon cleanup action
+        if (
+            isset( $_POST['jem_action'] ) &&
+            $_POST['jem_action'] === 'cleanup_coupons' &&
+            isset( $_POST['jem_cleanup_nonce'] ) &&
+            wp_verify_nonce( sanitize_text_field( $_POST['jem_cleanup_nonce'] ), 'jem_cleanup_coupons' ) &&
+            current_user_can( 'manage_options' )
+        ) {
+            global $wpdb;
+            $deleted = $wpdb->query( $wpdb->prepare(
+                "DELETE FROM {$wpdb->prefix}fct_coupons 
+                 WHERE end_date < %s 
+                 AND end_date IS NOT NULL 
+                 AND end_date != '0000-00-00 00:00:00'
+                 AND notes IN (SELECT email FROM {$wpdb->prefix}jem_leads)",
+                current_time( 'mysql' )
+            ) );
+            add_settings_error(
+                'jem_settings',
+                'jem_cleanup_success',
+                '✓ ' . sprintf( __( 'Successfully deleted %d expired JEM coupons.', 'jazzedge-marketing' ), (int) $deleted ),
+                'success'
+            );
+        }
+
         $saved = get_transient('jem_settings_message');
         if ($saved) {
             delete_transient('jem_settings_message');
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($saved) . '</p></div>';
         }
+        settings_errors( 'jem_settings' );
         $inactive_msg = get_option('jem_inactive_msg', '');
+        $optin_page_id = get_option('jem_optin_page_id', 0);
+        $thankyou_page_id = get_option('jem_thankyou_page_id', 0);
+        $pages = get_pages();
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('JEM Marketing Settings', 'jazzedge-marketing'); ?></h1>
             <form method="post" action="<?php echo esc_url(add_query_arg('page', 'jem-settings', admin_url('admin.php'))); ?>">
                 <?php wp_nonce_field('jem_save_settings', 'jem_settings_nonce'); ?>
                 <table class="form-table">
+                    <tr>
+                        <th><label for="jem_optin_page_id"><?php esc_html_e('Opt-in Page', 'jazzedge-marketing'); ?></label></th>
+                        <td>
+                            <select id="jem_optin_page_id" name="jem_optin_page_id" class="regular-text">
+                                <option value="0"><?php esc_html_e('— Select —', 'jazzedge-marketing'); ?></option>
+                                <?php foreach ($pages as $p) : ?>
+                                    <option value="<?php echo (int) $p->ID; ?>" <?php selected($optin_page_id, $p->ID); ?>><?php echo esc_html($p->post_title); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description"><?php esc_html_e('The page where you placed the [jem_marketing] shortcode. This is the link you paste into emails.', 'jazzedge-marketing'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="jem_thankyou_page_id"><?php esc_html_e('Thank You Page', 'jazzedge-marketing'); ?></label></th>
+                        <td>
+                            <select id="jem_thankyou_page_id" name="jem_thankyou_page_id" class="regular-text">
+                                <option value="0"><?php esc_html_e('— Select —', 'jazzedge-marketing'); ?></option>
+                                <?php foreach ($pages as $p) : ?>
+                                    <option value="<?php echo (int) $p->ID; ?>" <?php selected($thankyou_page_id, $p->ID); ?>><?php echo esc_html($p->post_title); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="description"><?php esc_html_e('The page where you placed the [jem_thank_you] shortcode.', 'jazzedge-marketing'); ?></p>
+                        </td>
+                    </tr>
                     <tr>
                         <th><label for="jem_inactive_msg"><?php esc_html_e('Inactive Message', 'jazzedge-marketing'); ?></label></th>
                         <td>
@@ -306,6 +384,39 @@ class JEM_Admin {
                 </table>
                 <p class="submit"><input type="submit" class="button button-primary" value="<?php esc_attr_e('Save Settings', 'jazzedge-marketing'); ?>" /></p>
             </form>
+
+            <?php
+            global $wpdb;
+            $expired_count = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}fct_coupons 
+                 WHERE end_date < %s 
+                 AND end_date IS NOT NULL 
+                 AND end_date != '0000-00-00 00:00:00'
+                 AND notes IN (SELECT email FROM {$wpdb->prefix}jem_leads)",
+                current_time( 'mysql' )
+            ) );
+            $next_run = wp_next_scheduled( 'jem_cleanup_expired_coupons' );
+            ?>
+            <div class="jem-maintenance-section">
+                <h3><?php esc_html_e( 'Database Maintenance', 'jazzedge-marketing' ); ?></h3>
+                <p class="jem-coupon-count">
+                    <?php if ( $expired_count > 0 ) : ?>
+                        <strong><?php echo (int) $expired_count; ?></strong> <?php esc_html_e( 'expired JEM coupons found in the database.', 'jazzedge-marketing' ); ?>
+                    <?php else : ?>
+                        <?php esc_html_e( 'No expired coupons to clean up.', 'jazzedge-marketing' ); ?>
+                    <?php endif; ?>
+                </p>
+                <?php if ( $expired_count > 0 ) : ?>
+                <form method="post" onsubmit="return confirm('<?php echo esc_js( __( 'This will permanently delete all expired JEM-generated coupons. This cannot be undone. Continue?', 'jazzedge-marketing' ) ); ?>');">
+                    <?php wp_nonce_field( 'jem_cleanup_coupons', 'jem_cleanup_nonce' ); ?>
+                    <input type="hidden" name="jem_action" value="cleanup_coupons">
+                    <button type="submit" class="button button-secondary jem-cleanup-btn">🗑 <?php echo esc_html( sprintf( __( 'Delete %d Expired JEM Coupons', 'jazzedge-marketing' ), (int) $expired_count ) ); ?></button>
+                </form>
+                <?php else : ?>
+                <button type="button" class="button button-secondary jem-cleanup-btn" disabled><?php esc_html_e( 'Delete Expired JEM Coupons', 'jazzedge-marketing' ); ?></button>
+                <?php endif; ?>
+                <p class="description"><?php esc_html_e( 'Auto-cleanup runs weekly.', 'jazzedge-marketing' ); ?> <?php echo esc_html( $next_run ? sprintf( __( 'Next scheduled run: %s', 'jazzedge-marketing' ), date_i18n( 'M j, Y g:i a', $next_run ) ) : __( 'Next scheduled run: Not scheduled', 'jazzedge-marketing' ) ); ?></p>
+            </div>
         </div>
         <?php
     }
@@ -319,9 +430,32 @@ class JEM_Admin {
             exit;
         }
         $inactive_msg = isset($_POST['jem_inactive_msg']) ? sanitize_textarea_field(wp_unslash($_POST['jem_inactive_msg'])) : '';
+        $optin_page_id = isset($_POST['jem_optin_page_id']) ? absint($_POST['jem_optin_page_id']) : 0;
+        $thankyou_page_id = isset($_POST['jem_thankyou_page_id']) ? absint($_POST['jem_thankyou_page_id']) : 0;
         update_option('jem_inactive_msg', $inactive_msg);
+        update_option('jem_optin_page_id', $optin_page_id);
+        update_option('jem_thankyou_page_id', $thankyou_page_id);
         set_transient('jem_settings_message', __('Settings saved.', 'jazzedge-marketing'), 30);
         wp_redirect(admin_url('admin.php?page=jem-settings'));
         exit;
+    }
+
+    /**
+     * AJAX: Regenerate invite code for a funnel.
+     */
+    public function ajax_regenerate_invite_code() {
+        check_ajax_referer('jem_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'jazzedge-marketing')));
+        }
+        $funnel_id = isset($_POST['funnel_id']) ? (int) $_POST['funnel_id'] : 0;
+        if ($funnel_id <= 0) {
+            wp_send_json_error(array('message' => __('Invalid funnel.', 'jazzedge-marketing')));
+        }
+        $new_code = $this->database->regenerate_invite_code($funnel_id);
+        if (!$new_code) {
+            wp_send_json_error(array('message' => __('Failed to regenerate.', 'jazzedge-marketing')));
+        }
+        wp_send_json_success(array('invite_code' => $new_code));
     }
 }

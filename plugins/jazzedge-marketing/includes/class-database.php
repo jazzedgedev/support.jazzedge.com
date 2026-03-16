@@ -66,9 +66,11 @@ class JEM_Database {
 			coupon_days int NOT NULL DEFAULT 3,
 			active tinyint NOT NULL DEFAULT 1,
 			inactive_msg text NOT NULL DEFAULT '',
+			invite_code varchar(32) NOT NULL DEFAULT '',
 			created_at datetime DEFAULT NULL,
 			updated_at datetime DEFAULT NULL,
-			PRIMARY KEY (id)
+			PRIMARY KEY (id),
+			UNIQUE KEY invite_code (invite_code)
 		) $charset_collate;";
 
 		$sql2 = "CREATE TABLE {$this->leads_table} (
@@ -101,6 +103,80 @@ class JEM_Database {
 		dbDelta( $sql1 );
 		dbDelta( $sql2 );
 		dbDelta( $sql3 );
+
+		$this->maybe_add_invite_code_column();
+		$this->backfill_invite_codes();
+		$this->maybe_add_invite_code_unique_index();
+	}
+
+	/**
+	 * Add UNIQUE index on invite_code after backfill (avoids duplicate '').
+	 */
+	private function maybe_add_invite_code_unique_index() {
+		$indexes = $this->wpdb->get_results( "SHOW INDEX FROM {$this->funnels_table} WHERE Key_name = 'invite_code'" );
+		if ( empty( $indexes ) ) {
+			$this->wpdb->query( "ALTER TABLE {$this->funnels_table} ADD UNIQUE KEY invite_code (invite_code)" );
+		}
+	}
+
+	/**
+	 * Add invite_code column if missing (for existing installs).
+	 */
+	private function maybe_add_invite_code_column() {
+		$column = $this->wpdb->get_results( $this->wpdb->prepare(
+			"SHOW COLUMNS FROM {$this->funnels_table} LIKE %s",
+			'invite_code'
+		) );
+		if ( empty( $column ) ) {
+			$this->wpdb->query( "ALTER TABLE {$this->funnels_table} ADD COLUMN invite_code varchar(32) NOT NULL DEFAULT '' AFTER inactive_msg" );
+		}
+	}
+
+	/**
+	 * Generate invite_code for funnels that don't have one.
+	 */
+	private function backfill_invite_codes() {
+		$funnels = $this->wpdb->get_results( "SELECT id FROM {$this->funnels_table} WHERE invite_code = '' OR invite_code IS NULL" );
+		foreach ( $funnels as $funnel ) {
+			$code = strtolower( wp_generate_password( 24, false ) );
+			$this->wpdb->update(
+				$this->funnels_table,
+				array( 'invite_code' => $code ),
+				array( 'id' => $funnel->id )
+			);
+		}
+	}
+
+	/**
+	 * Get funnel by invite code.
+	 *
+	 * @param string $invite_code Invite code.
+	 * @return object|null
+	 */
+	public function get_funnel_by_invite_code( $invite_code ) {
+		if ( empty( $invite_code ) || ! is_string( $invite_code ) ) {
+			return null;
+		}
+		return $this->wpdb->get_row( $this->wpdb->prepare(
+			"SELECT * FROM {$this->funnels_table} WHERE invite_code = %s AND active = 1",
+			$invite_code
+		) );
+	}
+
+	/**
+	 * Regenerate invite code for a funnel.
+	 *
+	 * @param int $funnel_id Funnel ID.
+	 * @return string|false New invite code or false on failure.
+	 */
+	public function regenerate_invite_code( $funnel_id ) {
+		$code = strtolower( wp_generate_password( 24, false ) );
+		$result = $this->wpdb->update(
+			$this->funnels_table,
+			array( 'invite_code' => $code, 'updated_at' => current_time( 'mysql' ) ),
+			array( 'id' => (int) $funnel_id )
+		);
+		return $result !== false ? $code : false;
 	}
 
 	/**
