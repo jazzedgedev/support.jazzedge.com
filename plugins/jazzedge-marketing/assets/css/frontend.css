@@ -464,15 +464,28 @@
 .jem-expired-inline { font-size: 16px !important; color: #666 !important; margin: 0 !important; }
 
 /* ===== Thank You — Price Stack & Offer Redesign ===== */
+.jem-ty-offer-col {
+    position: relative !important;
+    padding-top: 16px !important;
+}
+
+.jem-ty-download-col {
+    padding-top: 16px !important;
+}
+
 .jem-ty-urgent-badge {
+    position: absolute !important;
+    top: 16px !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    white-space: nowrap !important;
     background: #f04e23 !important;
     color: #fff !important;
-    text-align: center !important;
-    padding: 8px 12px !important;
-    border-radius: 6px !important;
+    padding: 6px 16px !important;
+    border-radius: 999px !important;
     font-size: 13px !important;
     font-weight: 700 !important;
-    margin-bottom: 16px !important;
+    z-index: 2 !important;
 }
 
 .jem-ty-offer-title {
@@ -541,16 +554,6 @@
     color: #27ae60 !important;
 }
 
-.jem-ty-you-save-banner {
-    background: #f04e23 !important;
-    color: #fff !important;
-    text-align: center !important;
-    padding: 8px 12px !important;
-    border-radius: 6px !important;
-    font-size: 14px !important;
-    margin-top: 10px !important;
-    font-weight: 600 !important;
-}
 
 .jem-ty-coupon-wrap {
     margin: 16px 0 !important;
@@ -596,6 +599,30 @@
 .jem-ty-copy-btn,
 .jem-ty-btn {
     display: inline-block !important;
+}
+
+/* Step 2 — Order button inside step (overrides .jem-ty-step) */
+.jem-ty-step .jem-ty-btn-purchase,
+.jem-ty-step a.jem-ty-btn-purchase {
+    display: block !important;
+    width: 100% !important;
+    padding: 14px !important;
+    background: #f04e23 !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    border-radius: 6px !important;
+    border: none !important;
+    box-sizing: border-box !important;
+    margin-top: 10px !important;
+}
+
+.jem-ty-step .jem-ty-btn-purchase:hover,
+.jem-ty-step a.jem-ty-btn-purchase:hover {
+    background: #d03d15 !important;
+    color: #fff !important;
 }
 
 /* Step by Step */
@@ -658,24 +685,48 @@
     line-height: 1.5 !important;
 }
 
+/* Step 2 — Order button inside step (overrides from .jem-ty-step) */
+.jem-ty-step .jem-ty-btn-purchase,
+.jem-ty-step a.jem-ty-btn-purchase {
+    display: block !important;
+    width: 100% !important;
+    padding: 14px !important;
+    background: #f04e23 !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    border-radius: 6px !important;
+    border: none !important;
+    box-sizing: border-box !important;
+    margin-top: 10px !important;
+}
+
+.jem-ty-step .jem-ty-btn-purchase:hover,
+.jem-ty-step a.jem-ty-btn-purchase:hover {
+    background: #d03d15 !important;
+    color: #fff !important;
+}
+
 /* Step 4 warning */
 .jem-ty-step-warning {
-    background: #fff8f0 !important;
-    border-left: 4px solid #f04e23 !important;
+    background: #fafafa !important;
+    border-left: 4px solid #ccc !important;
 }
 
 .jem-ty-step-num-warning {
-    background: #f04e23 !important;
+    background: #888 !important;
 }
 
 .jem-ty-step-warning .jem-ty-step-content strong {
-    color: #c0392b !important;
+    color: #444 !important;
     font-size: 14px !important;
 }
 
 .jem-ty-step-warning .jem-ty-step-content p {
-    color: #c0392b !important;
-    font-weight: 600 !important;
+    color: #666 !important;
+    font-weight: normal !important;
 }
 
 /* Inline code reference */
@@ -709,4 +760,14 @@
 .jem-ty-personal-note strong {
     color: #777 !important;
     font-style: normal !important;
+}
+
+/* Download column heading — smaller font to prevent wrapping */
+.jem-ty-download-col h1,
+.jem-ty-download-col h2 {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    color: #1a1a1a !important;
+    margin-bottom: 8px !important;
+    line-height: 1.3 !important;
 }

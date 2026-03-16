@@ -22,6 +22,8 @@ class JEM_Shortcodes {
 
         add_shortcode('jem_marketing', array($this, 'render_marketing'));
         add_shortcode('jem_thank_you', array($this, 'render_thank_you'));
+        add_shortcode('jem_download', array($this, 'render_download'));
+        add_shortcode('jem_offer', array($this, 'render_offer'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_assets'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_css_global'), 5);
         add_action('wp_ajax_jem_optin', array($this, 'ajax_optin'));
@@ -103,48 +105,99 @@ class JEM_Shortcodes {
         return ob_get_clean();
     }
 
-    public function render_thank_you($atts) {
+    /**
+     * Shared lead lookup: token validation, lead/funnel, expiry, pricing.
+     * Returns null on failure, or keyed array with: lead, funnel, expired, product_url,
+     * download_url, regular_price, sale_price, your_price, total_savings, savings_pct, product_title.
+     *
+     * @return array|null
+     */
+    private function get_lead_data() {
         $token = isset($_GET['jem_lead']) ? sanitize_text_field(wp_unslash($_GET['jem_lead'])) : '';
         if (empty($token)) {
-            return '<p class="jem-error">' . esc_html__('Invalid or expired link.', 'jazzedge-marketing') . '</p>';
+            return null;
         }
 
         $lead = $this->database->get_lead_by_token($token);
         if (!$lead) {
-            return '<p class="jem-error">' . esc_html__('Invalid or expired link.', 'jazzedge-marketing') . '</p>';
+            return null;
         }
 
         $funnel = $this->database->get_funnel($lead->funnel_id);
         if (!$funnel) {
-            return '<p class="jem-error">' . esc_html__('Invalid or expired link.', 'jazzedge-marketing') . '</p>';
+            return null;
         }
 
         $now = current_time('mysql');
         $expired = !empty($lead->coupon_expires) && $lead->coupon_expires < $now;
         $product_url = add_query_arg('coupon', $lead->coupon_code, $funnel->product_url);
+        $download_url = home_url('/?jem_download=' . $lead->download_token);
 
         // Look up pricing from FluentCart product variations (prices in cents)
         global $wpdb;
         $variation = null;
-        if ( ! empty( $funnel->product_id ) ) {
-            $variation = $wpdb->get_row( $wpdb->prepare(
+        if (!empty($funnel->product_id)) {
+            $variation = $wpdb->get_row($wpdb->prepare(
                 "SELECT item_price, compare_price, variation_title 
                  FROM {$wpdb->prefix}fct_product_variations 
                  WHERE post_id = %d 
                  LIMIT 1",
-                absint( $funnel->product_id )
-            ) );
+                absint($funnel->product_id)
+            ));
         }
-        $regular_price   = $variation ? (float) $variation->compare_price / 100 : 0;
-        $sale_price      = $variation ? (float) $variation->item_price / 100 : 0;
-        $discount_amount = $sale_price * ( (float) $funnel->discount_pct / 100 );
-        $your_price      = $sale_price - $discount_amount;
-        $total_savings   = $regular_price - $your_price;
-        $savings_pct     = $regular_price > 0 ? (int) round( ( $total_savings / $regular_price ) * 100 ) : (int) $funnel->discount_pct;
-        $product_title   = $variation ? $variation->variation_title : $funnel->name;
+        $regular_price = $variation ? (float) $variation->compare_price / 100 : 0;
+        $sale_price = $variation ? (float) $variation->item_price / 100 : 0;
+        $discount_amount = $sale_price * ((float) $funnel->discount_pct / 100);
+        $your_price = $sale_price - $discount_amount;
+        $total_savings = $regular_price - $your_price;
+        $savings_pct = $regular_price > 0 ? (int) round(($total_savings / $regular_price) * 100) : (int) $funnel->discount_pct;
+        $product_title = $variation ? $variation->variation_title : $funnel->name;
 
+        return array(
+            'lead' => $lead,
+            'funnel' => $funnel,
+            'expired' => $expired,
+            'product_url' => $product_url,
+            'download_url' => $download_url,
+            'regular_price' => $regular_price,
+            'sale_price' => $sale_price,
+            'your_price' => $your_price,
+            'total_savings' => $total_savings,
+            'savings_pct' => $savings_pct,
+            'product_title' => $product_title,
+        );
+    }
+
+    public function render_thank_you($atts) {
+        $data = $this->get_lead_data();
+        if (!$data) {
+            return '<p class="jem-error">' . esc_html__('Invalid or expired link.', 'jazzedge-marketing') . '</p>';
+        }
+        extract($data, EXTR_SKIP);
         ob_start();
         include JEM_PLUGIN_DIR . 'templates/thank-you.php';
+        return ob_get_clean();
+    }
+
+    public function render_download($atts) {
+        $data = $this->get_lead_data();
+        if (!$data) {
+            return '<p class="jem-error">' . esc_html__('Invalid or expired link.', 'jazzedge-marketing') . '</p>';
+        }
+        extract($data, EXTR_SKIP);
+        ob_start();
+        include JEM_PLUGIN_DIR . 'templates/download.php';
+        return ob_get_clean();
+    }
+
+    public function render_offer($atts) {
+        $data = $this->get_lead_data();
+        if (!$data) {
+            return '<p class="jem-error">' . esc_html__('Invalid or expired link.', 'jazzedge-marketing') . '</p>';
+        }
+        extract($data, EXTR_SKIP);
+        ob_start();
+        include JEM_PLUGIN_DIR . 'templates/offer.php';
         return ob_get_clean();
     }
 

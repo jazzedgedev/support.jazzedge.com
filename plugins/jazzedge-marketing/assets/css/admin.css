@@ -1,7 +1,8 @@
 /* JEM Marketing - Admin styles */
-.wp-list-table .column-id { width: 50px; }
-.wp-list-table .column-name { width: 200px; }
-.wp-list-table .column-email_link { width: 140px; }
+.wp-list-table .column-id { width: 40px; }
+.wp-list-table .column-name { width: 160px; }
+.wp-list-table .column-invite_code { width: 180px; }
+.wp-list-table .column-email_link { width: 130px; }
 .wp-list-table .column-optins { width: 80px; }
 .wp-list-table .column-download_pct { width: 110px; }
 .wp-list-table .column-purchase_pct { width: 140px; }
