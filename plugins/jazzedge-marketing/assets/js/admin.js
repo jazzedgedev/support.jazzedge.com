@@ -33,23 +33,18 @@
             if (!funnelId) return;
             if (!confirm('Regenerating will break any existing links using this code. Are you sure?')) return;
 
-            $btn.prop('disabled', true);
+            $btn.prop('disabled', true).text('Regenerating...');
             $.post(jemAdmin.ajaxurl, {
                 action: 'jem_regenerate_invite_code',
                 nonce: jemAdmin.nonce,
                 funnel_id: funnelId
-            }).done(function (r) {
-                if (r.success && r.data && r.data.invite_code) {
-                    var code = r.data.invite_code;
-                    if ($btn.attr('id') === 'jem-regenerate-invite-code') {
-                        $('#jem-invite-code-display').text(code);
-                    } else {
-                        var $cell = $btn.closest('td');
-                        $cell.find('code').first().text(code);
-                    }
+            }, function (response) {
+                if (response.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error regenerating code. Please try again.');
+                    $btn.prop('disabled', false).text('Regenerate');
                 }
-            }).always(function () {
-                $btn.prop('disabled', false);
             });
         });
 

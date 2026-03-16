@@ -12,7 +12,8 @@ if (!defined('ABSPATH')) {
 ?>
 <div class="jem-optin-wrapper" style="max-width:480px;margin:40px auto;background:#fff;padding:40px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
     <h2><?php esc_html_e('Get Your Free Sheet Music!', 'jazzedge-marketing'); ?></h2>
-    <p class="jem-subheading"><?php esc_html_e('Enter your info below and we\'ll send it right over.', 'jazzedge-marketing'); ?></p>
+    <p class="jem-song-title">🎵 <?php echo esc_html( $funnel->name ); ?></p>
+    <p class="jem-subheading"><?php esc_html_e('Enter your info below and download on the next page.', 'jazzedge-marketing'); ?></p>
 
     <form id="jem-optin-form" class="jem-optin-form" method="post" data-funnel-id="<?php echo esc_attr($funnel->id); ?>">
         <div class="jem-honeypot-field" style="display:none!important;visibility:hidden!important;position:absolute!important;left:-9999px!important;" aria-hidden="true">

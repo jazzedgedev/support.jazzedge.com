@@ -91,7 +91,7 @@ class JEM_Funnels_List_Table extends WP_List_Table {
                 $invite_code    = isset( $item->invite_code ) ? $item->invite_code : '';
                 if ( $optin_page_id && $optin_base_url && ! empty( $invite_code ) ) {
                     $email_link = add_query_arg( 'invite_code', $invite_code, $optin_base_url );
-                    return '<button type="button" class="button button-small jem-copy-btn jem-copy-email-btn" data-copy="' . esc_attr( $email_link ) . '">' . esc_html__( 'Copy Email Link', 'jazzedge-marketing' ) . '</button>';
+                    return '<button type="button" class="button button-small jem-copy-btn jem-copy-email-btn" data-copy="' . esc_attr( $email_link ) . '" data-type="email-link">' . esc_html__( 'Copy Email Link', 'jazzedge-marketing' ) . '</button>';
                 }
                 return '<span style="color:#aaa;font-size:12px;">' . esc_html__( 'Set Opt-in Page in Settings first', 'jazzedge-marketing' ) . '</span>';
             case 'optins':

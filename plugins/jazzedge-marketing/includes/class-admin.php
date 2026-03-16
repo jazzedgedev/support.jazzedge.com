@@ -456,6 +456,12 @@ class JEM_Admin {
         if (!$new_code) {
             wp_send_json_error(array('message' => __('Failed to regenerate.', 'jazzedge-marketing')));
         }
-        wp_send_json_success(array('invite_code' => $new_code));
+        $optin_page_id  = get_option( 'jem_optin_page_id', 0 );
+        $optin_base_url = $optin_page_id ? get_permalink( $optin_page_id ) : '';
+        $email_link     = $optin_base_url ? add_query_arg( 'invite_code', $new_code, $optin_base_url ) : '';
+        wp_send_json_success(array(
+            'invite_code' => $new_code,
+            'email_link'  => $email_link,
+        ));
     }
 }

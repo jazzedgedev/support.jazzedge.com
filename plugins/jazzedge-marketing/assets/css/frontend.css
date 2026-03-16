@@ -1,5 +1,27 @@
 /* JEM Marketing - Frontend styles */
 
+/* ===== Inactive Message (no invite code / funnel not found / funnel inactive) ===== */
+.jem-inactive-message {
+    text-align: center !important;
+    background: #fff8f0 !important;
+    border: 1px solid #f5c6a0 !important;
+    border-left: 5px solid #f04e23 !important;
+    border-radius: 8px !important;
+    padding: 30px 40px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: #555 !important;
+    max-width: 600px !important;
+    margin: 40px auto !important;
+}
+
+.jem-inactive-message::before {
+    content: "⚠️" !important;
+    display: block !important;
+    font-size: 32px !important;
+    margin-bottom: 12px !important;
+}
+
 /* ===== HONEYPOT — must be completely invisible ===== */
 .jem-honeypot-field {
     display: none !important;
@@ -8,6 +30,28 @@
     left: -9999px !important;
     height: 0 !important;
     overflow: hidden !important;
+}
+
+/* ===== Inactive Message ===== */
+.jem-inactive-message {
+    text-align: center !important;
+    background: #fff8f0 !important;
+    border: 1px solid #f5c6a0 !important;
+    border-left: 5px solid #f04e23 !important;
+    border-radius: 8px !important;
+    padding: 30px 40px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: #555 !important;
+    max-width: 600px !important;
+    margin: 40px auto !important;
+}
+
+.jem-inactive-message::before {
+    content: "⚠️" !important;
+    display: block !important;
+    font-size: 32px !important;
+    margin-bottom: 12px !important;
 }
 
 /* ===== JEM Marketing Opt-in Form ===== */
@@ -31,6 +75,18 @@
     color: #1a1a1a !important;
     margin-bottom: 8px !important;
     text-align: center !important;
+}
+
+.jem-song-title {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: #0a7c7c !important;
+    text-align: center !important;
+    margin: -10px 0 16px !important;
+    padding: 8px 16px !important;
+    background: #f0fafa !important;
+    border-radius: 6px !important;
+    border-left: 4px solid #0a7c7c !important;
 }
 
 .jem-optin-wrapper p.jem-subheading {
