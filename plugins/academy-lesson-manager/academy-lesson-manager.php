@@ -84,11 +84,16 @@ class Academy_Lesson_Manager {
     
     /**
      * Ensure database tables are created and up to date
-     * This runs on every init to handle new table additions for existing installations
+     * Version-gated: only runs when plugin version changes, not on every page load
      */
     private function ensure_database_tables() {
+        $db_version = get_option( 'alm_db_version', '0' );
+        if ( $db_version === ALM_VERSION ) {
+            return;
+        }
         $database = new ALM_Database();
         $database->create_tables();
+        update_option( 'alm_db_version', ALM_VERSION );
     }
     
     /**
@@ -2694,6 +2699,7 @@ class Academy_Lesson_Manager {
         // Set activation flag
         update_option('alm_plugin_activated', true);
         update_option('alm_version', ALM_VERSION);
+        update_option( 'alm_db_version', ALM_VERSION );
     }
     
     /**
@@ -4374,7 +4380,11 @@ Rules:
         }
 
         // 4. Store lesson_id as post meta for traceability
-        update_post_meta($post_id, '_alm_lesson_id', $lesson_id);
+        if (!empty($lesson_id)) {
+            update_post_meta($post_id, '_alm_lesson_id', $lesson_id);
+        } else {
+            delete_post_meta($post_id, '_alm_lesson_id');
+        }
 
         // 4b. Set featured image (piano image, not video)
         $featured_image_url = 'https://jazzedge.academy/wp-content/uploads/2026/02/piano-image-8.jpg';

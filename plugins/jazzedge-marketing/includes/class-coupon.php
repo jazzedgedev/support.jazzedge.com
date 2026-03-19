@@ -42,12 +42,13 @@ class JEM_Coupon {
 			}
 		}
 
+		// max_per_customer must be 0 per FluentCart bug: non-zero values incorrectly block valid unused coupons at checkout.
 		$conditions = wp_json_encode( array(
 			'max_uses'             => 1,
+			'max_per_customer'     => 0,
 			'buy_quantity'         => null,
 			'get_quantity'         => null,
 			'is_recurring'         => 'no',
-			'max_per_customer'     => 1,
 			'apply_to_quantity'    => 'no',
 			'excluded_products'    => array(),
 			'included_products'    => $variation_id ? array( $variation_id ) : array(),

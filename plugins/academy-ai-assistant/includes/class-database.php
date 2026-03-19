@@ -847,6 +847,10 @@ class AAA_Database {
      * This handles existing installations that don't have the column yet
      */
     public function maybe_add_session_name_column() {
+        if (get_transient('aaa_db_session_name_checked')) {
+            return;
+        }
+
         global $wpdb;
         
         // Check if column exists
@@ -893,6 +897,8 @@ class AAA_Database {
                 error_log('Academy AI Assistant: Successfully added session_name column to sessions table');
             }
         }
+
+        set_transient('aaa_db_session_name_checked', true, WEEK_IN_SECONDS);
     }
     
     /**
@@ -900,6 +906,10 @@ class AAA_Database {
      * This handles existing installations that still have the personality column
      */
     public function maybe_rename_personality_to_location() {
+        if (get_transient('aaa_db_personality_renamed')) {
+            return;
+        }
+
         global $wpdb;
         
         // Check if personality column exists and location doesn't
@@ -995,6 +1005,8 @@ class AAA_Database {
                 error_log('Academy AI Assistant: Successfully renamed personality to location in debug_logs table');
             }
         }
+
+        set_transient('aaa_db_personality_renamed', true, WEEK_IN_SECONDS);
     }
     
     /**

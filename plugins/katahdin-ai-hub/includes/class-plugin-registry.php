@@ -12,6 +12,11 @@ if (!defined('ABSPATH')) {
 class Katahdin_AI_Hub_Plugin_Registry {
     
     /**
+     * Tracks which plugin_ids have been updated this request to avoid redundant UPDATEs
+     */
+    private static $updated = array();
+    
+    /**
      * Registered plugins
      */
     private $registered_plugins = array();
@@ -50,8 +55,12 @@ class Katahdin_AI_Hub_Plugin_Registry {
      * Get a registered plugin
      */
     public function get_plugin($plugin_id) {
-        global $wpdb;
+        // Return from in-memory cache if available
+        if (isset($this->registered_plugins[$plugin_id])) {
+            return $this->registered_plugins[$plugin_id];
+        }
         
+        global $wpdb;
         $table_name = $wpdb->prefix . 'katahdin_ai_plugins';
         
         $plugin = $wpdb->get_row($wpdb->prepare(
@@ -61,6 +70,7 @@ class Katahdin_AI_Hub_Plugin_Registry {
         
         if ($plugin) {
             $plugin['features'] = json_decode($plugin['features'], true);
+            $this->registered_plugins[$plugin_id] = $plugin;
             return $plugin;
         }
         
@@ -280,6 +290,14 @@ class Katahdin_AI_Hub_Plugin_Registry {
         );
         
         if ($result) {
+            $this->registered_plugins[$plugin_id] = array(
+                'name'        => $config['name'],
+                'version'     => $config['version'],
+                'features'    => $config['features'],
+                'quota_limit' => $config['quota_limit'],
+                'quota_used'  => 0,
+                'is_active'   => 1,
+            );
             return true;
         } else {
             return new WP_Error('registration_failed', 'Failed to register plugin');
@@ -290,6 +308,11 @@ class Katahdin_AI_Hub_Plugin_Registry {
      * Update existing plugin
      */
     private function update_plugin($plugin_id, $config) {
+        if (isset(self::$updated[$plugin_id])) {
+            return true;
+        }
+        self::$updated[$plugin_id] = true;
+
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'katahdin_ai_plugins';
@@ -308,6 +331,15 @@ class Katahdin_AI_Hub_Plugin_Registry {
         );
         
         if ($result !== false) {
+            $this->registered_plugins[$plugin_id] = array_merge(
+                $this->registered_plugins[$plugin_id] ?? array(),
+                array(
+                    'name'        => $config['name'],
+                    'version'     => $config['version'],
+                    'features'    => $config['features'],
+                    'quota_limit' => $config['quota_limit'],
+                )
+            );
             return true;
         } else {
             return new WP_Error('update_failed', 'Failed to update plugin');

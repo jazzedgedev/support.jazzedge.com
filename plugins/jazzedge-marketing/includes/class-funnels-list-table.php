@@ -30,7 +30,9 @@ class JEM_Funnels_List_Table extends WP_List_Table {
             'email_link' => __('Email Link', 'jazzedge-marketing'),
             'optins' => __('Opt-ins', 'jazzedge-marketing'),
             'download_pct' => __('Download %', 'jazzedge-marketing'),
-            'purchase_pct' => __('Purchase Click %', 'jazzedge-marketing'),
+            'purchase_pct' => __('Product Click %', 'jazzedge-marketing'),
+            'purchases' => __('Purchases', 'jazzedge-marketing'),
+            'purchase_pct_converted' => __('Purchase %', 'jazzedge-marketing'),
             'status' => __('Status', 'jazzedge-marketing'),
             'actions' => __('Actions', 'jazzedge-marketing'),
         );
@@ -51,6 +53,8 @@ class JEM_Funnels_List_Table extends WP_List_Table {
             $purchases = $this->database->count_events($f->id, 'purchase_click');
             $download_pct = $optins > 0 ? round($downloads / $optins * 100, 1) : 0;
             $purchase_pct = $optins > 0 ? round($purchases / $optins * 100, 1) : 0;
+            $purchases_converted = $this->database->count_coupon_purchases($f->id);
+            $purchase_pct_converted = $optins > 0 ? round($purchases_converted / $optins * 100, 1) : 0;
             $this->items[] = (object) array(
                 'id' => $f->id,
                 'name' => $f->name,
@@ -58,6 +62,8 @@ class JEM_Funnels_List_Table extends WP_List_Table {
                 'optins' => $optins,
                 'download_pct' => $download_pct,
                 'purchase_pct' => $purchase_pct,
+                'purchases' => $purchases_converted,
+                'purchase_pct_converted' => $purchase_pct_converted,
                 'active' => (int) $f->active,
             );
         }
@@ -96,6 +102,10 @@ class JEM_Funnels_List_Table extends WP_List_Table {
                 return $item->download_pct . '%';
             case 'purchase_pct':
                 return $item->purchase_pct . '%';
+            case 'purchases':
+                return (int) $item->purchases;
+            case 'purchase_pct_converted':
+                return $item->purchase_pct_converted . '%';
             case 'status':
                 return $item->active ? '<span class="jem-status-active">' . esc_html__('Active', 'jazzedge-marketing') . '</span>' : '<span class="jem-status-inactive">' . esc_html__('Inactive', 'jazzedge-marketing') . '</span>';
             case 'actions':

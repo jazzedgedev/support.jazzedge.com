@@ -15,6 +15,11 @@ if (!defined('ABSPATH')) {
 class Bunny_Video_Webhook_Logger {
     
     /**
+     * Whether create_table() has run this request (avoids duplicate calls)
+     */
+    private static $table_checked = false;
+    
+    /**
      * WordPress database instance
      */
     private $wpdb;
@@ -38,6 +43,9 @@ class Bunny_Video_Webhook_Logger {
      * Create logs table
      */
     private function create_table() {
+        if ( self::$table_checked ) return;
+        self::$table_checked = true;
+        
         $charset_collate = $this->wpdb->get_charset_collate();
         
         $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (

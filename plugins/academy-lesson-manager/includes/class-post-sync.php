@@ -309,8 +309,16 @@ class ALM_Post_Sync {
         update_field('lesson_membership_level', $lesson->membership_level, $post_id);
         
         // Also store as regular post meta for compatibility
-        update_post_meta($post_id, 'alm_lesson_id', $lesson->ID);
-        update_post_meta($post_id, 'alm_collection_id', $lesson->collection_id);
+        if (!empty($lesson->ID)) {
+            update_post_meta($post_id, 'alm_lesson_id', $lesson->ID);
+        } else {
+            delete_post_meta($post_id, 'alm_lesson_id');
+        }
+        if (!empty($lesson->collection_id)) {
+            update_post_meta($post_id, 'alm_collection_id', $lesson->collection_id);
+        } else {
+            delete_post_meta($post_id, 'alm_collection_id');
+        }
         
         // Resources and assets
         if ($lesson->resources) {
@@ -347,10 +355,18 @@ class ALM_Post_Sync {
         update_field('collection_membership_level', $collection->membership_level, $post_id);
         
         // Also store as regular post meta for compatibility
-        update_post_meta($post_id, 'alm_collection_id', $collection->ID);
+        if (!empty($collection->ID)) {
+            update_post_meta($post_id, 'alm_collection_id', $collection->ID);
+        } else {
+            delete_post_meta($post_id, 'alm_collection_id');
+        }
         
         // Save course_id to meta (for backwards compatibility)
-        update_post_meta($post_id, 'course_id', $collection->ID);
+        if (!empty($collection->ID)) {
+            update_post_meta($post_id, 'course_id', $collection->ID);
+        } else {
+            delete_post_meta($post_id, 'course_id');
+        }
         
         // Membership level name
         $membership_name = ALM_Admin_Settings::get_membership_level_name($collection->membership_level);

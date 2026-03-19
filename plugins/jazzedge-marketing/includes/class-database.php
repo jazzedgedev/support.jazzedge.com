@@ -335,6 +335,22 @@ class JEM_Database {
 	}
 
 	/**
+	 * Count leads for a funnel whose coupon has been used in FluentCart (use_count >= 1).
+	 *
+	 * @param int $funnel_id Funnel ID.
+	 * @return int
+	 */
+	public function count_coupon_purchases( $funnel_id ) {
+		return (int) $this->wpdb->get_var( $this->wpdb->prepare(
+			"SELECT COUNT(*)
+			 FROM {$this->leads_table} l
+			 JOIN {$this->wpdb->prefix}fct_coupons c ON c.code = l.coupon_code
+			 WHERE l.funnel_id = %d AND c.use_count >= 1",
+			(int) $funnel_id
+		) );
+	}
+
+	/**
 	 * Get recent leads (last N).
 	 *
 	 * @param int $limit Limit.
@@ -343,8 +359,10 @@ class JEM_Database {
 	public function get_recent_leads( $limit = 50 ) {
 		$limit = max( 1, (int) $limit );
 		return $this->wpdb->get_results( $this->wpdb->prepare(
-			"SELECT l.*, f.name as funnel_name FROM {$this->leads_table} l
+			"SELECT l.*, f.name as funnel_name, c.use_count as coupon_use_count
+			 FROM {$this->leads_table} l
 			 LEFT JOIN {$this->funnels_table} f ON l.funnel_id = f.id
+			 LEFT JOIN {$this->wpdb->prefix}fct_coupons c ON c.code = l.coupon_code
 			 ORDER BY l.created_at DESC LIMIT %d",
 			$limit
 		), ARRAY_A );

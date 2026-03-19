@@ -859,29 +859,30 @@ class ALM_Admin_Lesson_Analytics {
 
     /**
      * Build WHERE clause for filters
+     * Uses rv. prefix so the clause works in JOIN queries (rv + l) without ambiguous column errors.
      */
     private function build_where_clause(array $filters) {
-        $where = array('deleted_at IS NULL');
+        $where = array('rv.deleted_at IS NULL');
         $params = array();
 
         if (!$filters['all_time']) {
             if (!empty($filters['start_date'])) {
-                $where[] = 'datetime >= %s';
+                $where[] = 'rv.datetime >= %s';
                 $params[] = $filters['start_date'] . ' 00:00:00';
             }
             if (!empty($filters['end_date'])) {
-                $where[] = 'datetime <= %s';
+                $where[] = 'rv.datetime <= %s';
                 $params[] = $filters['end_date'] . ' 23:59:59';
             }
         }
 
         if (!empty($filters['type'])) {
-            $where[] = 'type = %s';
+            $where[] = 'rv.type = %s';
             $params[] = $filters['type'];
         }
 
         if (!empty($filters['lesson_post_id'])) {
-            $where[] = 'post_id = %d';
+            $where[] = 'rv.post_id = %d';
             $params[] = $filters['lesson_post_id'];
         }
 
@@ -1159,9 +1160,17 @@ class ALM_Admin_Lesson_Analytics {
         if (empty($users)) {
             echo '<tr><td colspan="4">' . __('No user views found for this range.', 'academy-lesson-manager') . '</td></tr>';
         } else {
+            $user_ids = array_unique(array_filter(array_map('intval', wp_list_pluck($users, 'user_id'))));
+            $user_map = array();
+            if (!empty($user_ids)) {
+                $loaded_users = get_users(array('include' => $user_ids, 'fields' => array('ID', 'display_name', 'user_email')));
+                foreach ($loaded_users as $u) {
+                    $user_map[$u->ID] = $u;
+                }
+            }
             foreach ($users as $row) {
                 $user_id = intval($row['user_id']);
-                $user = $user_id > 0 ? get_user_by('id', $user_id) : null;
+                $user = isset($user_map[$user_id]) ? $user_map[$user_id] : null;
 
                 if ($user) {
                     $user_edit_url = admin_url('user-edit.php?user_id=' . $user_id);
@@ -1209,6 +1218,14 @@ class ALM_Admin_Lesson_Analytics {
         if (empty($views)) {
             echo '<tr><td colspan="5">' . __('No recent views found for this range.', 'academy-lesson-manager') . '</td></tr>';
         } else {
+            $user_ids = array_unique(array_filter(array_map('intval', wp_list_pluck($views, 'user_id'))));
+            $user_map = array();
+            if (!empty($user_ids)) {
+                $loaded_users = get_users(array('include' => $user_ids, 'fields' => array('ID', 'display_name', 'user_email')));
+                foreach ($loaded_users as $u) {
+                    $user_map[$u->ID] = $u;
+                }
+            }
             foreach ($views as $view) {
                 $title = !empty($view['title']) ? stripslashes($view['title']) : __('(Untitled)', 'academy-lesson-manager');
                 $collection_title = !empty($view['collection_title']) ? stripslashes($view['collection_title']) : '';
@@ -1217,7 +1234,7 @@ class ALM_Admin_Lesson_Analytics {
                 $title_html = $lesson_link ? '<a href="' . esc_url($lesson_link) . '">' . esc_html($title) . '</a>' : esc_html($title);
 
                 $user_id = intval($view['user_id']);
-                $user = $user_id > 0 ? get_user_by('id', $user_id) : null;
+                $user = isset($user_map[$user_id]) ? $user_map[$user_id] : null;
                 if ($user) {
                     $user_edit_url = admin_url('user-edit.php?user_id=' . $user_id);
                     $user_display = '<a href="' . esc_url($user_edit_url) . '">' . esc_html($user->display_name) . '</a>';
@@ -1296,8 +1313,8 @@ class ALM_Admin_Lesson_Analytics {
      * Get summary metrics
      */
     private function get_summary($where_sql, array $params) {
-        $sql = "SELECT COUNT(*) as total_views, COUNT(DISTINCT user_id) as unique_users, COUNT(DISTINCT post_id) as unique_lessons
-            FROM {$this->table_name}
+        $sql = "SELECT COUNT(*) as total_views, COUNT(DISTINCT rv.user_id) as unique_users, COUNT(DISTINCT rv.post_id) as unique_lessons
+            FROM {$this->table_name} rv
             WHERE {$where_sql}";
 
         $row = !empty($params) ? $this->wpdb->get_row($this->wpdb->prepare($sql, $params), ARRAY_A) : $this->wpdb->get_row($sql, ARRAY_A);
@@ -1313,10 +1330,10 @@ class ALM_Admin_Lesson_Analytics {
      * Get lesson performance stats for insights
      */
     private function get_lesson_performance($where_sql, array $params) {
-        $sql = "SELECT post_id, title, COUNT(*) as views, COUNT(DISTINCT user_id) as unique_users, MAX(datetime) as last_viewed
-            FROM {$this->table_name}
+        $sql = "SELECT rv.post_id, rv.title, COUNT(*) as views, COUNT(DISTINCT rv.user_id) as unique_users, MAX(rv.datetime) as last_viewed
+            FROM {$this->table_name} rv
             WHERE {$where_sql}
-            GROUP BY post_id, title
+            GROUP BY rv.post_id, rv.title
             ORDER BY views DESC";
 
         return !empty($params) ? $this->wpdb->get_results($this->wpdb->prepare($sql, $params), ARRAY_A) : $this->wpdb->get_results($sql, ARRAY_A);
@@ -1398,10 +1415,10 @@ class ALM_Admin_Lesson_Analytics {
      */
     private function get_top_users($where_sql, array $params) {
         $limit = 25;
-        $sql = "SELECT user_id, COUNT(*) as views, COUNT(DISTINCT post_id) as unique_lessons, MAX(datetime) as last_viewed
-            FROM {$this->table_name}
+        $sql = "SELECT rv.user_id, COUNT(*) as views, COUNT(DISTINCT rv.post_id) as unique_lessons, MAX(rv.datetime) as last_viewed
+            FROM {$this->table_name} rv
             WHERE {$where_sql}
-            GROUP BY user_id
+            GROUP BY rv.user_id
             ORDER BY views DESC, last_viewed DESC
             LIMIT %d";
 
@@ -1445,42 +1462,42 @@ class ALM_Admin_Lesson_Analytics {
 
         switch ($interval) {
             case 'week':
-                $period_expr = "DATE_SUB(DATE(datetime), INTERVAL WEEKDAY(datetime) DAY)";
+                $period_expr = "DATE_SUB(DATE(rv.datetime), INTERVAL WEEKDAY(rv.datetime) DAY)";
                 $label_format = 'M j, Y';
                 $sql = "SELECT {$period_expr} as period, COUNT(*) as views
-                    FROM {$this->table_name}
+                    FROM {$this->table_name} rv
                     WHERE {$where_sql}
                     GROUP BY period
                     ORDER BY period ASC";
                 break;
             case 'month':
-                $period_expr = "DATE_FORMAT(datetime, '%Y-%m-01')";
+                $period_expr = "DATE_FORMAT(rv.datetime, '%Y-%m-01')";
                 $label_format = 'M Y';
                 $sql = "SELECT {$period_expr} as period, COUNT(*) as views
-                    FROM {$this->table_name}
+                    FROM {$this->table_name} rv
                     WHERE {$where_sql}
                     GROUP BY period
                     ORDER BY period ASC";
                 break;
             case 'quarter':
-                $sql = "SELECT YEAR(datetime) as year, QUARTER(datetime) as quarter, COUNT(*) as views
-                    FROM {$this->table_name}
+                $sql = "SELECT YEAR(rv.datetime) as year, QUARTER(rv.datetime) as quarter, COUNT(*) as views
+                    FROM {$this->table_name} rv
                     WHERE {$where_sql}
                     GROUP BY year, quarter
                     ORDER BY year ASC, quarter ASC";
                 break;
             case 'year':
-                $sql = "SELECT YEAR(datetime) as year, COUNT(*) as views
-                    FROM {$this->table_name}
+                $sql = "SELECT YEAR(rv.datetime) as year, COUNT(*) as views
+                    FROM {$this->table_name} rv
                     WHERE {$where_sql}
                     GROUP BY year
                     ORDER BY year ASC";
                 break;
             default:
-                $period_expr = "DATE(datetime)";
+                $period_expr = "DATE(rv.datetime)";
                 $label_format = 'M j';
                 $sql = "SELECT {$period_expr} as period, COUNT(*) as views
-                    FROM {$this->table_name}
+                    FROM {$this->table_name} rv
                     WHERE {$where_sql}
                     GROUP BY period
                     ORDER BY period ASC";

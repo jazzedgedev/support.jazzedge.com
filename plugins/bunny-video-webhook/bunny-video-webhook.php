@@ -77,6 +77,10 @@ class Bunny_Video_Webhook {
     }
 }
 
+register_activation_hook( __FILE__, function() {
+    $logger = new Bunny_Video_Webhook_Logger();
+});
+
 /**
  * Initialize the plugin
  */

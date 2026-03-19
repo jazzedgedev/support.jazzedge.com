@@ -12,6 +12,31 @@ require_once(ABSPATH . 'willie/ja-admin/vimeo.php-3.0.2/src/Vimeo/Vimeo.php');
 use Vimeo\Vimeo;
 
 /**
+ * Defer plugin license/update checks to wp-cron instead of blocking admin page loads.
+ * Prevents external HTTP requests from slowing down every admin page.
+ */
+if ( ! wp_doing_cron() && is_admin() ) {
+    add_filter( 'pre_http_request', function( $pre, $args, $url ) {
+        $blocked_hosts = [
+            'freemius.com',
+            'fluentapi.wpmanageninja.com',
+            'fluentcart.com',
+            'api3.wpmanageninja.com',
+            'oxygenbuilder.com',
+            'megamenu.com',
+            'licensing.aioseo.com',
+            'licenseserver.webpowerandlight.com',
+        ];
+        foreach ( $blocked_hosts as $host ) {
+            if ( str_contains( $url, $host ) ) {
+                return new WP_Error( 'blocked_on_page_load', 'Deferred to wp-cron' );
+            }
+        }
+        return $pre;
+    }, 10, 3 );
+}
+
+/**
  * WP 6.9.1: Ensure heartbeat is registered for wp-auth-check when plugins (e.g. Asset CleanUp) deregister it.
  * Fixes: "script 'wp-auth-check' enqueued with unregistered dependency: heartbeat"
  */

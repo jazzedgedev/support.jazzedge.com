@@ -71,9 +71,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 						<button class="jem-ty-copy-btn jem-btn jem-btn-copy" type="button" onclick="jemCopyCoupon()"><?php esc_html_e( '📋 COPY', 'jazzedge-marketing' ); ?></button>
 					</div>
 					<p class="jem-ty-personal-note">
-						<?php echo wp_kses_post( sprintf( __( '🔒 This coupon is personal and attached to <strong>%s</strong> — it cannot be used by anyone else.', 'jazzedge-marketing' ), esc_html( $lead->email ) ) ); ?>
+						<?php echo esc_html( sprintf( __( '🔒 This coupon is personal and attached to %s — it cannot be used by anyone else.', 'jazzedge-marketing' ), $lead->email ) ); ?>
 					</p>
-					<p class="jem-ty-copy-confirm jem-coupon-note" id="jem-copy-confirm" style="display:none;"><?php esc_html_e( '✅ Copied! Now go to Step 2.', 'jazzedge-marketing' ); ?></p>
 				</div>
 			</div>
 
@@ -141,12 +140,12 @@ var jemExpiry = '<?php echo esc_js( $lead->coupon_expires ); ?>';
 
 function jemCopyCoupon() {
 	var code = document.getElementById('jem-coupon-code').innerText;
+	var btn = document.querySelector('.jem-ty-copy-btn');
 	if ( navigator.clipboard && navigator.clipboard.writeText ) {
 		navigator.clipboard.writeText(code).then(function() {
-			var el = document.getElementById('jem-copy-confirm');
-			if ( el ) { el.style.display = 'block'; }
+			if ( btn ) { btn.textContent = '✅ Copied!'; }
 			setTimeout(function() {
-				if ( el ) { el.style.display = 'none'; }
+				if ( btn ) { btn.textContent = '📋 COPY'; }
 			}, 3000);
 		});
 	}
