@@ -179,6 +179,27 @@ class SJE_CRM_Webhook_Admin_Page {
 				<?php submit_button( __( 'Save Settings', 'sje-crm-webhook' ), 'primary', 'submit', false ); ?>
 			</form>
 
+			<?php
+			$api_key_for_define = is_string( $api_key ) ? $api_key : '';
+			$wp_config_constants_snippet = "define( 'JE_CRM_ENDPOINT', 'https://support.jazzedge.com/wp-json/jazzedge/v1/crm' );\n"
+				. 'define( \'JE_CRM_API_KEY\', \'' . str_replace( array( '\\', "'" ), array( '\\\\', "\\'" ), $api_key_for_define ) . "' );";
+			?>
+			<div class="sje-wpconfig-constants-panel" style="margin-top: 24px;">
+				<h3><?php esc_html_e( 'wp-config.php Constants', 'sje-crm-webhook' ); ?></h3>
+				<p class="description">
+					<?php esc_html_e( 'Add these two lines to wp-config.php on any site that needs to send data to this CRM endpoint.', 'sje-crm-webhook' ); ?>
+				</p>
+				<pre id="sje-wpconfig-constants-pre" class="sje-wpconfig-constants-pre"><?php echo esc_html( $wp_config_constants_snippet ); ?></pre>
+				<p style="margin-top: 10px;">
+					<button type="button" class="button" id="sje-wpconfig-constants-copy">
+						<?php esc_html_e( 'Copy to Clipboard', 'sje-crm-webhook' ); ?>
+					</button>
+					<span id="sje-wpconfig-constants-copied" class="sje-wpconfig-constants-copied" style="display: none; margin-left: 8px; color: #1a7f37; font-weight: 600;" aria-live="polite">
+						<?php esc_html_e( 'Copied!', 'sje-crm-webhook' ); ?>
+					</span>
+				</p>
+			</div>
+
 			<!-- Section 2: Logs -->
 			<h2><?php esc_html_e( 'Logs', 'sje-crm-webhook' ); ?></h2>
 			<p>
@@ -285,6 +306,26 @@ class SJE_CRM_Webhook_Admin_Page {
 					apiKeyInput.value = key;
 					apiKeyInput.type = 'text';
 					if (toggleBtn) toggleBtn.textContent = '<?php echo esc_js( __( 'Hide', 'sje-crm-webhook' ) ); ?>';
+				});
+			}
+
+			// wp-config constants copy
+			var wpconfigPre = document.getElementById('sje-wpconfig-constants-pre');
+			var wpconfigCopyBtn = document.getElementById('sje-wpconfig-constants-copy');
+			var wpconfigCopied = document.getElementById('sje-wpconfig-constants-copied');
+			if (wpconfigCopyBtn && wpconfigPre) {
+				wpconfigCopyBtn.addEventListener('click', function() {
+					var text = wpconfigPre.textContent || '';
+					if (navigator.clipboard && navigator.clipboard.writeText) {
+						navigator.clipboard.writeText(text).then(function() {
+							if (wpconfigCopied) {
+								wpconfigCopied.style.display = 'inline';
+								setTimeout(function() {
+									wpconfigCopied.style.display = 'none';
+								}, 2000);
+							}
+						}).catch(function() {});
+					}
 				});
 			}
 
