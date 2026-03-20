@@ -25,7 +25,12 @@ if ( ! wp_doing_cron() && is_admin() ) {
             'oxygenbuilder.com',
             'megamenu.com',
             'licensing.aioseo.com',
+            'licensing-cdn.aioseo.com',
             'licenseserver.webpowerandlight.com',
+            'updates.flowmattic.com',
+            'license.foliovision.com',
+            'update.wpallimport.com',
+            'connect.advancedcustomfields.com',
         ];
         foreach ( $blocked_hosts as $host ) {
             if ( str_contains( $url, $host ) ) {

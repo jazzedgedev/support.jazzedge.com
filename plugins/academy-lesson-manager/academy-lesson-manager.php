@@ -112,6 +112,7 @@ class Academy_Lesson_Manager {
         require_once ALM_PLUGIN_DIR . 'includes/class-post-sync.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-bunny-api.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-vimeo-api.php';
+        require_once ALM_PLUGIN_DIR . 'includes/class-je-crm-sender.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-rest.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-frontend-search.php';
         require_once ALM_PLUGIN_DIR . 'includes/class-ai.php';

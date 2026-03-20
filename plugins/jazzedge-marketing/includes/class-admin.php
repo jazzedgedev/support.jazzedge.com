@@ -200,10 +200,6 @@ class JEM_Admin {
                     </tr>
                     <?php endif; ?>
                     <tr>
-                        <th><label for="jem_webhook_url"><?php esc_html_e('Webhook URL', 'jazzedge-marketing'); ?></label></th>
-                        <td><input type="url" id="jem_webhook_url" name="jem_webhook_url" value="<?php echo $is_edit ? esc_attr($funnel->webhook_url) : ''; ?>" class="large-text" required /></td>
-                    </tr>
-                    <tr>
                         <th><label for="jem_media_id"><?php esc_html_e('Sheet Music File', 'jazzedge-marketing'); ?></label></th>
                         <td>
                             <input type="hidden" id="jem_media_id" name="jem_media_id" value="<?php echo $is_edit ? esc_attr($funnel->media_id) : ''; ?>" />
@@ -258,10 +254,6 @@ class JEM_Admin {
         }
         $id = isset($_POST['jem_funnel_id']) ? (int) $_POST['jem_funnel_id'] : 0;
         $name = isset($_POST['jem_funnel_name']) ? sanitize_text_field(wp_unslash($_POST['jem_funnel_name'])) : '';
-        $webhook_url = isset($_POST['jem_webhook_url']) ? trim(sanitize_text_field(wp_unslash($_POST['jem_webhook_url']))) : '';
-        if ($webhook_url && !preg_match('#^https?://#i', $webhook_url)) {
-            $webhook_url = '';
-        }
         $media_id = isset($_POST['jem_media_id']) ? absint($_POST['jem_media_id']) : null;
         $product_url = isset($_POST['jem_product_url']) ? esc_url_raw(wp_unslash($_POST['jem_product_url'])) : '';
         $product_id = isset($_POST['jem_product_id']) ? sanitize_text_field(wp_unslash($_POST['jem_product_id'])) : '';
@@ -270,15 +262,14 @@ class JEM_Admin {
         $coupon_days = isset($_POST['jem_coupon_days']) ? max(1, (int) $_POST['jem_coupon_days']) : 3;
         $active = isset($_POST['jem_active']) ? 1 : 0;
 
-        if (empty($name) || empty($webhook_url) || empty($product_url)) {
-            set_transient('jem_funnel_message', array('error', __('Please fill in Funnel Name, Webhook URL, and Product URL.', 'jazzedge-marketing')), 30);
+        if (empty($name) || empty($product_url)) {
+            set_transient('jem_funnel_message', array('error', __('Please fill in Funnel Name and Product URL.', 'jazzedge-marketing')), 30);
             wp_redirect(add_query_arg('error', 'missing', wp_get_referer() ?: admin_url('admin.php?page=jem-add-funnel')));
             exit;
         }
 
         $data = array(
             'name' => $name,
-            'webhook_url' => $webhook_url,
             'media_id' => $media_id ?: null,
             'product_url' => $product_url,
             'product_id' => $product_id,
@@ -381,6 +372,13 @@ class JEM_Admin {
                             <p class="description"><?php esc_html_e('Shown on the front end when a funnel is inactive. Applies to all funnels.', 'jazzedge-marketing'); ?></p>
                         </td>
                     </tr>
+                    <tr>
+                        <th><label for="jem_sje_tag_id"><?php esc_html_e('SJE Tag ID', 'jazzedge-marketing'); ?></label></th>
+                        <td>
+                            <input type="number" id="jem_sje_tag_id" name="jem_sje_tag_id" value="<?php echo esc_attr(get_option('jem_sje_tag_id', 121)); ?>" class="small-text" />
+                            <p class="description"><?php esc_html_e('FluentCRM tag ID applied to every JEM opt-in on the SJE support site. Default: 121 (Start JEM Funnel).', 'jazzedge-marketing'); ?></p>
+                        </td>
+                    </tr>
                 </table>
                 <p class="submit"><input type="submit" class="button button-primary" value="<?php esc_attr_e('Save Settings', 'jazzedge-marketing'); ?>" /></p>
             </form>
@@ -435,6 +433,8 @@ class JEM_Admin {
         update_option('jem_inactive_msg', $inactive_msg);
         update_option('jem_optin_page_id', $optin_page_id);
         update_option('jem_thankyou_page_id', $thankyou_page_id);
+        $sje_tag_id = isset($_POST['jem_sje_tag_id']) ? absint($_POST['jem_sje_tag_id']) : 121;
+        update_option('jem_sje_tag_id', $sje_tag_id);
         set_transient('jem_settings_message', __('Settings saved.', 'jazzedge-marketing'), 30);
         wp_redirect(admin_url('admin.php?page=jem-settings'));
         exit;

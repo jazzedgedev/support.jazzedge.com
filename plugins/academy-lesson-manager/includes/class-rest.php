@@ -203,10 +203,6 @@ class ALM_Rest_API {
             'permission_callback' => array($this, 'check_admin_permission'),
             'args' => array(
                 'lesson_post_id' => array('type' => 'integer', 'required' => true),
-                'api_base_url' => array('type' => 'string', 'required' => true),
-                'api_username' => array('type' => 'string', 'required' => true),
-                'api_password' => array('type' => 'string', 'required' => true),
-                'tag_ids' => array('type' => 'string', 'required' => false),
                 'status' => array('type' => 'string', 'required' => false),
             ),
         ));
@@ -222,24 +218,7 @@ class ALM_Rest_API {
             'callback' => array($this, 'handle_save_lesson_analytics_fluentcrm_settings'),
             'permission_callback' => array($this, 'check_admin_permission'),
             'args' => array(
-                'api_base_url' => array('type' => 'string', 'required' => true),
-                'api_username' => array('type' => 'string', 'required' => true),
-                'api_password' => array('type' => 'string', 'required' => true),
-                'tag_ids' => array('type' => 'string', 'required' => false),
-                'test_email' => array('type' => 'string', 'required' => false),
                 'status' => array('type' => 'string', 'required' => false),
-            ),
-        ));
-
-        register_rest_route('alm/v1', '/lesson-analytics/test-fluentcrm', array(
-            'methods' => WP_REST_Server::CREATABLE,
-            'callback' => array($this, 'handle_test_lesson_analytics_fluentcrm'),
-            'permission_callback' => array($this, 'check_admin_permission'),
-            'args' => array(
-                'api_base_url' => array('type' => 'string', 'required' => true),
-                'api_username' => array('type' => 'string', 'required' => true),
-                'api_password' => array('type' => 'string', 'required' => true),
-                'test_email' => array('type' => 'string', 'required' => false),
             ),
         ));
         
@@ -455,30 +434,30 @@ class ALM_Rest_API {
     }
 
     /**
-     * Send lesson students to FluentCRM REST API (admin only)
+     * Send lesson students to support site CRM via JE_CRM_Sender (admin only).
      */
     public function handle_lesson_analytics_fluentcrm(WP_REST_Request $request) {
         $lesson_post_id = intval($request->get_param('lesson_post_id'));
-        $api_base_url = esc_url_raw($request->get_param('api_base_url'));
-        $api_username = sanitize_text_field($request->get_param('api_username'));
-        $api_password = sanitize_text_field($request->get_param('api_password'));
-        $tag_ids_raw = sanitize_text_field($request->get_param('tag_ids'));
+        $saved = get_option('alm_lesson_analytics_fluentcrm_settings', array());
+        $saved_status = isset($saved['status']) ? sanitize_text_field($saved['status']) : 'subscribed';
         $status = sanitize_text_field($request->get_param('status'));
-
-        if ($lesson_post_id <= 0 || empty($api_base_url) || empty($api_username) || empty($api_password)) {
-            return new WP_Error('invalid_request', 'lesson_post_id, api_base_url, api_username, and api_password are required', array('status' => 400));
+        if ($status === '' || $status === null) {
+            $status = $saved_status;
         }
-        if (!preg_match('#^https?://#i', $api_base_url)) {
-            return new WP_Error('invalid_url', 'API base URL must be http or https', array('status' => 400));
-        }
-
-        $tag_ids = array();
-        if (!empty($tag_ids_raw)) {
-            $tag_ids = array_filter(array_map('intval', array_map('trim', explode(',', $tag_ids_raw))));
-        }
-        if (empty($status)) {
+        if ($status === '') {
             $status = 'subscribed';
         }
+
+        if ($lesson_post_id <= 0) {
+            return new WP_Error('invalid_request', 'lesson_post_id is required', array('status' => 400));
+        }
+
+        // Persist default status for the modal.
+        update_option(
+            'alm_lesson_analytics_fluentcrm_settings',
+            array('status' => $status),
+            false
+        );
 
         $table_name = 'academy_recently_viewed';
         $users_table = $this->wpdb->users;
@@ -512,8 +491,6 @@ class ALM_Rest_API {
         }, $students);
 
         $lesson_title = get_the_title($lesson_post_id);
-        $endpoint = rtrim($api_base_url, '/') . '/subscribers';
-        $auth_header = 'Basic ' . base64_encode($api_username . ':' . $api_password);
 
         $attempted = 0;
         $success_count = 0;
@@ -533,65 +510,39 @@ class ALM_Rest_API {
                 continue;
             }
 
-            $payload = array(
+            $attempted++;
+            $send_payload = array(
                 'email' => $email,
-                'first_name' => $student['first_name'] ?? '',
-                'last_name' => $student['last_name'] ?? '',
                 'status' => $status,
             );
-            if (!empty($tag_ids)) {
-                $payload['tags'] = array_values($tag_ids);
-            }
-            // Force update if subscriber already exists (upsert behavior)
-            $payload['__force_update'] = 'yes';
-
-            $attempted++;
-            $last_payload = array_merge($payload, array(
+            $last_payload = array_merge($send_payload, array(
                 'lesson_post_id' => $lesson_post_id,
                 'lesson_title' => $lesson_title ?: '',
             ));
 
-            $response = wp_remote_post($endpoint, array(
-                'headers' => array(
-                    'Content-Type' => 'application/json',
-                    'Authorization' => $auth_header,
-                ),
-                'body' => wp_json_encode($payload),
-                'timeout' => 20,
-            ));
+            $result = JE_CRM_Sender::send($send_payload);
 
-            if (is_wp_error($response)) {
+            if (empty($result['success'])) {
+                $err = isset($result['message']) ? $result['message'] : 'Unknown error';
                 $failures[] = array(
                     'email' => $email,
-                    'error' => $response->get_error_message(),
+                    'error' => $err,
                 );
                 $last_status_code = 0;
-                $last_response_body = '';
-                continue;
-            }
-
-            $last_status_code = wp_remote_retrieve_response_code($response);
-            $last_response_body = wp_remote_retrieve_body($response);
-            if (strlen($last_response_body) > 2000) {
-                $last_response_body = substr($last_response_body, 0, 2000) . '...';
-            }
-
-            if ($last_status_code < 200 || $last_status_code >= 300) {
-                $failures[] = array(
-                    'email' => $email,
-                    'error' => 'FluentCRM returned HTTP ' . $last_status_code,
-                    'response_body' => $last_response_body,
-                );
+                $last_response_body = is_string($err) ? $err : wp_json_encode($result);
                 continue;
             }
 
             $success_count++;
+            $last_status_code = 200;
+            $last_response_body = isset($result['message']) ? $result['message'] : wp_json_encode($result);
         }
 
-        $success = empty($failures);
+        $failure_count = count($failures);
+        $success = ($failure_count === 0);
         $message = $success
-            ? 'FluentCRM import completed successfully.'
-            : sprintf('FluentCRM import completed with %d failures.', count($failures));
+            ? 'CRM import completed successfully.'
+            : sprintf('CRM import completed with %d failures.', $failure_count);
 
         return rest_ensure_response(array(
             'success' => $success,
@@ -605,122 +556,53 @@ class ALM_Rest_API {
                 'lesson_post_id' => $lesson_post_id,
                 'lesson_title' => $lesson_title ?: '',
                 'email' => '',
+                'status' => $status,
             ),
         ));
     }
 
     /**
-     * Get saved FluentCRM settings for lesson analytics (admin only)
+     * Get saved CRM (JE_CRM_Sender) settings for lesson analytics (admin only) — status only.
      */
     public function handle_get_lesson_analytics_fluentcrm_settings() {
         $settings = get_option('alm_lesson_analytics_fluentcrm_settings', array());
-        $defaults = array(
-            'api_base_url' => '',
-            'api_username' => '',
-            'api_password' => '',
-            'tag_ids' => '',
-            'test_email' => '',
-            'status' => 'subscribed',
-        );
-        $settings = wp_parse_args($settings, $defaults);
+        if (!is_array($settings)) {
+            $settings = array();
+        }
+        $status = isset($settings['status']) ? sanitize_text_field($settings['status']) : 'subscribed';
+        if ($status === '') {
+            $status = 'subscribed';
+        }
 
         return rest_ensure_response(array(
             'success' => true,
-            'settings' => $settings,
-        ));
-    }
-
-    /**
-     * Save FluentCRM settings for lesson analytics (admin only)
-     */
-    public function handle_save_lesson_analytics_fluentcrm_settings(WP_REST_Request $request) {
-        $api_base_url = esc_url_raw($request->get_param('api_base_url'));
-        $api_username = sanitize_text_field($request->get_param('api_username'));
-        $api_password = sanitize_text_field($request->get_param('api_password'));
-        $tag_ids = sanitize_text_field($request->get_param('tag_ids'));
-        $test_email = sanitize_email($request->get_param('test_email'));
-        $status = sanitize_text_field($request->get_param('status'));
-
-        if (empty($api_base_url) || empty($api_username) || empty($api_password)) {
-            return new WP_Error('invalid_settings', 'API base URL, username, and password are required', array('status' => 400));
-        }
-
-        $settings = array(
-            'api_base_url' => $api_base_url,
-            'api_username' => $api_username,
-            'api_password' => $api_password,
-            'tag_ids' => $tag_ids,
-            'test_email' => $test_email,
-            'status' => $status ?: 'subscribed',
-        );
-
-        update_option('alm_lesson_analytics_fluentcrm_settings', $settings, false);
-
-        return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'FluentCRM settings saved.',
-            'settings' => $settings,
-        ));
-    }
-
-    /**
-     * Test FluentCRM credentials (admin only)
-     */
-    public function handle_test_lesson_analytics_fluentcrm(WP_REST_Request $request) {
-        $api_base_url = esc_url_raw($request->get_param('api_base_url'));
-        $api_username = sanitize_text_field($request->get_param('api_username'));
-        $api_password = sanitize_text_field($request->get_param('api_password'));
-        $test_email = sanitize_email($request->get_param('test_email'));
-
-        if (empty($api_base_url) || empty($api_username) || empty($api_password)) {
-            return new WP_Error('invalid_settings', 'API base URL, username, and password are required', array('status' => 400));
-        }
-
-        $base_url = trailingslashit($api_base_url);
-        $auth_header = 'Basic ' . base64_encode($api_username . ':' . $api_password);
-
-        if (!empty($test_email)) {
-            $endpoint = add_query_arg('email', rawurlencode($test_email), $base_url . 'subscribers');
-        } else {
-            $endpoint = $base_url . 'tags';
-        }
-
-        $response = wp_remote_get($endpoint, array(
-            'timeout' => 20,
-            'headers' => array(
-                'Authorization' => $auth_header,
-                'Accept' => 'application/json',
+            'settings' => array(
+                'status' => $status,
             ),
         ));
+    }
 
-        if (is_wp_error($response)) {
-            return rest_ensure_response(array(
-                'success' => false,
-                'message' => $response->get_error_message(),
-                'endpoint' => $endpoint,
-            ));
+    /**
+     * Save CRM settings for lesson analytics (admin only) — status only.
+     */
+    public function handle_save_lesson_analytics_fluentcrm_settings(WP_REST_Request $request) {
+        $status = sanitize_text_field($request->get_param('status'));
+        if ($status === '') {
+            $status = 'subscribed';
         }
 
-        $status_code = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        $decoded = json_decode($body, true);
-
-        if ($status_code >= 200 && $status_code < 300) {
-            return rest_ensure_response(array(
-                'success' => true,
-                'message' => 'API credentials look good.',
-                'endpoint' => $endpoint,
-                'status_code' => $status_code,
-                'response_body' => $decoded ?: $body,
-            ));
-        }
+        update_option(
+            'alm_lesson_analytics_fluentcrm_settings',
+            array('status' => $status),
+            false
+        );
 
         return rest_ensure_response(array(
-            'success' => false,
-            'message' => 'API test failed.',
-            'endpoint' => $endpoint,
-            'status_code' => $status_code,
-            'response_body' => $decoded ?: $body,
+            'success' => true,
+            'message' => 'CRM settings saved.',
+            'settings' => array(
+                'status' => $status,
+            ),
         ));
     }
     

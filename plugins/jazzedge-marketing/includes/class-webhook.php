@@ -29,48 +29,39 @@ class JEM_Webhook {
 	}
 
 	/**
-	 * Send webhook POST to funnel URL.
+	 * Send contact data to SJE CRM via JE_CRM_Sender.
 	 *
 	 * @param object $funnel Funnel object.
 	 * @param object $lead   Lead object.
-	 * @return bool True if 2xx response, false otherwise.
+	 * @return bool True if send succeeded, false otherwise.
 	 */
 	public function send( $funnel, $lead ) {
-		$body = array(
+		$sje_tag_id = (int) get_option( 'jem_sje_tag_id', 121 );
+
+		$payload = array(
+			'email'               => $lead->email,
 			'first_name'          => $lead->first_name,
 			'last_name'           => $lead->last_name,
-			'full_name'           => $lead->first_name . ' ' . $lead->last_name,
-			'email'               => $lead->email,
-			'coupon_code'         => $lead->coupon_code,
-			'jem_product_name'    => $funnel->name,
-			'jem_product_url'     => $funnel->product_url,
-			'jem_expiration_date' => $lead->coupon_expires,
-			'jem_music_link'      => home_url( '/?jem_download=' . $lead->download_token ),
+			'add_tags'            => $sje_tag_id > 0 ? array( $sje_tag_id ) : array(),
+			'custom_fields'       => array(
+				'coupon_code'         => $lead->coupon_code,
+				'jem_product_name'    => $funnel->name,
+				'jem_product_url'     => $funnel->product_url,
+				'jem_expiration_date' => $lead->coupon_expires,
+				'jem_music_link'     => home_url( '/?jem_download=' . $lead->download_token ),
+			),
 		);
 
-		$response = wp_remote_post(
-			$funnel->webhook_url,
-			array(
-				'body'    => $body,
-				'timeout' => 15,
-			)
-		);
+		$result = JE_CRM_Sender::send( $payload );
 
-		$status_code = wp_remote_retrieve_response_code( $response );
-		$body_raw    = wp_remote_retrieve_body( $response );
+		$success = ! empty( $result['success'] );
+		$message = isset( $result['message'] ) ? $result['message'] : '';
 
-		$webhook_response = 'HTTP ' . $status_code . ': ' . $body_raw;
-
-		// Store response in lead regardless of outcome.
 		$this->database->update_lead( $lead->id, array(
-			'webhook_response' => $webhook_response,
-			'webhook_sent'      => is_wp_error( $response ) ? 0 : 1,
+			'webhook_sent'     => $success ? 1 : 0,
+			'webhook_response' => 'SJE CRM: ' . $message,
 		) );
 
-		if ( is_wp_error( $response ) ) {
-			return false;
-		}
-
-		return $status_code >= 200 && $status_code < 300;
+		return $success;
 	}
 }

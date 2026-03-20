@@ -8599,7 +8599,13 @@ Return only the cleaned feedback text, no explanations or additional commentary.
         function displayCharts(analyticsData) {
             // Practice Activity Chart
             const activityCtx = document.getElementById('practice-activity-chart').getContext('2d');
-            const dates = analyticsData.daily_data.map(d => new Date(d.date).toLocaleDateString());
+            const dates = analyticsData.daily_data.map(d => {
+                const date = new Date(d.date + 'T00:00:00');
+                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const day = date.getDate().toString().padStart(2, '0');
+                return dayName + ' ' + month + '/' + day;
+            });
             const sessions = analyticsData.daily_data.map(d => parseInt(d.sessions));
             const hours = analyticsData.daily_data.map(d => Math.round((parseInt(d.minutes) / 60) * 10) / 10);
             const activeUsers = analyticsData.daily_data.map(d => parseInt(d.active_users));

@@ -182,27 +182,10 @@ class ALM_Admin_Lesson_Analytics {
                         </button>
                         <span id="alm-lesson-webhook-status" class="alm-lesson-webhook-status"></span>
                     </div>
-                    <div class="alm-lesson-students-toolbar">
-                        <label>
-                            <?php esc_html_e('FluentCRM API Base URL', 'academy-lesson-manager'); ?>
-                            <input type="url" id="alm-fluentcrm-api-url" placeholder="https://support.jazzedge.com/wp-json/fluent-crm/v2" />
-                        </label>
-                        <label>
-                            <?php esc_html_e('API Username', 'academy-lesson-manager'); ?>
-                            <input type="text" id="alm-fluentcrm-api-username" placeholder="API Username" />
-                        </label>
-                        <label>
-                            <?php esc_html_e('API Password', 'academy-lesson-manager'); ?>
-                            <input type="password" id="alm-fluentcrm-api-password" placeholder="API Password" />
-                        </label>
-                        <label>
-                            <?php esc_html_e('Tag IDs', 'academy-lesson-manager'); ?>
-                            <input type="text" id="alm-fluentcrm-tag-ids" placeholder="e.g. 12,34,56" />
-                        </label>
-                        <label>
-                            <?php esc_html_e('Test Email', 'academy-lesson-manager'); ?>
-                            <input type="email" id="alm-fluentcrm-test-email" placeholder="test@example.com" />
-                        </label>
+                    <div class="alm-lesson-students-toolbar alm-lesson-crm-toolbar">
+                        <p class="description" style="flex-basis:100%; margin:0 0 8px;">
+                            <?php esc_html_e('Contacts are sent to support.jazzedge.com via JE_CRM_Sender. Ensure JE_CRM_ENDPOINT and JE_CRM_API_KEY are defined in wp-config.php.', 'academy-lesson-manager'); ?>
+                        </p>
                         <label>
                             <?php esc_html_e('Status', 'academy-lesson-manager'); ?>
                             <select id="alm-fluentcrm-status">
@@ -213,14 +196,8 @@ class ALM_Admin_Lesson_Analytics {
                                 <option value="complained"><?php esc_html_e('complained', 'academy-lesson-manager'); ?></option>
                             </select>
                         </label>
-                        <button type="button" class="button" id="alm-lesson-save-fluentcrm">
-                            <?php esc_html_e('Save Credentials', 'academy-lesson-manager'); ?>
-                        </button>
-                        <button type="button" class="button" id="alm-lesson-test-fluentcrm">
-                            <?php esc_html_e('Test API', 'academy-lesson-manager'); ?>
-                        </button>
                         <button type="button" class="button button-secondary" id="alm-lesson-send-fluentcrm">
-                            <?php esc_html_e('Send to FluentCRM', 'academy-lesson-manager'); ?>
+                            <?php esc_html_e('Send to CRM', 'academy-lesson-manager'); ?>
                         </button>
                         <span id="alm-lesson-fluentcrm-status" class="alm-lesson-webhook-status"></span>
                     </div>
@@ -297,6 +274,9 @@ class ALM_Admin_Lesson_Analytics {
         .alm-lesson-students-toolbar input {
             min-width: 320px;
         }
+        .alm-lesson-crm-toolbar select {
+            min-width: 180px;
+        }
         .alm-lesson-students-loading {
             margin: 10px 0;
         }
@@ -319,14 +299,7 @@ class ALM_Admin_Lesson_Analytics {
             const webhookInput = document.getElementById('alm-lesson-webhook-url');
             const webhookBtn = document.getElementById('alm-lesson-send-webhook');
             const webhookStatus = document.getElementById('alm-lesson-webhook-status');
-            const fluentApiUrl = document.getElementById('alm-fluentcrm-api-url');
-            const fluentApiUser = document.getElementById('alm-fluentcrm-api-username');
-            const fluentApiPass = document.getElementById('alm-fluentcrm-api-password');
-            const fluentTagIds = document.getElementById('alm-fluentcrm-tag-ids');
-            const fluentTestEmail = document.getElementById('alm-fluentcrm-test-email');
             const fluentStatusSelect = document.getElementById('alm-fluentcrm-status');
-            const fluentSaveBtn = document.getElementById('alm-lesson-save-fluentcrm');
-            const fluentTestBtn = document.getElementById('alm-lesson-test-fluentcrm');
             const fluentBtn = document.getElementById('alm-lesson-send-fluentcrm');
             const fluentStatus = document.getElementById('alm-lesson-fluentcrm-status');
             let currentLessonId = null;
@@ -404,17 +377,8 @@ class ALM_Admin_Lesson_Analytics {
                         })
                         .then(response => response.json())
                         .then(data => {
-                            if (data.success && data.settings) {
-                                fluentApiUrl.value = data.settings.api_base_url || '';
-                                fluentApiUser.value = data.settings.api_username || '';
-                                fluentApiPass.value = data.settings.api_password || '';
-                                fluentTagIds.value = data.settings.tag_ids || '';
-                                if (fluentTestEmail) {
-                                    fluentTestEmail.value = data.settings.test_email || '';
-                                }
-                                if (fluentStatusSelect) {
-                                    fluentStatusSelect.value = data.settings.status || 'subscribed';
-                                }
+                            if (data.success && data.settings && fluentStatusSelect) {
+                                fluentStatusSelect.value = data.settings.status || 'subscribed';
                             }
                         })
                         .catch(() => {});
@@ -486,35 +450,7 @@ class ALM_Admin_Lesson_Analytics {
             if (fluentBtn) {
                 fluentBtn.addEventListener('click', () => {
                     if (!currentLessonId) return;
-                    const apiUrl = fluentApiUrl.value.trim();
-                    const apiUser = fluentApiUser.value.trim();
-                    const apiPass = fluentApiPass.value.trim();
-                    const tagIds = fluentTagIds.value.trim();
-                    const testEmail = fluentTestEmail ? fluentTestEmail.value.trim() : '';
                     const statusValue = fluentStatusSelect ? fluentStatusSelect.value : 'subscribed';
-
-                    if (!apiUrl || !apiUser || !apiPass) {
-                        fluentStatus.textContent = 'API URL, username, and password are required.';
-                        fluentStatus.style.color = '#b32d2e';
-                        return;
-                    }
-
-                    fetch(`<?php echo esc_url_raw(rest_url('alm/v1/lesson-analytics/fluentcrm-settings')); ?>`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
-                        },
-                        body: JSON.stringify({
-                            api_base_url: apiUrl,
-                            api_username: apiUser,
-                            api_password: apiPass,
-                            tag_ids: tagIds,
-                            test_email: testEmail,
-                            status: statusValue
-                        })
-                    })
-                    .catch(() => {});
 
                     fluentStatus.textContent = 'Sending...';
                     fluentStatus.style.color = '#1d2327';
@@ -527,10 +463,6 @@ class ALM_Admin_Lesson_Analytics {
                         },
                         body: JSON.stringify({
                             lesson_post_id: parseInt(currentLessonId, 10),
-                            api_base_url: apiUrl,
-                            api_username: apiUser,
-                            api_password: apiPass,
-                            tag_ids: tagIds,
                             status: statusValue
                         })
                     })
@@ -565,139 +497,6 @@ class ALM_Admin_Lesson_Analytics {
                     })
                     .catch(() => {
                         fluentStatus.textContent = 'Failed to send.';
-                        fluentStatus.style.color = '#b32d2e';
-                    });
-                });
-            }
-
-            if (fluentSaveBtn) {
-                fluentSaveBtn.addEventListener('click', () => {
-                    const apiUrl = fluentApiUrl.value.trim();
-                    const apiUser = fluentApiUser.value.trim();
-                    const apiPass = fluentApiPass.value.trim();
-                    const tagIds = fluentTagIds.value.trim();
-                    const testEmail = fluentTestEmail ? fluentTestEmail.value.trim() : '';
-                    const statusValue = fluentStatusSelect ? fluentStatusSelect.value : 'subscribed';
-
-                    if (!apiUrl || !apiUser || !apiPass) {
-                        fluentStatus.textContent = 'API URL, username, and password are required.';
-                        fluentStatus.style.color = '#b32d2e';
-                        return;
-                    }
-
-                    fluentStatus.textContent = 'Saving...';
-                    fluentStatus.style.color = '#1d2327';
-
-                    fetch(`<?php echo esc_url_raw(rest_url('alm/v1/lesson-analytics/fluentcrm-settings')); ?>`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
-                        },
-                        body: JSON.stringify({
-                            api_base_url: apiUrl,
-                            api_username: apiUser,
-                            api_password: apiPass,
-                            tag_ids: tagIds,
-                            test_email: testEmail,
-                            status: statusValue
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            fluentStatus.textContent = data.message || 'Saved.';
-                            fluentStatus.style.color = '#1a7f37';
-                        } else {
-                            fluentStatus.textContent = data.message || 'Save failed.';
-                            fluentStatus.style.color = '#b32d2e';
-                        }
-                    })
-                    .catch(() => {
-                        fluentStatus.textContent = 'Save failed.';
-                        fluentStatus.style.color = '#b32d2e';
-                    });
-                });
-            }
-
-            if (fluentTestBtn) {
-                fluentTestBtn.addEventListener('click', () => {
-                    const apiUrl = fluentApiUrl.value.trim();
-                    const apiUser = fluentApiUser.value.trim();
-                    const apiPass = fluentApiPass.value.trim();
-                    const testEmail = fluentTestEmail ? fluentTestEmail.value.trim() : '';
-                    const tagIds = fluentTagIds.value.trim();
-                    const statusValue = fluentStatusSelect ? fluentStatusSelect.value : 'subscribed';
-
-                    if (!apiUrl || !apiUser || !apiPass) {
-                        fluentStatus.textContent = 'API URL, username, and password are required.';
-                        fluentStatus.style.color = '#b32d2e';
-                        return;
-                    }
-
-                    fetch(`<?php echo esc_url_raw(rest_url('alm/v1/lesson-analytics/fluentcrm-settings')); ?>`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
-                        },
-                        body: JSON.stringify({
-                            api_base_url: apiUrl,
-                            api_username: apiUser,
-                            api_password: apiPass,
-                            tag_ids: tagIds,
-                            test_email: testEmail,
-                            status: statusValue
-                        })
-                    })
-                    .catch(() => {});
-
-                    fluentStatus.textContent = 'Testing...';
-                    fluentStatus.style.color = '#1d2327';
-
-                    fetch(`<?php echo esc_url_raw(rest_url('alm/v1/lesson-analytics/test-fluentcrm')); ?>`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
-                        },
-                        body: JSON.stringify({
-                            api_base_url: apiUrl,
-                            api_username: apiUser,
-                            api_password: apiPass,
-                            test_email: testEmail
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        const output = document.getElementById('alm-last-webhook-output');
-                        const payloadText = JSON.stringify({
-                            sent_at: new Date().toISOString(),
-                            type: 'fluentcrm_test',
-                            success: !!data.success,
-                            message: data.message || '',
-                            status_code: data.status_code || 0,
-                            endpoint: data.endpoint || '',
-                            response_body: data.response_body || ''
-                        }, null, 2);
-                        if (output) {
-                            output.textContent = payloadText;
-                        }
-                        if (window.localStorage) {
-                            localStorage.setItem('almLastWebhook', payloadText);
-                        }
-
-                        if (data.success) {
-                            fluentStatus.textContent = data.message || 'Test succeeded.';
-                            fluentStatus.style.color = '#1a7f37';
-                        } else {
-                            const codeText = data.status_code ? ` (HTTP ${data.status_code})` : '';
-                            fluentStatus.textContent = (data.message || 'Test failed.') + codeText;
-                            fluentStatus.style.color = '#b32d2e';
-                        }
-                    })
-                    .catch(() => {
-                        fluentStatus.textContent = 'Test failed.';
                         fluentStatus.style.color = '#b32d2e';
                     });
                 });

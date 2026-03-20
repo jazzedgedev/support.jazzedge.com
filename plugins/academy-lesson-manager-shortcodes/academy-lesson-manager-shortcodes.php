@@ -2717,7 +2717,7 @@ class ALM_Shortcodes_Plugin {
         $subtitle_url = $this->get_chapter_subtitle_url($final_chapter_id);
         
         // Build FV Player shortcode
-        $shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" height="400" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"';
+        $shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"';
         
         // Add subtitles if VTT file exists
         if ($subtitle_url) {
@@ -3402,7 +3402,7 @@ class ALM_Shortcodes_Plugin {
                 $subtitle_url = $this->get_chapter_subtitle_url($current_chapter->ID);
                 
                 // Build FV Player shortcode
-                $shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"';
+                $shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"';
                 
                 // Add subtitles if VTT file exists
                 if ($subtitle_url) {
@@ -3420,7 +3420,7 @@ class ALM_Shortcodes_Plugin {
             } else {
                 // No video source available - show default Bunny stream
                 $return .= '<div class="alm-video-placeholder">';
-                $return .= do_shortcode('[fvplayer src="https://vz-0696d3da-4b7.b-cdn.net/985452fa-62e0-4bc5-a7bc-841f46ad3b91/playlist.m3u8" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
+                $return .= do_shortcode('[fvplayer src="https://vz-0696d3da-4b7.b-cdn.net/985452fa-62e0-4bc5-a7bc-841f46ad3b91/playlist.m3u8" width="100%" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
                 $return .= '</div>';
             }
             
@@ -3765,7 +3765,7 @@ class ALM_Shortcodes_Plugin {
             $return .= '<div class="alm-video-section">';
             $return .= '<h3 class="alm-current-chapter-title">' . esc_html(stripslashes($current_chapter->chapter_title)) . '</h3>';
             $return .= '<div class="alm-video-placeholder">';
-            $return .= do_shortcode('[fvplayer src="https://vz-0696d3da-4b7.b-cdn.net/985452fa-62e0-4bc5-a7bc-841f46ad3b91/playlist.m3u8" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
+            $return .= do_shortcode('[fvplayer src="https://vz-0696d3da-4b7.b-cdn.net/985452fa-62e0-4bc5-a7bc-841f46ad3b91/playlist.m3u8" width="100%" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
             $return .= '</div>';
             $return .= '</div>';
         }

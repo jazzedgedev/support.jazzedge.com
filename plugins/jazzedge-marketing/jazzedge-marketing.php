@@ -54,6 +54,7 @@ class JEM_Plugin {
         require_once JEM_PLUGIN_DIR . 'includes/class-shortcodes.php';
         require_once JEM_PLUGIN_DIR . 'includes/class-admin.php';
         require_once JEM_PLUGIN_DIR . 'includes/class-metrics.php';
+        require_once JEM_PLUGIN_DIR . 'includes/class-je-crm-sender.php';
     }
 
     private function init_components() {
