@@ -473,23 +473,12 @@ class APH_Database_Schema {
                     'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
                     'description' => 'When badge was last updated'
                 ),
-                'fluentcrm_enabled' => array(
-                    'type' => 'TINYINT',
-                    'length' => 1,
+                'sje_tag_id' => array(
+                    'type' => 'INT',
+                    'length' => 11,
+                    'unsigned' => true,
                     'default' => 0,
-                    'description' => 'Whether FluentCRM event tracking is enabled (0/1)'
-                ),
-                'fluentcrm_event_key' => array(
-                    'type' => 'VARCHAR',
-                    'length' => 100,
-                    'null' => true,
-                    'description' => 'FluentCRM event key for this badge'
-                ),
-                'fluentcrm_event_title' => array(
-                    'type' => 'VARCHAR',
-                    'length' => 255,
-                    'null' => true,
-                    'description' => 'FluentCRM event title for this badge'
+                    'description' => 'SJE FluentCRM tag ID to apply when badge is awarded (0 = disabled)'
                 )
             ),
             'indexes' => array(
@@ -922,6 +911,11 @@ class APH_Database_Schema {
         // Remove icon column if it exists and image_url exists
         if (in_array('icon', $columns) && in_array('image_url', $columns)) {
             $alter_statements[] = "DROP COLUMN `icon`";
+        }
+        
+        // Add sje_tag_id column if it doesn't exist
+        if (!in_array('sje_tag_id', $columns)) {
+            $alter_statements[] = "ADD COLUMN `sje_tag_id` INT(11) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'SJE FluentCRM tag ID to apply on badge award (0 = disabled)'";
         }
         
         if (!empty($alter_statements)) {

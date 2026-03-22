@@ -172,20 +172,12 @@ class ALM_Admin_Lesson_Analytics {
                     <button type="button" class="button-link delete" id="alm-lesson-students-close" aria-label="<?php esc_attr_e('Close', 'academy-lesson-manager'); ?>">×</button>
                 </div>
                 <div class="alm-lesson-students-modal__body">
-                    <div class="alm-lesson-students-toolbar">
-                        <label>
-                            <?php esc_html_e('Webhook URL', 'academy-lesson-manager'); ?>
-                            <input type="url" id="alm-lesson-webhook-url" placeholder="https://example.com/webhook" />
-                        </label>
-                        <button type="button" class="button button-primary" id="alm-lesson-send-webhook">
-                            <?php esc_html_e('Send to Webhook', 'academy-lesson-manager'); ?>
-                        </button>
-                        <span id="alm-lesson-webhook-status" class="alm-lesson-webhook-status"></span>
-                    </div>
                     <div class="alm-lesson-students-toolbar alm-lesson-crm-toolbar">
-                        <p class="description" style="flex-basis:100%; margin:0 0 8px;">
-                            <?php esc_html_e('Contacts are sent to support.jazzedge.com via JE_CRM_Sender. Ensure JE_CRM_ENDPOINT and JE_CRM_API_KEY are defined in wp-config.php.', 'academy-lesson-manager'); ?>
-                        </p>
+                        <?php if ( ! defined( 'JE_CRM_ENDPOINT' ) || ! defined( 'JE_CRM_API_KEY' ) ) : ?>
+                            <p class="description" style="flex-basis:100%; margin:0 0 8px;">
+                                <?php esc_html_e( 'Ensure JE_CRM_ENDPOINT and JE_CRM_API_KEY are defined in wp-config.php on this server.', 'academy-lesson-manager' ); ?>
+                            </p>
+                        <?php endif; ?>
                         <label>
                             <?php esc_html_e('Status', 'academy-lesson-manager'); ?>
                             <select id="alm-fluentcrm-status">
@@ -196,7 +188,19 @@ class ALM_Admin_Lesson_Analytics {
                                 <option value="complained"><?php esc_html_e('complained', 'academy-lesson-manager'); ?></option>
                             </select>
                         </label>
-                        <button type="button" class="button button-secondary" id="alm-lesson-send-fluentcrm">
+                        <label>
+                            <?php esc_html_e('Tag ID', 'academy-lesson-manager'); ?>
+                            <input type="number" id="alm-fluentcrm-tag-id" min="0" step="1" placeholder="<?php echo esc_attr__( 'e.g. 121', 'academy-lesson-manager' ); ?>" style="width:90px;" />
+                        </label>
+                        <label>
+                            <?php esc_html_e('Custom Field Key', 'academy-lesson-manager'); ?>
+                            <input type="text" id="alm-fluentcrm-cf-key" placeholder="<?php echo esc_attr__( 'e.g. lead_source', 'academy-lesson-manager' ); ?>" style="width:140px;" />
+                        </label>
+                        <label>
+                            <?php esc_html_e('Value', 'academy-lesson-manager'); ?>
+                            <input type="text" id="alm-fluentcrm-cf-value" placeholder="<?php echo esc_attr__( 'e.g. jazzedge.academy', 'academy-lesson-manager' ); ?>" style="width:140px;" />
+                        </label>
+                        <button type="button" class="button button-primary" id="alm-lesson-send-fluentcrm">
                             <?php esc_html_e('Send to CRM', 'academy-lesson-manager'); ?>
                         </button>
                         <span id="alm-lesson-fluentcrm-status" class="alm-lesson-webhook-status"></span>
@@ -211,6 +215,7 @@ class ALM_Admin_Lesson_Analytics {
                         <table class="wp-list-table widefat striped">
                             <thead>
                                 <tr>
+                                    <th><input type="checkbox" id="alm-select-all-contacts" title="<?php echo esc_attr__( 'Select All', 'academy-lesson-manager' ); ?>" /></th>
                                     <th><?php esc_html_e('Student', 'academy-lesson-manager'); ?></th>
                                     <th><?php esc_html_e('Email', 'academy-lesson-manager'); ?></th>
                                     <th><?php esc_html_e('Views', 'academy-lesson-manager'); ?></th>
@@ -277,6 +282,10 @@ class ALM_Admin_Lesson_Analytics {
         .alm-lesson-crm-toolbar select {
             min-width: 180px;
         }
+        .alm-lesson-crm-toolbar input[type="number"],
+        .alm-lesson-crm-toolbar input[type="text"] {
+            min-width: 0;
+        }
         .alm-lesson-students-loading {
             margin: 10px 0;
         }
@@ -296,13 +305,38 @@ class ALM_Admin_Lesson_Analytics {
             const tableBody = document.getElementById('alm-lesson-students-body');
             const loadingEl = document.getElementById('alm-lesson-students-loading');
             const emptyEl = document.getElementById('alm-lesson-students-empty');
-            const webhookInput = document.getElementById('alm-lesson-webhook-url');
             const webhookBtn = document.getElementById('alm-lesson-send-webhook');
             const webhookStatus = document.getElementById('alm-lesson-webhook-status');
             const fluentStatusSelect = document.getElementById('alm-fluentcrm-status');
+            const fluentTagId = document.getElementById('alm-fluentcrm-tag-id');
+            const fluentCfKey = document.getElementById('alm-fluentcrm-cf-key');
+            const fluentCfValue = document.getElementById('alm-fluentcrm-cf-value');
             const fluentBtn = document.getElementById('alm-lesson-send-fluentcrm');
             const fluentStatus = document.getElementById('alm-lesson-fluentcrm-status');
+            const selectAllChk = document.getElementById('alm-select-all-contacts');
+            if (selectAllChk) {
+                selectAllChk.addEventListener('change', () => {
+                    document.querySelectorAll('.alm-contact-checkbox')
+                        .forEach(cb => cb.checked = selectAllChk.checked);
+                });
+            }
+
+            document.addEventListener('change', e => {
+                if (e.target && e.target.classList.contains('alm-contact-checkbox')) {
+                    const all = document.querySelectorAll('.alm-contact-checkbox');
+                    const checked = document.querySelectorAll('.alm-contact-checkbox:checked');
+                    if (selectAllChk) selectAllChk.checked = all.length === checked.length;
+                }
+            });
             let currentLessonId = null;
+
+            function almEscAttr(str) {
+                return String(str == null ? '' : str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;')
+                    .replace(/</g, '&lt;');
+            }
 
             function openModal() {
                 modal.style.display = 'flex';
@@ -313,9 +347,14 @@ class ALM_Admin_Lesson_Analytics {
                 tableBody.innerHTML = '';
                 loadingEl.style.display = '';
                 emptyEl.style.display = 'none';
-                webhookStatus.textContent = '';
+                if (webhookStatus) {
+                    webhookStatus.textContent = '';
+                }
                 if (fluentStatus) {
                     fluentStatus.textContent = '';
+                }
+                if (selectAllChk) {
+                    selectAllChk.checked = false;
                 }
             }
 
@@ -349,6 +388,7 @@ class ALM_Admin_Lesson_Analytics {
                     }
                     const rows = data.students.map(student => `
                         <tr>
+                            <td><input type="checkbox" class="alm-contact-checkbox" value="${almEscAttr(student.email)}" /></td>
                             <td>${student.display_name || 'Guest/Unknown'}</td>
                             <td>${student.email || '—'}</td>
                             <td>${student.views || 0}</td>
@@ -356,6 +396,9 @@ class ALM_Admin_Lesson_Analytics {
                         </tr>
                     `).join('');
                     tableBody.innerHTML = rows;
+                    if (selectAllChk) {
+                        selectAllChk.checked = false;
+                    }
                 })
                 .catch(() => {
                     loadingEl.style.display = 'none';
@@ -377,8 +420,22 @@ class ALM_Admin_Lesson_Analytics {
                         })
                         .then(response => response.json())
                         .then(data => {
-                            if (data.success && data.settings && fluentStatusSelect) {
-                                fluentStatusSelect.value = data.settings.status || 'subscribed';
+                            if (!data.success || !data.settings) {
+                                return;
+                            }
+                            const s = data.settings;
+                            if (fluentStatusSelect) {
+                                fluentStatusSelect.value = s.status || 'subscribed';
+                            }
+                            if (fluentTagId) {
+                                const tid = parseInt(s.tag_id, 10);
+                                fluentTagId.value = (!isNaN(tid) && tid > 0) ? String(tid) : '';
+                            }
+                            if (fluentCfKey) {
+                                fluentCfKey.value = s.cf_key || '';
+                            }
+                            if (fluentCfValue) {
+                                fluentCfValue.value = s.cf_value || '';
                             }
                         })
                         .catch(() => {});
@@ -393,64 +450,76 @@ class ALM_Admin_Lesson_Analytics {
                 }
             });
 
-            webhookBtn.addEventListener('click', () => {
-                if (!currentLessonId) return;
-                const webhookUrl = webhookInput.value.trim();
-                if (!webhookUrl) {
-                    webhookStatus.textContent = 'Enter a webhook URL.';
-                    webhookStatus.style.color = '#b32d2e';
-                    return;
-                }
-                webhookStatus.textContent = 'Sending...';
-                webhookStatus.style.color = '#1d2327';
-
-                fetch(`<?php echo esc_url_raw(rest_url('alm/v1/lesson-analytics/send-webhook')); ?>`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
-                    },
-                    body: JSON.stringify({
-                        lesson_post_id: parseInt(currentLessonId, 10),
-                        webhook_url: webhookUrl
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const output = document.getElementById('alm-last-webhook-output');
-                    const payloadText = JSON.stringify({
-                        sent_at: new Date().toISOString(),
-                        success: !!data.success,
-                        message: data.message || '',
-                        status_code: data.status_code || 0,
-                        response_body: data.response_body || '',
-                        payload: data.payload || {}
-                    }, null, 2);
-                    if (output) {
-                        output.textContent = payloadText;
-                    }
-                    if (window.localStorage) {
-                        localStorage.setItem('almLastWebhook', payloadText);
-                    }
-
-                    if (data.success) {
-                        webhookStatus.textContent = data.message || 'Sent successfully.';
-                        webhookStatus.style.color = '#1a7f37';
-                    } else {
-                        webhookStatus.textContent = data.message || 'Failed to send.';
+            if (webhookBtn && webhookStatus) {
+                webhookBtn.addEventListener('click', () => {
+                    if (!currentLessonId) return;
+                    const webhookUrl = window.prompt('<?php echo esc_js( __( 'Enter webhook URL', 'academy-lesson-manager' ) ); ?>', '');
+                    if (!webhookUrl || !String(webhookUrl).trim()) {
+                        webhookStatus.textContent = '<?php echo esc_js( __( 'Webhook URL required.', 'academy-lesson-manager' ) ); ?>';
                         webhookStatus.style.color = '#b32d2e';
+                        return;
                     }
-                })
-                .catch(() => {
-                    webhookStatus.textContent = 'Failed to send.';
-                    webhookStatus.style.color = '#b32d2e';
+                    const webhookUrlTrim = String(webhookUrl).trim();
+                    webhookStatus.textContent = 'Sending...';
+                    webhookStatus.style.color = '#1d2327';
+
+                    fetch(`<?php echo esc_url_raw(rest_url('alm/v1/lesson-analytics/send-webhook')); ?>`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>'
+                        },
+                        body: JSON.stringify({
+                            lesson_post_id: parseInt(currentLessonId, 10),
+                            webhook_url: webhookUrlTrim
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        const output = document.getElementById('alm-last-webhook-output');
+                        const payloadText = JSON.stringify({
+                            sent_at: new Date().toISOString(),
+                            success: !!data.success,
+                            message: data.message || '',
+                            status_code: data.status_code || 0,
+                            response_body: data.response_body || '',
+                            payload: data.payload || {}
+                        }, null, 2);
+                        if (output) {
+                            output.textContent = payloadText;
+                        }
+                        if (window.localStorage) {
+                            localStorage.setItem('almLastWebhook', payloadText);
+                        }
+
+                        if (data.success) {
+                            webhookStatus.textContent = data.message || 'Sent successfully.';
+                            webhookStatus.style.color = '#1a7f37';
+                        } else {
+                            webhookStatus.textContent = data.message || 'Failed to send.';
+                            webhookStatus.style.color = '#b32d2e';
+                        }
+                    })
+                    .catch(() => {
+                        webhookStatus.textContent = 'Failed to send.';
+                        webhookStatus.style.color = '#b32d2e';
+                    });
                 });
-            });
+            }
 
             if (fluentBtn) {
                 fluentBtn.addEventListener('click', () => {
                     if (!currentLessonId) return;
                     const statusValue = fluentStatusSelect ? fluentStatusSelect.value : 'subscribed';
+                    const tagIdNum = fluentTagId ? parseInt(fluentTagId.value, 10) : 0;
+                    const cfKeyTrim = fluentCfKey ? fluentCfKey.value.trim() : '';
+                    const cfValueTrim = fluentCfValue ? fluentCfValue.value.trim() : '';
+
+                    const allCheckboxes = document.querySelectorAll('.alm-contact-checkbox');
+                    const checkedBoxes = document.querySelectorAll('.alm-contact-checkbox:checked');
+                    const emailsToSend = checkedBoxes.length > 0
+                        ? Array.from(checkedBoxes).map(cb => cb.value)
+                        : Array.from(allCheckboxes).map(cb => cb.value);
 
                     fluentStatus.textContent = 'Sending...';
                     fluentStatus.style.color = '#1d2327';
@@ -463,7 +532,11 @@ class ALM_Admin_Lesson_Analytics {
                         },
                         body: JSON.stringify({
                             lesson_post_id: parseInt(currentLessonId, 10),
-                            status: statusValue
+                            status: statusValue,
+                            tag_id: isNaN(tagIdNum) ? 0 : tagIdNum,
+                            cf_key: cfKeyTrim,
+                            cf_value: cfValueTrim,
+                            emails: emailsToSend
                         })
                     })
                     .then(response => response.json())
@@ -488,7 +561,9 @@ class ALM_Admin_Lesson_Analytics {
                         }
 
                         if (data.success) {
-                            fluentStatus.textContent = data.message || 'Sent successfully.';
+                            const sent = typeof data.successful === 'number' ? data.successful : 0;
+                            const y = emailsToSend.length;
+                            fluentStatus.textContent = 'Sent ' + sent + ' of ' + y + ' contacts.';
                             fluentStatus.style.color = '#1a7f37';
                         } else {
                             fluentStatus.textContent = data.message || 'Failed to send.';

@@ -202,8 +202,17 @@ class ALM_Rest_API {
             'callback' => array($this, 'handle_lesson_analytics_fluentcrm'),
             'permission_callback' => array($this, 'check_admin_permission'),
             'args' => array(
-                'lesson_post_id' => array('type' => 'integer', 'required' => true),
-                'status' => array('type' => 'string', 'required' => false),
+                'lesson_post_id' => array('type' => 'integer',               'required' => true),
+                'status'         => array('type' => 'string',                 'required' => false),
+                'tag_id'         => array('type' => 'integer',               'required' => false, 'default' => 0),
+                'cf_key'         => array('type' => 'string',                'required' => false, 'default' => ''),
+                'cf_value'       => array('type' => 'string',                'required' => false, 'default' => ''),
+                'emails'         => array(
+                    'type'     => 'array',
+                    'required' => false,
+                    'default'  => array(),
+                    'items'    => array('type' => 'string'),
+                ),
             ),
         ));
 
@@ -218,7 +227,10 @@ class ALM_Rest_API {
             'callback' => array($this, 'handle_save_lesson_analytics_fluentcrm_settings'),
             'permission_callback' => array($this, 'check_admin_permission'),
             'args' => array(
-                'status' => array('type' => 'string', 'required' => false),
+                'status'   => array('type' => 'string',  'required' => false),
+                'tag_id'   => array('type' => 'integer', 'required' => false, 'default' => 0),
+                'cf_key'   => array('type' => 'string',  'required' => false, 'default' => ''),
+                'cf_value' => array('type' => 'string',  'required' => false, 'default' => ''),
             ),
         ));
         
@@ -439,7 +451,11 @@ class ALM_Rest_API {
     public function handle_lesson_analytics_fluentcrm(WP_REST_Request $request) {
         $lesson_post_id = intval($request->get_param('lesson_post_id'));
         $saved = get_option('alm_lesson_analytics_fluentcrm_settings', array());
+        if (!is_array($saved)) {
+            $saved = array();
+        }
         $saved_status = isset($saved['status']) ? sanitize_text_field($saved['status']) : 'subscribed';
+
         $status = sanitize_text_field($request->get_param('status'));
         if ($status === '' || $status === null) {
             $status = $saved_status;
@@ -448,14 +464,29 @@ class ALM_Rest_API {
             $status = 'subscribed';
         }
 
+        $tag_id   = intval($request->get_param('tag_id'));
+        $cf_key   = sanitize_key((string) $request->get_param('cf_key'));
+        $cf_value = sanitize_text_field((string) $request->get_param('cf_value'));
+
+        $requested_emails = $request->get_param('emails');
+        $filter_emails    = array();
+        if (is_array($requested_emails) && count($requested_emails) > 0) {
+            $filter_emails = array_map('sanitize_email', $requested_emails);
+            $filter_emails = array_values(array_unique(array_filter(array_map('strtolower', $filter_emails))));
+        }
+
         if ($lesson_post_id <= 0) {
             return new WP_Error('invalid_request', 'lesson_post_id is required', array('status' => 400));
         }
 
-        // Persist default status for the modal.
         update_option(
             'alm_lesson_analytics_fluentcrm_settings',
-            array('status' => $status),
+            array(
+                'status'   => $status,
+                'tag_id'   => $tag_id,
+                'cf_key'   => $cf_key,
+                'cf_value' => $cf_value,
+            ),
             false
         );
 
@@ -490,6 +521,14 @@ class ALM_Rest_API {
             return $student;
         }, $students);
 
+        if (count($filter_emails) > 0) {
+            $allowed = array_flip($filter_emails);
+            $students = array_values(array_filter($students, function ($student) use ($allowed) {
+                $email = isset($student['email']) ? strtolower(trim($student['email'])) : '';
+                return $email !== '' && isset($allowed[$email]);
+            }));
+        }
+
         $lesson_title = get_the_title($lesson_post_id);
 
         $attempted = 0;
@@ -512,12 +551,18 @@ class ALM_Rest_API {
 
             $attempted++;
             $send_payload = array(
-                'email' => $email,
+                'email'  => $email,
                 'status' => $status,
             );
+            if ($tag_id > 0) {
+                $send_payload['add_tags'] = array($tag_id);
+            }
+            if ($cf_key !== '') {
+                $send_payload['custom_fields'] = array($cf_key => $cf_value);
+            }
             $last_payload = array_merge($send_payload, array(
                 'lesson_post_id' => $lesson_post_id,
-                'lesson_title' => $lesson_title ?: '',
+                'lesson_title'   => $lesson_title ?: '',
             ));
 
             $result = JE_CRM_Sender::send($send_payload);
@@ -554,15 +599,18 @@ class ALM_Rest_API {
             'response_body' => $last_response_body,
             'payload' => $last_payload ?: array(
                 'lesson_post_id' => $lesson_post_id,
-                'lesson_title' => $lesson_title ?: '',
-                'email' => '',
-                'status' => $status,
+                'lesson_title'   => $lesson_title ?: '',
+                'email'          => '',
+                'status'         => $status,
+                'tag_id'         => $tag_id,
+                'cf_key'         => $cf_key,
+                'cf_value'       => $cf_value,
             ),
         ));
     }
 
     /**
-     * Get saved CRM (JE_CRM_Sender) settings for lesson analytics (admin only) — status only.
+     * Get saved CRM (JE_CRM_Sender) settings for lesson analytics (admin only).
      */
     public function handle_get_lesson_analytics_fluentcrm_settings() {
         $settings = get_option('alm_lesson_analytics_fluentcrm_settings', array());
@@ -573,36 +621,46 @@ class ALM_Rest_API {
         if ($status === '') {
             $status = 'subscribed';
         }
+        $tag_id   = isset($settings['tag_id']) ? intval($settings['tag_id']) : 0;
+        $cf_key   = isset($settings['cf_key']) ? sanitize_key($settings['cf_key']) : '';
+        $cf_value = isset($settings['cf_value']) ? sanitize_text_field($settings['cf_value']) : '';
 
         return rest_ensure_response(array(
-            'success' => true,
+            'success'  => true,
             'settings' => array(
-                'status' => $status,
+                'status'   => $status,
+                'tag_id'   => $tag_id,
+                'cf_key'   => $cf_key,
+                'cf_value' => $cf_value,
             ),
         ));
     }
 
     /**
-     * Save CRM settings for lesson analytics (admin only) — status only.
+     * Save CRM settings for lesson analytics (admin only).
      */
     public function handle_save_lesson_analytics_fluentcrm_settings(WP_REST_Request $request) {
         $status = sanitize_text_field($request->get_param('status'));
         if ($status === '') {
             $status = 'subscribed';
         }
+        $tag_id   = intval($request->get_param('tag_id'));
+        $cf_key   = sanitize_key($request->get_param('cf_key'));
+        $cf_value = sanitize_text_field($request->get_param('cf_value'));
 
-        update_option(
-            'alm_lesson_analytics_fluentcrm_settings',
-            array('status' => $status),
-            false
+        $saved = array(
+            'status'   => $status,
+            'tag_id'   => $tag_id,
+            'cf_key'   => $cf_key,
+            'cf_value' => $cf_value,
         );
 
+        update_option('alm_lesson_analytics_fluentcrm_settings', $saved, false);
+
         return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'CRM settings saved.',
-            'settings' => array(
-                'status' => $status,
-            ),
+            'success'  => true,
+            'message'  => 'CRM settings saved.',
+            'settings' => $saved,
         ));
     }
     

@@ -778,6 +778,31 @@ class JPH_Database {
             $format[] = '%s';
         }
         
+        if (isset($badge_data['image_url'])) {
+            $update_data['image_url'] = esc_url_raw($badge_data['image_url']);
+            $format[] = '%s';
+        }
+        
+        if (isset($badge_data['fluentcrm_enabled'])) {
+            $update_data['fluentcrm_enabled'] = intval($badge_data['fluentcrm_enabled']);
+            $format[] = '%d';
+        }
+        
+        if (isset($badge_data['fluentcrm_event_key'])) {
+            $update_data['fluentcrm_event_key'] = sanitize_text_field($badge_data['fluentcrm_event_key']);
+            $format[] = '%s';
+        }
+        
+        if (isset($badge_data['fluentcrm_event_title'])) {
+            $update_data['fluentcrm_event_title'] = sanitize_text_field($badge_data['fluentcrm_event_title']);
+            $format[] = '%s';
+        }
+        
+        if (isset($badge_data['sje_tag_id'])) {
+            $update_data['sje_tag_id'] = intval($badge_data['sje_tag_id']);
+            $format[] = '%d';
+        }
+        
         if (empty($update_data)) {
             return false;
         }

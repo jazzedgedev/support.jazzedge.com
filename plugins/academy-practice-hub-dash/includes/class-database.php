@@ -586,6 +586,16 @@ class JPH_Database {
             $format[] = '%s';
         }
         
+        if (isset($badge_data['image_url'])) {
+            $update_data['image_url'] = esc_url_raw($badge_data['image_url']);
+            $format[] = '%s';
+        }
+        
+        if (isset($badge_data['sje_tag_id'])) {
+            $update_data['sje_tag_id'] = intval($badge_data['sje_tag_id']);
+            $format[] = '%d';
+        }
+        
         if (empty($update_data)) {
             return false;
         }

@@ -75,11 +75,11 @@ class JPH_Admin_Pages {
         
         add_submenu_page(
             'aph-practice-hub',
-            __('Event Tracking', 'academy-practice-hub'),
-            __('Event Tracking', 'academy-practice-hub'),
+            __('Badge Tools', 'academy-practice-hub'),
+            __('Badge Tools', 'academy-practice-hub'),
             'manage_options',
-            'aph-fluent-crm-events',
-            array($this, 'events_page')
+            'aph-badge-tools',
+            array($this, 'badge_tools_page')
         );
         
         add_submenu_page(
@@ -1507,7 +1507,6 @@ class JPH_Admin_Pages {
                             <th style="width: 80px; text-align: center;">XP</th>
                             <th style="width: 80px; text-align: center;">Gems</th>
                             <th style="width: 80px; text-align: center;">Students</th>
-                            <th>Event Key</th>
                             <th style="width: 150px;">Community Badge</th>
                             <th style="width: 80px;">Status</th>
                             <th>Actions</th>
@@ -1516,7 +1515,7 @@ class JPH_Admin_Pages {
                     <tbody>
                         <?php if (empty($badges)): ?>
                             <tr>
-                                <td colspan="11">No badges found.</td>
+                                <td colspan="10">No badges found.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($badges as $badge): ?>
@@ -1547,22 +1546,6 @@ class JPH_Admin_Pages {
                                         ));
                                         echo esc_html($earned_count ?: 0);
                                         ?>
-                                    </td>
-                                    <td>
-                                        <?php if (!empty($badge['fluentcrm_event_key'])): ?>
-                                            <div class="jph-event-key-container">
-                                                <?php 
-                                                // Display only the relevant portion (remove "badge_earned_" prefix)
-                                                $display_key = $badge['fluentcrm_event_key'];
-                                                if (strpos($display_key, 'badge_earned_') === 0) {
-                                                    $display_key = substr($display_key, 12); // Remove "badge_earned_" (12 characters)
-                                                }
-                                                ?>
-                                                <code class="jph-event-key-clickable" onclick="copyEventKey('<?php echo esc_js($badge['fluentcrm_event_key']); ?>')" title="Click to copy full event key"><?php echo esc_html($display_key); ?></code>
-                                            </div>
-                                        <?php else: ?>
-                                            <span class="jph-no-event-key">Not set</span>
-                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php
@@ -1669,22 +1652,9 @@ class JPH_Admin_Pages {
                         </div>
                         
                         <div class="jph-form-group">
-                            <h4>🔗 FluentCRM Event Tracking</h4>
-                            <label>
-                                <input type="checkbox" id="badge-fluentcrm-enabled" name="fluentcrm_enabled" value="1">
-                                Enable FluentCRM Event Tracking
-                            </label>
-                            <small>When enabled, earning this badge will trigger a FluentCRM event</small>
-                        </div>
-                        
-                        <div class="jph-form-group" id="fluentcrm-fields" style="display: none;">
-                            <label for="badge-fluentcrm-event-key">Event Key:</label>
-                            <input type="text" id="badge-fluentcrm-event-key" name="fluentcrm_event_key" placeholder="e.g., badge_first_note">
-                            <small>Unique identifier for the FluentCRM event</small>
-                            
-                            <label for="badge-fluentcrm-event-title">Event Title:</label>
-                            <input type="text" id="badge-fluentcrm-event-title" name="fluentcrm_event_title" placeholder="e.g., First Note Badge Earned">
-                            <small>Display title for the FluentCRM event</small>
+                            <label for="badge-sje-tag-id">SJE CRM Tag ID:</label>
+                            <input type="number" id="badge-sje-tag-id" name="sje_tag_id" min="0" value="0" style="width:120px;">
+                            <small>FluentCRM tag ID on SJE to apply when this badge is awarded. Set to 0 to disable.</small>
                         </div>
                         
                         <div class="jph-modal-actions">
@@ -1766,29 +1736,16 @@ class JPH_Admin_Pages {
                         </div>
                         
                         <div class="jph-form-group">
+                            <label for="edit-badge-sje-tag-id">SJE CRM Tag ID:</label>
+                            <input type="number" id="edit-badge-sje-tag-id" name="sje_tag_id" min="0" value="0" style="width:120px;">
+                            <small>FluentCRM tag ID on SJE to apply when this badge is awarded. Set to 0 to disable.</small>
+                        </div>
+                        
+                        <div class="jph-form-group">
                             <label>
                                 <input type="checkbox" id="edit-badge-is-active" name="is_active" value="1" checked>
                                 Active
                             </label>
-                        </div>
-                        
-                        <div class="jph-form-group">
-                            <h4>🔗 FluentCRM Event Tracking</h4>
-                            <label>
-                                <input type="checkbox" id="edit-badge-fluentcrm-enabled" name="fluentcrm_enabled" value="1">
-                                Enable FluentCRM Event Tracking
-                            </label>
-                            <small>When enabled, earning this badge will trigger a FluentCRM event</small>
-                        </div>
-                        
-                        <div class="jph-form-group" id="edit-fluentcrm-fields" style="display: none;">
-                            <label for="edit-badge-fluentcrm-event-key">Event Key:</label>
-                            <input type="text" id="edit-badge-fluentcrm-event-key" name="fluentcrm_event_key" placeholder="e.g., badge_first_note">
-                            <small>Unique identifier for the FluentCRM event</small>
-                            
-                            <label for="edit-badge-fluentcrm-event-title">Event Title:</label>
-                            <input type="text" id="edit-badge-fluentcrm-event-title" name="fluentcrm_event_title" placeholder="e.g., First Note Badge Earned">
-                            <small>Display title for the FluentCRM event</small>
                         </div>
                         
                         <div class="jph-modal-actions">
@@ -1816,36 +1773,6 @@ class JPH_Admin_Pages {
             document.getElementById('jph-add-badge-modal').style.display = 'none';
             document.getElementById('jph-add-badge-form').reset();
         }
-        
-        function toggleFluentCRMFields(mode) {
-            const checkboxId = mode === 'edit' ? 'edit-badge-fluentcrm-enabled' : 'badge-fluentcrm-enabled';
-            const fieldsId = mode === 'edit' ? 'edit-fluentcrm-fields' : 'fluentcrm-fields';
-            
-            const checkbox = document.getElementById(checkboxId);
-            const fields = document.getElementById(fieldsId);
-            
-            if (checkbox && fields) {
-                fields.style.display = checkbox.checked ? 'block' : 'none';
-            }
-        }
-        
-        // Add event listeners for FluentCRM checkboxes
-        document.addEventListener('DOMContentLoaded', function() {
-            const addCheckbox = document.getElementById('badge-fluentcrm-enabled');
-            const editCheckbox = document.getElementById('edit-badge-fluentcrm-enabled');
-            
-            if (addCheckbox) {
-                addCheckbox.addEventListener('change', function() {
-                    toggleFluentCRMFields('add');
-                });
-            }
-            
-            if (editCheckbox) {
-                editCheckbox.addEventListener('change', function() {
-                    toggleFluentCRMFields('edit');
-                });
-            }
-        });
         
         function editBadge(badgeKey) {
             console.log('Editing badge key:', badgeKey);
@@ -1889,13 +1816,7 @@ class JPH_Admin_Pages {
             document.getElementById('edit-badge-gem-reward').value = badge.gem_reward || 0;
             document.getElementById('edit-badge-is-active').checked = badge.is_active == 1;
             
-            // Populate FluentCRM fields
-            document.getElementById('edit-badge-fluentcrm-enabled').checked = badge.fluentcrm_enabled == 1;
-            document.getElementById('edit-badge-fluentcrm-event-key').value = badge.fluentcrm_event_key || '';
-            document.getElementById('edit-badge-fluentcrm-event-title').value = badge.fluentcrm_event_title || '';
-            
-            // Show/hide FluentCRM fields based on checkbox
-            toggleFluentCRMFields('edit');
+            document.getElementById('edit-badge-sje-tag-id').value = badge.sje_tag_id || 0;
             
             // Show the modal
             document.getElementById('jph-edit-badge-modal').style.display = 'block';
@@ -1922,9 +1843,7 @@ class JPH_Admin_Pages {
                 xp_reward: parseInt(formData.get('xp_reward')),
                 gem_reward: parseInt(formData.get('gem_reward')),
                 is_active: document.getElementById('edit-badge-is-active').checked ? 1 : 0,
-                fluentcrm_enabled: document.getElementById('edit-badge-fluentcrm-enabled').checked ? 1 : 0,
-                fluentcrm_event_key: formData.get('fluentcrm_event_key'),
-                fluentcrm_event_title: formData.get('fluentcrm_event_title')
+                sje_tag_id: parseInt(document.getElementById('edit-badge-sje-tag-id').value) || 0,
             };
             
             console.log('Updating badge:', badgeKey, badgeData);
@@ -1985,16 +1904,6 @@ class JPH_Admin_Pages {
                     alert('Error deleting badge: ' + error.message);
                 });
             }
-        }
-        
-        // Copy event key to clipboard
-        function copyEventKey(eventKey) {
-            navigator.clipboard.writeText(eventKey).then(function() {
-                // Silent copy - no feedback messages
-            }).catch(function(err) {
-                console.error('Failed to copy: ', err);
-                // Silent failure - no alert messages
-            });
         }
         
         // Handle add badge form submission
@@ -2120,46 +2029,6 @@ class JPH_Admin_Pages {
         .badge-status.inactive {
             color: #dc3232;
             font-weight: bold;
-        }
-        
-        /* Event Key Styles */
-        .jph-event-key-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .jph-event-key-clickable {
-            background: #f8f9fa;
-            border: 1px solid #e1e5e9;
-            border-radius: 4px;
-            padding: 6px 12px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            color: #333;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: block;
-            width: 100%;
-            min-width: 120px;
-            text-align: center;
-        }
-        
-        .jph-event-key-clickable:hover {
-            background: #e3f2fd;
-            border-color: #0073aa;
-            color: #0073aa;
-        }
-        
-        .jph-event-key-clickable:active {
-            background: #bbdefb;
-            transform: scale(0.98);
-        }
-        
-        .jph-no-event-key {
-            color: #999;
-            font-style: italic;
-            font-size: 12px;
         }
         
         /* Community Badge Styles */
@@ -2689,53 +2558,74 @@ class JPH_Admin_Pages {
     }
     
     /**
-     * Events page
+     * Badge tools: badge event logs and assignment debugging.
      */
-    public function events_page() {
+    public function badge_tools_page() {
+        // Save CRM settings
+        if ( isset( $_POST['aph_save_badge_crm_settings'] ) &&
+            isset( $_POST['aph_badge_crm_nonce'] ) &&
+            wp_verify_nonce( wp_unslash( $_POST['aph_badge_crm_nonce'] ), 'aph_badge_crm_settings' ) ) {
+            update_option( 'aph_send_individual_badge_tags', isset( $_POST['aph_send_individual_badge_tags'] ) ? '1' : '0' );
+            update_option( 'aph_badge_earned_tag_id', isset( $_POST['aph_badge_earned_tag_id'] ) ? absint( wp_unslash( $_POST['aph_badge_earned_tag_id'] ) ) : 0 );
+            echo '<div class="notice notice-success"><p>CRM settings saved.</p></div>';
+        }
         ?>
         <div class="wrap">
-            <h1>🔗 FluentCRM Event Tracking</h1>
-            <p>Monitor FluentCRM event tracking from badge achievements and manage event logging.</p>
+            <h1>🛠️ Badge Tools</h1>
+            <p>Badge event logs, manual award/testing, and debugging. SJE CRM tags are configured per badge in <a href="<?php echo esc_url( admin_url( 'admin.php?page=aph-badges' ) ); ?>">Badge Management</a>.</p>
+
+            <div class="jph-card" style="margin-bottom:24px;">
+                <h2>🔗 SJE CRM Badge Settings</h2>
+                <p>Controls how badge awards push data to the SJE CRM endpoint. Requires <code>JE_CRM_ENDPOINT</code> and <code>JE_CRM_API_KEY</code> defined in wp-config.php.</p>
+
+                <form method="post" action="">
+                    <?php wp_nonce_field( 'aph_badge_crm_settings', 'aph_badge_crm_nonce' ); ?>
+
+                    <table class="form-table" style="max-width:700px;">
+                        <tr>
+                            <th scope="row">Send Individual Badge Tag</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="aph_send_individual_badge_tags" value="1"
+                                        <?php checked( get_option( 'aph_send_individual_badge_tags', '1' ), '1' ); ?>>
+                                    When a badge is awarded, send that badge's specific SJE tag ID to CRM
+                                </label>
+                                <p class="description">Each badge must have its SJE CRM Tag ID set in Badge Management.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Generic "Badge Earned" Tag ID</th>
+                            <td>
+                                <input type="number" name="aph_badge_earned_tag_id" min="0"
+                                    value="<?php echo esc_attr( get_option( 'aph_badge_earned_tag_id', '0' ) ); ?>"
+                                    style="width:120px;">
+                                <p class="description">SJE FluentCRM tag ID to apply on every badge award when set to a non-zero ID.</p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <p><input type="submit" name="aph_save_badge_crm_settings" class="button button-primary" value="Save CRM Settings"></p>
+                </form>
+
+                <hr style="margin:20px 0;">
+                <h3>Current Status</h3>
+                <ul>
+                    <li><strong>Individual badge tags:</strong> <?php echo get_option( 'aph_send_individual_badge_tags', '1' ) === '1' ? '✅ Enabled' : '❌ Disabled'; ?></li>
+                    <li><strong>Generic "Badge Earned" tag:</strong> <?php
+                        $gid = (int) get_option( 'aph_badge_earned_tag_id', 0 );
+                        echo $gid > 0 ? '✅ Will send tag ID ' . esc_html( (string) $gid ) . ' with every badge award' : '⚠️ Not set — enter a Tag ID above to enable';
+                    ?></li>
+                    <li><strong>Custom field sent:</strong> <code>last_badge_earned</code> = badge name (sent whenever any tag fires)</li>
+                </ul>
+            </div>
             
             <div class="jph-event-sections">
                     
-                    <!-- Badge Event Information -->
+                    <!-- Event Tracking Logs (badge plugin log only) -->
                     <div class="jph-event-section">
-                        <h2>🏆 Badge Event Configuration</h2>
-                        <p>Badge events are now configured directly within each badge in the <a href="<?php echo admin_url('admin.php?page=aph-badges'); ?>">Badge Management</a> section.</p>
+                        <h2>📋 Badge Event Logs</h2>
+                        <p>View recent badge-related activity stored by this plugin.</p>
                         
-                        <div class="badge-info-grid">
-                            <div class="badge-info-item">
-                                <h3>✅ Enabled Badges</h3>
-                                <p>Badges with FluentCRM tracking enabled will automatically fire events when earned.</p>
-                            </div>
-                            <div class="badge-info-item">
-                                <h3>🔧 Individual Configuration</h3>
-                                <p>Each badge can have its own custom event key and title for FluentCRM.</p>
-                            </div>
-                            <div class="badge-info-item">
-                                <h3>⚡ Automatic Tracking</h3>
-                                <p>Events are fired automatically when badges are awarded to users.</p>
-                            </div>
-                        </div>
-                            
-                        <div style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-left: 4px solid #007cba; border-radius: 4px;">
-                            <strong>💡 Note:</strong> To configure event tracking for badges, go to <strong>Badge Management</strong> and enable "FluentCRM Event Tracking" for individual badges. This gives you granular control over which badge achievements trigger events.
-                        </div>
-                    </div>
-                    
-                    
-                    <!-- Event Tracking Logs -->
-                    <div class="jph-event-section">
-                        <h2>📋 Event Tracking Logs</h2>
-                        <p>View recent FluentCRM event activity and badge event tracking logs.</p>
-                        
-                        <div class="event-logs-tabs">
-                            <button type="button" class="tab-button active" onclick="showTab('badge-logs')">🏆 Badge Events</button>
-                            <button type="button" class="tab-button" onclick="showTab('fluentcrm-logs')">🔗 FluentCRM Events</button>
-                        </div>
-                        
-                        <!-- Badge Event Logs -->
                         <div id="badge-logs" class="tab-content active">
                             <div class="logs-controls">
                                 <button type="button" class="button button-primary" onclick="refreshBadgeEventLogs()">🔄 Refresh Badge Logs</button>
@@ -2745,28 +2635,27 @@ class JPH_Admin_Pages {
                                 <!-- Badge event logs will be loaded via AJAX -->
                             </div>
                         </div>
-                        
-                        <!-- FluentCRM Event Logs -->
-                        <div id="fluentcrm-logs" class="tab-content">
-                            <div class="logs-controls">
-                                <button type="button" class="button button-primary" onclick="loadEventLogs()">🔄 Refresh FluentCRM Logs</button>
-                                <button type="button" class="button button-secondary" onclick="emptyEventTrackingTable()">🗑️ Empty Event Table</button>
-                            </div>
-                            <div id="event-logs-results" class="webhook-logs-content">
-                                <!-- FluentCRM event logs will be loaded via AJAX -->
-                            </div>
-                        </div>
                     </div>
                     
                     <div class="jph-debug-section">
                         <h2>🔍 Badge Assignment Debugging</h2>
                         <p>Comprehensive tools to debug and test badge assignment logic.</p>
                         
+                        <div class="jph-form-group" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                            <div>
+                                <label for="manual-award-email">User Email:</label>
+                                <input type="email" id="manual-award-email" placeholder="student@example.com" style="width:260px;">
+                                <small>Enter email OR User ID below — email takes priority</small>
+                            </div>
+                            <div>
+                                <label for="debug-user-id">— OR — User ID:</label>
+                                <input type="number" id="debug-user-id" value="<?php echo get_current_user_id(); ?>" placeholder="e.g. 1972" min="1" style="width:120px;">
+                            </div>
+                        </div>
+                        
                         <div class="badge-debug-controls">
                             <h3>User Badge Status Check</h3>
                             <div class="debug-form-group">
-                                <label for="debug-user-id">User ID:</label>
-                                <input type="number" id="debug-user-id" value="<?php echo get_current_user_id(); ?>" min="1">
                                 <button type="button" onclick="checkUserBadgeStatus()" class="button button-primary">
                                     🔍 Check Badge Status
                                 </button>
@@ -2825,9 +2714,6 @@ class JPH_Admin_Pages {
                                 </button>
                                 <button type="button" onclick="debugDatabaseTables()" class="button button-secondary">
                                     🗄️ Debug Database Tables
-                                </button>
-                                <button type="button" onclick="debugFluentCRMEvents()" class="button button-secondary">
-                                    🔗 Debug FluentCRM Events
                                 </button>
                             </div>
                         </div>
@@ -3125,24 +3011,6 @@ class JPH_Admin_Pages {
         </style>
         
         <script>
-        // Tab functionality
-        function showTab(tabName) {
-            // Hide all tab contents
-            jQuery('.tab-content').removeClass('active');
-            jQuery('.tab-button').removeClass('active');
-            
-            // Show selected tab
-            jQuery('#' + tabName).addClass('active');
-            jQuery('button[onclick="showTab(\'' + tabName + '\')"]').addClass('active');
-            
-            // Load content for the selected tab
-            if (tabName === 'badge-logs') {
-                refreshBadgeEventLogs();
-            } else if (tabName === 'fluentcrm-logs') {
-                loadEventLogs();
-            }
-        }
-        
         // Badge Event Logs Functions
         function refreshBadgeEventLogs() {
             const logsDiv = document.getElementById('badge-event-logs-content');
@@ -3184,66 +3052,6 @@ class JPH_Admin_Pages {
                 });
             }
         }
-        
-        // FluentCRM Event Logs Functions
-        function loadEventLogs() {
-            const logsDiv = document.getElementById('event-logs-results');
-            logsDiv.innerHTML = 'Loading FluentCRM event logs...';
-            
-            jQuery.ajax({
-                url: '<?php echo rest_url('aph/v1/event-logs/fluentcrm'); ?>',
-                method: 'GET',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        logsDiv.innerHTML = '<div class="logs-container">' +
-                            '<div class="logs-header">' +
-                                '<button type="button" class="button button-secondary" onclick="copyEventLogs()" style="float: right; margin-bottom: 10px;">📋 Copy Event Logs</button>' +
-                            '</div>' +
-                            '<pre id="fluentcrm-event-logs-content">' + response.data + '</pre>' +
-                            '</div>';
-                    } else {
-                        logsDiv.innerHTML = 'Error loading logs: ' + response.message;
-                    }
-                },
-                error: function() {
-                    logsDiv.innerHTML = 'Error loading FluentCRM event logs.';
-                }
-            });
-        }
-        
-        function copyEventLogs() {
-            const logsContent = document.getElementById('fluentcrm-event-logs-content');
-            if (logsContent) {
-                const textToCopy = logsContent.textContent;
-                navigator.clipboard.writeText(textToCopy).then(function() {
-                    // Silent copy - no alert
-                }).catch(function(err) {
-                    console.error('Could not copy text: ', err);
-                });
-            }
-        }
-        
-        function emptyEventTrackingTable() {
-            if (confirm('Are you sure you want to empty the FluentCRM event tracking table? This action cannot be undone.')) {
-                jQuery.ajax({
-                    url: '<?php echo rest_url('aph/v1/event-logs/empty-fluentcrm'); ?>',
-                    method: 'POST',
-                    headers: {
-                        'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                    },
-                    success: function(response) {
-                        loadEventLogs();
-                    },
-                    error: function() {
-                        alert('Error emptying event tracking table');
-                    }
-                });
-            }
-        }
-        
         
         function checkUserBadgeStatus() {
             const userId = jQuery('#debug-user-id').val();
@@ -3505,14 +3313,14 @@ class JPH_Admin_Pages {
                             html += '<div class="debug-section">';
                             html += '<h4>🎉 Newly Awarded Badges</h4>';
                             html += '<table class="debug-table">';
-                            html += '<tr><th>Badge</th><th>Description</th><th>XP Reward</th><th>Gem Reward</th><th>Event Key</th></tr>';
+                            html += '<tr><th>Badge</th><th>Description</th><th>XP Reward</th><th>Gem Reward</th><th>SJE Tag ID</th></tr>';
                             response.data.newly_awarded_badges.forEach(function(badge) {
                                 html += '<tr>';
                                 html += '<td><strong>' + badge.name + '</strong></td>';
                                 html += '<td>' + badge.description + '</td>';
                                 html += '<td>' + (badge.xp_reward || 0) + ' XP</td>';
                                 html += '<td>' + (badge.gem_reward || 0) + ' Gems</td>';
-                                html += '<td><code>' + (badge.fluentcrm_event_key || 'None') + '</code></td>';
+                                html += '<td>' + (badge.sje_tag_id || 0) + '</td>';
                                 html += '</tr>';
                             });
                             html += '</table>';
@@ -3543,7 +3351,7 @@ class JPH_Admin_Pages {
                         html += '<div class="debug-section">';
                         html += '<h4>📋 All Available Badges (' + response.data.all_available_badges.length + ' total)</h4>';
                         html += '<table class="debug-table">';
-                        html += '<tr><th>Badge</th><th>Criteria Type</th><th>Criteria Value</th><th>Active</th><th>XP</th><th>Gems</th><th>Event Key</th></tr>';
+                        html += '<tr><th>Badge</th><th>Criteria Type</th><th>Criteria Value</th><th>Active</th><th>XP</th><th>Gems</th><th>SJE Tag ID</th></tr>';
                         response.data.all_available_badges.forEach(function(badge) {
                             const isEarned = response.data.user_badges_after.some(ub => ub.badge_key === badge.badge_key);
                             html += '<tr class="' + (isEarned ? 'badge-earned' : 'badge-not-earned') + '">';
@@ -3553,7 +3361,7 @@ class JPH_Admin_Pages {
                             html += '<td>' + (badge.is_active ? '✅ Yes' : '❌ No') + '</td>';
                             html += '<td>' + (badge.xp_reward || 0) + '</td>';
                             html += '<td>' + (badge.gem_reward || 0) + '</td>';
-                            html += '<td><code>' + (badge.fluentcrm_event_key || 'None') + '</code></td>';
+                            html += '<td>' + (badge.sje_tag_id || 0) + '</td>';
                             html += '</tr>';
                         });
                         html += '</table>';
@@ -3903,126 +3711,6 @@ class JPH_Admin_Pages {
             });
         }
         
-        function debugFluentCRMEvents() {
-            jQuery('#badge-debug-results').html('<p>Debugging FluentCRM events...</p>');
-            
-            jQuery.ajax({
-                url: '<?php echo rest_url('aph/v1/debug-fluentcrm-events'); ?>',
-                method: 'GET',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        let html = '<div class="badge-debug-report">';
-                        html += '<div class="debug-header">';
-                        html += '<h3>🔗 FluentCRM Events Debug</h3>';
-                        html += '<button onclick="copyDebugReport()" class="button button-secondary" style="float: right;">📋 Copy Report</button>';
-                        html += '<div style="clear: both;"></div>';
-                        html += '</div>';
-                        
-                        // FluentCRM Status
-                        html += '<div class="debug-section">';
-                        html += '<h4>📊 FluentCRM Status</h4>';
-                        html += '<p><strong>FluentCRM Active:</strong> ' + (response.data.fluentcrm_active ? '✅ Yes' : '❌ No') + '</p>';
-                        
-                        // Detection Methods
-                        if (response.data.fluentcrm_detection_methods) {
-                            html += '<h5>Detection Methods:</h5>';
-                            html += '<table class="debug-table">';
-                            html += '<tr><th>Method</th><th>Result</th></tr>';
-                            
-                            Object.keys(response.data.fluentcrm_detection_methods).forEach(function(method) {
-                                const result = response.data.fluentcrm_detection_methods[method];
-                                html += '<tr>';
-                                html += '<td><code>' + method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</code></td>';
-                                html += '<td>' + (result ? '✅ Yes' : '❌ No') + '</td>';
-                                html += '</tr>';
-                            });
-                            
-                            html += '</table>';
-                        }
-                        
-                        if (response.data.fluentcrm_active) {
-                            html += '<p><strong>FluentCRM Version:</strong> ' + (response.data.fluentcrm_version || 'Unknown') + '</p>';
-                            
-                            html += '<h5>Available Functions:</h5>';
-                            html += '<table class="debug-table">';
-                            html += '<tr><th>Function</th><th>Available</th></tr>';
-                            
-                            Object.keys(response.data.fluentcrm_functions_available).forEach(function(funcName) {
-                                const available = response.data.fluentcrm_functions_available[funcName];
-                                html += '<tr>';
-                                html += '<td><code>' + funcName + '</code></td>';
-                                html += '<td>' + (available ? '✅ Yes' : '❌ No') + '</td>';
-                                html += '</tr>';
-                            });
-                            
-                            html += '</table>';
-                            
-                            html += '<h5>Event Triggering:</h5>';
-                            html += '<table class="debug-table">';
-                            html += '<tr><th>Component</th><th>Status</th></tr>';
-                            
-                            Object.keys(response.data.event_triggering_test).forEach(function(component) {
-                                const available = response.data.event_triggering_test[component];
-                                html += '<tr>';
-                                html += '<td><strong>' + component.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</strong></td>';
-                                html += '<td>' + (available ? '✅ Yes' : '❌ No') + '</td>';
-                                html += '</tr>';
-                            });
-                            
-                            html += '</table>';
-                        }
-                        html += '</div>';
-                        
-                        // FluentCRM Enabled Badges
-                        html += '<div class="debug-section">';
-                        html += '<h4>🏆 FluentCRM Enabled Badges</h4>';
-                        html += '<p><strong>Total FluentCRM Badges:</strong> ' + response.data.total_fluentcrm_badges + '</p>';
-                        
-                        if (response.data.fluentcrm_enabled_badges && response.data.fluentcrm_enabled_badges.length > 0) {
-                            html += '<table class="debug-table">';
-                            html += '<tr><th>Badge</th><th>Event Key</th><th>Event Title</th></tr>';
-                            
-                            response.data.fluentcrm_enabled_badges.forEach(function(badge) {
-                                html += '<tr>';
-                                html += '<td><strong>' + badge.name + '</strong><br><small>' + badge.badge_key + '</small></td>';
-                                html += '<td><code>' + badge.event_key + '</code></td>';
-                                html += '<td>' + badge.event_title + '</td>';
-                                html += '</tr>';
-                            });
-                            
-                            html += '</table>';
-                        } else {
-                            html += '<p>No badges have FluentCRM tracking enabled.</p>';
-                        }
-                        html += '</div>';
-                        
-                        // Raw Data
-                        html += '<div class="debug-section">';
-                        html += '<h4 onclick="toggleRawData()" style="cursor: pointer;">🔧 Raw FluentCRM Data <span id="raw-data-toggle">▼</span></h4>';
-                        html += '<div id="raw-data-content" style="display: none;">';
-                        html += '<pre class="raw-data">' + JSON.stringify(response.data, null, 2) + '</pre>';
-                        html += '</div>';
-                        html += '</div>';
-                        
-                        html += '</div>';
-                        
-                        jQuery('#badge-debug-results').html(html);
-                        
-                        // Store data for copying
-                        window.debugReportData = response.data;
-                    } else {
-                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
-                    }
-                },
-                error: function() {
-                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error debugging FluentCRM events</p>');
-                }
-            });
-        }
-        
         function fixMissingBadges() {
             const userId = jQuery('#debug-user-id').val();
             jQuery('#badge-debug-results').html('<p>Fixing missing badge records for user: ' + userId + '...</p>');
@@ -4149,67 +3837,64 @@ class JPH_Admin_Pages {
         }
         
         function awardSpecificBadge() {
-            const userId = jQuery('#debug-user-id').val();
+            const email  = jQuery('#manual-award-email').val().trim();
+            const userId = jQuery('#debug-user-id').val().trim();
             const badgeKey = jQuery('#manual-badge-select').val();
-            
-            if (!badgeKey) {
-                alert('Please select a badge from the dropdown');
+
+            if (!email && !userId) {
+                alert('Please enter a user email or user ID.');
                 return;
             }
-            
-            const selectedOption = jQuery('#manual-badge-select option:selected');
-            const badgeName = selectedOption.text().replace(/^[✅❌]\s*/, '').replace(/\s*\([^)]*\)$/, '');
-            
-            jQuery('#badge-debug-results').html('<p>Awarding badge "' + badgeName + '" (' + badgeKey + ') to user: ' + userId + '...</p>');
-            
+            if (!badgeKey) {
+                alert('Please select a badge to award.');
+                return;
+            }
+
+            const payload = { badge_key: badgeKey };
+            if (email) {
+                payload.email = email;
+            } else {
+                payload.user_id = parseInt(userId, 10);
+            }
+
+            jQuery('#badge-debug-results').html('<p>Awarding badge...</p>');
+
             jQuery.ajax({
-                url: '<?php echo rest_url('aph/v1/fix-missing-badges'); ?>',
+                url: '<?php echo rest_url('aph/v1/award-badge'); ?>',
                 method: 'POST',
-                headers: {
-                    'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>'
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
                 },
-                data: {
-                    user_id: userId,
-                    badge_key: badgeKey
-                },
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
                 success: function(response) {
-                    if (response.success) {
-                        let html = '<div class="badge-debug-report">';
-                        html += '<div class="debug-header">';
-                        html += '<h3>🏆 Manual Badge Award Results</h3>';
-                        html += '</div>';
-                        
-                        html += '<div class="debug-section">';
-                        html += '<h4>✅ Award Results</h4>';
-                        html += '<p><strong>Status:</strong> ' + response.message + '</p>';
-                        html += '<p><strong>User ID:</strong> ' + response.data.user_id + '</p>';
-                        html += '<p><strong>Badge:</strong> ' + badgeName + '</p>';
-                        html += '<p><strong>Badge Key:</strong> ' + response.data.badge_key + '</p>';
-                        html += '<p><strong>Awarded:</strong> ' + (response.data.awarded ? '✅ Yes' : '❌ No') + '</p>';
-                        html += '<p><strong>XP Reward:</strong> ' + (response.data.xp_reward || 0) + '</p>';
-                        html += '<p><strong>Gem Reward:</strong> ' + (response.data.gem_reward || 0) + '</p>';
-                        html += '<p><strong>Event Triggered:</strong> ' + (response.data.event_triggered ? '✅ Yes' : '❌ No') + '</p>';
-                        html += '</div>';
-                        
-                        html += '<div class="debug-section">';
-                        html += '<p><strong>Next Steps:</strong></p>';
-                        html += '<ol>';
-                        html += '<li>Run "🔄 Manual Badge Check" to verify the badge was awarded</li>';
-                        html += '<li>Run "🎨 Debug Frontend Badges" to check frontend display</li>';
-                        html += '<li>Check the frontend to see if the badge now appears</li>';
-                        html += '<li>Check "Badge Events" tab for FluentCRM event logs</li>';
-                        html += '</ol>';
-                        html += '</div>';
-                        
-                        html += '</div>';
-                        
-                        jQuery('#badge-debug-results').html(html);
-                    } else {
-                        jQuery('#badge-debug-results').html('<p style="color: red;">❌ ' + response.message + '</p>');
+                    if (!response || !response.success) {
+                        const msg = (response && response.message) ? response.message : 'Award failed';
+                        jQuery('#badge-debug-results').html('<p style="color:red;">❌ ' + msg + '</p>');
+                        return;
                     }
+                    let html = '<div class="badge-debug-report"><h3>🏆 Manual Badge Award Results</h3>';
+                    html += '<p><strong>Awarded:</strong> ' + (response.data.awarded ? '✅ Yes' : '❌ Already had it') + '</p>';
+                    if (response.data.sje_crm_sent) {
+                        html += '<p>✅ SJE CRM tag pushed</p>';
+                    }
+                    if (response.data.user_id) {
+                        html += '<p><strong>User ID:</strong> ' + response.data.user_id + '</p>';
+                    }
+                    if (response.message) {
+                        html += '<p><strong>Status:</strong> ' + response.message + '</p>';
+                    }
+                    html += '</div>';
+                    jQuery('#badge-debug-results').html(html);
                 },
-                error: function() {
-                    jQuery('#badge-debug-results').html('<p style="color: red;">❌ Error awarding badge</p>');
+                error: function(xhr) {
+                    let msg = 'Error awarding badge';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        msg = xhr.responseJSON.message;
+                    } else if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                        msg = xhr.responseJSON.data.message;
+                    }
+                    jQuery('#badge-debug-results').html('<p style="color:red;">❌ ' + msg + '</p>');
                 }
             });
         }

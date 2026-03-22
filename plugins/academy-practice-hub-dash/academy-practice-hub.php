@@ -16,6 +16,7 @@ if (!defined('APH_WIRE_THROUGH')) {
 }
 
 // Load required classes (we'll instantiate conditionally)
+require_once __DIR__ . '/includes/class-je-crm-sender.php';
 require_once __DIR__ . '/includes/database-schema.php';
 require_once __DIR__ . '/includes/class-database.php';
 require_once __DIR__ . '/includes/class-gamification.php';
@@ -103,6 +104,12 @@ new JPH_Admin_Pages();
 add_action('init', 'jph_ensure_practice_session_timezone_columns');
 function jph_ensure_practice_session_timezone_columns() {
     APH_Database_Schema::add_practice_session_timezone_columns();
+}
+
+// Ensure sje_tag_id column exists for badges
+add_action('init', 'aph_ensure_badges_sje_tag_id_column');
+function aph_ensure_badges_sje_tag_id_column() {
+    APH_Database_Schema::update_badges_schema();
 }
 
 // Initialize Practice Reminder System

@@ -520,7 +520,33 @@ class JPH_REST_API {
         register_rest_route('aph/v1', '/fix-missing-badges', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_fix_missing_badges'),
-            'permission_callback' => array($this, 'check_user_permission')
+            'permission_callback' => array($this, 'check_user_permission'),
+            'args' => array(
+                'user_id' => array(
+                    'required'          => false,
+                    'sanitize_callback' => 'absint',
+                ),
+                'email' => array(
+                    'required'          => false,
+                    'sanitize_callback' => 'sanitize_email',
+                ),
+            ),
+        ));
+        
+        register_rest_route('aph/v1', '/award-badge', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_fix_missing_badges'),
+            'permission_callback' => array($this, 'check_user_permission'),
+            'args' => array(
+                'user_id' => array(
+                    'required'          => false,
+                    'sanitize_callback' => 'absint',
+                ),
+                'email' => array(
+                    'required'          => false,
+                    'sanitize_callback' => 'sanitize_email',
+                ),
+            ),
         ));
         
         register_rest_route('aph/v1', '/get-badges-list', array(
@@ -532,12 +558,6 @@ class JPH_REST_API {
         register_rest_route('aph/v1', '/debug-database-tables', array(
             'methods' => 'GET',
             'callback' => array($this, 'rest_debug_database_tables'),
-            'permission_callback' => array($this, 'check_user_permission')
-        ));
-        
-        register_rest_route('aph/v1', '/debug-fluentcrm-events', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_debug_fluentcrm_events'),
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
@@ -705,13 +725,6 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_user_permission')
         ));
         
-        // FluentCRM Contact endpoint for debugging
-        register_rest_route('aph/v1', '/fluentcrm/contact', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_get_fluentcrm_contact'),
-            'permission_callback' => array($this, 'check_user_permission')
-        ));
-        
         // Test reminder tag endpoint
         register_rest_route('aph/v1', '/reminders/test-tag', array(
             'methods' => 'POST',
@@ -754,21 +767,9 @@ class JPH_REST_API {
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
-        register_rest_route('aph/v1', '/event-logs/fluentcrm', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'rest_get_fluentcrm_event_logs'),
-            'permission_callback' => array($this, 'check_admin_permission')
-        ));
-        
         register_rest_route('aph/v1', '/event-logs/clear-badge', array(
             'methods' => 'POST',
             'callback' => array($this, 'rest_clear_badge_event_logs'),
-            'permission_callback' => array($this, 'check_admin_permission')
-        ));
-        
-        register_rest_route('aph/v1', '/event-logs/empty-fluentcrm', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'rest_empty_fluentcrm_event_logs'),
             'permission_callback' => array($this, 'check_admin_permission')
         ));
         
@@ -1485,9 +1486,7 @@ class JPH_REST_API {
                 'is_active' => 1,
                 'display_order' => intval($params['display_order'] ?? 999),
                 'image_url' => esc_url_raw($params['image_url'] ?? ''),
-                'fluentcrm_enabled' => intval($params['fluentcrm_enabled'] ?? 0),
-                'fluentcrm_event_key' => sanitize_text_field($params['fluentcrm_event_key'] ?? ''),
-                'fluentcrm_event_title' => sanitize_text_field($params['fluentcrm_event_title'] ?? ''),
+                'sje_tag_id' => intval($params['sje_tag_id'] ?? 0),
                 'created_at' => current_time('mysql')
             )
         );
@@ -1537,6 +1536,7 @@ class JPH_REST_API {
         if (isset($params['is_active'])) $update_data['is_active'] = intval($params['is_active']);
         if (isset($params['display_order'])) $update_data['display_order'] = intval($params['display_order']);
         if (isset($params['image_url'])) $update_data['image_url'] = esc_url_raw($params['image_url']);
+        if (isset($params['sje_tag_id'])) $update_data['sje_tag_id'] = intval($params['sje_tag_id']);
         
         $update_data['updated_at'] = current_time('mysql');
         
@@ -1860,15 +1860,8 @@ class JPH_REST_API {
                 $badge_data['image_url'] = esc_url_raw($body['image_url']);
             }
             
-            // Add FluentCRM fields
-            if (isset($body['fluentcrm_enabled'])) {
-                $badge_data['fluentcrm_enabled'] = intval($body['fluentcrm_enabled']);
-            }
-            if (isset($body['fluentcrm_event_key'])) {
-                $badge_data['fluentcrm_event_key'] = sanitize_text_field($body['fluentcrm_event_key']);
-            }
-            if (isset($body['fluentcrm_event_title'])) {
-                $badge_data['fluentcrm_event_title'] = sanitize_text_field($body['fluentcrm_event_title']);
+            if (isset($body['sje_tag_id'])) {
+                $badge_data['sje_tag_id'] = intval($body['sje_tag_id']);
             }
             
             // Update the badge
@@ -2728,7 +2721,27 @@ class JPH_REST_API {
      */
     public function rest_fix_missing_badges($request) {
         try {
-            $user_id = $request->get_param('user_id') ?: get_current_user_id();
+            // Resolve user from email if provided (email takes priority over user_id)
+            $email = sanitize_email( (string) $request->get_param( 'email' ) );
+            if ( ! empty( $email ) ) {
+                $user = get_user_by( 'email', $email );
+                if ( ! $user ) {
+                    return new WP_REST_Response(
+                        array(
+                            'success' => false,
+                            'message' => 'No user found with that email.',
+                        ),
+                        404
+                    );
+                }
+                $user_id = (int) $user->ID;
+            } else {
+                $user_id = (int) $request->get_param( 'user_id' );
+                if ( ! $user_id ) {
+                    $user_id = get_current_user_id();
+                }
+            }
+            
             $badge_key = $request->get_param('badge_key');
             
             if (!$user_id) {
@@ -2762,9 +2775,45 @@ class JPH_REST_API {
                         'data' => array(
                             'user_id' => $user_id,
                             'badge_key' => $badge_key,
-                            'awarded' => false
+                            'awarded' => false,
+                            'sje_crm_sent' => false,
                         )
                     ));
+                }
+                
+                // Send to SJE CRM using same settings as gamification path
+                $crm_sent = false;
+                if ( $badge_awarded && class_exists( 'JE_CRM_Sender' ) ) {
+                    $badge_data = $this->database->get_badge_by_key( $badge_key );
+
+                    $send_individual = get_option( 'aph_send_individual_badge_tags', '1' ) === '1';
+                    $generic_tag_id  = (int) get_option( 'aph_badge_earned_tag_id', 0 );
+
+                    $tags_to_send = array();
+
+                    if ( $send_individual && ! empty( $badge_data['sje_tag_id'] ) && (int) $badge_data['sje_tag_id'] > 0 ) {
+                        $tags_to_send[] = (int) $badge_data['sje_tag_id'];
+                    }
+
+                    if ( $generic_tag_id > 0 ) {
+                        $tags_to_send[] = $generic_tag_id;
+                    }
+
+                    if ( ! empty( $tags_to_send ) ) {
+                        $award_user = get_user_by( 'ID', $user_id );
+                        if ( $award_user && ! empty( $award_user->user_email ) ) {
+                            $crm_result = JE_CRM_Sender::send(
+                                array(
+                                    'email'         => $award_user->user_email,
+                                    'add_tags'      => $tags_to_send,
+                                    'custom_fields' => array(
+                                        'last_badge_earned' => $badge_data['name'] ?? '',
+                                    ),
+                                )
+                            );
+                            $crm_sent = ! empty( $crm_result['success'] );
+                        }
+                    }
                 }
                 
                 // Update user stats with XP reward, gems reward, and badge count
@@ -2786,12 +2835,6 @@ class JPH_REST_API {
                 $update_data['badges_earned'] = $user_stats_before['badges_earned'] + 1;
                 $this->database->update_user_stats($user_id, $update_data);
                 
-                // Trigger FluentCRM event if enabled
-                $event_triggered = false;
-                if ($badge['fluentcrm_enabled'] && !empty($badge['fluentcrm_event_key'])) {
-                    $event_triggered = $this->trigger_fluentcrm_event($user_id, $badge);
-                }
-                
                 // Get user stats after
                 $user_stats_after = $this->database->get_user_stats($user_id);
                 
@@ -2805,7 +2848,7 @@ class JPH_REST_API {
                         'awarded' => true,
                         'xp_reward' => $badge['xp_reward'],
                         'gem_reward' => $badge['gem_reward'],
-                        'event_triggered' => $event_triggered,
+                        'sje_crm_sent' => $crm_sent ?? false,
                         'user_stats_before' => $user_stats_before,
                         'user_stats_after' => $user_stats_after
                     )
@@ -2902,14 +2945,8 @@ class JPH_REST_API {
                             $update_data['badges_earned'] = $user_stats['badges_earned'] + 1;
                             $this->database->update_user_stats($user_id, $update_data);
                             
-                            // Trigger FluentCRM event if enabled
-                            $event_triggered = false;
-                            if ($badge['fluentcrm_enabled'] && !empty($badge['fluentcrm_event_key'])) {
-                                $event_triggered = $this->trigger_fluentcrm_event($user_id, $badge);
-                            }
-                            
                             $fixed_badges[] = $badge['badge_key'];
-                            $debug_info[] = "SUCCESS: Awarded badge {$badge['badge_key']} with full gamification (Event: " . ($event_triggered ? 'YES' : 'NO') . ")";
+                            $debug_info[] = "SUCCESS: Awarded badge {$badge['badge_key']} with full gamification";
                             
                             // Update user stats for next iteration
                             $user_stats = $this->database->get_user_stats($user_id);
@@ -3012,297 +3049,6 @@ class JPH_REST_API {
             
         } catch (Exception $e) {
             return new WP_Error('debug_database_tables_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
-     * Debug FluentCRM events
-     */
-    public function rest_debug_fluentcrm_events($request) {
-        try {
-            $debug_info = array();
-            
-            // Check if FluentCRM is active - multiple detection methods
-            $fluentcrm_active = false;
-            $fluentcrm_detection_methods = array();
-            
-            // Method 1: Check for FluentCRM main class
-            $method1 = class_exists('FluentCrm\App\Services\FluentCrm');
-            $fluentcrm_detection_methods['class_exists_FluentCrm'] = $method1;
-            
-            // Method 2: Check for FluentCRM functions
-            $method2 = function_exists('fluentcrm_get_contact');
-            $fluentcrm_detection_methods['function_exists_fluentcrm_get_contact'] = $method2;
-            
-            // Method 2b: Check for FluentCrmApi function
-            $method2b = function_exists('FluentCrmApi');
-            $fluentcrm_detection_methods['function_exists_FluentCrmApi'] = $method2b;
-            
-            // Method 3: Check if FluentCRM plugin is active
-            $method3 = is_plugin_active('fluent-crm/fluent-crm.php');
-            $fluentcrm_detection_methods['is_plugin_active'] = $method3;
-            
-            // Method 4: Check for FluentCRM constants
-            $method4 = defined('FLUENTCRM_VERSION');
-            $fluentcrm_detection_methods['defined_FLUENTCRM_VERSION'] = $method4;
-            
-            // Method 5: Check for FluentCRM in active plugins
-            $active_plugins = get_option('active_plugins', array());
-            $method5 = in_array('fluent-crm/fluent-crm.php', $active_plugins);
-            $fluentcrm_detection_methods['in_active_plugins'] = $method5;
-            
-            // Method 6: Check for FluentCRM in mu-plugins
-            $mu_plugins = get_mu_plugins();
-            $method6 = isset($mu_plugins['fluent-crm/fluent-crm.php']);
-            $fluentcrm_detection_methods['in_mu_plugins'] = $method6;
-            
-            // FluentCRM is active if any method returns true
-            $fluentcrm_active = $method1 || $method2 || $method2b || $method3 || $method4 || $method5 || $method6;
-            
-            $debug_info['fluentcrm_active'] = $fluentcrm_active;
-            $debug_info['fluentcrm_detection_methods'] = $fluentcrm_detection_methods;
-            
-            if ($fluentcrm_active) {
-                // Get FluentCRM version
-                $debug_info['fluentcrm_version'] = defined('FLUENTCRM_VERSION') ? FLUENTCRM_VERSION : 'Unknown';
-                
-                // Check if we can access FluentCRM functions
-                $debug_info['fluentcrm_functions_available'] = array(
-                    'fluentcrm_get_contact' => function_exists('fluentcrm_get_contact'),
-                    'fluentcrm_add_contact' => function_exists('fluentcrm_add_contact'),
-                    'fluentcrm_update_contact' => function_exists('fluentcrm_update_contact'),
-                    'fluentcrm_contact_added' => function_exists('fluentcrm_contact_added'),
-                    'fluentcrm_contact_updated' => function_exists('fluentcrm_contact_updated'),
-                    'fluentCrmTrackEvent' => function_exists('fluentCrmTrackEvent')
-                );
-                
-                // Test event triggering capability
-                $debug_info['event_triggering_test'] = array(
-                    'can_trigger_events' => method_exists($this, 'trigger_fluentcrm_event'),
-                    'webhook_handler_exists' => class_exists('JPH_Webhook_Handler'),
-                    'fluentcrm_api_available' => function_exists('FluentCrmApi'),
-                    'event_tracker_available' => function_exists('FluentCrmApi') && method_exists(FluentCrmApi('event_tracker'), 'track')
-                );
-            }
-            
-            // Get badges with FluentCRM enabled
-            $all_badges = $this->database->get_badges(true);
-            $fluentcrm_badges = array();
-            
-            foreach ($all_badges as $badge) {
-                if ($badge['fluentcrm_enabled']) {
-                    $fluentcrm_badges[] = array(
-                        'badge_key' => $badge['badge_key'],
-                        'name' => $badge['name'],
-                        'event_key' => $badge['fluentcrm_event_key'],
-                        'event_title' => $badge['fluentcrm_event_title']
-                    );
-                }
-            }
-            
-            $debug_info['fluentcrm_enabled_badges'] = $fluentcrm_badges;
-            $debug_info['total_fluentcrm_badges'] = count($fluentcrm_badges);
-            
-            // Check recent event logs if available
-            $debug_info['recent_events'] = 'Event logs would appear here if available';
-            
-            return rest_ensure_response(array(
-                'success' => true,
-                'data' => $debug_info,
-                'message' => 'FluentCRM events debug completed'
-            ));
-            
-        } catch (Exception $e) {
-            return new WP_Error('debug_fluentcrm_events_error', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
-     * Trigger FluentCRM event for badge earning
-     */
-    private function trigger_fluentcrm_event($user_id, $badge) {
-        try {
-            error_log("=== FluentCRM Event Triggering Debug ===");
-            error_log("User ID: {$user_id}");
-            error_log("Badge Key: {$badge['badge_key']}");
-            error_log("Event Key: {$badge['fluentcrm_event_key']}");
-            error_log("Event Title: {$badge['fluentcrm_event_title']}");
-            
-            // Get user email
-            $user = get_user_by('ID', $user_id);
-            if (!$user) {
-                error_log("FluentCRM Event: User not found for ID: {$user_id}");
-                return false;
-            }
-            
-            $user_email = $user->user_email;
-            error_log("User Email: {$user_email}");
-            
-            // Use FluentCRM event tracking API
-            if (function_exists('FluentCrmApi')) {
-                error_log("FluentCrmApi function exists - attempting event trigger");
-                try {
-                    // Method 1: Try event tracker API
-                    $tracker = FluentCrmApi('event_tracker');
-                    error_log("Event tracker object created: " . (is_object($tracker) ? 'Yes' : 'No'));
-                    
-                    if (method_exists($tracker, 'track')) {
-                        error_log("track() method exists - attempting to call");
-                        
-                        // Keep original event key for automation triggers, but add timestamp to title for uniqueness
-                        $event_key = $badge['fluentcrm_event_key'];
-                        $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
-                        $event_value = "Badge: {$badge['name']} - {$badge['description']}";
-                        
-                        $result = $tracker->track([
-                            'event_key' => $event_key,
-                            'title' => $unique_title,
-                            'email' => $user_email,
-                            'value' => $event_value,
-                            'provider' => 'academy_practice_hub'
-                        ]);
-                        
-                        error_log("Event tracker result: " . ($result ? 'Success' : 'Failed'));
-                        if ($result) {
-                            error_log("FluentCRM Event triggered successfully via tracker: {$badge['fluentcrm_event_key']} for user {$user_email}");
-                            // Ensure email is saved directly to database
-                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
-                            error_log("=== End FluentCRM Event Debug ===");
-                            return true;
-                        }
-                    } else {
-                        error_log("track() method does not exist on event tracker");
-                    }
-                    
-                    // Method 2: Try direct event tracking
-                    if (function_exists('fluentCrmTrackEvent')) {
-                        error_log("fluentCrmTrackEvent function exists - attempting to call");
-                        
-                        // Keep original event key for automation triggers, but add timestamp to title for uniqueness
-                        $event_key = $badge['fluentcrm_event_key'];
-                        $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
-                        $event_value = "Badge: {$badge['name']} - {$badge['description']}";
-                        
-                        $result = fluentCrmTrackEvent([
-                            'event_key' => $event_key,
-                            'title' => $unique_title,
-                            'email' => $user_email,
-                            'value' => $event_value,
-                            'provider' => 'academy_practice_hub'
-                        ]);
-                        
-                        error_log("fluentCrmTrackEvent result: " . ($result ? 'Success' : 'Failed'));
-                        if ($result) {
-                            error_log("FluentCRM Event triggered successfully via fluentCrmTrackEvent: {$badge['fluentcrm_event_key']} for user {$user_email}");
-                            // Ensure email is saved directly to database
-                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
-                            error_log("=== End FluentCRM Event Debug ===");
-                            return true;
-                        }
-                    } else {
-                        error_log("fluentCrmTrackEvent function does not exist");
-                    }
-                    
-                } catch (Exception $e) {
-                    error_log("FluentCRM API error: " . $e->getMessage());
-                }
-            } else {
-                error_log("FluentCrmApi function does not exist");
-            }
-            
-            // Fallback: Use WordPress action hook
-            error_log("Using fallback WordPress action hook");
-            
-            // Keep original event key for automation triggers, but add timestamp to title for uniqueness
-            $event_key = $badge['fluentcrm_event_key'];
-            $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
-            $event_value = "Badge: {$badge['name']} - {$badge['description']}";
-            
-            error_log("Event Key: {$event_key}");
-            error_log("Unique Title: {$unique_title}");
-            
-            do_action('fluent_crm/track_event_activity', [
-                'event_key' => $event_key,
-                'title' => $unique_title,
-                'email' => $user_email,
-                'value' => $event_value,
-                'provider' => 'academy_practice_hub'
-            ], true);
-            
-            // Ensure email is saved directly to database
-            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
-            
-            error_log("FluentCRM Event triggered via fallback action hook: {$badge['fluentcrm_event_key']} for user {$user_email}");
-            error_log("=== End FluentCRM Event Debug ===");
-            return true;
-            
-        } catch (Exception $e) {
-            error_log("FluentCRM Event error: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Ensure event email is saved directly to fc_event_tracking table
-     * This ensures the email is always visible in the event logs
-     */
-    private function ensure_event_email_saved($event_key, $title, $value, $email) {
-        global $wpdb;
-        
-        try {
-            $table_name = $wpdb->prefix . 'fc_event_tracking';
-            
-            // Check if table exists
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
-            if (!$table_exists) {
-                error_log("FluentCRM event tracking table does not exist: {$table_name}");
-                return false;
-            }
-            
-            // Check if event was already inserted (within last 5 seconds to avoid duplicates)
-            $recent_event = $wpdb->get_row($wpdb->prepare(
-                "SELECT id, email FROM {$table_name} 
-                WHERE event_key = %s 
-                AND title = %s 
-                AND created_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)
-                ORDER BY id DESC LIMIT 1",
-                $event_key,
-                $title
-            ));
-            
-            if ($recent_event) {
-                // Update email if it's missing or different
-                if (empty($recent_event->email) || $recent_event->email !== $email) {
-                    $wpdb->update(
-                        $table_name,
-                        array('email' => $email),
-                        array('id' => $recent_event->id),
-                        array('%s'),
-                        array('%d')
-                    );
-                    error_log("Updated event email in database: event_id={$recent_event->id}, email={$email}");
-                }
-            } else {
-                // Insert new event directly if it doesn't exist
-                $wpdb->insert(
-                    $table_name,
-                    array(
-                        'event_key' => $event_key,
-                        'title' => $title,
-                        'value' => $value,
-                        'email' => $email,
-                        'provider' => 'academy_practice_hub',
-                        'created_at' => current_time('mysql')
-                    ),
-                    array('%s', '%s', '%s', '%s', '%s', '%s')
-                );
-                error_log("Inserted event directly into database: event_key={$event_key}, email={$email}");
-            }
-            
-            return true;
-        } catch (Exception $e) {
-            error_log("Error ensuring event email saved: " . $e->getMessage());
-            return false;
         }
     }
     
@@ -5502,65 +5248,6 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
     }
     
     /**
-     * Get FluentCRM contact information for current user
-     */
-    public function rest_get_fluentcrm_contact($request) {
-        try {
-            $user_id = get_current_user_id();
-            
-            if (!$user_id) {
-                return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
-            }
-            
-            $user = get_user_by('ID', $user_id);
-            if (!$user || !$user->user_email) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'message' => 'User email not found',
-                    'user_id' => $user_id
-                ));
-            }
-            
-            $contact_data = array(
-                'user_id' => $user_id,
-                'user_email' => $user->user_email,
-                'user_login' => $user->user_login,
-                'display_name' => $user->display_name,
-                'fluentcrm_available' => function_exists('fluentCrmApi'),
-                'fluentcrm_contact_id' => null,
-                'fluentcrm_contact' => null
-            );
-            
-            if (function_exists('fluentCrmApi')) {
-                try {
-                    $contact = fluentCrmApi('contacts')->getContact($user->user_email);
-                    if ($contact) {
-                        $contact_data['fluentcrm_contact_id'] = $contact->id;
-                        $contact_data['fluentcrm_contact'] = array(
-                            'id' => $contact->id,
-                            'email' => $contact->email,
-                            'first_name' => $contact->first_name,
-                            'last_name' => $contact->last_name,
-                            'status' => $contact->status,
-                            'created_at' => $contact->created_at
-                        );
-                    }
-                } catch (Exception $e) {
-                    $contact_data['fluentcrm_error'] = $e->getMessage();
-                }
-            }
-            
-            return rest_ensure_response(array(
-                'success' => true,
-                'contact' => $contact_data
-            ));
-            
-        } catch (Exception $e) {
-            return new WP_Error('fluentcrm_contact_error', 'Error getting FluentCRM contact: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
      * Test reminder tag application
      */
     public function rest_test_reminder_tag($request) {
@@ -6033,11 +5720,10 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             if (empty($logs)) {
                 $log_html = '<div class="log-entry info">';
                 $log_html .= '<strong>No badge event tracking logs found.</strong><br>';
-                $log_html .= 'Events will appear here when badges are awarded with FluentCRM tracking enabled.<br>';
+                $log_html .= 'Events will appear here when badge-related actions are logged.<br>';
                 $log_html .= '<br><strong>To test:</strong><br>';
-                $log_html .= '1. Go to Badge Management and enable "FluentCRM Event Tracking" for a badge<br>';
-                $log_html .= '2. Use the "Test Event" button in the badge table<br>';
-                $log_html .= '3. Or award the badge to a user through normal gameplay<br>';
+                $log_html .= '1. Configure SJE CRM Tag ID on a badge in Badge Management<br>';
+                $log_html .= '2. Use Badge Tools → manual award or earn the badge in the app<br>';
                 $log_html .= '</div>';
             } else {
                 $log_html .= '<strong>Total logs found: ' . count($logs) . '</strong><br><br>';
@@ -6085,63 +5771,6 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
     }
     
     /**
-     * Get FluentCRM event logs
-     */
-    public function rest_get_fluentcrm_event_logs($request) {
-        try {
-            global $wpdb;
-            
-            // Check if FluentCRM event tracking table exists
-            $table_name = $wpdb->prefix . 'fc_event_tracking';
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
-            
-            if (!$table_exists) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'message' => 'FluentCRM event tracking table (wp_fc_event_tracking) does not exist. Make sure FluentCRM plugin is installed and activated.'
-                ));
-            }
-            
-            // Get recent event logs (last 50 entries)
-            $events = $wpdb->get_results(
-                "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT 50",
-                ARRAY_A
-            );
-            
-            if (empty($events)) {
-                return rest_ensure_response(array(
-                    'success' => true,
-                    'data' => 'No event tracking logs found in wp_fc_event_tracking table.'
-                ));
-            }
-            
-            $log_output = "Recent Event Tracking Logs (Last 50 entries):\n\n";
-            $log_output .= "Total events found: " . count($events) . "\n\n";
-            
-            foreach ($events as $event) {
-                $log_output .= "Event ID: " . $event['id'] . "\n";
-                $log_output .= "Event Key: " . $event['event_key'] . "\n";
-                $log_output .= "Title: " . $event['title'] . "\n";
-                $log_output .= "Value: " . $event['value'] . "\n";
-                $log_output .= "Email: " . $event['email'] . "\n";
-                $log_output .= "Provider: " . $event['provider'] . "\n";
-                $log_output .= "Created: " . $event['created_at'] . "\n";
-                if (!empty($event['custom_data'])) {
-                    $log_output .= "Custom Data: " . $event['custom_data'] . "\n";
-                }
-                $log_output .= "---\n\n";
-            }
-            
-            return rest_ensure_response(array(
-                'success' => true,
-                'data' => $log_output
-            ));
-        } catch (Exception $e) {
-            return new WP_Error('fluentcrm_logs_error', 'Error retrieving FluentCRM event logs: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
      * Clear badge event logs
      */
     public function rest_clear_badge_event_logs($request) {
@@ -6154,43 +5783,6 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
             ));
         } catch (Exception $e) {
             return new WP_Error('clear_badge_logs_error', 'Error clearing badge event logs: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
-    
-    /**
-     * Empty FluentCRM event tracking table
-     */
-    public function rest_empty_fluentcrm_event_logs($request) {
-        try {
-            global $wpdb;
-            
-            // Check if FluentCRM event tracking table exists
-            $table_name = $wpdb->prefix . 'fc_event_tracking';
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
-            
-            if (!$table_exists) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'message' => 'FluentCRM event tracking table does not exist.'
-                ));
-            }
-            
-            // Empty the table
-            $result = $wpdb->query("TRUNCATE TABLE {$table_name}");
-            
-            if ($result === false) {
-                return rest_ensure_response(array(
-                    'success' => false,
-                    'message' => 'Error emptying FluentCRM event tracking table.'
-                ));
-            }
-            
-            return rest_ensure_response(array(
-                'success' => true,
-                'message' => 'FluentCRM event tracking table emptied successfully.'
-            ));
-        } catch (Exception $e) {
-            return new WP_Error('empty_fluentcrm_logs_error', 'Error emptying FluentCRM event logs: ' . $e->getMessage(), array('status' => 500));
         }
     }
     

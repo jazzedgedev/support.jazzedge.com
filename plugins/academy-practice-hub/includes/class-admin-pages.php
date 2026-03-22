@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin pages for Academy Practice Hub
+ * Admin pages for Academy Practice Hub v2
  * 
  * @package Academy_Practice_Hub
  */
@@ -1018,6 +1018,12 @@ class JPH_Admin_Pages {
                         </div>
                         
                         <div class="jph-form-group">
+                            <label for="badge-sje-tag-id">SJE CRM Tag ID:</label>
+                            <input type="number" id="badge-sje-tag-id" name="sje_tag_id" min="0" value="0" style="width:120px;">
+                            <small>FluentCRM tag ID on SJE to apply when this badge is awarded. Set to 0 to disable.</small>
+                        </div>
+                        
+                        <div class="jph-form-group">
                             <h4>🔗 FluentCRM Event Tracking</h4>
                             <label>
                                 <input type="checkbox" id="badge-fluentcrm-enabled" name="fluentcrm_enabled" value="1">
@@ -1119,6 +1125,12 @@ class JPH_Admin_Pages {
                                 <input type="checkbox" id="edit-badge-is-active" name="is_active" value="1" checked>
                                 Active
                             </label>
+                        </div>
+                        
+                        <div class="jph-form-group">
+                            <label for="edit-badge-sje-tag-id">SJE CRM Tag ID:</label>
+                            <input type="number" id="edit-badge-sje-tag-id" name="sje_tag_id" min="0" value="0" style="width:120px;">
+                            <small>FluentCRM tag ID on SJE to apply when this badge is awarded. Set to 0 to disable.</small>
                         </div>
                         
                         <div class="jph-form-group">
@@ -1242,6 +1254,7 @@ class JPH_Admin_Pages {
             document.getElementById('edit-badge-fluentcrm-enabled').checked = badge.fluentcrm_enabled == 1;
             document.getElementById('edit-badge-fluentcrm-event-key').value = badge.fluentcrm_event_key || '';
             document.getElementById('edit-badge-fluentcrm-event-title').value = badge.fluentcrm_event_title || '';
+            document.getElementById('edit-badge-sje-tag-id').value = badge.sje_tag_id || 0;
             
             // Show/hide FluentCRM fields based on checkbox
             toggleFluentCRMFields('edit');
@@ -1273,7 +1286,8 @@ class JPH_Admin_Pages {
                 is_active: document.getElementById('edit-badge-is-active').checked ? 1 : 0,
                 fluentcrm_enabled: document.getElementById('edit-badge-fluentcrm-enabled').checked ? 1 : 0,
                 fluentcrm_event_key: formData.get('fluentcrm_event_key'),
-                fluentcrm_event_title: formData.get('fluentcrm_event_title')
+                fluentcrm_event_title: formData.get('fluentcrm_event_title'),
+                sje_tag_id: parseInt(document.getElementById('edit-badge-sje-tag-id').value) || 0,
             };
             
             console.log('Updating badge:', badgeKey, badgeData);

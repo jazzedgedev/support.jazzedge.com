@@ -680,6 +680,17 @@ class APH_Gamification {
                     $this->trigger_fluentcrm_event($user_id, $badge);
                 }
                 
+                // Send SJE CRM tag (Stage 1 — runs alongside existing FluentCRM code)
+                if (!empty($badge['sje_tag_id']) && (int)$badge['sje_tag_id'] > 0) {
+                    $user = get_user_by('ID', $user_id);
+                    if ($user && !empty($user->user_email) && class_exists('JE_CRM_Sender')) {
+                        JE_CRM_Sender::send(array(
+                            'email'    => $user->user_email,
+                            'add_tags' => array((int)$badge['sje_tag_id']),
+                        ));
+                    }
+                }
+                
                 $newly_awarded[] = $badge;
             }
         }

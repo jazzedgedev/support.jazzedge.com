@@ -675,9 +675,29 @@ class APH_Gamification {
                     'new_badge_count' => $user_stats['badges_earned']
                 ));
                 
-                // Trigger FluentCRM event if enabled
-                if ($badge['fluentcrm_enabled'] == '1') {
-                    $this->trigger_fluentcrm_event($user_id, $badge);
+                // Send to SJE CRM based on admin settings
+                $send_individual = get_option('aph_send_individual_badge_tags', '1') === '1';
+                $generic_tag_id  = (int) get_option('aph_badge_earned_tag_id', 0);
+
+                $tags_to_send = array();
+
+                if ($send_individual && !empty($badge['sje_tag_id']) && (int)$badge['sje_tag_id'] > 0) {
+                    $tags_to_send[] = (int)$badge['sje_tag_id'];
+                }
+
+                if ($generic_tag_id > 0) {
+                    $tags_to_send[] = $generic_tag_id;
+                }
+
+                if (!empty($tags_to_send) && class_exists('JE_CRM_Sender')) {
+                    $crm_user = get_user_by('ID', $user_id);
+                    if ($crm_user && !empty($crm_user->user_email)) {
+                        JE_CRM_Sender::send(array(
+                            'email'         => $crm_user->user_email,
+                            'add_tags'      => $tags_to_send,
+                            'custom_fields' => array('last_badge_earned' => $badge['name']),
+                        ));
+                    }
                 }
                 
                 $newly_awarded[] = $badge;
@@ -685,176 +705,6 @@ class APH_Gamification {
         }
         
         return $newly_awarded;
-    }
-    
-    /**
-     * Trigger FluentCRM event for badge earning
-     */
-    private function trigger_fluentcrm_event($user_id, $badge) {
-        try {
-            $this->logger->debug('Triggering FluentCRM event', array(
-                'user_id' => $user_id,
-                'badge_key' => $badge['badge_key'],
-                'event_key' => $badge['fluentcrm_event_key']
-            ));
-            
-            // Get user email
-            $user = get_user_by('ID', $user_id);
-            if (!$user) {
-                $this->logger->error('FluentCRM Event: User not found', array('user_id' => $user_id));
-                return false;
-            }
-            
-            $user_email = $user->user_email;
-            
-            // Keep original event key for automation triggers, but add timestamp to title for uniqueness
-            $event_key = $badge['fluentcrm_event_key'];
-            $unique_title = $badge['fluentcrm_event_title'] . ' at ' . current_time('Y-m-d H:i:s');
-            $event_value = "Badge: {$badge['name']} - {$badge['description']}";
-            
-            // Use FluentCRM event tracking API
-            if (function_exists('FluentCrmApi')) {
-                try {
-                    // Method 1: Try event tracker API
-                    $tracker = FluentCrmApi('event_tracker');
-                    if (method_exists($tracker, 'track')) {
-                        $result = $tracker->track([
-                            'event_key' => $event_key,
-                            'title' => $unique_title,
-                            'email' => $user_email,
-                            'value' => $event_value,
-                            'provider' => 'academy_practice_hub'
-                        ]);
-                        
-                        if ($result) {
-                            $this->logger->info('FluentCRM Event triggered successfully via tracker', array(
-                                'event_key' => $event_key,
-                                'user_email' => $user_email
-                            ));
-                            // Ensure email is saved directly to database
-                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
-                            return true;
-                        }
-                    }
-                    
-                    // Method 2: Try direct event tracking
-                    if (function_exists('fluentCrmTrackEvent')) {
-                        $result = fluentCrmTrackEvent([
-                            'event_key' => $event_key,
-                            'title' => $unique_title,
-                            'email' => $user_email,
-                            'value' => $event_value,
-                            'provider' => 'academy_practice_hub'
-                        ]);
-                        
-                        if ($result) {
-                            $this->logger->info('FluentCRM Event triggered successfully via fluentCrmTrackEvent', array(
-                                'event_key' => $event_key,
-                                'user_email' => $user_email
-                            ));
-                            // Ensure email is saved directly to database
-                            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
-                            return true;
-                        }
-                    }
-                    
-                } catch (Exception $e) {
-                    $this->logger->error('FluentCRM API error', array('error' => $e->getMessage()));
-                }
-            }
-            
-            // Fallback: Use WordPress action hook
-            do_action('fluent_crm/track_event_activity', [
-                'event_key' => $event_key,
-                'title' => $unique_title,
-                'email' => $user_email,
-                'value' => $event_value,
-                'provider' => 'academy_practice_hub'
-            ], true);
-            
-            // Ensure email is saved directly to database
-            $this->ensure_event_email_saved($event_key, $unique_title, $event_value, $user_email);
-            
-            $this->logger->info('FluentCRM Event triggered via fallback action hook', array(
-                'event_key' => $event_key,
-                'user_email' => $user_email
-            ));
-            return true;
-            
-        } catch (Exception $e) {
-            $this->logger->error('FluentCRM Event error', array('error' => $e->getMessage()));
-            return false;
-        }
-    }
-    
-    /**
-     * Ensure event email is saved directly to fc_event_tracking table
-     * This ensures the email is always visible in the event logs
-     */
-    private function ensure_event_email_saved($event_key, $title, $value, $email) {
-        global $wpdb;
-        
-        try {
-            $table_name = $wpdb->prefix . 'fc_event_tracking';
-            
-            // Check if table exists
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_name}'");
-            if (!$table_exists) {
-                $this->logger->debug('FluentCRM event tracking table does not exist', array('table' => $table_name));
-                return false;
-            }
-            
-            // Check if event was already inserted (within last 5 seconds to avoid duplicates)
-            $recent_event = $wpdb->get_row($wpdb->prepare(
-                "SELECT id, email FROM {$table_name} 
-                WHERE event_key = %s 
-                AND title = %s 
-                AND created_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)
-                ORDER BY id DESC LIMIT 1",
-                $event_key,
-                $title
-            ));
-            
-            if ($recent_event) {
-                // Update email if it's missing or different
-                if (empty($recent_event->email) || $recent_event->email !== $email) {
-                    $wpdb->update(
-                        $table_name,
-                        array('email' => $email),
-                        array('id' => $recent_event->id),
-                        array('%s'),
-                        array('%d')
-                    );
-                    $this->logger->debug('Updated event email in database', array(
-                        'event_id' => $recent_event->id,
-                        'email' => $email
-                    ));
-                }
-            } else {
-                // Insert new event directly if it doesn't exist
-                $wpdb->insert(
-                    $table_name,
-                    array(
-                        'event_key' => $event_key,
-                        'title' => $title,
-                        'value' => $value,
-                        'email' => $email,
-                        'provider' => 'academy_practice_hub',
-                        'created_at' => current_time('mysql')
-                    ),
-                    array('%s', '%s', '%s', '%s', '%s', '%s')
-                );
-                $this->logger->debug('Inserted event directly into database', array(
-                    'event_key' => $event_key,
-                    'email' => $email
-                ));
-            }
-            
-            return true;
-        } catch (Exception $e) {
-            $this->logger->error('Error ensuring event email saved', array('error' => $e->getMessage()));
-            return false;
-        }
     }
     
     /**

@@ -896,6 +896,7 @@ class JPH_REST_API {
                 'fluentcrm_enabled' => intval($params['fluentcrm_enabled'] ?? 0),
                 'fluentcrm_event_key' => sanitize_text_field($params['fluentcrm_event_key'] ?? ''),
                 'fluentcrm_event_title' => sanitize_text_field($params['fluentcrm_event_title'] ?? ''),
+                'sje_tag_id' => intval($params['sje_tag_id'] ?? 0),
                 'created_at' => current_time('mysql')
             )
         );
@@ -945,6 +946,7 @@ class JPH_REST_API {
         if (isset($params['is_active'])) $update_data['is_active'] = intval($params['is_active']);
         if (isset($params['display_order'])) $update_data['display_order'] = intval($params['display_order']);
         if (isset($params['image_url'])) $update_data['image_url'] = esc_url_raw($params['image_url']);
+        if (isset($params['sje_tag_id'])) $update_data['sje_tag_id'] = intval($params['sje_tag_id']);
         
         $update_data['updated_at'] = current_time('mysql');
         
@@ -1242,6 +1244,9 @@ class JPH_REST_API {
             }
             if (isset($body['fluentcrm_event_title'])) {
                 $badge_data['fluentcrm_event_title'] = sanitize_text_field($body['fluentcrm_event_title']);
+            }
+            if (isset($body['sje_tag_id'])) {
+                $badge_data['sje_tag_id'] = intval($body['sje_tag_id']);
             }
             
             // Update the badge
