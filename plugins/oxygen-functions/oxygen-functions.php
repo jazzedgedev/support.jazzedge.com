@@ -1154,17 +1154,6 @@ function je_get_keap_data($customer_email) {
         'login_count' => 0
     ];
 
-    // Get Keap ID from FluentCRM
-    if (function_exists('FluentCrmApi')) {
-        $contactApi = FluentCrmApi('contacts');
-        $crm_contact = $contactApi->getContact($customer_email);
-        
-        if (!empty($crm_contact)) {
-            $customData = $crm_contact->custom_fields();
-            $data['keap_id'] = isset($customData['keap_id']) ? (int)$customData['keap_id'] : 0;
-        }
-    }
-
     // Connect to Keap if available
     include_once(ABSPATH . 'keap_isdk/infusion_connect.php');
     
@@ -1610,46 +1599,6 @@ function je_build_membership_access_links($tag_ids_array, $keap_id, $email, $aca
     }
 
     return implode("\n", $access_items);
-}
-
-/***************** FLUENT FUNCTIONS ****************/
-
-// Update FluentCRM membership level on login
-add_action('wp_login', 'update_fluent_crm_membership_level', 99, 2);
-function update_fluent_crm_membership_level($user_login, $user) {
-    $memb_data = ja_return_user_membership_data() ?? null;
-    $user_membership_name = $memb_data['membership_name'] ?? null;
-    $keap_id = $memb_data['keap_id'] ?? null;
-    $contactApi = FluentCrmApi('contacts');
-    $data = [
-        'email' => $user_login,
-        'custom_values' => [
-            'academy_membership_level' => $user_membership_name,
-            'keap_id' => $keap_id,
-        ]
-    ];
-    $contactApi->createOrUpdate($data);
-}
-
-// Update FluentCRM custom field
-function fluent_update_custom_field($custom_field, $custom_value) {
-    $current_user = wp_get_current_user();
-    $username = $current_user->user_login;
-    $user_email = $current_user->user_email;
-    $user_id = $current_user->ID;
-
-    if ($user_id <= 0) {
-        return;
-    }
-
-    $contactApi = FluentCrmApi('contacts');
-    $data = [
-        'email' => $username,
-        'custom_values' => [
-            $custom_field => $custom_value,
-        ]
-    ];
-    $contactApi->createOrUpdate($data);
 }
 
 // Return permalink
@@ -7182,45 +7131,6 @@ function render_membership_checker_page() {
     <?php
 }
 
-// Remove from unchosen lists + add chosen (only for lists this form manages)
-
-add_action('fluentform/submission_inserted', function($entryId, $formData, $form){
-    if ((int)$form->id !== 42 || !function_exists('FluentCrmApi')) return;
-
-    $email      = $formData['email'] ?? '';
-    $first_name = $formData['names']['first_name'] ?? '';
-    $last_name  = $formData['names']['last_name'] ?? '';
-    if (!$email) return;
-
-    $contact = FluentCrmApi('contacts')->createOrUpdate([
-        'email'                => $email,
-        'first_name'           => $first_name,
-        'last_name'            => $last_name,
-        'current_piano_status' => $formData['current_piano_status'] ?? '',
-        'motivation'           => $formData['motivation'] ?? '',
-        'time_commitment'      => $formData['time_commitment'] ?? '',
-        'obstacles'            => $formData['obstacles'] ?? ''
-    ]);
-    if (!$contact) return;
-
-    // Lists controlled by this form (FluentCRM list IDs)
-    $managed  = [2,3,24,23,5];
-
-    // Selected lists from checkboxes
-    $selected = array_values(array_intersect(
-        array_map('intval', (array)($formData['email_list'] ?? [])),
-        $managed
-    ));
-
-    // Remove from unselected managed lists
-    $toDetach = array_values(array_diff($managed, $selected));
-    if ($toDetach) $contact->detachLists($toDetach);
-
-    // Add to selected managed lists
-    if ($selected) $contact->attachLists($selected);
-
-}, 20, 3);
-
 /* Helpers */
 function je_dt_local($v){ if(!$v) return null; if(is_numeric($v)){$d=new DateTime('@'.intval($v));$d->setTimezone(wp_timezone());return $d;} try{ return new DateTime($v, wp_timezone()); }catch(Exception){ return null; } }
 function je_dt_utc(DateTime $d){ $u=clone $d; return $u->setTimezone(new DateTimeZone('UTC')); }
@@ -8294,37 +8204,6 @@ add_action('admin_init', function() {
     
     echo '<pre>';
     echo "Testing Family System for: $test_email\n\n";
-    
-    // Test directly with FluentCRM
-    if (class_exists('FluentCrm\App\Models\Subscriber')) {
-        $subscriber = \FluentCrm\App\Models\Subscriber::where('email', $test_email)->first();
-        
-        if ($subscriber) {
-            echo "✓ Subscriber found\n";
-            echo "Subscriber ID: " . $subscriber->id . "\n";
-            
-            // Get all custom fields
-            $custom_fields = $subscriber->custom_fields();
-            echo "\nAll Custom Fields:\n";
-            print_r($custom_fields);
-            
-            // Check child_accounts specifically
-            if (isset($custom_fields['child_accounts'])) {
-                echo "\n✓ child_accounts field found: " . $custom_fields['child_accounts'] . "\n";
-            } else {
-                echo "\n✗ child_accounts field NOT found\n";
-            }
-            
-            // Get tags
-            $tags = $subscriber->tags()->pluck('slug')->toArray();
-            echo "\nTags: " . implode(', ', $tags) . "\n";
-            
-        } else {
-            echo "✗ No subscriber found for email: $test_email\n";
-        }
-    } else {
-        echo "✗ FluentCRM not available\n";
-    }
     
     // Test with new email-based family system
     if (function_exists('test_family_by_email')) {
