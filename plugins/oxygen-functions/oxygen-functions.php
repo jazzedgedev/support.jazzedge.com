@@ -34,7 +34,13 @@ if ( ! wp_doing_cron() && is_admin() ) {
         ];
         foreach ( $blocked_hosts as $host ) {
             if ( str_contains( $url, $host ) ) {
-                return new WP_Error( 'blocked_on_page_load', 'Deferred to wp-cron' );
+                return array(
+                    'headers'  => array(),
+                    'body'     => '',
+                    'response' => array( 'code' => 200, 'message' => 'OK' ),
+                    'cookies'  => array(),
+                    'filename' => null,
+                );
             }
         }
         return $pre;
