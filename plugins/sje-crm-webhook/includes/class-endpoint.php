@@ -44,24 +44,45 @@ class SJE_CRM_Webhook_Endpoint {
 	 */
 	public function handle_request( $request ) {
 		try {
-			// 1. Get JSON body
-			$body = $request->get_body();
-			if ( empty( $body ) ) {
+			// 1. Try JSON body first
+			$body    = $request->get_body();
+			$payload = array();
+
+			if ( ! empty( $body ) ) {
+				$payload = json_decode( $body, true );
+				if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $payload ) ) {
+					return new WP_REST_Response(
+						array( 'success' => false, 'message' => 'Invalid JSON.' ),
+						400
+					);
+				}
+			}
+
+			// 2. Fall back to query params if body is empty (e.g. Keap HTTP Actions)
+			if ( empty( $payload ) ) {
+				$params = $request->get_query_params();
+				if ( ! empty( $params ) ) {
+					$payload = $params;
+
+					// Normalize add_tags / remove_tags from comma-separated string to array
+					foreach ( array( 'add_tags', 'remove_tags', 'add_lists', 'remove_lists' ) as $key ) {
+						if ( isset( $payload[ $key ] ) && is_string( $payload[ $key ] ) ) {
+							$payload[ $key ] = array_filter(
+								array_map( 'intval', explode( ',', $payload[ $key ] ) )
+							);
+						}
+					}
+				}
+			}
+
+			if ( empty( $payload ) ) {
 				return new WP_REST_Response(
-					array( 'success' => false, 'message' => 'Empty request body.' ),
+					array( 'success' => false, 'message' => 'Empty request — send JSON body or query parameters.' ),
 					400
 				);
 			}
 
-			$payload = json_decode( $body, true );
-			if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $payload ) ) {
-				return new WP_REST_Response(
-					array( 'success' => false, 'message' => 'Invalid JSON.' ),
-					400
-				);
-			}
-
-			// 2. Validate api_key
+			// 3. Validate api_key
 			$stored_key = get_option( 'sje_crm_api_key', '' );
 			$sent_key   = isset( $payload['api_key'] ) ? $payload['api_key'] : '';
 
@@ -78,7 +99,7 @@ class SJE_CRM_Webhook_Endpoint {
 				);
 			}
 
-			// 3. Validate email
+			// 4. Validate email
 			$email = isset( $payload['email'] ) ? trim( $payload['email'] ) : '';
 			if ( empty( $email ) || ! is_email( $email ) ) {
 				return new WP_REST_Response(
@@ -87,7 +108,7 @@ class SJE_CRM_Webhook_Endpoint {
 				);
 			}
 
-			// 4. Extract fields
+			// 5. Extract fields
 			$first_name    = isset( $payload['first_name'] ) ? sanitize_text_field( $payload['first_name'] ) : null;
 			$last_name     = isset( $payload['last_name'] ) ? sanitize_text_field( $payload['last_name'] ) : null;
 			$status        = isset( $payload['status'] ) ? sanitize_text_field( $payload['status'] ) : null;
@@ -97,7 +118,7 @@ class SJE_CRM_Webhook_Endpoint {
 			$remove_lists  = isset( $payload['remove_lists'] ) && is_array( $payload['remove_lists'] ) ? array_map( 'intval', $payload['remove_lists'] ) : array();
 			$custom_fields = isset( $payload['custom_fields'] ) && is_array( $payload['custom_fields'] ) ? $payload['custom_fields'] : null;
 
-			// 5. Build contact data
+			// 6. Build contact data
 			$contact_data = array( 'email' => $email );
 
 			if ( $first_name !== null && $first_name !== '' ) {
@@ -113,7 +134,7 @@ class SJE_CRM_Webhook_Endpoint {
 				$contact_data['custom_values'] = $custom_fields;
 			}
 
-			// 6. Call FluentCRM
+			// 7. Call FluentCRM
 			if ( ! function_exists( 'FluentCrmApi' ) ) {
 				SJE_CRM_Webhook_Logger::log( array(
 					'email'     => $email,
@@ -156,7 +177,7 @@ class SJE_CRM_Webhook_Endpoint {
 				$contact->detachLists( $remove_lists );
 			}
 
-			// 7. Log success
+			// 8. Log success
 			SJE_CRM_Webhook_Logger::log( array(
 				'email'     => $email,
 				'payload'   => $payload,
@@ -164,7 +185,7 @@ class SJE_CRM_Webhook_Endpoint {
 				'message'   => 'Contact updated',
 			) );
 
-			// 8. Return success
+			// 9. Return success
 			return new WP_REST_Response(
 				array( 'success' => true, 'message' => 'Contact updated.' ),
 				200
