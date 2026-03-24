@@ -4433,12 +4433,12 @@ Remember: Plain text only, no formatting.');
     public function settings_page() {
         // Handle form submission
         if (isset($_POST['jph_settings_submit']) && wp_verify_nonce($_POST['jph_settings_nonce'], 'jph_settings')) {
-            $practice_hub_page_id = intval($_POST['jph_practice_hub_page_id']);
-            $ai_quota_limit = intval($_POST['jph_ai_quota_limit']);
-            
-            update_option('jph_practice_hub_page_id', $practice_hub_page_id);
-            update_option('jph_ai_quota_limit', $ai_quota_limit);
-            
+            if (isset($_POST['jph_practice_hub_page_id'])) {
+                update_option('jph_practice_hub_page_id', intval($_POST['jph_practice_hub_page_id']));
+            }
+            if (isset($_POST['jph_ai_quota_limit'])) {
+                update_option('jph_ai_quota_limit', intval($_POST['jph_ai_quota_limit']));
+            }
             echo '<div class="notice notice-success"><p>Settings saved successfully!</p></div>';
         }
         
@@ -4471,7 +4471,18 @@ Remember: Plain text only, no formatting.');
         <div class="wrap">
             <h1>⚙️ Practice Hub Settings</h1>
             
-            <div class="jph-settings-sections">
+            <div class="jph-settings-tabs">
+                <nav class="jph-tab-nav">
+                    <button type="button" class="jph-tab-btn active" data-tab="general">⚙️ General</button>
+                    <button type="button" class="jph-tab-btn" data-tab="reminders">🔔 Reminders</button>
+                    <button type="button" class="jph-tab-btn" data-tab="ai">🤖 AI Quota</button>
+                    <button type="button" class="jph-tab-btn" data-tab="backup">💾 Backup</button>
+                    <button type="button" class="jph-tab-btn" data-tab="testing">🧪 Testing</button>
+                </nav>
+
+                <div class="jph-settings-sections">
+                <!-- TAB: general -->
+                <div class="jph-tab-pane active" data-pane="general">
                 <!-- Practice Hub Page Settings -->
                 <div class="jph-settings-section jph-page-settings">
                     <h2>🎯 Practice Hub Page Settings</h2>
@@ -4513,8 +4524,11 @@ Remember: Plain text only, no formatting.');
                     </form>
                 </div>
                 
-                <!-- Practice Reminder Settings -->
-                <div class="jph-settings-section jph-reminder-settings">
+                </div><!-- /jph-tab-pane general -->
+
+                <!-- TAB: reminders -->
+                <div class="jph-tab-pane" data-pane="reminders">
+                    <div class="jph-settings-section jph-reminder-settings">
                     <h2>🔔 Practice Reminder Settings</h2>
                     <p>Configure FluentCRM integration for practice reminders.</p>
                     
@@ -4899,8 +4913,11 @@ Remember: Plain text only, no formatting.');
                     </div>
                 </div>
                 
-                <!-- AI Quota Settings -->
-                <div class="jph-settings-section jph-ai-settings">
+                </div><!-- /jph-tab-pane reminders -->
+
+                <!-- TAB: ai -->
+                <div class="jph-tab-pane" data-pane="ai">
+                    <div class="jph-settings-section jph-ai-settings">
                     <h2>🤖 AI Analysis Quota Settings</h2>
                     <p>Configure the quota limit for AI analysis requests in Katahdin AI Hub.</p>
                     
@@ -5047,8 +5064,11 @@ Remember: Plain text only, no formatting.');
                 })(jQuery); // End IIFE
                 </script>
                 
-                <!-- Complete Plugin Backup & Restore Section -->
-                <div class="jph-settings-section jph-backup-section">
+                </div><!-- /jph-tab-pane ai -->
+
+                <!-- TAB: backup -->
+                <div class="jph-tab-pane" data-pane="backup">
+                    <div class="jph-settings-section jph-backup-section">
                     <h2>💾 Complete Plugin Backup & Restore</h2>
                     <p><strong>SAFETY TOOL:</strong> Export complete plugin data (user data + admin settings + configuration) for backup before making changes.</p>
                     
@@ -5116,8 +5136,11 @@ Remember: Plain text only, no formatting.');
                     <div id="backup-results" class="backup-results"></div>
                 </div>
                 
-                <!-- Test Data Generation Section -->
-                <div class="jph-settings-section jph-test-section">
+                </div><!-- /jph-tab-pane backup -->
+
+                <!-- TAB: testing -->
+                <div class="jph-tab-pane" data-pane="testing">
+                    <div class="jph-settings-section jph-test-section">
                     <h2>🧪 Test Data Generation</h2>
                     <p><strong>TESTING TOOL:</strong> Generate realistic test data for leaderboard testing.</p>
                     
@@ -5173,17 +5196,59 @@ Remember: Plain text only, no formatting.');
                             <!-- Table sections will be loaded here -->
                         </div>
                     </div>
-                </div>
-            </div>
+                </div><!-- /jph-settings-section danger -->
+        </div><!-- /jph-tab-pane testing -->
+    </div><!-- /jph-settings-sections -->
+</div><!-- /jph-settings-tabs -->
         </div>
         
         <style>
+        /* Tab Navigation */
+        .jph-settings-tabs { max-width: 960px; margin: 20px 0; }
+
+        .jph-tab-nav {
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid #e1e1e1;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .jph-tab-btn {
+            background: #f6f7f7;
+            border: 1px solid #e1e1e1;
+            border-bottom: none;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px 6px 0 0;
+            color: #555;
+            transition: all 0.2s ease;
+            position: relative;
+            bottom: -2px;
+        }
+
+        .jph-tab-btn:hover { background: #fff; color: #0073aa; }
+
+        .jph-tab-btn.active {
+            background: #fff;
+            border-color: #e1e1e1;
+            border-bottom-color: #fff;
+            color: #0073aa;
+            font-weight: 600;
+        }
+
+        /* Tab Panes */
+        .jph-tab-pane { display: none; }
+        .jph-tab-pane.active { display: block; }
+
         .jph-settings-sections {
             display: grid;
             grid-template-columns: 1fr;
             gap: 25px;
             margin: 25px 0;
-            max-width: 900px;
+            max-width: 960px;
         }
         
         .jph-settings-section {
@@ -5533,6 +5598,29 @@ Remember: Plain text only, no formatting.');
             color: #6c757d;
         }
         </style>
+        <script>
+        (function() {
+            var STORAGE_KEY = 'jph_settings_active_tab';
+            var btns = document.querySelectorAll('.jph-tab-btn');
+            var panes = document.querySelectorAll('.jph-tab-pane');
+
+            function activateTab(tab) {
+                btns.forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
+                panes.forEach(function(p) { p.classList.toggle('active', p.dataset.pane === tab); });
+                localStorage.setItem(STORAGE_KEY, tab);
+            }
+
+            btns.forEach(function(btn) {
+                btn.addEventListener('click', function() { activateTab(this.dataset.tab); });
+            });
+
+            // Restore saved tab on page load (preserves active tab after form save)
+            var saved = localStorage.getItem(STORAGE_KEY);
+            if (saved && document.querySelector('[data-pane="' + saved + '"]')) {
+                activateTab(saved);
+            }
+        })();
+        </script>
         
         <script>
         function exportUserData() {
@@ -7610,19 +7698,22 @@ Remember: Plain text only, no formatting.');
                         nonce: '<?php echo wp_create_nonce('ai_cleanup_feedback'); ?>'
                     },
                     success: function(response) {
-                        if (response.success && response.data.cleaned_text) {
+                        console.log('AI Cleanup response:', response);
+                        if (response.success && response.data && typeof response.data.cleaned_text === 'string') {
                             textarea.val(response.data.cleaned_text);
-                            statusSpan.text('✓ Cleaned up!').css('color', '#28a745');
                         } else {
-                            statusSpan.text('✗ Error: ' + (response.data || 'Unknown error')).css('color', '#d63384');
+                            var errMsg = (response.data && typeof response.data === 'string') ? response.data : JSON.stringify(response.data);
+                            statusSpan.text('Error: ' + errMsg).css('color', '#d63384');
+                            console.error('AI Cleanup failed:', errMsg);
                         }
                     },
-                    error: function() {
-                        statusSpan.text('✗ Network error').css('color', '#d63384');
+                    error: function(xhr, status, error) {
+                        console.error('AI Cleanup AJAX error:', status, error, xhr.responseText);
+                        statusSpan.text('Network error — check console').css('color', '#d63384');
                     },
                     complete: function() {
                         button.removeClass('loading').prop('disabled', false);
-                        setTimeout(() => statusSpan.text(''), 5000);
+                        setTimeout(() => statusSpan.text(''), 8000);
                     }
                 });
             });

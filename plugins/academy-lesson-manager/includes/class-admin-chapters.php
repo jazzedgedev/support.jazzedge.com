@@ -652,7 +652,11 @@ class ALM_Admin_Chapters {
         echo '<td>';
         if (!empty($chapter->mp3_file_url)) {
             $mp3_url = wp_get_upload_dir()['baseurl'] . '/alm_mp3s/' . basename($chapter->mp3_file_url);
-            echo '<p><strong>' . __('Current MP3:', 'academy-lesson-manager') . '</strong> <a href="' . esc_url($mp3_url) . '" target="_blank">' . esc_html(basename($chapter->mp3_file_url)) . '</a></p>';
+            echo '<p><strong>' . __('Current MP3:', 'academy-lesson-manager') . '</strong> ';
+            echo '<a href="' . esc_url($mp3_url) . '" target="_blank">' . esc_html(basename($chapter->mp3_file_url)) . '</a>';
+            echo ' &nbsp;<button type="button" id="alm-remove-mp3" class="button button-small" data-chapter-id="' . esc_attr($chapter->ID) . '" style="color:#dc3232; border-color:#dc3232; vertical-align:middle;">✖ Remove MP3</button>';
+            echo '<span id="alm-remove-mp3-status" style="margin-left:8px;"></span>';
+            echo '</p>';
         }
         echo '<input type="file" id="mp3_file" name="mp3_file" accept="audio/mpeg,audio/mp3" />';
         echo '<p class="description">' . __('Upload an MP3 file (max 25MB) for transcription. Leave empty to keep existing file.', 'academy-lesson-manager') . '</p>';
@@ -713,12 +717,51 @@ class ALM_Admin_Chapters {
         echo '<td>' . ALM_Helpers::format_date($chapter->updated_at) . '</td>';
         echo '</tr>';
         
+        $upload_dir_info = wp_upload_dir();
+        $log_file_path   = $upload_dir_info['basedir'] . '/alm_logs/transcription_' . $chapter->ID . '.log';
+        $completion_line = '';
+        if (file_exists($log_file_path)) {
+            $log_lines = file($log_file_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (is_array($log_lines)) {
+                foreach (array_reverse($log_lines) as $line) {
+                    if (strpos($line, '[COMPLETED]') !== false) {
+                        $completion_line = $line;
+                        break;
+                    }
+                }
+            }
+        }
+        $comp_date = '';
+        $comp_id   = '';
+        if ($completion_line !== '') {
+            preg_match('/^\[([^\]]+)\]/', $completion_line, $date_match);
+            preg_match('/AssemblyAI ID:\s*([a-f0-9\-]+)/i', $completion_line, $id_match);
+            $comp_date = isset($date_match[1]) ? $date_match[1] : '';
+            $comp_id   = isset($id_match[1]) ? $id_match[1] : '';
+        }
+
         echo '<tr>';
         echo '<th scope="row"><label for="transcript_file">' . __('Transcript File Name', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         echo '<input type="text" id="transcript_file" name="transcript_file" value="' . esc_attr($transcript_file ? $transcript_file : '') . '" class="regular-text" />';
         echo ' <button type="button" id="alm-sync-vtt-file" class="button" data-chapter-id="' . esc_attr($chapter->ID) . '" data-lesson-id="' . esc_attr($chapter->lesson_id) . '">' . __('Find VTT File', 'academy-lesson-manager') . '</button>';
+        if (!empty($transcript_file)) {
+            $edit_chapter_id = (int) $chapter->ID;
+            $edit_nonce      = wp_create_nonce('alm_admin_nonce');
+            echo ' <button type="button" id="alm-edit-transcript-btn" class="button button-secondary"'
+                . ' data-chapter-id="' . intval($edit_chapter_id) . '"'
+                . ' data-nonce="' . esc_attr($edit_nonce) . '"'
+                . ' style="margin-left:8px;">✏️ ' . esc_html__('Edit Transcript', 'academy-lesson-manager') . '</button>';
+        }
         echo '<span id="alm-sync-vtt-status" style="margin-left: 10px;"></span>';
+        if ($completion_line !== '') {
+            echo '<div style="margin-top:8px; padding:8px 12px; background:#f0f7f0; border-left:3px solid #46b450; border-radius:3px; font-size:12px; color:#333;">';
+            echo '✅ <strong>' . esc_html__('Last transcribed:', 'academy-lesson-manager') . '</strong> ' . esc_html($comp_date);
+            if ($comp_id !== '') {
+                echo ' &nbsp;·&nbsp; <strong>' . esc_html__('AssemblyAI ID:', 'academy-lesson-manager') . '</strong> <code style="font-size:11px;">' . esc_html($comp_id) . '</code>';
+            }
+            echo '</div>';
+        }
         echo '<p class="description">' . __('VTT transcript file name (stored in wp-content/uploads/alm_transcriptions/). Click "Find VTT File" to automatically detect and sync the file.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
@@ -734,14 +777,57 @@ class ALM_Admin_Chapters {
             echo '<button type="button" id="alm-transcribe-chapter" class="button button-primary" data-chapter-id="' . esc_attr($chapter->ID) . '">';
             echo $has_transcript ? __('Re-transcribe Chapter', 'academy-lesson-manager') : __('Transcribe Chapter', 'academy-lesson-manager');
             echo '</button> ';
+            if (!empty($chapter->assemblyai_transcript_id)) {
+                echo '<button type="button" id="alm-fetch-transcript-now" class="button button-secondary" data-chapter-id="' . esc_attr((int) $chapter->ID) . '" data-nonce="' . esc_attr(wp_create_nonce('alm_admin_nonce')) . '" style="margin-left:8px;">';
+                echo esc_html__('⬇ Fetch Completed Transcript', 'academy-lesson-manager');
+                echo '</button> ';
+            }
             echo '<span id="alm-transcribe-status" style="margin-left: 10px; min-height: 20px; display: inline-block;"></span>';
-            echo '<div id="alm-transcribe-progress" style="display: none; margin-top: 10px;">';
+            echo '<div id="alm-transcribe-progress"';
+            if (!empty($chapter->assemblyai_transcript_id)) {
+                echo ' data-resume-chapter="' . intval($chapter->ID) . '"';
+            }
+            echo ' style="display: none; margin-top: 10px;">';
             echo '<div style="background: #f0f0f1; border-radius: 3px; padding: 10px;">';
             echo '<div id="alm-transcribe-message" style="margin-bottom: 5px;"></div>';
             echo '<div style="background: #fff; border-radius: 2px; height: 20px; overflow: hidden;">';
             echo '<div id="alm-transcribe-progress-bar" style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s;"></div>';
             echo '</div>';
             echo '</div>';
+            echo '</div>';
+
+            echo '<div id="alm-audit-log-container" style="display:none; margin-top:10px;">';
+            echo '<strong style="font-size:12px;">📋 Transcription Log:</strong>';
+            echo '<div id="alm-audit-log-output" style="margin-top:6px; padding:10px; background:#f8f8f8; border:1px solid #ddd; border-radius:4px; max-height:300px; overflow-y:auto; font-family:monospace; font-size:11px; white-space:pre-wrap;"></div>';
+            echo '</div>';
+            echo '<div id="alm-manual-fetch-wrap" style="margin-top:10px;">';
+            echo '<input type="text" id="alm-manual-transcript-id" placeholder="' . esc_attr__('Paste AssemblyAI Transcript ID to force-fetch…', 'academy-lesson-manager') . '" style="width:380px; font-family:monospace; font-size:12px;" /> ';
+            echo '<button type="button" id="alm-manual-fetch-btn" class="button" data-chapter-id="' . esc_attr((int) $chapter->ID) . '" data-nonce="' . esc_attr(wp_create_nonce('alm_admin_nonce')) . '" style="margin-left:6px;">';
+            echo esc_html__('Force Fetch', 'academy-lesson-manager');
+            echo '</button>';
+            echo '</div>';
+        } elseif (!empty($chapter->assemblyai_transcript_id)) {
+            echo '<p class="description">' . esc_html__('An AssemblyAI transcription is still in progress (no MP3 on file). You can fetch the result or wait for polling.', 'academy-lesson-manager') . '</p> ';
+            echo '<button type="button" id="alm-transcribe-chapter" class="button" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;" aria-hidden="true" tabindex="-1" data-chapter-id="' . esc_attr((int) $chapter->ID) . '"></button>';
+            echo '<button type="button" id="alm-fetch-transcript-now" class="button button-secondary" data-chapter-id="' . esc_attr((int) $chapter->ID) . '" data-nonce="' . esc_attr(wp_create_nonce('alm_admin_nonce')) . '">';
+            echo esc_html__('⬇ Fetch Completed Transcript', 'academy-lesson-manager');
+            echo '</button> ';
+            echo '<span id="alm-transcribe-status" style="margin-left: 10px; min-height: 20px; display: inline-block;"></span>';
+            echo '<div id="alm-transcribe-progress" data-resume-chapter="' . intval($chapter->ID) . '" style="display: none; margin-top: 10px;">';
+            echo '<div style="background: #f0f0f1; border-radius: 3px; padding: 10px;">';
+            echo '<div id="alm-transcribe-message" style="margin-bottom: 5px;"></div>';
+            echo '<div style="background: #fff; border-radius: 2px; height: 20px; overflow: hidden;">';
+            echo '<div id="alm-transcribe-progress-bar" style="background: #2271b1; height: 100%; width: 0%; transition: width 0.3s;"></div>';
+            echo '</div></div></div>';
+            echo '<div id="alm-audit-log-container" style="display:none; margin-top:10px;">';
+            echo '<strong style="font-size:12px;">📋 Transcription Log:</strong>';
+            echo '<div id="alm-audit-log-output" style="margin-top:6px; padding:10px; background:#f8f8f8; border:1px solid #ddd; border-radius:4px; max-height:300px; overflow-y:auto; font-family:monospace; font-size:11px; white-space:pre-wrap;"></div>';
+            echo '</div>';
+            echo '<div id="alm-manual-fetch-wrap" style="margin-top:10px;">';
+            echo '<input type="text" id="alm-manual-transcript-id" placeholder="' . esc_attr__('Paste AssemblyAI Transcript ID to force-fetch…', 'academy-lesson-manager') . '" style="width:380px; font-family:monospace; font-size:12px;" /> ';
+            echo '<button type="button" id="alm-manual-fetch-btn" class="button" data-chapter-id="' . esc_attr((int) $chapter->ID) . '" data-nonce="' . esc_attr(wp_create_nonce('alm_admin_nonce')) . '" style="margin-left:6px;">';
+            echo esc_html__('Force Fetch', 'academy-lesson-manager');
+            echo '</button>';
             echo '</div>';
         } else {
             echo '<p class="description" style="color: #dc3232;">' . __('Upload an MP3 file above to enable transcription.', 'academy-lesson-manager') . '</p>';
@@ -758,6 +844,24 @@ class ALM_Admin_Chapters {
         echo '<input type="submit" class="button-primary" value="' . __('Update Chapter', 'academy-lesson-manager') . '" />';
         echo '</p>';
         echo '</form>';
+
+        echo '<div id="alm-transcript-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000;">';
+        echo '<div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; width:80%; max-width:900px; max-height:85vh; border-radius:6px; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.3); overflow:hidden;">';
+        echo '<div style="padding:16px 20px; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">';
+        echo '<h2 style="margin:0; font-size:16px;">' . esc_html__('Edit Transcript (VTT)', 'academy-lesson-manager') . '</h2>';
+        echo '<button type="button" id="alm-transcript-modal-close" class="button">&times; ' . esc_html__('Close', 'academy-lesson-manager') . '</button>';
+        echo '</div>';
+        echo '<div style="padding:16px 20px; flex:1; overflow:hidden; display:flex; flex-direction:column;">';
+        echo '<p style="margin:0 0 8px; font-size:12px; color:#666;">';
+        echo esc_html__('Edit the raw VTT content below. Timestamps format:', 'academy-lesson-manager');
+        echo ' <code>00:00:00.000 --> 00:00:04.000</code></p>';
+        echo '<textarea id="alm-transcript-content" style="flex:1; width:100%; min-height:500px; font-family:monospace; font-size:12px; line-height:1.6; border:1px solid #ddd; border-radius:3px; padding:10px; resize:vertical;"></textarea>';
+        echo '</div>';
+        echo '<div style="padding:12px 20px; border-top:1px solid #ddd; display:flex; gap:10px; align-items:center;">';
+        echo '<button type="button" id="alm-transcript-save-btn" class="button button-primary">' . esc_html__('💾 Save Transcript', 'academy-lesson-manager') . '</button>';
+        echo '<span id="alm-transcript-save-result" style="font-weight:bold;"></span>';
+        echo '</div></div></div>';
+
         echo '</div>';
         
         // Warning if no video source

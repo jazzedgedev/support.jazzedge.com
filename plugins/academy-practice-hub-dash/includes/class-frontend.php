@@ -3290,9 +3290,27 @@ class JPH_Frontend {
                 <?php endif; ?>
             
             <?php
-            // Intensives section - visible to all students
-            $show_intensives = true;
-            
+            // Intensives section - visible to Premier members or users with the intensives Keap tag
+            $show_intensives = false;
+
+            // Check premier membership (level 3)
+            global $user_membership_level_num;
+            if (!empty($user_membership_level_num) && $user_membership_level_num == 3) {
+                $show_intensives = true;
+            }
+
+            // Check Keap tag 10306 (intensives access tag)
+            if (!$show_intensives && function_exists('memb_hasAnyTags')) {
+                if (memb_hasAnyTags(array(10306)) === true) {
+                    $show_intensives = true;
+                }
+            }
+
+            // Always show to admins
+            if (!$show_intensives && current_user_can('manage_options')) {
+                $show_intensives = true;
+            }
+
             if ($show_intensives && ($dashboard_prefs['intensives_section'] ?? true)) {
                 // Ensure $user_id is set as global for je_is_chapter_complete function
                 global $user_id;
@@ -3386,6 +3404,20 @@ class JPH_Frontend {
                             }
                         }
                         
+                        $main_payload = $build_chapter_payload($main);
+                        $practice_payloads = array_values(array_filter(array_map($build_chapter_payload, $practice)));
+
+                        // Compute all-complete for this intensive
+                        $all_complete = !empty($main_payload) && !empty($main_payload['completed']);
+                        if ($all_complete && !empty($practice_payloads)) {
+                            foreach ($practice_payloads as $pp) {
+                                if (empty($pp['completed'])) {
+                                    $all_complete = false;
+                                    break;
+                                }
+                            }
+                        }
+
                         $intensive_data[$intensive->ID] = array(
                             'title' => stripslashes($intensive->lesson_title),
                             'description' => wp_kses_post(wpautop($intensive->lesson_description)),
@@ -3393,8 +3425,9 @@ class JPH_Frontend {
                             'lesson_url' => $lesson_url,
                             'teacher_name' => $teacher_name,
                             'teacher_picture' => $teacher_picture_url,
-                            'main' => $build_chapter_payload($main),
-                            'practice' => array_values(array_filter(array_map($build_chapter_payload, $practice))),
+                            'main' => $main_payload,
+                            'practice' => $practice_payloads,
+                            'all_complete' => $all_complete,
                         );
                     }
                     
@@ -3588,14 +3621,28 @@ class JPH_Frontend {
                                 $main_release_date = date('D. M j', strtotime($current_intensive->post_date));
                                 }
                                 ?>
-                            <div class="intensives-main-row">
                                 <?php
                                 $main_is_completed = false;
                                 if (function_exists('je_is_chapter_complete')) {
                                     $main_is_completed = je_is_chapter_complete($main_chapter->ID);
                                 }
                                 $main_card_class = 'intensives-card' . ($main_is_completed ? ' completed' : '');
+
+                                // Check if ALL chapters in this intensive are complete (main + all practice)
+                                $all_chapters_complete = false;
+                                if (function_exists('je_is_chapter_complete')) {
+                                    $all_chapters_complete = $main_is_completed; // start with main
+                                    if ($all_chapters_complete && !empty($practice_chapters)) {
+                                        foreach ($practice_chapters as $pc) {
+                                            if (!je_is_chapter_complete($pc->ID)) {
+                                                $all_chapters_complete = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
                                 ?>
+                            <div class="intensives-main-row">
                                 <div class="<?php echo esc_attr($main_card_class); ?>">
                                     <div class="intensives-card-header">
                                         <span class="intensives-card-title">Main Lesson</span>
@@ -3617,18 +3664,18 @@ class JPH_Frontend {
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                                <?php if ($next_coaching_event): ?>
-                                    <div class="intensives-card intensives-coaching-card">
+                                <?php if ($all_chapters_complete): ?>
+                                    <div class="intensives-card intensives-congrats-card" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border: 2px solid #66bb6a;">
                                         <div class="intensives-card-header">
-                                            <span class="intensives-card-title">Intensives Coaching</span>
+                                            <span class="intensives-card-title" style="color: #2e7d32;">🎉 Congratulations!</span>
+                                            <span class="intensives-card-completed-icon" title="Completed">
+                                                <svg fill="none" stroke="#2e7d32" viewBox="0 0 24 24" width="20" height="20">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                            </span>
                                         </div>
-                                        <p class="intensives-card-name"><?php echo esc_html($next_coaching_title); ?></p>
-                                        <?php if ($next_coaching_date): ?>
-                                            <p class="intensives-card-release"><?php echo esc_html($next_coaching_date); ?></p>
-                                        <?php endif; ?>
-                                        <div class="intensives-card-actions">
-                                            <a href="<?php echo esc_url($next_coaching_url); ?>" class="intensives-link" target="_blank" rel="noopener noreferrer">View Event</a>
-                                        </div>
+                                        <p class="intensives-card-name" style="color: #2e7d32; font-weight: 600;">You've completed this lesson!</p>
+                                        <p style="font-size: 13px; color: #388e3c; margin: 4px 0 0 0;">All lessons and practice assignments are done. Great work!</p>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -3820,21 +3867,19 @@ class JPH_Frontend {
                         + '</div>';
                 }
                 
-                function buildCoachingCard(payload) {
-                    if (!payload.next_coaching_event) {
-                        return '';
+                function buildRightCard(payload) {
+                    if (payload.all_complete) {
+                        return ''
+                            + '<div class="intensives-card intensives-congrats-card" style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); border: 2px solid #66bb6a;">'
+                            +   '<div class="intensives-card-header">'
+                            +     '<span class="intensives-card-title" style="color: #2e7d32;">🎉 Congratulations!</span>'
+                            +     '<span class="intensives-card-completed-icon" title="Completed"><svg fill="none" stroke="#2e7d32" viewBox="0 0 24 24" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></span>'
+                            +   '</div>'
+                            +   '<p class="intensives-card-name" style="color: #2e7d32; font-weight: 600;">You\'ve completed this lesson!</p>'
+                            +   '<p style="font-size: 13px; color: #388e3c; margin: 4px 0 0 0;">All lessons and practice assignments are done. Great work!</p>'
+                            + '</div>';
                     }
-                    var dateHtml = payload.next_coaching_date ? '<p class="intensives-card-release">' + payload.next_coaching_date + '</p>' : '';
-                    var linkHtml = payload.next_coaching_url ? '<a href="' + payload.next_coaching_url + '" class="intensives-link" target="_blank" rel="noopener noreferrer">View Event</a>' : '';
-                    return ''
-                        + '<div class="intensives-card intensives-coaching-card">'
-                        +   '<div class="intensives-card-header">'
-                        +     '<span class="intensives-card-title">Intensives Coaching</span>'
-                        +   '</div>'
-                        +   '<p class="intensives-card-name">' + payload.next_coaching_title + '</p>'
-                        +   dateHtml
-                        +   '<div class="intensives-card-actions">' + linkHtml + '</div>'
-                        + '</div>';
+                    return '';
                 }
                 
                 function updateView() {
@@ -3873,7 +3918,7 @@ class JPH_Frontend {
                         var html = '';
                         html += '<div class="intensives-main-row">';
                         html += buildCard('Main Lesson', payload.main, false);
-                        html += buildCoachingCard(payload);
+                        html += buildRightCard(payload);
                         html += '</div>';
                         if (payload.practice && payload.practice.length) {
                             html += '<div class="intensives-practice-grid">';
@@ -4945,9 +4990,9 @@ class JPH_Frontend {
                                     
                                     // Use the current assignment as-is (don't override with "next" logic)
                                     // The assignment is already the correct next step from the backend
-                                    $focus_title = $current_assignment['focus_title'];
-                                    $focus_order = $current_assignment['focus_order'];
-                                    $key_name = $current_assignment['key_sig_name'];
+                                    $focus_title = $current_assignment['focus_title']  ?? '';
+                                    $focus_order = $current_assignment['focus_order']  ?? 0;
+                                    $key_name    = $current_assignment['key_sig_name'] ?? '';
                                     
                                     // Check if this focus is restricted for free members (anything above 1.10)
                                     $focus_restricted = false;
@@ -4957,14 +5002,14 @@ class JPH_Frontend {
                                     
                                     // Convert key names to proper musical symbols
                                     $key_name = str_replace(array('B flat', 'E flat', 'A flat', 'D flat', 'F sharp'), array('B♭', 'E♭', 'A♭', 'D♭', 'F♯'), $key_name);
-                                    $tempo = $current_assignment['tempo'];
-                                    $instructions = $current_assignment['instructions'];
-                                    $vimeo_id = $current_assignment['vimeo_id'];
-                                    $step_id = $current_assignment['step_id'];
-                                    $curriculum_id = $current_assignment['curriculum_id'];
-                                    $resource_pdf = $current_assignment['resource_pdf'];
-                                    $resource_ireal = $current_assignment['resource_ireal'];
-                                    $resource_mp3 = $current_assignment['resource_mp3'];
+                                    $tempo        = $current_assignment['tempo']          ?? '';
+                                    $instructions = $current_assignment['instructions']   ?? '';
+                                    $vimeo_id     = $current_assignment['vimeo_id']       ?? '';
+                                    $step_id      = $current_assignment['step_id']        ?? '';
+                                    $curriculum_id = $current_assignment['curriculum_id'] ?? '';
+                                    $resource_pdf  = $current_assignment['resource_pdf']  ?? '';
+                                    $resource_ireal = $current_assignment['resource_ireal'] ?? '';
+                                    $resource_mp3  = $current_assignment['resource_mp3']  ?? '';
                                     
                                     // Get progress for this curriculum
                                     $progress = JPH_JPC_Handler::get_user_progress($user_id, $curriculum_id);

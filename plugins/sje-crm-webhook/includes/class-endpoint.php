@@ -72,10 +72,34 @@ class SJE_CRM_Webhook_Endpoint {
 							);
 						}
 					}
+
+					// Map cf_* query params into custom_fields
+					$custom_fields = isset( $payload['custom_fields'] ) && is_array( $payload['custom_fields'] )
+						? $payload['custom_fields']
+						: array();
+					foreach ( $params as $key => $value ) {
+						if ( strpos( $key, 'cf_' ) === 0 ) {
+							$field_key = substr( $key, 3 );
+							$custom_fields[ $field_key ] = $value;
+							unset( $payload[ $key ] );
+						}
+					}
+					if ( ! empty( $custom_fields ) ) {
+						$payload['custom_fields'] = $custom_fields;
+					}
 				}
 			}
 
 			if ( empty( $payload ) ) {
+				SJE_CRM_Webhook_Logger::log( array(
+					'email'     => '',
+					'payload'   => array(
+						'_raw_body'      => $body,
+						'_query_params'  => $request->get_query_params(),
+					),
+					'status'    => 'error',
+					'message'   => 'Empty request — no body or query params received.',
+				) );
 				return new WP_REST_Response(
 					array( 'success' => false, 'message' => 'Empty request — send JSON body or query parameters.' ),
 					400
@@ -102,6 +126,12 @@ class SJE_CRM_Webhook_Endpoint {
 			// 4. Validate email
 			$email = isset( $payload['email'] ) ? trim( $payload['email'] ) : '';
 			if ( empty( $email ) || ! is_email( $email ) ) {
+				SJE_CRM_Webhook_Logger::log( array(
+					'email'     => $email,
+					'payload'   => $payload,
+					'status'    => 'error',
+					'message'   => 'Invalid or missing email. Received: ' . ( $email !== '' ? '"' . $email . '"' : '(empty)' ),
+				) );
 				return new WP_REST_Response(
 					array( 'success' => false, 'message' => 'Valid email is required.' ),
 					400

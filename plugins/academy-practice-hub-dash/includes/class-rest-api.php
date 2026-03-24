@@ -4980,6 +4980,21 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
                     'features' => array('chat', 'completions'),
                     'quota_limit' => $quota_limit
                 ));
+
+                // Auto-reset quota_used on the 1st of each month
+                $last_quota_reset = get_option('jph_ai_quota_last_reset', '');
+                $current_month    = date('Y-m');
+                if ($last_quota_reset !== $current_month) {
+                    global $wpdb;
+                    $wpdb->update(
+                        $wpdb->prefix . 'katahdin_ai_plugins',
+                        array('quota_used' => 0),
+                        array('plugin_id' => 'academy-practice-hub'),
+                        array('%d'),
+                        array('%s')
+                    );
+                    update_option('jph_ai_quota_last_reset', $current_month);
+                }
             }
         }
         
@@ -8572,14 +8587,16 @@ FORMAT: Write 3 paragraphs separated by blank lines.');
         
         // Call AI service (using OpenAI API)
         $cleaned_text = $this->call_ai_cleanup_service($text, $ai_prompt);
-        
-        if ($cleaned_text) {
+
+        if (is_wp_error($cleaned_text)) {
+            wp_send_json_error('AI cleanup failed: ' . $cleaned_text->get_error_message());
+        } elseif (!empty($cleaned_text) && is_string($cleaned_text)) {
             wp_send_json_success(array(
                 'cleaned_text' => $cleaned_text,
                 'original_text' => $text
             ));
         } else {
-            wp_send_json_error('AI cleanup failed');
+            wp_send_json_error('AI cleanup returned empty response');
         }
     }
     

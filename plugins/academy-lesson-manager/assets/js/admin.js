@@ -263,6 +263,10 @@ jQuery(document).ready(function($) {
                         }
                         // Poll for VTT file (more reliable than status)
                         pollForVTTFile(chapterId, $button, $statusContainer, $progressContainer);
+                        // Auto-show the audit log output area
+                        var $auditOutput = $('#alm-audit-log-output');
+                        $auditOutput.text('Waiting for transcription log...').show();
+                        $('#alm-audit-log-container').show();
                     } else {
                     console.error('Transcription failed:', response);
                     $button.prop('disabled', false).text(originalText);
@@ -305,6 +309,10 @@ jQuery(document).ready(function($) {
                     }
                     // Poll for VTT file - transcription is actually working
                     pollForVTTFile(chapterId, $button, $statusContainer, $progressContainer);
+                    // Auto-show the audit log output area
+                    var $auditOutput = $('#alm-audit-log-output');
+                    $auditOutput.text('Waiting for transcription log...').show();
+                    $('#alm-audit-log-container').show();
                     return; // Don't show error
                 }
                 
@@ -335,6 +343,10 @@ jQuery(document).ready(function($) {
                                     }
                                     // Start polling for VTT file
                                     pollForVTTFile(chapterId, $button, $statusContainer, $progressContainer);
+                                    // Auto-show the audit log output area
+                                    var $auditOutput = $('#alm-audit-log-output');
+                                    $auditOutput.text('Waiting for transcription log...').show();
+                                    $('#alm-audit-log-container').show();
                                 } else {
                                     // Status doesn't exist, show the error
                                     console.error('AJAX error:', status, error, xhr);
@@ -593,124 +605,98 @@ jQuery(document).ready(function($) {
     }
     
     /**
-     * Poll for VTT file existence - more reliable than status polling
+     * Poll AssemblyAI transcription status (alm_check_transcription_status).
      */
-    function pollForVTTFile(chapterId, $button, $statusContainer, $progressContainer) {
-        var pollCount = 0;
-        var pollInterval = setInterval(function() {
+    function pollForVTTFile(chapterId, $button, $statusContainer, $progressContainer, initialLogMsg) {
+        var pollCount    = 0;
+        var $auditOutput = $('#alm-audit-log-output');
+        $('#alm-audit-log-container').show();
+        $auditOutput.text(initialLogMsg || 'Uploading MP3 to AssemblyAI...').show();
+
+        function runStatusPoll() {
             pollCount++;
-            
+
             $.ajax({
-                url: alm_admin.ajax_url,
+                url:  alm_admin.ajax_url,
                 type: 'POST',
-                data: {
-                    action: 'alm_check_vtt_file',
-                    chapter_id: chapterId,
-                    nonce: alm_admin.nonce
-                },
+                data: { action: 'alm_check_transcription_status', chapter_id: chapterId, nonce: alm_admin.nonce },
                 success: function(response) {
-                    if (response.success && response.data && response.data.exists) {
-                        // VTT file exists! Transcription is complete
-                        clearInterval(pollInterval);
-                        var originalText = $button.data('original-text') || 'Re-transcribe Chapter';
-                        $button.prop('disabled', false).text(originalText);
-                        
-                        if ($statusContainer) {
-                            $statusContainer.html('<span style="color: #46b450; font-weight: bold;">✅ Transcription completed! Reloading page...</span>');
-                        }
-                        
-                        if ($progressContainer) {
-                            var $progressBar = $progressContainer.find('#alm-transcribe-progress-bar');
-                            var $message = $progressContainer.find('#alm-transcribe-message');
-                            if ($progressBar.length) {
-                                $progressBar.css('width', '100%');
-                            }
-                            if ($message.length) {
-                                $message.text('Transcription completed! Reloading...');
-                            }
-                        }
-                        
-                        // Reload page after 1 second to show updated transcript
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1000);
-                    } else {
-                        // VTT file doesn't exist yet, keep polling
-                        // Update progress message to show it's still working
-                        var minutes = Math.floor(pollCount * 2 / 60);
-                        var seconds = (pollCount * 2) % 60;
-                        var progressText = 'Transcription in progress...';
-                        if (minutes > 0) {
-                            progressText += ' (' + minutes + 'm ' + seconds + 's elapsed)';
-                        } else if (seconds > 0) {
-                            progressText += ' (' + seconds + 's elapsed)';
-                        }
-                        
-                        // Update progress message every poll
-                        if ($progressContainer) {
-                            var $message = $progressContainer.find('#alm-transcribe-message');
-                            if ($message.length) {
-                                $message.text(progressText);
-                            }
-                            // Update progress bar to show activity (oscillate between 5% and 15%)
-                            var $progressBar = $progressContainer.find('#alm-transcribe-progress-bar');
-                            if ($progressBar.length) {
-                                var baseProgress = 5;
-                                var pulseProgress = baseProgress + (Math.sin(pollCount * 0.1) * 5);
-                                $progressBar.css('width', Math.max(5, Math.min(15, pulseProgress)) + '%');
-                            }
-                        }
-                        
-                        // Update status message periodically to show it's still working
-                        if (pollCount % 15 === 0) { // Every 30 seconds (15 * 2 seconds)
-                            if ($statusContainer) {
-                                var statusText = '⏳ Transcription in progress... This may take several minutes.';
-                                if (minutes > 0) {
-                                    statusText += ' (' + minutes + ' minute' + (minutes > 1 ? 's' : '') + ' elapsed)';
-                                }
-                                $statusContainer.html('<span style="color: #2271b1; font-weight: bold;">' + statusText + '</span>');
-                            }
+                    if (!response.success || !response.data) return;
+
+                    var data      = response.data;
+                    var aaiStatus = data.aai_status || 'processing';
+                    if (aaiStatus === 'none') {
+                        aaiStatus = 'processing';
+                    }
+                    var log       = data.log || '';
+
+                    if (log) {
+                        $auditOutput.text(log);
+                        if ($auditOutput.length && $auditOutput[0]) {
+                            $auditOutput.scrollTop($auditOutput[0].scrollHeight);
                         }
                     }
-                    
-                    // Timeout after 30 minutes
-                    if (pollCount > 900) { // 30 minutes = 900 * 2 seconds
-                        clearInterval(pollInterval);
-                        var originalText = $button.data('original-text') || 'Transcribe';
-                        $button.prop('disabled', false).text(originalText);
-                        if ($statusContainer) {
-                            $statusContainer.html('<span style="color: #dc3232; font-weight: bold;">❌ Transcription timed out after 30 minutes. Please check server logs.</span>');
-                        }
-                        if ($progressContainer) {
-                            $progressContainer.hide();
-                        }
+
+                    var elapsed = Math.max(0, (pollCount - 1) * 15);
+                    var mins    = Math.floor(elapsed / 60);
+                    var secs    = elapsed % 60;
+                    var timeStr = mins > 0 ? mins + 'm ' + secs + 's' : secs + 's';
+
+                    var statusMsg = 'AssemblyAI: ' + aaiStatus.toUpperCase() + ' (' + timeStr + ' elapsed)';
+                    if ($statusContainer) $statusContainer.html('<span style="color:#2271b1;font-weight:bold;">⏳ ' + statusMsg + '</span>');
+                    if ($progressContainer) {
+                        $progressContainer.find('#alm-transcribe-message').text(statusMsg);
                     }
-                },
-                error: function(xhr, status, error) {
-                    console.error('VTT check error:', status, error, xhr);
-                    // Don't stop polling on occasional errors, but stop after too many
-                    if (pollCount > 10) {
+
+                    if (aaiStatus === 'completed' || data.vtt_saved) {
                         clearInterval(pollInterval);
-                        var originalText = $button.data('original-text') || 'Transcribe';
-                        $button.prop('disabled', false).text(originalText);
-                        var errorMsg = (typeof error === 'string') ? error : (error ? error.toString() : 'Unknown error');
-                        if ($statusContainer) {
-                            $statusContainer.html('<span style="color: #dc3232; font-weight: bold;">❌ Error checking transcription status: ' + errorMsg + '</span>');
-                        }
+                        var origText = $button.data('original-text') || 'Re-transcribe Chapter';
+                        $button.prop('disabled', false).text(origText);
+                        if ($statusContainer) $statusContainer.html('<span style="color:#46b450;font-weight:bold;">✅ Transcription complete! Reloading...</span>');
+                        if ($progressContainer) $progressContainer.find('#alm-transcribe-progress-bar').css('width', '100%');
+                        setTimeout(function() { window.location.reload(); }, 1500);
+                        return;
+                    }
+
+                    if (aaiStatus === 'error') {
+                        clearInterval(pollInterval);
+                        var origTextErr = $button.data('original-text') || 'Transcribe Chapter';
+                        $button.prop('disabled', false).text(origTextErr);
+                        if ($statusContainer) $statusContainer.html('<span style="color:#dc3232;font-weight:bold;">❌ Transcription failed. See log below.</span>');
+                        return;
                     }
                 }
             });
-        }, 2000); // Poll every 2 seconds
-        
-        // Stop polling after 30 minutes (timeout)
+
+        }
+
+        runStatusPoll();
+        var pollInterval = setInterval(runStatusPoll, 15000);
+
         setTimeout(function() {
             clearInterval(pollInterval);
-            var originalText = $button.data('original-text') || 'Transcribe';
-            $button.prop('disabled', false).text(originalText);
-            if ($statusContainer) {
-                $statusContainer.html('<span style="color: #dc3232; font-weight: bold;">❌ Transcription timeout (30 minutes)</span>');
+            $button.prop('disabled', false).text($button.data('original-text') || 'Transcribe Chapter');
+            if ($statusContainer) $statusContainer.html('<span style="color:#dc3232;font-weight:bold;">❌ Polling timeout (60 min)</span>');
+        }, 60 * 60 * 1000);
+    }
+
+    window.almPollForVTTFile = pollForVTTFile;
+
+    // Auto-resume polling if a transcription was in progress (data-resume-chapter on #alm-transcribe-progress).
+    var $resumeEl = $('#alm-transcribe-progress[data-resume-chapter]');
+    if ($resumeEl.length) {
+        var resumeChapterId = parseInt($resumeEl.data('resume-chapter'), 10);
+        if (resumeChapterId) {
+            var $btnResume = $('#alm-transcribe-chapter');
+            if (!$btnResume.data('original-text')) {
+                $btnResume.data('original-text', $btnResume.text());
             }
-        }, 30 * 60 * 1000);
+            $btnResume.prop('disabled', true).text('Transcribing...');
+            $resumeEl.show();
+            $('#alm-audit-log-container').show();
+            $('#alm-audit-log-output').text('Resuming status check...').show();
+            window.almPollForVTTFile(resumeChapterId, $btnResume, $('#alm-transcribe-status'), $resumeEl, 'Resuming status check...');
+        }
     }
     
     // Function to clear stuck transcription status
@@ -764,6 +750,142 @@ jQuery(document).ready(function($) {
         var $status = $('#alm-transcribe-status');
         var $progress = $('#alm-transcribe-progress');
         startTranscription(chapterId, $button, $status, $progress);
+    });
+
+    $(document).on('click', '#alm-fetch-transcript-now', function() {
+        var $btn = $(this);
+        if (!$btn.data('orig-fetch-label')) {
+            $btn.data('orig-fetch-label', $btn.text());
+        }
+        var orig = $btn.data('orig-fetch-label');
+        $btn.prop('disabled', true).text('Fetching...');
+        var chapterId = $btn.data('chapter-id');
+        var nonce = $btn.data('nonce');
+        $.post(typeof alm_admin !== 'undefined' ? alm_admin.ajax_url : ajaxurl, {
+            action: 'alm_check_transcription_status',
+            chapter_id: chapterId,
+            nonce: nonce
+        })
+            .done(function(r) {
+                if (r.success && r.data) {
+                    var status = r.data.aai_status;
+                    if (status === 'completed' || r.data.vtt_saved) {
+                        $('#alm-transcribe-status').html('<span style="color:#46b450;font-weight:bold;">✅ Done! Reloading...</span>');
+                        setTimeout(function() { window.location.reload(); }, 1500);
+                    } else {
+                        $btn.prop('disabled', false).text(orig);
+                        alert('Status: ' + status + '\n' + (r.data.log || ''));
+                    }
+                } else {
+                    $btn.prop('disabled', false).text(orig);
+                }
+            })
+            .fail(function() {
+                $btn.prop('disabled', false).text(orig);
+                alert('Request failed.');
+            });
+    });
+
+    $(document).on('click', '#alm-manual-fetch-btn', function() {
+        var transcriptId = $.trim($('#alm-manual-transcript-id').val());
+        if (!transcriptId) {
+            alert('Paste a transcript ID first.');
+            return;
+        }
+        var $btn = $(this);
+        if (!$btn.data('orig-manual-label')) {
+            $btn.data('orig-manual-label', $btn.text());
+        }
+        var origManual = $btn.data('orig-manual-label');
+        var chapterId = $btn.data('chapter-id');
+        var nonce = $btn.data('nonce');
+        $btn.prop('disabled', true).text('Fetching...');
+        var ajaxUrl = typeof alm_admin !== 'undefined' ? alm_admin.ajax_url : ajaxurl;
+        $.post(ajaxUrl, {
+            action: 'alm_force_fetch_transcript',
+            chapter_id: chapterId,
+            transcript_id: transcriptId,
+            nonce: nonce
+        })
+            .done(function(r) {
+                $btn.prop('disabled', false).text(origManual);
+                if (r.success && r.data) {
+                    $('#alm-audit-log-output').text(r.data.message || '');
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                } else {
+                    var err = (r.data && r.data.message) ? r.data.message : (typeof r.data === 'string' ? r.data : 'Unknown error');
+                    alert('Error: ' + err);
+                }
+            })
+            .fail(function() {
+                $btn.prop('disabled', false).text(origManual);
+                alert('Request failed.');
+            });
+    });
+
+    var ajaxUrlBase = typeof alm_admin !== 'undefined' ? alm_admin.ajax_url : ajaxurl;
+
+    $(document).on('click', '#alm-edit-transcript-btn', function() {
+        var $btn = $(this);
+        var chapterId = $btn.data('chapter-id');
+        var nonce = $btn.data('nonce');
+        var $modal = $('#alm-transcript-modal');
+        var $textarea = $('#alm-transcript-content');
+
+        $textarea.val('Loading...');
+        $modal.show();
+
+        $.post(ajaxUrlBase, { action: 'alm_load_transcript', chapter_id: chapterId, nonce: nonce }, function (r) {
+            if (r.success && r.data && r.data.content) {
+                $textarea.val(r.data.content);
+                $modal.data('chapter-id', chapterId).data('nonce', nonce);
+            } else {
+                var msg = (r.data && r.data.message) ? r.data.message : 'Could not load transcript.';
+                $textarea.val('Error: ' + msg);
+            }
+        }).fail(function () {
+            $textarea.val('Error loading transcript (network).');
+        });
+    });
+
+    $(document).on('click', '#alm-transcript-modal-close', function() {
+        $('#alm-transcript-modal').hide();
+    });
+
+    $(document).on('click', '#alm-transcript-modal', function(e) {
+        if ($(e.target).is('#alm-transcript-modal')) {
+            $(this).hide();
+        }
+    });
+
+    $(document).on('click', '#alm-transcript-save-btn', function() {
+        var $modal = $('#alm-transcript-modal');
+        var chapterId = $modal.data('chapter-id');
+        var nonce = $modal.data('nonce');
+        var content = $('#alm-transcript-content').val();
+        var $btn = $(this);
+        if (!$btn.data('orig-save-label')) {
+            $btn.data('orig-save-label', $btn.text());
+        }
+        var origSave = $btn.data('orig-save-label');
+        $btn.prop('disabled', true).text('Saving...');
+        var $result = $('#alm-transcript-save-result');
+        $result.html('');
+        $.post(ajaxUrlBase, { action: 'alm_save_transcript', chapter_id: chapterId, content: content, nonce: nonce })
+            .done(function(r) {
+                $btn.prop('disabled', false).text(origSave);
+                if (r.success && r.data) {
+                    $result.html('<span style="color:#46b450;">✅ ' + (r.data.message || 'Saved.') + '</span>');
+                    setTimeout(function() { $result.html(''); }, 3000);
+                } else {
+                    var saveErr = (r.data && r.data.message) ? r.data.message : (typeof r.data === 'string' ? r.data : 'Save failed.');
+                    $result.html('<span style="color:#dc3232;">❌ ' + saveErr + '</span>');
+                }
+            })
+            .fail(function() {
+                $btn.prop('disabled', false).text(origSave);
+                $result.html('<span style="color:#dc3232;">❌ Request failed.</span>');
+            });
     });
     
     // Handle transcribe button clicks on lesson edit page
@@ -942,6 +1064,33 @@ jQuery(document).ready(function($) {
                 $status.html('<span style="color: #dc3232; font-weight: bold;">❌ ' + errorMsg + '</span>');
                 $button.prop('disabled', false);
                 $button.html(originalText);
+            }
+        });
+    });
+
+    // Remove MP3 button
+    $(document).on('click', '#alm-remove-mp3', function() {
+        if (!confirm('Remove this MP3 file? This cannot be undone. You will need to re-upload to transcribe again.')) return;
+        var chapterId = $(this).data('chapter-id');
+        var $btn = $(this);
+        var $status = $('#alm-remove-mp3-status');
+        $btn.prop('disabled', true).text('Removing...');
+        $.ajax({
+            url: alm_admin.ajax_url,
+            type: 'POST',
+            data: { action: 'alm_remove_mp3', chapter_id: chapterId, nonce: alm_admin.nonce },
+            success: function(response) {
+                if (response.success) {
+                    $status.html('<span style="color:#46b450; font-weight:bold;">✅ Removed. Reloading...</span>');
+                    setTimeout(function() { location.reload(); }, 1200);
+                } else {
+                    $btn.prop('disabled', false).text('✖ Remove MP3');
+                    $status.html('<span style="color:#dc3232;">Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error') + '</span>');
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).text('✖ Remove MP3');
+                $status.html('<span style="color:#dc3232;">AJAX error. Try again.</span>');
             }
         });
     });

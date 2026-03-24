@@ -214,6 +214,7 @@ class ALM_Admin_Settings {
         echo '<a href="?page=academy-manager-settings&tab=promotions" class="nav-tab ' . ($current_tab === 'promotions' ? 'nav-tab-active' : '') . '">' . __('Promotions', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=intensives" class="nav-tab ' . ($current_tab === 'intensives' ? 'nav-tab-active' : '') . '">' . __('Intensives', 'academy-lesson-manager') . '</a>';
         echo '<a href="?page=academy-manager-settings&tab=webhook" class="nav-tab ' . ($current_tab === 'webhook' ? 'nav-tab-active' : '') . '">' . __('Webhook', 'academy-lesson-manager') . '</a>';
+        echo '<a href="?page=academy-manager-settings&tab=transcription" class="nav-tab ' . ($current_tab === 'transcription' ? 'nav-tab-active' : '') . '">' . __('Transcription', 'academy-lesson-manager') . '</a>';
         echo '</nav>';
         
         // Handle promotional banner actions
@@ -252,6 +253,8 @@ class ALM_Admin_Settings {
             $this->render_intensives_tab();
         } elseif ($current_tab === 'webhook') {
             $this->render_webhook_tab();
+        } elseif ($current_tab === 'transcription') {
+            $this->render_transcription_settings();
         } else {
             $this->render_bunny_api_settings();
             $this->render_database_update_section();
@@ -1987,6 +1990,148 @@ class ALM_Admin_Settings {
             'message' => 'webhook_logs_cleared'
         ), admin_url('admin.php')));
         exit;
+    }
+
+    /**
+     * Render Transcription settings tab
+     */
+    private function render_transcription_settings() {
+        $api_key   = get_option('alm_assemblyai_api_key', '');
+        $saved_msg = '';
+        $error_msg = '';
+
+        if (isset($_GET['message'])) {
+            $msg = sanitize_text_field(wp_unslash($_GET['message']));
+            if ($msg === 'transcription_saved') {
+                $saved_msg = __('AssemblyAI API key saved successfully.', 'academy-lesson-manager');
+            } elseif ($msg === 'transcription_cleared') {
+                $saved_msg = __('API key cleared.', 'academy-lesson-manager');
+            }
+        }
+        ?>
+        <div class="alm-settings-section" style="max-width: 700px; margin-top: 20px;">
+            <h2><?php esc_html_e('Transcription Settings', 'academy-lesson-manager'); ?></h2>
+            <p class="description" style="margin-bottom: 16px;">
+                <?php esc_html_e('Configure AssemblyAI for automatic chapter transcription. Audio files are processed asynchronously — no server timeout issues.', 'academy-lesson-manager'); ?>
+            </p>
+
+            <?php if ($saved_msg) : ?>
+                <div class="notice notice-success inline"><p><strong><?php echo esc_html($saved_msg); ?></strong></p></div>
+            <?php endif; ?>
+            <?php if ($error_msg) : ?>
+                <div class="notice notice-error inline"><p><strong><?php echo esc_html($error_msg); ?></strong></p></div>
+            <?php endif; ?>
+
+            <form method="post" action="">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="alm_assemblyai_api_key"><?php esc_html_e('AssemblyAI API Key', 'academy-lesson-manager'); ?></label></th>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <input
+                                    type="text"
+                                    id="alm_assemblyai_api_key"
+                                    name="alm_assemblyai_api_key"
+                                    value="<?php echo esc_attr($api_key); ?>"
+                                    class="regular-text"
+                                    autocomplete="off"
+                                    style="font-family:monospace; width:340px;"
+                                    placeholder="<?php esc_attr_e('Enter API key...', 'academy-lesson-manager'); ?>"
+                                />
+                            </div>
+
+                            <?php if (!empty($api_key)) : ?>
+                                <p style="margin-top:6px;">
+                                    <span style="color:#46b450; font-weight:bold;"><?php esc_html_e('✅ Key saved', 'academy-lesson-manager'); ?></span>
+                                    — <span style="font-family:monospace; color:#555;"><?php echo esc_html(substr($api_key, 0, 8) . '••••••••••••••••' . substr($api_key, -4)); ?></span>
+                                </p>
+                            <?php else : ?>
+                                <p style="margin-top:6px; color:#dc3232; font-weight:bold;"><?php esc_html_e('⚠ No key saved — transcription will not work.', 'academy-lesson-manager'); ?></p>
+                            <?php endif; ?>
+
+                            <p class="description"><?php esc_html_e('Get a free API key at', 'academy-lesson-manager'); ?> <a href="https://www.assemblyai.com/" target="_blank" rel="noopener noreferrer">assemblyai.com</a>.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Test Connection', 'academy-lesson-manager'); ?></th>
+                        <td>
+                            <button type="button" id="alm-test-assemblyai" class="button button-secondary"><?php esc_html_e('🔗 Test API Key', 'academy-lesson-manager'); ?></button>
+                            <span id="alm-test-assemblyai-result" style="margin-left:10px; font-weight:bold;"></span>
+                            <p class="description" style="margin-top:6px;"><?php esc_html_e('Tests the key currently entered in the field above (does not need to be saved first).', 'academy-lesson-manager'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Service Info', 'academy-lesson-manager'); ?></th>
+                        <td>
+                            <ul style="list-style:disc; margin-left:20px; color:#555; line-height:1.8;">
+                                <li><?php esc_html_e('Pricing: ~$0.37 / hour of audio', 'academy-lesson-manager'); ?></li>
+                                <li><?php esc_html_e('35-min file completes in approx. 3–5 minutes', 'academy-lesson-manager'); ?></li>
+                                <li><?php esc_html_e('Supports punctuation & formatting', 'academy-lesson-manager'); ?></li>
+                                <li><?php esc_html_e('Word-level timestamps for accurate VTT captions', 'academy-lesson-manager'); ?></li>
+                            </ul>
+                        </td>
+                    </tr>
+                </table>
+
+                <p class="submit">
+                    <button type="button" id="alm-aai-save-btn" class="button-primary">
+                        <?php esc_html_e('Save API Key', 'academy-lesson-manager'); ?>
+                    </button>
+                    <span id="alm-aai-save-result" style="margin-left:12px; font-weight:bold;"></span>
+                </p>
+            </form>
+        </div>
+
+        <script>
+        jQuery(document).ready(function($) {
+            var nonce = '<?php echo esc_js(wp_create_nonce('alm_admin_nonce')); ?>';
+            var saveLabel = '<?php echo esc_js(__('Save API Key', 'academy-lesson-manager')); ?>';
+            var savingLabel = '<?php echo esc_js(__('Saving...', 'academy-lesson-manager')); ?>';
+            var testLabel = '<?php echo esc_js(__('🔗 Test API Key', 'academy-lesson-manager')); ?>';
+            var testingLabel = '<?php echo esc_js(__('Testing...', 'academy-lesson-manager')); ?>';
+
+            $('#alm-aai-save-btn').on('click', function() {
+                var key = $.trim($('#alm_assemblyai_api_key').val());
+                var $btn = $(this).prop('disabled', true).text(savingLabel);
+                var $res = $('#alm-aai-save-result');
+                $.post(ajaxurl, { action: 'alm_save_assemblyai_key', key: key, nonce: nonce })
+                    .done(function(r) {
+                        $btn.prop('disabled', false).text(saveLabel);
+                        if (r.success) {
+                            $res.html('<span style="color:#46b450;">✅ ' + r.data.message + '</span>');
+                        } else {
+                            var err = (r.data && r.data.message) ? r.data.message : (typeof r.data === 'string' ? r.data : '<?php echo esc_js(__('Save failed.', 'academy-lesson-manager')); ?>');
+                            $res.html('<span style="color:#dc3232;">❌ ' + err + '</span>');
+                        }
+                    })
+                    .fail(function() {
+                        $btn.prop('disabled', false).text(saveLabel);
+                        $res.html('<span style="color:#dc3232;">❌ <?php echo esc_js(__('AJAX error — check browser console.', 'academy-lesson-manager')); ?></span>');
+                    });
+            });
+
+            $('#alm-test-assemblyai').on('click', function() {
+                var key = $.trim($('#alm_assemblyai_api_key').val());
+                if (!key) {
+                    $('#alm-test-assemblyai-result').html('<span style="color:#dc3232;"><?php echo esc_js(__('Enter a key first.', 'academy-lesson-manager')); ?></span>');
+                    return;
+                }
+                var $btn = $(this).prop('disabled', true).text(testingLabel);
+                $.post(ajaxurl, { action: 'alm_test_assemblyai', api_key: key, nonce: nonce })
+                    .done(function(r) {
+                        $btn.prop('disabled', false).text(testLabel);
+                        var ok = r.success;
+                        var msg = ok ? r.data.message : (r.data && (r.data.message || r.data)) || '<?php echo esc_js(__('Failed.', 'academy-lesson-manager')); ?>';
+                        $('#alm-test-assemblyai-result').html('<span style="color:' + (ok ? '#46b450' : '#dc3232') + ';">' + (ok ? '✅ ' : '❌ ') + msg + '</span>');
+                    })
+                    .fail(function() {
+                        $btn.prop('disabled', false).text(testLabel);
+                        $('#alm-test-assemblyai-result').html('<span style="color:#dc3232;">❌ <?php echo esc_js(__('AJAX error — check browser console.', 'academy-lesson-manager')); ?></span>');
+                    });
+            });
+        });
+        </script>
+        <?php
     }
     
     /**

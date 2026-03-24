@@ -2006,7 +2006,6 @@ class Keap_Reports_Admin {
                         <label style="display: flex; align-items: center; gap: 5px;">
                             <strong>Period:</strong>
                             <select name="chart_period" onchange="this.form.submit()">
-                                <option value="<?php echo date('Y'); ?>" <?php selected($chart_period, date('Y')); ?>><?php echo date('Y'); ?></option>
                                 <option value="30days" <?php selected($chart_period, '30days'); ?>>Last 30 Days</option>
                                 <option value="60days" <?php selected($chart_period, '60days'); ?>>Last 60 Days</option>
                                 <option value="90days" <?php selected($chart_period, '90days'); ?>>Last 90 Days</option>
@@ -2015,6 +2014,8 @@ class Keap_Reports_Admin {
                                 <option value="2026" <?php selected($chart_period, '2026'); ?>>2026</option>
                                 <option value="2027" <?php selected($chart_period, '2027'); ?>>2027</option>
                                 <option value="2028" <?php selected($chart_period, '2028'); ?>>2028</option>
+                                <option value="2029" <?php selected($chart_period, '2029'); ?>>2029</option>
+                                <option value="2030" <?php selected($chart_period, '2030'); ?>>2030</option>
                             </select>
                         </label>
                         
@@ -2097,6 +2098,8 @@ class Keap_Reports_Admin {
                                 <option value="2026" <?php selected($starter_chart_period, '2026'); ?>>2026</option>
                                 <option value="2027" <?php selected($starter_chart_period, '2027'); ?>>2027</option>
                                 <option value="2028" <?php selected($starter_chart_period, '2028'); ?>>2028</option>
+                                <option value="2029" <?php selected($starter_chart_period, '2029'); ?>>2029</option>
+                                <option value="2030" <?php selected($starter_chart_period, '2030'); ?>>2030</option>
                             </select>
                         </label>
                         
@@ -2547,7 +2550,8 @@ class Keap_Reports_Admin {
                                                     let pct = '';
                                                     if (prev > 0) {
                                                         const change = (diff / prev) * 100;
-                                                        pct = (diff >= 0 ? '↑ ' : '↓ ') + '$' + Math.abs(diff).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + Math.abs(change).toFixed(1) + '%)';
+                                                        const pctInParens = '(' + (diff >= 0 ? '+' : '-') + Math.abs(change).toFixed(1) + '%)';
+                                                        pct = (diff >= 0 ? '↑ ' : '↓ ') + '$' + Math.abs(diff).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + pctInParens;
                                                     } else {
                                                         pct = curr > 0 ? '↑ $' + curr.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (—)' : '—';
                                                     }
@@ -2564,7 +2568,8 @@ class Keap_Reports_Admin {
                                                 const diff = curr - prev;
                                                 if (prev > 0) {
                                                     const change = (diff / prev) * 100;
-                                                    fallbackLines.push('vs last year: ' + (diff >= 0 ? '↑ ' : '↓ ') + '$' + Math.abs(diff).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (' + Math.abs(change).toFixed(1) + '%)');
+                                                    const pctInParens = '(' + (diff >= 0 ? '+' : '-') + Math.abs(change).toFixed(1) + '%)';
+                                                    fallbackLines.push('vs last year: ' + (diff >= 0 ? '↑ ' : '↓ ') + '$' + Math.abs(diff).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + pctInParens);
                                                 } else if (curr > 0) fallbackLines.push('vs last year: ↑ $' + curr.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (—)');
                                             }
                                             return fallbackLines.length > 1 ? fallbackLines : fallbackLines[0];

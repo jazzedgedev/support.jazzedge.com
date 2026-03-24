@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('ALM_VERSION', '1.0.0');
+define('ALM_VERSION', '1.0.1');
 define('ALM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('ALM_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('ALM_PLUGIN_FILE', __FILE__);
@@ -61,6 +61,8 @@ class Academy_Lesson_Manager {
     public function init() {
         // Load plugin text domain
         load_plugin_textdomain('academy-lesson-manager', false, dirname(plugin_basename(__FILE__)) . '/languages');
+
+        $this->maybe_bootstrap_assemblyai_api_key();
         
         // Include required files
         $this->include_files();
@@ -155,6 +157,8 @@ class Academy_Lesson_Manager {
         
         // Add AJAX handler for testing Bunny.net connection
         add_action('wp_ajax_alm_test_bunny_connection', array($this, 'ajax_test_bunny_connection'));
+        add_action('wp_ajax_alm_test_assemblyai', array($this, 'ajax_test_assemblyai'));
+        add_action('wp_ajax_alm_save_assemblyai_key', array($this, 'ajax_save_assemblyai_key'));
         
         // Add AJAX handler for debugging Bunny.net config
         add_action('wp_ajax_alm_debug_bunny_config', array($this, 'ajax_debug_bunny_config'));
@@ -169,9 +173,13 @@ class Academy_Lesson_Manager {
         // Add AJAX handlers for transcription
         add_action('wp_ajax_alm_transcribe_chapter', array($this, 'ajax_transcribe_chapter'));
         add_action('wp_ajax_alm_check_transcription_status', array($this, 'ajax_check_transcription_status'));
+        add_action('wp_ajax_alm_force_fetch_transcript', array($this, 'ajax_force_fetch_transcript'));
         add_action('wp_ajax_alm_check_vtt_file', array($this, 'ajax_check_vtt_file'));
         add_action('wp_ajax_alm_sync_vtt_file', array($this, 'ajax_sync_vtt_file'));
+        add_action('wp_ajax_alm_load_transcript', array($this, 'ajax_load_transcript'));
+        add_action('wp_ajax_alm_save_transcript', array($this, 'ajax_save_transcript'));
         add_action('wp_ajax_alm_clear_transcription_status', array($this, 'ajax_clear_transcription_status'));
+        add_action('wp_ajax_alm_remove_mp3', array($this, 'ajax_remove_mp3'));
         add_action('wp_ajax_alm_trigger_transcription', array($this, 'ajax_trigger_transcription'));
         add_action('wp_ajax_nopriv_alm_trigger_transcription', array($this, 'ajax_trigger_transcription')); // Allow non-logged-in for background trigger
         
@@ -1827,6 +1835,81 @@ class Academy_Lesson_Manager {
             wp_send_json_error($result['message']);
         }
     }
+
+    /**
+     * AJAX: save AssemblyAI API key from settings (avoids password-field browser quirks).
+     */
+    public function ajax_save_assemblyai_key() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+        $key = isset($_POST['key']) ? sanitize_text_field(trim(wp_unslash($_POST['key']))) : '';
+        if ($key !== '') {
+            update_option('alm_assemblyai_api_key', $key);
+            wp_send_json_success(array('message' => __('API key saved successfully.', 'academy-lesson-manager')));
+        }
+        delete_option('alm_assemblyai_api_key');
+        wp_send_json_success(array('message' => __('API key cleared.', 'academy-lesson-manager')));
+    }
+
+    /**
+     * AJAX: verify AssemblyAI API key (list transcripts probe).
+     */
+    public function ajax_test_assemblyai() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        $api_key = '';
+        if (isset($_POST['api_key'])) {
+            $api_key = sanitize_text_field(trim(wp_unslash($_POST['api_key'])));
+        }
+        if ($api_key === '') {
+            $api_key = get_option('alm_assemblyai_api_key', '');
+        }
+        if ($api_key === '') {
+            wp_send_json_error(array('message' => __('No API key provided.', 'academy-lesson-manager')));
+        }
+
+        $response = wp_remote_get(
+            'https://api.assemblyai.com/v2/transcript?limit=1',
+            array(
+                'timeout' => 10,
+                'headers' => array('authorization' => $api_key),
+            )
+        );
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(
+                array(
+                    'message' => sprintf(
+                        /* translators: %s: WP HTTP error message */
+                        __('Connection error: %s', 'academy-lesson-manager'),
+                        $response->get_error_message()
+                    ),
+                )
+            );
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code === 200) {
+            wp_send_json_success(array('message' => __('Connected successfully ✓', 'academy-lesson-manager')));
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $err  = (is_array($body) && isset($body['error'])) ? $body['error'] : 'HTTP ' . $code;
+        wp_send_json_error(
+            array(
+                'message' => sprintf(
+                    /* translators: %s: API error detail or HTTP code */
+                    __('API error: %s', 'academy-lesson-manager'),
+                    $err
+                ),
+            )
+        );
+    }
     
     /**
      * AJAX handler for debugging Bunny.net configuration
@@ -2696,11 +2779,29 @@ class Academy_Lesson_Manager {
         // Create database tables
         $database = new ALM_Database();
         $database->create_tables();
-        
+        $database->check_and_add_assemblyai_transcript_id_column();
+
         // Set activation flag
         update_option('alm_plugin_activated', true);
         update_option('alm_version', ALM_VERSION);
         update_option( 'alm_db_version', ALM_VERSION );
+
+        // AssemblyAI API key: set via wp-config.php constant ALM_ASSEMBLYAI_API_KEY (recommended), not committed to the repo
+        if ( ! get_option( 'alm_assemblyai_api_key' ) && defined( 'ALM_ASSEMBLYAI_API_KEY' ) && ALM_ASSEMBLYAI_API_KEY ) {
+            update_option( 'alm_assemblyai_api_key', ALM_ASSEMBLYAI_API_KEY );
+        }
+    }
+
+    /**
+     * If the API key option is empty, copy from ALM_ASSEMBLYAI_API_KEY when defined (e.g. in wp-config.php).
+     */
+    private function maybe_bootstrap_assemblyai_api_key() {
+        if ( get_option( 'alm_assemblyai_api_key' ) ) {
+            return;
+        }
+        if ( defined( 'ALM_ASSEMBLYAI_API_KEY' ) && ALM_ASSEMBLYAI_API_KEY ) {
+            update_option( 'alm_assemblyai_api_key', ALM_ASSEMBLYAI_API_KEY );
+        }
     }
     
     /**
@@ -3367,159 +3468,350 @@ class Academy_Lesson_Manager {
     }
     
     /**
-     * AJAX handler for transcribing a chapter
+     * AJAX: Submit chapter MP3 to AssemblyAI and return immediately
      */
     public function ajax_transcribe_chapter() {
         check_ajax_referer('alm_admin_nonce', 'nonce');
-        
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
         }
-        
+
         $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-        
         if (!$chapter_id) {
             wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
         }
-        
+
         global $wpdb;
-        $database = new ALM_Database();
+        $database       = new ALM_Database();
+        $database->check_and_add_assemblyai_transcript_id_column();
         $chapters_table = $database->get_table_name('chapters');
-        
-        // Get chapter
-        $chapter = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$chapters_table} WHERE ID = %d",
-            $chapter_id
-        ));
-        
-        if (!$chapter) {
-            wp_send_json_error(array('message' => __('Chapter not found.', 'academy-lesson-manager')));
+        $chapter        = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$chapters_table} WHERE ID = %d", $chapter_id));
+
+        if (!$chapter || empty($chapter->mp3_file_url)) {
+            wp_send_json_error(array('message' => __('Chapter or MP3 not found.', 'academy-lesson-manager')));
         }
-        
-        if (empty($chapter->mp3_file_url)) {
-            wp_send_json_error(array('message' => __('No MP3 file uploaded for this chapter.', 'academy-lesson-manager')));
-        }
-        
-        // Get MP3 file path
+
         $upload_dir = wp_upload_dir();
-        $mp3_path = $upload_dir['basedir'] . '/alm_mp3s/' . $chapter->mp3_file_url;
-        
+        $mp3_path   = $upload_dir['basedir'] . '/alm_mp3s/' . $chapter->mp3_file_url;
+
         if (!file_exists($mp3_path)) {
-            wp_send_json_error(array('message' => __('MP3 file not found on server.', 'academy-lesson-manager')));
+            wp_send_json_error(array('message' => __('MP3 file not found on disk.', 'academy-lesson-manager')));
         }
-        
-        // Set status to processing (this will set start_time)
-        $this->update_transcription_status($chapter_id, 'processing', 'Starting transcription...', 5);
-        
-        // Clean any output buffers first
-        while (ob_get_level()) {
-            ob_end_clean();
+
+        $api_key = get_option('alm_assemblyai_api_key', '');
+        if (empty($api_key)) {
+            wp_send_json_error(array('message' => __('AssemblyAI API key not configured. Define ALM_ASSEMBLYAI_API_KEY in wp-config.php or set the option.', 'academy-lesson-manager')));
         }
-        
-        // Send response manually (don't use wp_send_json_success as it calls wp_die())
-        // Set proper headers
-        if (!headers_sent()) {
-            status_header(200);
-            nocache_headers();
-            header('Content-Type: application/json; charset=' . get_option('blog_charset'));
+
+        // Clear old log
+        $log_dir  = $upload_dir['basedir'] . '/alm_logs';
+        if (!file_exists($log_dir)) {
+            wp_mkdir_p($log_dir);
         }
-        
-        // Output JSON response
-        $response = wp_json_encode(array(
-            'success' => true,
-            'data' => array(
-                'message' => __('Transcription started. Processing...', 'academy-lesson-manager'),
-                'chapter_id' => $chapter_id
+        $log_file = $log_dir . '/transcription_' . $chapter_id . '.log';
+        if (file_exists($log_file)) {
+            unlink($log_file);
+        }
+
+        $this->update_transcription_status($chapter_id, 'processing', 'Uploading MP3 to AssemblyAI...', 5);
+
+        $file_contents = file_get_contents($mp3_path);
+        if ($file_contents === false) {
+            wp_send_json_error(array('message' => __('Could not read MP3 file.', 'academy-lesson-manager')));
+        }
+
+        $upload_response = wp_remote_post(
+            'https://api.assemblyai.com/v2/upload',
+            array(
+                'timeout' => 300,
+                'headers' => array(
+                    'authorization' => $api_key,
+                    'content-type'  => 'application/octet-stream',
+                ),
+                'body'    => $file_contents,
             )
-        ));
-        
-        echo $response;
-        
-        // Close connection to browser so it doesn't wait
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-        } else {
-            // Fallback for non-FastCGI environments
-            if (ob_get_level()) {
-                ob_end_flush();
-            }
-            flush();
+        );
+
+        if (is_wp_error($upload_response)) {
+            $this->update_transcription_status($chapter_id, 'failed', 'Upload failed: ' . $upload_response->get_error_message(), 0);
+            wp_send_json_error(array('message' => 'Upload error: ' . $upload_response->get_error_message()));
         }
-        
-        // Set time limits and run transcription after response is sent
-        ignore_user_abort(true);
-        set_time_limit(600); // 10 minutes
-        
-        // Log that we're starting the transcription process
-        error_log(sprintf(
-            'ALM Transcription [Chapter %d]: Starting transcription process after sending response. MP3: %s',
-            $chapter_id,
-            basename($mp3_path)
-        ));
-        
-        // Run transcription (process continues after response is sent)
-        $this->transcribe_chapter($chapter_id, $mp3_path);
+
+        $upload_body = json_decode(wp_remote_retrieve_body($upload_response), true);
+        if (empty($upload_body['upload_url'])) {
+            $this->update_transcription_status($chapter_id, 'failed', 'Upload failed: no upload_url returned', 0);
+            wp_send_json_error(array('message' => __('AssemblyAI upload did not return a URL.', 'academy-lesson-manager')));
+        }
+
+        $audio_url = $upload_body['upload_url'];
+        $this->update_transcription_status($chapter_id, 'processing', 'File uploaded. Submitting transcription job...', 20);
+
+        $transcript_response = wp_remote_post(
+            'https://api.assemblyai.com/v2/transcript',
+            array(
+                'timeout' => 30,
+                'headers' => array(
+                    'authorization' => $api_key,
+                    'content-type'  => 'application/json',
+                ),
+                'body'    => wp_json_encode(
+                    array(
+                        'audio_url'     => $audio_url,
+                        'speech_models' => array('universal-2'),
+                        'punctuate'     => true,
+                        'format_text'   => true,
+                    )
+                ),
+            )
+        );
+
+        if (is_wp_error($transcript_response)) {
+            $this->update_transcription_status($chapter_id, 'failed', 'Job submit failed: ' . $transcript_response->get_error_message(), 0);
+            wp_send_json_error(array('message' => 'Submit error: ' . $transcript_response->get_error_message()));
+        }
+
+        $transcript_raw  = wp_remote_retrieve_body($transcript_response);
+        $transcript_http = wp_remote_retrieve_response_code($transcript_response);
+        $transcript_body = json_decode($transcript_raw, true);
+        if (empty($transcript_body['id'])) {
+            $detail = 'HTTP ' . $transcript_http . ': ' . $transcript_raw;
+            $this->update_transcription_status($chapter_id, 'failed', 'No transcript ID — ' . $detail, 0);
+            wp_send_json_error(array('message' => 'AssemblyAI submit failed — ' . $detail));
+        }
+
+        $transcript_id = sanitize_text_field($transcript_body['id']);
+        $this->update_transcription_status($chapter_id, 'processing', 'Job queued. Transcript ID: ' . $transcript_id, 25);
+
+        $wpdb->update(
+            $chapters_table,
+            array('assemblyai_transcript_id' => $transcript_id),
+            array('ID' => $chapter_id),
+            array('%s'),
+            array('%d')
+        );
+
+        wp_send_json_success(
+            array(
+                'message'       => __('Transcription job submitted to AssemblyAI. Polling for completion...', 'academy-lesson-manager'),
+                'transcript_id' => $transcript_id,
+                'chapter_id'    => $chapter_id,
+            )
+        );
     }
-    
+
     /**
-     * AJAX handler for checking transcription status
+     * AJAX: Poll AssemblyAI for status, finalize when complete
      */
     public function ajax_check_transcription_status() {
         check_ajax_referer('alm_admin_nonce', 'nonce');
-        
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
         }
-        
+
         $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-        
         if (!$chapter_id) {
             wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
         }
-        
-        $status = get_transient('alm_transcription_status_' . $chapter_id);
-        
-        // Check if MP3 file has been deleted (indicates transcription completed)
-        // If status is still "processing" but MP3 is gone, transcription likely completed
+
+        $api_key = get_option('alm_assemblyai_api_key', '');
         global $wpdb;
-        $database = new ALM_Database();
+        $database       = new ALM_Database();
+        $database->check_and_add_assemblyai_transcript_id_column();
         $chapters_table = $database->get_table_name('chapters');
-        $chapter = $wpdb->get_row($wpdb->prepare(
-            "SELECT mp3_file_url FROM {$chapters_table} WHERE ID = %d",
-            $chapter_id
-        ));
-        
-        $mp3_deleted = $chapter && empty($chapter->mp3_file_url);
-        
-        // If MP3 is deleted and status is processing, mark as completed
-        if ($mp3_deleted && $status && isset($status['status']) && $status['status'] === 'processing') {
-            $status['status'] = 'completed';
-            $status['message'] = 'Transcription completed successfully!';
-            $status['progress'] = 100;
-            // Update the transient
-            set_transient('alm_transcription_status_' . $chapter_id, $status, 3600);
+        $chapter        = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$chapters_table} WHERE ID = %d", $chapter_id));
+
+        if (!$chapter) {
+            wp_send_json_error(array('message' => __('Chapter not found.', 'academy-lesson-manager')));
         }
-        
-        if (!$status) {
-            wp_send_json_error(array('message' => __('No transcription status found.', 'academy-lesson-manager')));
+
+        $upload_dir = wp_upload_dir();
+        $log_file   = $upload_dir['basedir'] . '/alm_logs/transcription_' . $chapter_id . '.log';
+
+        $tid = isset($chapter->assemblyai_transcript_id) ? trim((string) $chapter->assemblyai_transcript_id) : '';
+        if ($tid === '') {
+            $transcript_id_recovered = '';
+            if (file_exists($log_file)) {
+                $log_contents = file_get_contents($log_file);
+                if (is_string($log_contents) && preg_match('/Transcript ID:\s*([a-f0-9\-]{36})/i', $log_contents, $matches)) {
+                    $transcript_id_recovered = sanitize_text_field($matches[1]);
+                    $wpdb->update(
+                        $chapters_table,
+                        array('assemblyai_transcript_id' => $transcript_id_recovered),
+                        array('ID' => $chapter_id),
+                        array('%s'),
+                        array('%d')
+                    );
+                    $chapter->assemblyai_transcript_id = $transcript_id_recovered;
+                }
+            }
+            if ($transcript_id_recovered === '') {
+                $log = file_exists($log_file) ? file_get_contents($log_file) : __('No transcription job found.', 'academy-lesson-manager');
+                wp_send_json_success(array('aai_status' => 'none', 'log' => $log));
+                return;
+            }
+            $tid = $transcript_id_recovered;
         }
-        
-        // Calculate elapsed time
-        $elapsed = 0;
-        if (isset($status['start_time'])) {
-            $elapsed = time() - $status['start_time'];
+
+        $transcript_id = $tid;
+
+        $status_response = wp_remote_get(
+            'https://api.assemblyai.com/v2/transcript/' . rawurlencode($transcript_id),
+            array(
+                'timeout' => 15,
+                'headers' => array('authorization' => $api_key),
+            )
+        );
+
+        if (is_wp_error($status_response)) {
+            $this->update_transcription_status($chapter_id, 'processing', 'Status check error: ' . $status_response->get_error_message(), 30);
+            $upload_dir = wp_upload_dir();
+            $log_file   = $upload_dir['basedir'] . '/alm_logs/transcription_' . $chapter_id . '.log';
+            wp_send_json_success(array('aai_status' => 'processing', 'log' => file_exists($log_file) ? file_get_contents($log_file) : ''));
         }
-        
-        // Add elapsed time and last update info to response
-        $status['elapsed'] = $elapsed;
-        $status['last_update'] = isset($status['last_update']) ? $status['last_update'] : (isset($status['timestamp']) ? $status['timestamp'] : time());
-        
-        // Include debug log if available
-        if (isset($status['debug_log'])) {
-            $status['debug_log'] = $status['debug_log'];
+
+        $result     = json_decode(wp_remote_retrieve_body($status_response), true);
+        $aai_status = isset($result['status']) ? $result['status'] : 'unknown';
+
+        $progress_map = array('queued' => 30, 'processing' => 60, 'completed' => 100, 'error' => 0);
+        $progress     = isset($progress_map[ $aai_status ]) ? $progress_map[ $aai_status ] : 40;
+
+        $this->update_transcription_status(
+            $chapter_id,
+            $aai_status === 'error' ? 'failed' : 'processing',
+            'AssemblyAI status: ' . strtoupper($aai_status),
+            $progress
+        );
+
+        if ($aai_status === 'completed') {
+            $vtt_result = $this->save_assemblyai_transcript($chapter_id, $result);
+            if (is_wp_error($vtt_result)) {
+                $this->update_transcription_status($chapter_id, 'failed', 'VTT generation failed: ' . $vtt_result->get_error_message(), 0);
+                $wpdb->update(
+                    $chapters_table,
+                    array('assemblyai_transcript_id' => ''),
+                    array('ID' => $chapter_id),
+                    array('%s'),
+                    array('%d')
+                );
+                wp_send_json_success(array('aai_status' => 'error', 'log' => $vtt_result->get_error_message(), 'vtt_saved' => false));
+            }
+            $wpdb->update(
+                $chapters_table,
+                array('assemblyai_transcript_id' => ''),
+                array('ID' => $chapter_id),
+                array('%s'),
+                array('%d')
+            );
+            $this->update_transcription_status($chapter_id, 'completed', 'Transcription saved successfully!', 100);
         }
-        
-        wp_send_json_success($status);
+
+        if ($aai_status === 'error') {
+            $error_msg = isset($result['error']) ? $result['error'] : 'Unknown AssemblyAI error';
+            $this->update_transcription_status($chapter_id, 'failed', 'AssemblyAI error: ' . $error_msg, 0);
+            $wpdb->update(
+                $chapters_table,
+                array('assemblyai_transcript_id' => ''),
+                array('ID' => $chapter_id),
+                array('%s'),
+                array('%d')
+            );
+        }
+
+        $upload_dir = wp_upload_dir();
+        $log_file   = $upload_dir['basedir'] . '/alm_logs/transcription_' . $chapter_id . '.log';
+        $log        = file_exists($log_file) ? file_get_contents($log_file) : '';
+
+        wp_send_json_success(
+            array(
+                'aai_status' => $aai_status,
+                'log'        => $log,
+                'vtt_saved'  => ($aai_status === 'completed'),
+            )
+        );
+    }
+
+    /**
+     * AJAX: force-fetch a transcript by AssemblyAI ID (manual recovery).
+     */
+    public function ajax_force_fetch_transcript() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        $chapter_id    = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        $transcript_id = isset($_POST['transcript_id']) ? sanitize_text_field(trim(wp_unslash($_POST['transcript_id']))) : '';
+        if (!$chapter_id || $transcript_id === '') {
+            wp_send_json_error(array('message' => __('Missing chapter ID or transcript ID.', 'academy-lesson-manager')));
+        }
+
+        $api_key = get_option('alm_assemblyai_api_key', '');
+        if ($api_key === '') {
+            wp_send_json_error(array('message' => __('AssemblyAI API key not configured.', 'academy-lesson-manager')));
+        }
+
+        global $wpdb;
+        $database       = new ALM_Database();
+        $database->check_and_add_assemblyai_transcript_id_column();
+        $chapters_table = $database->get_table_name('chapters');
+
+        $response = wp_remote_get(
+            'https://api.assemblyai.com/v2/transcript/' . rawurlencode($transcript_id),
+            array(
+                'timeout' => 15,
+                'headers' => array('authorization' => $api_key),
+            )
+        );
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(array('message' => $response->get_error_message()));
+        }
+
+        $result     = json_decode(wp_remote_retrieve_body($response), true);
+        $aai_status = isset($result['status']) ? $result['status'] : 'unknown';
+
+        if ($aai_status !== 'completed') {
+            wp_send_json_error(
+                array(
+                    'message' => sprintf(
+                        /* translators: %s: AssemblyAI job status */
+                        __('Transcript not complete yet. Status: %s', 'academy-lesson-manager'),
+                        $aai_status
+                    ),
+                )
+            );
+        }
+
+        $wpdb->update(
+            $chapters_table,
+            array('assemblyai_transcript_id' => $transcript_id),
+            array('ID' => $chapter_id),
+            array('%s'),
+            array('%d')
+        );
+
+        $vtt_result = $this->save_assemblyai_transcript($chapter_id, $result);
+        if (is_wp_error($vtt_result)) {
+            wp_send_json_error(
+                array(
+                    'message' => sprintf(
+                        /* translators: %s: error message */
+                        __('VTT save failed: %s', 'academy-lesson-manager'),
+                        $vtt_result->get_error_message()
+                    ),
+                )
+            );
+        }
+
+        $wpdb->update(
+            $chapters_table,
+            array('assemblyai_transcript_id' => ''),
+            array('ID' => $chapter_id),
+            array('%s'),
+            array('%d')
+        );
+
+        wp_send_json_success(array('message' => __('Transcript saved successfully!', 'academy-lesson-manager')));
     }
     
     /**
@@ -3540,8 +3832,81 @@ class Academy_Lesson_Manager {
         
         // Clear the status transient
         delete_transient('alm_transcription_status_' . $chapter_id);
+
+        $upload_dir = wp_upload_dir();
+        $log_file   = $upload_dir['basedir'] . '/alm_logs/transcription_' . $chapter_id . '.log';
+        if (file_exists($log_file)) {
+            @unlink($log_file);
+        }
+
+        global $wpdb;
+        $database       = new ALM_Database();
+        $database->check_and_add_assemblyai_transcript_id_column();
+        $chapters_table = $database->get_table_name('chapters');
+        $wpdb->update(
+            $chapters_table,
+            array('assemblyai_transcript_id' => ''),
+            array('ID' => $chapter_id),
+            array('%s'),
+            array('%d')
+        );
         
         wp_send_json_success(array('message' => __('Status cleared. You can now retry transcription.', 'academy-lesson-manager')));
+    }
+
+    /**
+     * AJAX handler: Remove the uploaded MP3 file from a chapter
+     */
+    public function ajax_remove_mp3() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Permission denied.'));
+        }
+
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        if (!$chapter_id) {
+            wp_send_json_error(array('message' => 'Invalid chapter ID.'));
+        }
+
+        global $wpdb;
+        $database = new ALM_Database();
+        $chapters_table = $database->get_table_name('chapters');
+
+        $chapter = $wpdb->get_row($wpdb->prepare(
+            "SELECT mp3_file_url FROM {$chapters_table} WHERE ID = %d",
+            $chapter_id
+        ));
+
+        if (!$chapter || empty($chapter->mp3_file_url)) {
+            wp_send_json_error(array('message' => 'No MP3 file found on this chapter.'));
+        }
+
+        // Delete physical file
+        $upload_dir = wp_upload_dir();
+        $file_path = $upload_dir['basedir'] . '/alm_mp3s/' . basename($chapter->mp3_file_url);
+        if (file_exists($file_path)) {
+            @unlink($file_path);
+        }
+
+        // Clear DB column
+        $wpdb->update(
+            $chapters_table,
+            array('mp3_file_url' => ''),
+            array('ID' => $chapter_id),
+            array('%s'),
+            array('%d')
+        );
+
+        // Also clear any stuck transcription status
+        delete_transient('alm_transcription_status_' . $chapter_id);
+
+        $log_file = $upload_dir['basedir'] . '/alm_logs/transcription_' . $chapter_id . '.log';
+        if (file_exists($log_file)) {
+            @unlink($log_file);
+        }
+
+        wp_send_json_success(array('message' => 'MP3 removed successfully.'));
     }
     
     /**
@@ -3655,6 +4020,108 @@ class Academy_Lesson_Manager {
             'message' => __('VTT file synced successfully!', 'academy-lesson-manager')
         ));
     }
+
+    /**
+     * AJAX: load chapter VTT file content for editor (alm_transcripts).
+     */
+    public function ajax_load_transcript() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        if (!$chapter_id) {
+            wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
+        }
+
+        global $wpdb;
+        $database          = new ALM_Database();
+        $transcripts_table = $database->get_table_name('transcripts');
+        $vtt_file          = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT vtt_file FROM {$transcripts_table} WHERE chapter_id = %d AND (source = 'whisper' OR source = 'zoom') LIMIT 1",
+                $chapter_id
+            )
+        );
+        if (empty($vtt_file)) {
+            $vtt_file = 'chapter-' . $chapter_id . '.vtt';
+        }
+        $vtt_file = basename($vtt_file);
+
+        $upload_dir = wp_upload_dir();
+        $vtt_path   = $upload_dir['basedir'] . '/alm_transcriptions/' . $vtt_file;
+
+        if (!file_exists($vtt_path)) {
+            wp_send_json_error(array('message' => sprintf(/* translators: %s: filename */ __('VTT file not found on disk: %s', 'academy-lesson-manager'), $vtt_file)));
+        }
+
+        $raw = file_get_contents($vtt_path);
+        if ($raw === false) {
+            wp_send_json_error(array('message' => __('Could not read VTT file.', 'academy-lesson-manager')));
+        }
+
+        wp_send_json_success(array('content' => $raw));
+    }
+
+    /**
+     * AJAX: save chapter VTT file from editor (updates file + alm_transcripts.content).
+     */
+    public function ajax_save_transcript() {
+        check_ajax_referer('alm_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Insufficient permissions.', 'academy-lesson-manager')));
+        }
+
+        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+        $content    = isset($_POST['content']) ? wp_unslash($_POST['content']) : '';
+        if ($chapter_id <= 0) {
+            wp_send_json_error(array('message' => __('Invalid chapter ID.', 'academy-lesson-manager')));
+        }
+        if (trim($content) === '') {
+            wp_send_json_error(array('message' => __('Content cannot be empty.', 'academy-lesson-manager')));
+        }
+        if (strpos($content, 'WEBVTT') === false) {
+            wp_send_json_error(array('message' => __('Invalid VTT format — must include WEBVTT.', 'academy-lesson-manager')));
+        }
+
+        global $wpdb;
+        $database          = new ALM_Database();
+        $transcripts_table = $database->get_table_name('transcripts');
+        $vtt_file          = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT vtt_file FROM {$transcripts_table} WHERE chapter_id = %d AND (source = 'whisper' OR source = 'zoom') LIMIT 1",
+                $chapter_id
+            )
+        );
+        if (empty($vtt_file)) {
+            $vtt_file = 'chapter-' . $chapter_id . '.vtt';
+        }
+        $vtt_file = basename($vtt_file);
+
+        $upload_dir = wp_upload_dir();
+        $vtt_path   = $upload_dir['basedir'] . '/alm_transcriptions/' . $vtt_file;
+
+        if (!file_exists($vtt_path)) {
+            wp_send_json_error(array('message' => sprintf(/* translators: %s: filename */ __('No VTT file on disk to update: %s', 'academy-lesson-manager'), $vtt_file)));
+        }
+
+        if (file_put_contents($vtt_path, $content) === false) {
+            wp_send_json_error(array('message' => __('Could not write to VTT file.', 'academy-lesson-manager')));
+        }
+
+        $plain = $this->extract_text_from_vtt($content);
+        $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$transcripts_table} SET content = %s, updated_at = %s WHERE chapter_id = %d AND (source = 'whisper' OR source = 'zoom')",
+                $plain,
+                current_time('mysql'),
+                $chapter_id
+            )
+        );
+
+        wp_send_json_success(array('message' => __('Transcript saved.', 'academy-lesson-manager')));
+    }
     
     /**
      * Extract plain text from VTT content (removes timestamps and formatting)
@@ -3689,148 +4156,126 @@ class Academy_Lesson_Manager {
     }
     
     /**
-     * Transcribe a chapter
-     * 
-     * @param int $chapter_id Chapter ID
-     * @param string $mp3_path Path to MP3 file
+     * Convert AssemblyAI completed transcript to VTT and save (alm_transcripts + file on disk).
+     *
+     * @param int   $chapter_id Chapter ID.
+     * @param array $result     AssemblyAI transcript JSON when status is completed.
+     * @return true|WP_Error
      */
-    private function transcribe_chapter($chapter_id, $mp3_path) {
-        $this->update_transcription_status($chapter_id, 'processing', 'Initializing transcription...', 15);
-        
-        try {
-            global $wpdb;
-            $database = new ALM_Database();
-            $chapters_table = $database->get_table_name('chapters');
-            
-            // Get chapter
-            $this->update_transcription_status($chapter_id, 'processing', 'Loading chapter data from database...', 16);
-            $chapter = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$chapters_table} WHERE ID = %d",
-                $chapter_id
-            ));
-            
-            if (!$chapter) {
-                $this->update_transcription_status($chapter_id, 'failed', 'Chapter not found', 0);
-                return;
+    private function save_assemblyai_transcript($chapter_id, $result) {
+        $words = isset($result['words']) && is_array($result['words']) ? $result['words'] : array();
+        $text  = isset($result['text']) ? $result['text'] : '';
+
+        if (empty($words) && $text === '') {
+            return new WP_Error('no_transcript', 'AssemblyAI returned no words or text.');
+        }
+
+        $vtt           = "WEBVTT\n\n";
+        $segment_words = array();
+        $segment_start = null;
+        $segment_end   = null;
+        $max_words     = 10;
+        $max_duration  = 4000; // ms
+
+        foreach ($words as $word) {
+            if (!is_array($word)) {
+                continue;
             }
-            
-            $this->update_transcription_status($chapter_id, 'processing', 'Validating MP3 file...', 20);
-            
-            // Check if file exists
-            if (!file_exists($mp3_path)) {
-                $this->update_transcription_status($chapter_id, 'failed', 'MP3 file not found: ' . $mp3_path, 0);
-                return;
+            $start = isset($word['start']) ? floatval($word['start']) : 0;
+            $end   = isset($word['end']) ? floatval($word['end']) : 0;
+            $w     = isset($word['text']) ? $word['text'] : '';
+
+            if ($segment_start === null) {
+                $segment_start = $start;
             }
-            
-            $file_size = filesize($mp3_path);
-            $file_size_mb = round($file_size / 1024 / 1024, 2);
-            $this->update_transcription_status($chapter_id, 'processing', sprintf('MP3 file found: %.2f MB', $file_size_mb), 21);
-            
-            // Validate file
-            $whisper_client = new ALM_Whisper_Client();
-            $this->update_transcription_status($chapter_id, 'processing', 'Running file validation checks...', 22);
-            $validation = $whisper_client->validate_file($mp3_path);
-            
-            if (!$validation['success']) {
-                $this->update_transcription_status($chapter_id, 'failed', $validation['message'], 0);
-                return;
+
+            $segment_words[] = $w;
+            $segment_end     = $end;
+
+            $word_count    = count($segment_words);
+            $duration      = $segment_end - $segment_start;
+            $ends_sentence = (bool) preg_match('/[.!?]$/', rtrim($w));
+
+            if ($word_count >= $max_words || $duration >= $max_duration || ($ends_sentence && $word_count >= 4)) {
+                $vtt .= $this->format_vtt_cue($segment_start, $segment_end, implode(' ', $segment_words));
+                $segment_words = array();
+                $segment_start = null;
+                $segment_end   = null;
             }
-            
-            $this->update_transcription_status($chapter_id, 'processing', sprintf('File validated: %.2f MB, %.1f min', $validation['file_size_mb'], $validation['duration_minutes']), 25);
-            
-            $this->update_transcription_status($chapter_id, 'processing', 'Preparing to upload to Whisper API...', 30);
-            
-            // Transcribe
-            $self = $this;
-            $api_start_time = time();
-            $this->update_transcription_status($chapter_id, 'processing', 'Calling Whisper API (this may take 5-15 minutes)...', 35);
-            
-            $result = $whisper_client->transcribe_file($mp3_path, $chapter_id, 3, function($status, $message) use ($chapter_id, $self, $api_start_time) {
-                $elapsed = time() - $api_start_time;
-                $progress = $status === 'processing' ? min(50 + ($elapsed / 60), 75) : ($status === 'failed' ? 0 : 100);
-                $self->update_transcription_status($chapter_id, $status, $message . ' (API elapsed: ' . $elapsed . 's)', $progress);
-            });
-            
-            if (!$result['success']) {
-                $this->update_transcription_status($chapter_id, 'failed', $result['message'], 0);
-                return;
-            }
-            
-            $this->update_transcription_status($chapter_id, 'processing', 'API response received! Processing transcript data...', 80);
-            
-            if (empty($result['text'])) {
-                $this->update_transcription_status($chapter_id, 'failed', 'API returned empty transcript', 0);
-                return;
-            }
-            
-            $this->update_transcription_status($chapter_id, 'processing', sprintf('Transcript received: %d characters', strlen($result['text'])), 82);
-            
-            $this->update_transcription_status($chapter_id, 'processing', 'Saving transcript to database...', 85);
-        
-        // Save transcript to database
-        $transcripts_table = $database->get_table_name('transcripts');
-        $transcript_text = $result['text'];
-        $duration_seconds = $result['duration_seconds'];
-        
-        // Check if transcript already exists
-        $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT ID FROM {$transcripts_table} WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
-            $chapter_id
-        ));
-        
-        // Generate VTT file
-        $vtt_generator = new ALM_VTT_Generator();
-        $upload_dir = wp_upload_dir();
-        $vtt_dir = $upload_dir['basedir'] . '/alm_transcriptions';
+        }
+
+        if (!empty($segment_words) && $segment_start !== null) {
+            $vtt .= $this->format_vtt_cue($segment_start, $segment_end, implode(' ', $segment_words));
+        }
+
+        if (empty($words) && $text !== '') {
+            $vtt .= "00:00:00.000 --> 99:59:59.000\n" . $text . "\n\n";
+        }
+
+        $upload_dir  = wp_upload_dir();
+        $vtt_dir     = $upload_dir['basedir'] . '/alm_transcriptions';
         if (!file_exists($vtt_dir)) {
             wp_mkdir_p($vtt_dir);
         }
-        
+
         $vtt_filename = 'chapter-' . $chapter_id . '.vtt';
-        $vtt_path = $vtt_dir . '/' . $vtt_filename;
-        $vtt_generator->generate_vtt($transcript_text, $result['segments'], $duration_seconds, $vtt_path);
-        
+        $vtt_path     = $vtt_dir . '/' . $vtt_filename;
+
+        if (file_put_contents($vtt_path, $vtt) === false) {
+            return new WP_Error('write_failed', 'Could not write VTT file to disk.');
+        }
+
+        global $wpdb;
+        $database          = new ALM_Database();
+        $chapters_table    = $database->get_table_name('chapters');
+        $transcripts_table = $database->get_table_name('transcripts');
+        $chapter           = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$chapters_table} WHERE ID = %d", $chapter_id));
+        if (!$chapter) {
+            return new WP_Error('no_chapter', 'Chapter not found.');
+        }
+
+        $existing = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT ID FROM {$transcripts_table} WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+                $chapter_id
+            )
+        );
+
         if ($existing) {
-            // Update existing transcript
             $wpdb->update(
                 $transcripts_table,
                 array(
-                    'content' => $transcript_text,
-                    'vtt_file' => $vtt_filename,
-                    'updated_at' => current_time('mysql')
+                    'content'    => $text,
+                    'vtt_file'   => $vtt_filename,
+                    'updated_at' => current_time('mysql'),
                 ),
                 array('ID' => $existing->ID),
                 array('%s', '%s', '%s'),
                 array('%d')
             );
         } else {
-            // Create new transcript
             $wpdb->insert(
                 $transcripts_table,
                 array(
-                    'lesson_id' => $chapter->lesson_id,
+                    'lesson_id'  => $chapter->lesson_id,
                     'chapter_id' => $chapter_id,
-                    'source' => 'whisper',
-                    'content' => $transcript_text,
-                    'vtt_file' => $vtt_filename,
+                    'source'     => 'whisper',
+                    'content'    => $text,
+                    'vtt_file'   => $vtt_filename,
                     'created_at' => current_time('mysql'),
-                    'updated_at' => current_time('mysql')
+                    'updated_at' => current_time('mysql'),
                 ),
                 array('%d', '%d', '%s', '%s', '%s', '%s', '%s')
             );
         }
-        
-        // Delete MP3 file after successful transcription
-        $upload_dir = wp_upload_dir();
-        $mp3_dir = $upload_dir['basedir'] . '/alm_mp3s';
-        $mp3_file = basename($mp3_path);
-        $mp3_full_path = $mp3_dir . '/' . $mp3_file;
-        
-        if (file_exists($mp3_full_path)) {
-            @unlink($mp3_full_path);
+
+        if (!empty($chapter->mp3_file_url)) {
+            $mp3_full = $upload_dir['basedir'] . '/alm_mp3s/' . basename($chapter->mp3_file_url);
+            if (file_exists($mp3_full)) {
+                @unlink($mp3_full);
+            }
         }
-        
-        // Also clear the mp3_file_url from the database
+
         $wpdb->update(
             $chapters_table,
             array('mp3_file_url' => ''),
@@ -3838,80 +4283,80 @@ class Academy_Lesson_Manager {
             array('%s'),
             array('%d')
         );
-        
-            // Update status to completed
-            $this->update_transcription_status($chapter_id, 'completed', 'Transcription completed successfully!', 100);
-            
-        } catch (Exception $e) {
-            error_log('ALM Transcription Exception [Chapter ' . $chapter_id . ']: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-            $this->update_transcription_status($chapter_id, 'failed', 'Exception: ' . $e->getMessage(), 0);
-        } catch (Error $e) {
-            error_log('ALM Transcription Fatal Error [Chapter ' . $chapter_id . ']: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-            $this->update_transcription_status($chapter_id, 'failed', 'Fatal Error: ' . $e->getMessage(), 0);
+
+        $log_dir  = $upload_dir['basedir'] . '/alm_logs';
+        $log_file = $log_dir . '/transcription_' . $chapter_id . '.log';
+        if (!file_exists($log_dir)) {
+            wp_mkdir_p($log_dir);
         }
+        $aai_id  = isset($result['id']) ? (string) $result['id'] : 'unknown';
+        $summary = '[' . current_time('Y-m-d H:i:s') . '] [COMPLETED] (100%) VTT saved: ' . $vtt_filename . ' | AssemblyAI ID: ' . $aai_id . ' | Words: ' . count($words) . PHP_EOL;
+        file_put_contents($log_file, $summary, FILE_APPEND | LOCK_EX);
+
+        return true;
     }
-    
+
     /**
-     * Run transcription in background (called via scheduled event)
-     * 
-     * @param int $chapter_id Chapter ID
-     * @param string $mp3_path Path to MP3 file
+     * Format a single VTT cue block (times in milliseconds).
+     *
+     * @param float|int $start_ms Start ms.
+     * @param float|int $end_ms   End ms.
+     * @param string    $text     Cue text.
+     * @return string
+     */
+    private function format_vtt_cue($start_ms, $end_ms, $text) {
+        return $this->ms_to_vtt_time($start_ms) . ' --> ' . $this->ms_to_vtt_time($end_ms) . "\n" . trim($text) . "\n\n";
+    }
+
+    /**
+     * Convert milliseconds to VTT timestamp format.
+     *
+     * @param float|int $ms Milliseconds.
+     * @return string
+     */
+    private function ms_to_vtt_time($ms) {
+        $ms   = max(0, (int) round(floatval($ms)));
+        $h    = (int) floor($ms / 3600000);
+        $m    = (int) floor(($ms % 3600000) / 60000);
+        $s    = (int) floor(($ms % 60000) / 1000);
+        $mill = $ms % 1000;
+        return sprintf('%02d:%02d:%02d.%03d', $h, $m, $s, $mill);
+    }
+
+    /**
+     * Legacy hook: transcription is now AssemblyAI async from the admin UI.
+     *
+     * @param int    $chapter_id Chapter ID.
+     * @param string $mp3_path   Unused.
      */
     public function run_transcription_background($chapter_id, $mp3_path) {
-        // Update status to show we're starting
-        $this->update_transcription_status($chapter_id, 'processing', 'Background process started...', 10);
-        
-        ignore_user_abort(true);
-        set_time_limit(0);
-        
-        try {
-            $this->transcribe_chapter($chapter_id, $mp3_path);
-        } catch (Exception $e) {
-            $this->update_transcription_status($chapter_id, 'failed', 'Error: ' . $e->getMessage(), 0);
-        } catch (Error $e) {
-            $this->update_transcription_status($chapter_id, 'failed', 'Fatal error: ' . $e->getMessage(), 0);
-        }
+        error_log('ALM: run_transcription_background is unused; use AssemblyAI flow from chapter edit screen.');
     }
     
     /**
      * Helper to update transcription status
      */
     private function update_transcription_status($chapter_id, $status, $message, $progress) {
-        $existing_status = get_transient('alm_transcription_status_' . $chapter_id);
-        $start_time = $existing_status && isset($existing_status['start_time']) ? $existing_status['start_time'] : time();
-        $debug_log = $existing_status && isset($existing_status['debug_log']) ? $existing_status['debug_log'] : array();
-        
-        // Add to debug log
-        $debug_log[] = array(
-            'time' => time(),
-            'status' => $status,
-            'message' => $message,
-            'progress' => $progress
-        );
-        
-        // Keep only last 50 log entries
-        if (count($debug_log) > 50) {
-            $debug_log = array_slice($debug_log, -50);
+        $upload_dir = wp_upload_dir();
+        $log_dir    = $upload_dir['basedir'] . '/alm_logs';
+        if (!file_exists($log_dir)) {
+            wp_mkdir_p($log_dir);
         }
-        
+        $log_file = $log_dir . '/transcription_' . intval($chapter_id) . '.log';
+        $line = '[' . date('Y-m-d H:i:s') . '] [' . strtoupper($status) . '] (' . $progress . '%) ' . $message . PHP_EOL;
+        file_put_contents($log_file, $line, FILE_APPEND | LOCK_EX);
+
+        // Keep legacy transient for pollForVTTFile compatibility
         set_transient('alm_transcription_status_' . $chapter_id, array(
-            'status' => $status,
-            'message' => $message,
-            'progress' => $progress,
-            'timestamp' => time(),
-            'start_time' => $start_time,
-            'last_update' => time(),
-            'debug_log' => $debug_log
-        ), 3600);
-        
-        // Also log to error log for server-side debugging
-        error_log(sprintf(
-            'ALM Transcription [Chapter %d]: %s - %s (Progress: %d%%)',
-            $chapter_id,
-            strtoupper($status),
-            $message,
-            $progress
-        ));
+            'status'     => $status,
+            'message'    => $message,
+            'progress'   => $progress,
+            'timestamp'  => time(),
+            'start_time' => time(),
+            'last_update'=> time(),
+        ), 7200);
+
+        error_log(sprintf('ALM Transcription [Chapter %d]: %s - %s (%d%%)', $chapter_id, strtoupper($status), $message, $progress));
     }
     
     /**

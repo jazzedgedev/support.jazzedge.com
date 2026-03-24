@@ -114,6 +114,9 @@ class ALM_Database {
         
         // Check and add mp3_file_url column to chapters table if it doesn't exist
         $this->check_and_add_mp3_file_url_column();
+
+        // AssemblyAI async job id (chapter transcription)
+        $this->check_and_add_assemblyai_transcript_id_column();
         
         // Ensure lesson_pathways table exists (migration for existing installations)
         $this->ensure_lesson_pathways_table();
@@ -296,6 +299,23 @@ class ALM_Database {
         if (empty($mp3_columns)) {
             // Add mp3_file_url column after bunny_url
             $this->wpdb->query("ALTER TABLE $chapters_table ADD COLUMN mp3_file_url varchar(255) DEFAULT NULL AFTER bunny_url");
+        }
+    }
+
+    /**
+     * Check and add assemblyai_transcript_id column to chapters table
+     */
+    public function check_and_add_assemblyai_transcript_id_column() {
+        $chapters_table = $this->tables['chapters'];
+
+        $table_exists = $this->wpdb->get_var("SHOW TABLES LIKE '{$chapters_table}'") == $chapters_table;
+        if (!$table_exists) {
+            return;
+        }
+
+        $cols = $this->wpdb->get_results("SHOW COLUMNS FROM $chapters_table LIKE 'assemblyai_transcript_id'");
+        if (empty($cols)) {
+            $this->wpdb->query("ALTER TABLE $chapters_table ADD COLUMN assemblyai_transcript_id varchar(64) DEFAULT '' NOT NULL AFTER mp3_file_url");
         }
     }
     

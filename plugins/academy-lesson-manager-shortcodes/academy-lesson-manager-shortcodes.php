@@ -4370,9 +4370,17 @@ class ALM_Shortcodes_Plugin {
         }
         
         // Lesson Resources
-        if ($has_access) {
+        // Check if the lesson itself is released yet (same logic as the coming-soon notice above)
+        $lesson_is_released = true;
+        if (!current_user_can('manage_options') && !empty($lesson->post_date) && $lesson->post_date !== '0000-00-00') {
+            if (strtotime($lesson->post_date . ' 00:00:00') > current_time('timestamp')) {
+                $lesson_is_released = false;
+            }
+        }
+
+        if ($has_access && $lesson_is_released) {
             $return .= do_shortcode('[alm_lesson_resources lesson_id="' . $atts['lesson_id'] . '" user_membership_level="' . $atts['user_membership_level'] . '"]');
-        } else {
+        } elseif (!$has_access) {
             $return .= '<div class="alm-sidebar-card alm-restricted">';
             $return .= '<div class="alm-card-header">LESSON RESOURCES</div>';
             $return .= '<div class="alm-card-content">';
@@ -16370,6 +16378,16 @@ class ALM_Shortcodes_Plugin {
         $playbook_lesson_ids = array(544, 568, 569); // Playbook Days 1-10, 11-20, 21-30
         $blueprint_lesson_ids = array(1358, 1359, 1356); // Blues Piano Blueprint, Rock Piano Blueprint, Super Simple Standards
         $starter_lesson_ids = array_merge($playbook_lesson_ids, $blueprint_lesson_ids);
+
+        // Splash / poster images for sample videos (HTML5 video poster)
+        $starter_video_posters = array(
+            544 => 'https://jazzedge.academy/wp-content/uploads/2026/03/piano-playbook-1-10.webp',
+            568 => 'https://jazzedge.academy/wp-content/uploads/2026/03/piano-playbook-11-20.webp',
+            569 => 'https://jazzedge.academy/wp-content/uploads/2026/03/piano-playbook-21-30.webp',
+            1359 => 'https://jazzedge.academy/wp-content/uploads/2026/03/rock-blueprint.webp',
+            1356 => 'https://jazzedge.academy/wp-content/uploads/2026/03/jazz-blueprint.webp',
+            1358 => 'https://jazzedge.academy/wp-content/uploads/2026/03/blues-blueprint.webp',
+        );
         
         // Get lessons with sample videos - separate playbook and blueprints
         $all_lesson_ids = array_merge($playbook_lesson_ids, $blueprint_lesson_ids);
@@ -16951,6 +16969,7 @@ class ALM_Shortcodes_Plugin {
                                     $video_url = esc_url($lesson->sample_video_url);
                                     $video_id = 'starter-video-' . $lesson->ID . '-' . uniqid();
                                     $is_m3u8 = (strpos($video_url, '.m3u8') !== false);
+                                    $poster_url = isset($starter_video_posters[(int) $lesson->ID]) ? $starter_video_posters[(int) $lesson->ID] : '';
                                     ?>
                                     <video 
                                         id="<?php echo esc_attr($video_id); ?>" 
@@ -16958,7 +16977,7 @@ class ALM_Shortcodes_Plugin {
                                         controls 
                                         preload="metadata"
                                         playsinline
-                                        webkit-playsinline>
+                                        webkit-playsinline<?php echo $poster_url !== '' ? ' poster="' . esc_attr($poster_url) . '"' : ''; ?>>
                                         <?php if ($is_m3u8): ?>
                                         <source src="<?php echo $video_url; ?>" type="application/x-mpegURL">
                                         <?php else: ?>
@@ -17027,6 +17046,7 @@ class ALM_Shortcodes_Plugin {
                                     $video_url = esc_url($lesson->sample_video_url);
                                     $video_id = 'starter-video-' . $lesson->ID . '-' . uniqid();
                                     $is_m3u8 = (strpos($video_url, '.m3u8') !== false);
+                                    $poster_url = isset($starter_video_posters[(int) $lesson->ID]) ? $starter_video_posters[(int) $lesson->ID] : '';
                                     ?>
                                     <video 
                                         id="<?php echo esc_attr($video_id); ?>" 
@@ -17034,7 +17054,7 @@ class ALM_Shortcodes_Plugin {
                                         controls 
                                         preload="metadata"
                                         playsinline
-                                        webkit-playsinline>
+                                        webkit-playsinline<?php echo $poster_url !== '' ? ' poster="' . esc_attr($poster_url) . '"' : ''; ?>>
                                         <?php if ($is_m3u8): ?>
                                         <source src="<?php echo $video_url; ?>" type="application/x-mpegURL">
                                         <?php else: ?>

@@ -630,7 +630,7 @@ add_action('katahdin_ai_hub_init', function($hub) {
         'name' => 'Academy Practice Hub',
         'version' => '4.0',
         'features' => array('chat', 'completions'),
-        'quota_limit' => 5000 // tokens per month
+        'quota_limit' => get_option('jph_ai_quota_limit', 50000)
     ));
 });
 
@@ -643,7 +643,7 @@ add_action('init', function() {
                 'name' => 'Academy Practice Hub',
                 'version' => '4.0',
                 'features' => array('chat', 'completions'),
-                'quota_limit' => 5000 // tokens per month
+                'quota_limit' => get_option('jph_ai_quota_limit', 50000)
             ));
         }
     }
@@ -658,7 +658,7 @@ add_action('admin_init', function() {
                 'name' => 'Academy Practice Hub',
                 'version' => '4.0',
                 'features' => array('chat', 'completions'),
-                'quota_limit' => 5000 // tokens per month
+                'quota_limit' => get_option('jph_ai_quota_limit', 50000)
             ));
         }
     }
