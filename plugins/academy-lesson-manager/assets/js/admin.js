@@ -4,7 +4,251 @@
  * Custom JavaScript for the Academy Lesson Manager admin interface
  */
 
+var _almQeCtx = null;
+
+function almQuickEditOpen(btn, data) {
+    if (!data || typeof data !== 'object') {
+        return;
+    }
+    var $row = jQuery(btn).closest('tr');
+    if ($row.next('.alm-quick-edit-row').length) {
+        $row.next('.alm-quick-edit-row').remove();
+        $row.removeData('quick-edit-open');
+        _almQeCtx = null;
+        return;
+    }
+
+    jQuery('.alm-quick-edit-row').each(function() {
+        jQuery(this).prev('tr').removeData('quick-edit-open');
+    });
+    jQuery('.alm-quick-edit-row').remove();
+
+    _almQeCtx = data;
+    $row.data('quick-edit-open', true);
+
+    var cols = data.cols || 12;
+    var freeY = (data.free === 'y' || data.free === 'Y');
+
+    var html = '<tr class="alm-quick-edit-row" style="background:#f0f6fc;">'
+        + '<td colspan="' + cols + '" style="padding:12px 16px;">'
+        + '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;">'
+        + '<div><label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Title</label>'
+        + '<input type="text" class="alm-qe-title" value="' + jQuery('<div>').text(data.title || '').html() + '" style="width:280px;" /></div>'
+        + '<div><label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Release Date</label>'
+        + '<input type="date" class="alm-qe-date" value="' + jQuery('<div>').text(data.date || '').html() + '" /></div>'
+        + '<div><label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Free</label>'
+        + '<select class="alm-qe-free">'
+        + '<option value="n"' + (!freeY ? ' selected' : '') + '>No</option>'
+        + '<option value="y"' + (freeY ? ' selected' : '') + '>Yes</option>'
+        + '</select></div>'
+        + '<div><label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Bunny URL</label>'
+        + '<input type="url" class="alm-qe-bunny-url" value="' + jQuery('<div>').text(data.bunny_url || '').html() + '" style="width:320px;" placeholder="https://..." /></div>'
+        + '<div style="display:flex;gap:6px;">'
+        + '<button type="button" class="button button-primary" onclick="almQuickEditSave(' + parseInt(data.id, 10) + ')">Save</button>'
+        + '<button type="button" class="button" onclick="almQuickEditCancel()">Cancel</button>'
+        + '</div>'
+        + '<span class="alm-qe-status" style="font-size:12px;color:#666;"></span>'
+        + '</div></td></tr>';
+
+    $row.after(html);
+    $row.next('.alm-quick-edit-row').find('.alm-qe-title').focus();
+}
+
+function almQuickEditCancel() {
+    jQuery('.alm-quick-edit-row').prev('tr').removeData('quick-edit-open');
+    jQuery('.alm-quick-edit-row').remove();
+    _almQeCtx = null;
+}
+
+function almQuickEditSave(cid) {
+    var nonce = _almQeCtx && _almQeCtx.nonce;
+    if (!nonce) {
+        return;
+    }
+    var title = jQuery('.alm-quick-edit-row .alm-qe-title').val();
+    var date  = jQuery('.alm-quick-edit-row .alm-qe-date').val();
+    var free  = jQuery('.alm-quick-edit-row .alm-qe-free').val();
+    var bunny_url = jQuery('.alm-quick-edit-row .alm-qe-bunny-url').val();
+    var $qeRow = jQuery('.alm-quick-edit-row');
+    var $dataRow = $qeRow.prev('tr');
+
+    jQuery('.alm-quick-edit-row .alm-qe-status').text('Saving…');
+
+    var ajaxPostUrl = (typeof alm_admin !== 'undefined' && alm_admin.ajax_url) ? alm_admin.ajax_url : (typeof ajaxurl !== 'undefined' ? ajaxurl : '');
+    jQuery.post(ajaxPostUrl, {
+        action:     'alm_quick_edit_chapter',
+        chapter_id: cid,
+        title:      title,
+        date:       date,
+        free:       free,
+        bunny_url:  bunny_url,
+        nonce:      nonce
+    }).done(function(r) {
+        if (r.success) {
+            var $cells = $dataRow.find('td');
+            $cells.eq(3).find('a').text(r.data.title);
+            $cells.eq(8).html(r.data.free === 'y'
+                ? '<span style="color:#46b450;font-weight:bold;">Yes</span>'
+                : '<span style="color:#dc3232;">No</span>');
+            $dataRow.find('td.col-bunny').html(r.data.bunny_url
+                ? '<span style="color:#46b450;font-weight:bold;">Yes</span>'
+                : '<span style="color:#dc3232;">No</span>');
+            var $dateLink = $cells.eq(9).find('a[onclick*="almPickDate"]');
+            if ($dateLink.length) {
+                $dateLink.text(r.data.date).attr('data-date', date || '');
+            } else {
+                $cells.eq(9).text(r.data.date);
+            }
+            $dataRow.removeData('quick-edit-open');
+            $qeRow.remove();
+            _almQeCtx = null;
+            var $qeBtn = $dataRow.find('button[onclick^="almQuickEditOpen"]');
+            if ($qeBtn.length) {
+                var nextData = {
+                    id: parseInt(cid, 10),
+                    title: r.data.title,
+                    date: date,
+                    free: r.data.free,
+                    bunny_url: r.data.bunny_url || '',
+                    nonce: nonce,
+                    cols: 12
+                };
+                $qeBtn.attr('onclick', 'almQuickEditOpen(this,' + JSON.stringify(nextData) + ')');
+            }
+        } else {
+            jQuery('.alm-quick-edit-row .alm-qe-status').text('Error: ' + (r.data || 'unknown'));
+        }
+    }).fail(function() {
+        jQuery('.alm-quick-edit-row .alm-qe-status').text('Request failed.');
+    });
+}
+
+function almPickDate(event, el) {
+    event.stopPropagation();
+
+    var $picker = jQuery('#alm-date-picker-popup');
+    if (!$picker.length) {
+        $picker = jQuery(
+            '<div id="alm-date-picker-popup" style="'
+            + 'position:fixed;z-index:100000;background:#fff;'
+            + 'border:1px solid #ccd0d4;border-radius:4px;'
+            + 'box-shadow:0 2px 8px rgba(0,0,0,.2);padding:10px;'
+            + 'display:none;">'
+            + '<input type="date" id="alm-date-picker-input" style="display:block;margin-bottom:8px;" />'
+            + '<div style="display:flex;gap:6px;">'
+            + '<button type="button" id="alm-date-picker-save" class="button button-primary button-small">Save</button>'
+            + '<button type="button" id="alm-date-picker-clear" class="button button-small">Clear</button>'
+            + '<button type="button" id="alm-date-picker-cancel" class="button button-small">Cancel</button>'
+            + '</div>'
+            + '</div>'
+        ).appendTo('body');
+    }
+
+    var rect = el.getBoundingClientRect();
+    $picker.css({ top: rect.bottom + 6, left: rect.left });
+
+    jQuery('#alm-date-picker-input').val(el.dataset.date || '');
+    $picker.data('el', el).show();
+}
+
+function almPickerDoSave(el, date) {
+    var ajaxPostUrl = (typeof alm_admin !== 'undefined' && alm_admin.ajax_url) ? alm_admin.ajax_url : (typeof ajaxurl !== 'undefined' ? ajaxurl : '');
+    jQuery.post(ajaxPostUrl, {
+        action:     'alm_update_chapter_release_date',
+        chapter_id: el.dataset.chapterId,
+        date:       date,
+        nonce:      el.dataset.nonce
+    }).done(function(r) {
+        if (r.success) {
+            jQuery(el).text(r.data.label);
+            jQuery(el).attr('data-date', r.data.date !== undefined && r.data.date !== null ? r.data.date : '');
+            jQuery('#alm-date-picker-popup').hide();
+        } else {
+            alert('Save failed: ' + (r.data || 'unknown'));
+        }
+    }).fail(function() {
+        alert('Request failed.');
+    });
+}
+
 jQuery(document).ready(function($) {
+
+    $(document).on('click', '#alm-date-picker-save', function() {
+        var $picker = $('#alm-date-picker-popup');
+        var el      = $picker.data('el');
+        var date    = $('#alm-date-picker-input').val();
+        almPickerDoSave(el, date);
+    });
+
+    $(document).on('click', '#alm-date-picker-clear', function() {
+        var el = $('#alm-date-picker-popup').data('el');
+        almPickerDoSave(el, '');
+    });
+
+    $(document).on('click', '#alm-date-picker-cancel', function() {
+        $('#alm-date-picker-popup').hide();
+    });
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#alm-date-picker-popup').length && !$(e.target).closest('a[onclick*="almPickDate"]').length) {
+            $('#alm-date-picker-popup').hide();
+        }
+    });
+
+    // Populate chapter order on lesson form submit (DOM row order → hidden field)
+    $('form').on('submit', function() {
+        var $chapterInput = $('#alm-chapter-order-input');
+        if ($chapterInput.length) {
+            var cids = [];
+            $('tr[data-chapter-id]').each(function() {
+                cids.push($(this).attr('data-chapter-id'));
+            });
+            $chapterInput.val(cids.join(','));
+        }
+    });
+
+    $(document).on('click', '#alm-fix-lesson-order', function() {
+        var $btn           = $(this);
+        var origLabel      = $btn.text();
+        var collectionId   = $btn.attr('data-collection-id');
+        var nonce          = $btn.attr('data-nonce');
+        var ids            = [];
+
+        $('tr[data-lesson-id]').each(function() {
+            ids.push($(this).attr('data-lesson-id'));
+        });
+
+        if (!ids.length) {
+            alert('No lessons found.');
+            return;
+        }
+
+        $btn.prop('disabled', true).text('Fixing…');
+
+        var ajaxPostUrl = (typeof alm_admin !== 'undefined' && alm_admin.ajax_url) ? alm_admin.ajax_url : (typeof ajaxurl !== 'undefined' ? ajaxurl : '');
+        $.post(ajaxPostUrl, {
+            action:        'alm_normalize_lesson_order',
+            collection_id: collectionId,
+            lesson_ids:    ids.join(','),
+            nonce:         nonce
+        }).done(function(r) {
+            if (r.success) {
+                $('.alm-collection-lessons tr[data-lesson-id]').each(function(i) {
+                    $(this).find('.lesson-menu-order').text(i + 1);
+                });
+                $btn.text('Done!');
+                setTimeout(function() {
+                    $btn.prop('disabled', false).text(origLabel);
+                }, 2000);
+            } else {
+                alert('Error: ' + (r.data || 'unknown'));
+                $btn.prop('disabled', false).text(origLabel);
+            }
+        }).fail(function() {
+            alert('Request failed.');
+            $btn.prop('disabled', false).text(origLabel);
+        });
+    });
     
     // Search form enhancements
     $('.alm-search-form input[type="search"]').on('keypress', function(e) {
@@ -1090,6 +1334,33 @@ jQuery(document).ready(function($) {
             },
             error: function() {
                 $btn.prop('disabled', false).text('✖ Remove MP3');
+                $status.html('<span style="color:#dc3232;">AJAX error. Try again.</span>');
+            }
+        });
+    });
+
+    // Delete VTT button
+    $(document).on('click', '#alm-delete-vtt-file', function() {
+        if (!confirm('Delete this VTT transcript file? This will clear the transcript so you can start over.')) return;
+        var chapterId = $(this).data('chapter-id');
+        var $btn = $(this);
+        var $status = $('#alm-delete-vtt-status');
+        $btn.prop('disabled', true).text('Deleting...');
+        $.ajax({
+            url: alm_admin.ajax_url,
+            type: 'POST',
+            data: { action: 'alm_delete_vtt_file', chapter_id: chapterId, nonce: alm_admin.nonce },
+            success: function(response) {
+                if (response.success) {
+                    $status.html('<span style="color:#46b450; font-weight:bold;">✅ Deleted. Reloading...</span>');
+                    setTimeout(function() { location.reload(); }, 1200);
+                } else {
+                    $btn.prop('disabled', false).text('🗑️ Delete VTT');
+                    $status.html('<span style="color:#dc3232;">Error: ' + (response.data && response.data.message ? response.data.message : 'Unknown error') + '</span>');
+                }
+            },
+            error: function() {
+                $btn.prop('disabled', false).text('🗑️ Delete VTT');
                 $status.html('<span style="color:#dc3232;">AJAX error. Try again.</span>');
             }
         });

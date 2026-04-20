@@ -91,7 +91,14 @@ class ALM_Essentials_Library {
         if ($result === false) {
             return new WP_Error('db_error', 'Failed to initialize membership');
         }
-        
+
+        if (class_exists('ALM_Essentials_Selection_Audit')) {
+            ALM_Essentials_Selection_Audit::log($user_id, 'initialize', 1, 1, 0, array(
+                'membership_start_date' => $today,
+                'next_grant_date'       => $next_grant,
+            ));
+        }
+
         return true;
     }
     
@@ -260,7 +267,13 @@ class ALM_Essentials_Library {
             array('%s', '%s', '%d'),
             array('%d')
         );
-        
+
+        if (class_exists('ALM_Essentials_Selection_Audit')) {
+            ALM_Essentials_Selection_Audit::log($user_id, 'monthly_grant', 1, $new_count, 0, array(
+                'next_grant_date' => $new_next_grant,
+            ));
+        }
+
         return true;
     }
     
@@ -406,7 +419,17 @@ class ALM_Essentials_Library {
              WHERE user_id = %d AND available_count > 0",
             $user_id
         ));
-        
+
+        $balance_after = (int) $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT available_count FROM {$this->selections_table} WHERE user_id = %d",
+            $user_id
+        ));
+        if (class_exists('ALM_Essentials_Selection_Audit')) {
+            ALM_Essentials_Selection_Audit::log($user_id, 'lesson_selected', -1, $balance_after, $user_id, array(
+                'lesson_id' => $lesson_id,
+            ));
+        }
+
         return true;
     }
     

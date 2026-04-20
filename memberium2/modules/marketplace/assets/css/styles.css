@@ -1,0 +1,290 @@
+.memberium-marketplace-card {
+    border-bottom: 6px solid #2a2d36;
+    position: relative;
+    padding-bottom: 15px;
+    background: #fff;
+}
+
+.memberium-marketplace-card img {
+    max-width: 90%;
+    width: auto;
+    margin: 0 auto;
+    height: auto;
+    max-height: 100%;
+}
+
+.memberium-marketplace-card .portrait img {
+    width: auto;
+    height: 100%;
+}
+
+.memberium-marketplace-card.portrait figure img {
+    max-height: 90%;
+}
+
+.memberium-marketplace-card figure {
+    border: 12px solid #405071;
+    height: 180px;
+    align-items: center;
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+}
+
+.memberium-marketplace-card h3 {
+    color: #2a2d36;
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: uppercase;
+    line-height: 1.3em;
+}
+
+.memberium-marketplace-card p {
+    color: #2a2d36;
+    font-size: 14px;
+}
+
+.memberium-marketplace-content {
+    padding: 5px 19px 30px;
+}
+
+.memberium-marketplace-content a.button.button-primary {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 400;
+    text-shadow: none;
+    padding: 10px 15px 15px 25px;
+    height: auto;
+    width: 100%;
+    max-width: 140px;
+    box-shadow: none;
+    border-radius: 10px;
+    background: #0085ba;
+    border: none;
+    line-height: 1;
+    text-transform: capitalize;
+}
+
+.memberium-marketplace-content a.button.button-primary.memmberium-marketplace-btn {
+    max-width: 100px;
+    margin-right: 20px;
+    border: 2px solid #0085ba;
+    background: none;
+    color: #0085ba;
+    text-align: center;
+    padding: 8px 0px;
+}
+
+.memberium-marketplace-content a.button.button-primary:after {
+    content: "";
+    display: block;
+    position: absolute;
+    width: 25px;
+    right: 14px;
+    top: 20px;
+    height: 16px;
+    s
+}
+
+.marketplace-description-footer a {
+    display: block;
+    max-width: 300px;
+}
+
+.memberium-marketplace-content a.button.button-primary:hover {
+    opacity: 0.9;
+}
+
+.marketplace-description p {
+    color: #2a2d36;
+    margin-top: 1.4em;
+    font-weight: 400;
+    line-height: 1.6;
+    font-size: 16px;
+}
+
+.marketplace-description.marketplace-description-footer a {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 400;
+    text-shadow: none;
+    padding: 9px 15px 10px 25px;
+    height: auto;
+    width: 100%;
+    max-width: 85px;
+    box-shadow: none;
+    border-radius: 10px;
+    background: #0085ba;
+    border: none;
+    text-transform: capitalize;
+    display: block;
+    text-decoration: none;
+}
+
+.marketplace-description h3 {
+    margin-top: 0px;
+    margin-bottom: -10px;
+    font-weight: normal;
+    font-size: 18px;
+    line-height: 1.1em;
+    font-weight: bold;
+}
+
+p.memberium-marketplace-desc {
+    color: #2a2d36;
+    font-size: 25px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    line-height: 1em;
+}
+
+.marketplace-description {
+    padding: 30px 0px 20px;
+}
+
+.marketplace-description-footer h3 {
+    font-size: 25px;
+}
+
+.marketplace-description-footer p {
+    font-size: 16px;
+}
+
+#the-list {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    -ms-grid-columns: repeat(1, 1fr);
+    grid-column-gap: 2em;
+    grid-row-gap: 2em;
+    position: relative;
+    width: 100%;
+    padding-top: 10px;
+}
+
+.wrap.marketplace-wrap.memberium {
+    margin: 0px;
+}
+
+.memberium-marketplace-content a {
+    word-break: break-all;
+}
+
+.memberium-marketplace-card.full figure img {
+    max-width: 100%;
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+}
+
+.memberium-marketplace-card.position-top figure img {
+    object-position: top;
+}
+
+.memberium-marketplace-card.position-center figure img {
+    object-position: center;
+}
+
+.memberium-marketplace-card.position-bottom figure img {
+    object-position: bottom;
+}
+
+.memberium-marketplace-card.medium figure img {
+    max-width: 90%;
+    width: 100%;
+}
+
+.memberium-marketplace-card.small figure img {
+    max-width: 250px;
+}
+
+@media screen and (min-width:380px) {
+    .memberium-marketplace-card figure {
+        height: 230px;
+    }
+}
+
+@media screen and (min-width:565px) {
+    .memberium-marketplace-card figure {
+        height: 300px;
+    }
+}
+
+@media screen and (min-width:640px) {
+    #the-list {
+        grid-template-columns: repeat(2, 1fr);
+        -ms-grid-columns: repeat(2, 1fr);
+    }
+    .memberium-marketplace-card figure {
+        height: 200px;
+    }
+    .memberium-marketplace-buttons {
+        position: absolute;
+        width: 100%;
+        bottom: 28px;
+    }
+    .memberium-marketplace-card {
+        padding-bottom: 40px;
+    }
+    .marketplace-description h3 {
+        font-size: 25px;
+    }
+}
+
+@media screen and (min-width:1040px) {
+    .memberium-marketplace-card figure {
+        height: 235px;
+    }
+}
+
+@media screen and (min-width:1200px) {
+    .memberium-marketplace-card figure {
+        height: 280px;
+    }
+}
+
+@media screen and (min-width:1400px) {
+    #the-list {
+        grid-template-columns: repeat(3, 1fr);
+        -ms-grid-columns: repeat(3, 1fr);
+        grid-column-gap: 3em;
+        grid-row-gap: 3em;
+    }
+    .memberium-marketplace-card figure {
+        height: 220px;
+    }
+    .marketplace-description h3 {
+        font-size: 40px;
+    }
+    .marketplace-description p {
+        font-size: 19px;
+    }
+    .memberium-marketplace-content a.button.button-primary {
+        font-size: 24px;
+        max-width: 177px
+    }
+    .memberium-marketplace-card {
+        padding-bottom: 70px;
+    }
+    .memberium-marketplace-buttons {
+        bottom: 35px;
+    }
+}
+
+@media screen and (min-width:1600px) {
+    .memberium-marketplace-card figure {
+        height: 250px;
+    }
+}
+
+@media screen and (min-width:1700px) {
+    .memberium-marketplace-card figure {
+        height: 280px;
+    }
+}
+
+@media screen and (min-width:2000px) {
+    .memberium-marketplace-card figure {
+        height: 350px;
+    }
+}

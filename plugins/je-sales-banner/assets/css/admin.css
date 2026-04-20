@@ -1,0 +1,364 @@
+/* JE Sales Banner — admin */
+
+.je-sb-wrap .je-sb-list-table th,
+.je-sb-wrap .je-sb-list-table td {
+    vertical-align: middle;
+}
+
+.je-sb-actions {
+    white-space: normal;
+    min-width: 0;
+}
+
+.je-sb-actions-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+}
+
+.je-sb-action-btn {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: #646970;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    font-family: inherit;
+    line-height: 1;
+    vertical-align: middle;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.je-sb-action-btn:hover {
+    background: #f0f0f1;
+    color: #1d2327;
+}
+
+.je-sb-action-btn--delete:hover {
+    background: #fbeaea;
+    color: #b32d2e;
+}
+
+.je-sb-action-btn--toggle.is-active {
+    color: #00a32a;
+}
+
+.je-sb-action-btn--toggle.is-active:hover {
+    color: #00a32a;
+    background: #edfaef;
+}
+
+.je-sb-action-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+}
+
+.je-sb-action-btn--copy-shortcode {
+    position: relative;
+}
+
+.je-sb-action-btn--copy-shortcode.is-copied::after {
+    content: attr(data-copied-msg);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: #1d2327;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.je-sb-shortcode-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+.je-sb-shortcode-display code {
+    font-size: 13px;
+    color: #1d2327;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.je-sb-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.je-sb-badge--active {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sb-badge--inactive {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.je-sb-swatch {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+    vertical-align: middle;
+}
+
+.je-sb-swatch--tpl-1 {
+    background: #004555;
+}
+
+.je-sb-swatch--tpl-2 {
+    background: #239b90;
+}
+
+.je-sb-swatch--tpl-3 {
+    background: #f04e23;
+}
+
+.je-sb-swatch--tpl-4 {
+    background: #459e90;
+}
+
+.je-sb-swatch--tpl-5 {
+    background: #002a34;
+}
+
+.je-sb-swatch--tpl-6 {
+    background: #6b2b60;
+}
+
+.je-sb-template-picker {
+    margin: 2rem 0 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #ccd0d4;
+}
+
+.je-sb-template-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    max-width: 900px;
+    margin-top: 12px;
+}
+
+@media (max-width: 960px) {
+    .je-sb-template-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.je-sb-template-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+    border: 2px solid #dcdcde;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.je-sb-template-card:hover {
+    border-color: #239b90;
+}
+
+.je-sb-template-card:has(input:checked) {
+    border-color: #239b90;
+    box-shadow: 0 0 0 1px #239b90;
+}
+
+.je-sb-template-card input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.je-sb-template-card__preview {
+    display: block;
+    width: 100%;
+    max-width: 220px;
+    margin: 0 auto;
+}
+
+.je-sb-mini-banner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1.2;
+    color: #fff;
+    min-height: 44px;
+}
+
+.je-sb-mini-badge {
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-size: 8px;
+    flex: 0 0 auto;
+}
+
+.je-sb-mini-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.je-sb-mini-title {
+    font-weight: 800;
+}
+
+.je-sb-mini-desc {
+    opacity: 0.9;
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.je-sb-mini-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-end;
+    flex: 0 0 auto;
+}
+
+.je-sb-mini-amount {
+    font-weight: 800;
+}
+
+.je-sb-mini-cta {
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 8px;
+}
+
+.je-sb-mini-banner--1 {
+    background: #004555;
+}
+
+.je-sb-mini-banner--1 .je-sb-mini-badge {
+    background: #239b90;
+}
+
+.je-sb-mini-banner--1 .je-sb-mini-cta {
+    background: #239b90;
+}
+
+.je-sb-mini-banner--2 {
+    background: #239b90;
+}
+
+.je-sb-mini-banner--2 .je-sb-mini-badge,
+.je-sb-mini-banner--2 .je-sb-mini-cta {
+    background: #f04e23;
+}
+
+.je-sb-mini-banner--3 {
+    background: #f04e23;
+}
+
+.je-sb-mini-banner--3 .je-sb-mini-badge,
+.je-sb-mini-banner--3 .je-sb-mini-cta {
+    background: #004555;
+}
+
+.je-sb-mini-banner--4 {
+    background: #459e90;
+    color: #002a34;
+}
+
+.je-sb-mini-banner--4 .je-sb-mini-badge,
+.je-sb-mini-banner--4 .je-sb-mini-cta {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sb-mini-banner--5 {
+    background: #002a34;
+}
+
+.je-sb-mini-banner--5 .je-sb-mini-badge,
+.je-sb-mini-banner--5 .je-sb-mini-cta {
+    background: #459e90;
+    color: #002a34;
+}
+
+.je-sb-mini-banner--6 {
+    background: #6b2b60;
+}
+
+.je-sb-mini-banner--6 .je-sb-mini-badge,
+.je-sb-mini-banner--6 .je-sb-mini-cta {
+    background: #239b90;
+}
+
+.je-sb-template-card__name {
+    text-align: center;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.je-sb-live-preview-wrap {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #ccd0d4;
+}
+
+.je-sb-live-preview {
+    border: 1px dashed #c3c4c7;
+    border-radius: 4px;
+    background: #f6f7f7;
+    overflow: hidden;
+}
+
+.je-sb-preview-wrap {
+    max-width: 100%;
+}
+
+.je-sb-preview-wrap .je-sale-banner {
+    margin-top: 1rem;
+}

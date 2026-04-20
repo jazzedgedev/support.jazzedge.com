@@ -1,0 +1,339 @@
+/**
+ * iOS 6 style switch checkboxes
+ * by Lea Verou http://lea.verou.me
+ */
+
+:root input[type="checkbox"].ios-switch+div {
+    display: inline-block;
+    vertical-align: middle;
+    width: 3em;
+    height: 1em;
+    border: 1px solid rgba(0, 0, 0, .3);
+    border-radius: 999px;
+    margin: 0 .5em;
+    background: white;
+    background-image: linear-gradient(rgba(0, 0, 0, .1), transparent), linear-gradient(90deg, hsl(210, 90%, 60%) 50%, transparent 50%);
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    background-origin: border-box;
+    background-clip: border-box;
+    overflow: hidden;
+    transition-duration: .4s;
+    transition-property: padding, width, background-position, text-indent;
+    box-shadow: 0 .1em .1em rgba(0, 0, 0, .2) inset, 0 .45em 0 .1em rgba(0, 0, 0, .05) inset;
+    font-size: 150%;
+    /* change this and see how they adjust! */
+}
+
+:root input[type="checkbox"].ios-switch:checked+div {
+    padding-left: 2em;
+    width: 1em;
+    background-position: 0 0;
+}
+
+:root input[type="checkbox"].ios-switch+div:before {
+    content: 'Yes';
+    float: left;
+    width: 1.65em;
+    height: 1.65em;
+    margin: -.1em;
+    border: 1px solid rgba(0, 0, 0, .35);
+    border-radius: inherit;
+    background: white;
+    background-image: linear-gradient(rgba(0, 0, 0, .2), transparent);
+    box-shadow: 0 .1em .1em .1em hsla(0, 0%, 100%, .8) inset, 0 0 .5em rgba(0, 0, 0, .3);
+    color: white;
+    text-shadow: 0 -1px 1px rgba(0, 0, 0, .3);
+    text-indent: -2.5em;
+}
+
+:root input[type="checkbox"].ios-switch:active+div:before {
+    background-color: #eee;
+}
+
+:root input[type="checkbox"].ios-switch:focus+div {
+    box-shadow: 0 .1em .1em rgba(0, 0, 0, .2) inset, 0 .45em 0 .1em rgba(0, 0, 0, .05) inset, 0 0 .4em 1px rgba(255, 0, 0, .5);
+}
+
+:root input[type="checkbox"].ios-switch+div:before,
+:root input[type="checkbox"].ios-switch+div:after {
+    font: bold 60%/1.9 sans-serif;
+    text-transform: uppercase;
+}
+
+:root input[type="checkbox"].ios-switch+div:after {
+    content: 'No';
+    float: left;
+    text-indent: .5em;
+    color: rgba(0, 0, 0, .45);
+    text-shadow: none;
+}
+
+
+/* Dashboard Styles */
+
+.memberium label {
+    display: inline-block;
+    width: 200px !important;
+    vertical-align: top;
+}
+
+.memberium_tabcontent label {
+    display: inline-block;
+    width: 300px !important;
+    vertical-align: top;
+}
+
+.metric {
+    display: inline-block;
+    width: 100px;
+    text-align: right;
+    margin-right: 1em;
+}
+
+.column1 {
+    font-weight: bold;
+    text-align: left;
+    width: 150px;
+}
+
+.column2 {
+    padding-right: 20px;
+}
+
+.column3 {
+    padding-right: 20px;
+}
+
+.badplugin {
+    color: red;
+    font-weight: bold;
+}
+
+.goodplugin {
+    color: green;
+    font-weight: bold;
+}
+
+.indented {
+    padding-left: 20px;
+}
+
+.pagelistdropdown,
+.taglistdropdown,
+.actionsetdropdown {
+    width: 300px !important;
+}
+
+h2 input {
+    font-size: 140% !important;
+}
+
+:root input[type=checkbox].ios-switch {
+    /* :root here acting as a filter for older browsers */
+    position: absolute;
+    opacity: 0;
+}
+
+
+/**
+ * Course Grid Thumbnails
+ */
+
+.memb_coursegrid_thumbnail {
+    position: relative;
+}
+
+.memb_coursegrid_input_button_wrap input[type=url],
+.memb_coursegrid_input_button_wrap button {
+    float: left;
+}
+
+.memb_coursegrid_input_button_wrap input[type=url] {
+    display: inline-block;
+    width: 80%;
+}
+
+.memb_coursegrid_input_button_wrap button {
+    width: 19%;
+}
+
+.memb_coursegrid_input_button_wrap button .dashicons {
+    padding-top: 4px;
+}
+
+.memb_coursegrid_preview button.memb_coursegrid_thumbnail_upload {
+    text-align: center;
+    background: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    border: none;
+}
+
+.memb_coursegrid_preview img {
+    max-width: 100%;
+    height: auto;
+}
+
+.memb_coursegrid_thumbnail_remove {
+    text-decoration: none;
+    position: absolute;
+    right: 0;
+}
+
+
+/* Core & Block Access Assets  */
+
+.memb-asset-access-fieldset {
+    margin: 0 0 14px 0;
+    border: 1px solid;
+    border-radius: 4px;
+    box-shadow: 0 0 0 transparent;
+    padding: 5px 10px;
+    box-sizing: content-box;
+}
+
+.memb-asset-access-fieldset[data-asset-type="menu"] {
+    margin: 5px;
+    width: calc(100% - 42px);
+}
+
+.memb-asset-access-legend {
+    font-size: 13px;
+    font-style: italic;
+    color: #666;
+}
+
+.memb-asset-access-field-control {
+    display: block;
+    margin-bottom: 14px;
+    box-sizing: border-box;
+}
+
+.memb-asset-access-field-label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.memb-asset-access-description.description {
+    padding-bottom: 0px;
+}
+
+.memb-asset-access-field-control .wpalSelect2-container {
+    width: 100%!important;
+    line-height: 24px!important;
+}
+
+.memb-asset-access-fieldset .memb-asset-access-notice {
+    font-size: 12px;
+    display: block;
+    background: #f00;
+    padding: 1em;
+    color: #fff;
+    font-weight: bold;
+    margin-top: 0.5em;
+}
+
+.memb-asset-access-tooltip {
+    position: relative;
+    display: inline-block;
+    margin-left: 2px;
+}
+
+.memb-asset-access-tooltip .memb-asset-access-tooltiptext {
+    visibility: hidden;
+    width: 180px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 7px 14px;
+    line-height: 1.6;
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+}
+
+.memb-asset-access-tooltip:hover .memb-asset-access-tooltiptext {
+    visibility: visible;
+}
+
+
+/* Legacy Widget Blocks */
+
+.wp-block-legacy-widget__edit-form .wpalSelect2-container--default .wpalSelect2-search--inline .wpalSelect2-search__field {
+    border: none!important;
+}
+
+.wp-block-legacy-widget__edit-form .wpalSelect2-container--default .wpalSelect2-results__options {
+    margin: 0!important;
+}
+
+.wp-block-legacy-widget__edit-form .wpalSelect2-container--default .wpalSelect2-selection--multiple .wpalSelect2-selection__rendered li {
+    width: 100%;
+}
+
+
+/* Taxonomy Access */
+
+.memb-asset-access-fieldset[data-asset-type="taxonomy"] .memb-asset-access-legend {
+    font-size: 14px;
+    color: #1d2327;
+    font-weight: 600;
+    font-style: normal;
+}
+
+.memberium-taxonomy-access-tbody[data-prohibited-action] [data-setting="redirect_url"] {
+    display: none;
+    visibility: hidden;
+}
+
+.memberium-taxonomy-access-tbody[data-prohibited-action="1"] [data-setting="redirect_url"] {
+    display: block;
+    visibility: visible;
+}
+
+.memberium-custom-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    padding-top: 100px;
+    left: 75px;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0, 0, 0);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+
+/* Modal Content */
+
+.memberium-custom-modal-content {
+    background-color: #fefefe;
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    padding-bottom: 40px;
+}
+
+
+/* The Close Button */
+
+.memberium-custom-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    padding-bottom: 16px;
+}
+
+.memberium-custom-close:hover,
+.memberium-custom-close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}

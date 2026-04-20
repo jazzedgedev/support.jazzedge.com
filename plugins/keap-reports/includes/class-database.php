@@ -11,6 +11,28 @@ if (!defined('ABSPATH')) {
 }
 
 class Keap_Reports_Database {
+    /**
+     * Per-request cache for table existence checks.
+     *
+     * @var array<string, bool>
+     */
+    private static $table_exists_cache = array();
+
+    /**
+     * Check if a table exists with request-level caching.
+     *
+     * @param string $table_name
+     * @return bool
+     */
+    private function table_exists($table_name) {
+        global $wpdb;
+        if (isset(self::$table_exists_cache[$table_name])) {
+            return self::$table_exists_cache[$table_name];
+        }
+        $exists = ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_name)) === $table_name);
+        self::$table_exists_cache[$table_name] = $exists;
+        return $exists;
+    }
     
     /**
      * Create database tables
@@ -323,7 +345,7 @@ class Keap_Reports_Database {
         $table_name = $wpdb->prefix . 'keap_reports';
         
         // Check if table exists first
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+        $table_exists = $this->table_exists($table_name);
         if (!$table_exists) {
             error_log('Keap Reports: Table does not exist: ' . $table_name);
             return array();
@@ -638,7 +660,7 @@ class Keap_Reports_Database {
         }
         
         // Check if table exists, create if not
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+        $table_exists = $this->table_exists($table_name);
         if (!$table_exists) {
             error_log('Keap Reports: Table ' . $table_name . ' does not exist. Creating it now...');
             self::create_tables();
@@ -774,6 +796,99 @@ class Keap_Reports_Database {
             'ytd_orders' => $ytd_orders
         );
     }
+
+    /**
+     * Get monthly comparison data in bulk for multiple reports.
+     *
+     * @param array $report_ids
+     * @param int $current_year
+     * @param int $current_month
+     * @return array<int,array>
+     */
+    public function get_monthly_comparisons_bulk($report_ids, $current_year, $current_month) {
+        global $wpdb;
+
+        $report_ids = array_values(array_filter(array_map('intval', (array) $report_ids)));
+        if (empty($report_ids)) {
+            return array();
+        }
+
+        $table_name = $wpdb->prefix . 'keap_report_data';
+        $placeholders = implode(',', array_fill(0, count($report_ids), '%d'));
+
+        $prev_month = $current_month - 1;
+        $prev_year = $current_year;
+        if ($prev_month < 1) {
+            $prev_month = 12;
+            $prev_year = $current_year - 1;
+        }
+
+        $period_args = array_merge(
+            $report_ids,
+            array($current_year, $current_month, $prev_year, $prev_month)
+        );
+        $period_sql = "SELECT report_id, `year`, `month`, value, num_orders, total_amt_sold
+            FROM {$table_name}
+            WHERE report_id IN ({$placeholders})
+              AND ((`year` = %d AND `month` = %d) OR (`year` = %d AND `month` = %d))";
+        $period_rows = $wpdb->get_results($wpdb->prepare($period_sql, $period_args), ARRAY_A);
+
+        $ytd_args = array_merge($report_ids, array($current_year, $current_month));
+        $ytd_sql = "SELECT report_id, COALESCE(SUM(total_amt_sold), 0) AS total_revenue, COALESCE(SUM(num_orders), 0) AS total_orders
+            FROM {$table_name}
+            WHERE report_id IN ({$placeholders}) AND `year` = %d AND `month` <= %d
+            GROUP BY report_id";
+        $ytd_rows = $wpdb->get_results($wpdb->prepare($ytd_sql, $ytd_args), ARRAY_A);
+
+        $current_by_id = array();
+        $prev_by_id = array();
+        foreach ($period_rows as $row) {
+            $rid = intval($row['report_id']);
+            if (intval($row['year']) === intval($current_year) && intval($row['month']) === intval($current_month)) {
+                $current_by_id[$rid] = $row;
+            } elseif (intval($row['year']) === intval($prev_year) && intval($row['month']) === intval($prev_month)) {
+                $prev_by_id[$rid] = $row;
+            }
+        }
+
+        $ytd_by_id = array();
+        foreach ($ytd_rows as $row) {
+            $ytd_by_id[intval($row['report_id'])] = $row;
+        }
+
+        $result = array();
+        foreach ($report_ids as $rid) {
+            $current = isset($current_by_id[$rid]) ? $current_by_id[$rid] : null;
+            $previous = isset($prev_by_id[$rid]) ? $prev_by_id[$rid] : null;
+            $ytd = isset($ytd_by_id[$rid]) ? $ytd_by_id[$rid] : array('total_revenue' => 0, 'total_orders' => 0);
+
+            $current_revenue = $current ? floatval($current['total_amt_sold']) : 0;
+            $current_orders = $current ? intval($current['num_orders']) : 0;
+            $previous_revenue = $previous ? floatval($previous['total_amt_sold']) : 0;
+            $previous_orders = $previous ? intval($previous['num_orders']) : 0;
+            $current_value = $current ? floatval($current['value']) : 0;
+            $previous_value = $previous ? floatval($previous['value']) : 0;
+
+            $result[$rid] = array(
+                'current' => $current_value,
+                'previous' => $previous_value,
+                'ytd' => floatval($ytd['total_revenue']),
+                'change' => $current_value - $previous_value,
+                'change_percent' => $previous_value > 0 ? (($current_value - $previous_value) / $previous_value) * 100 : 0,
+                'current_revenue' => $current_revenue,
+                'previous_revenue' => $previous_revenue,
+                'revenue_change' => $current_revenue - $previous_revenue,
+                'revenue_change_percent' => $previous_revenue > 0 ? (($current_revenue - $previous_revenue) / $previous_revenue) * 100 : 0,
+                'current_orders' => $current_orders,
+                'previous_orders' => $previous_orders,
+                'orders_change' => $current_orders - $previous_orders,
+                'orders_change_percent' => $previous_orders > 0 ? (($current_orders - $previous_orders) / $previous_orders) * 100 : 0,
+                'ytd_orders' => intval($ytd['total_orders'])
+            );
+        }
+
+        return $result;
+    }
     
     /**
      * Get FluentCart completed orders count and revenue for a given month.
@@ -786,7 +901,7 @@ class Keap_Reports_Database {
     public function get_fluentcart_month_totals($year, $month) {
         global $wpdb;
         $table = $wpdb->prefix . 'fct_orders';
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
+        if (!$this->table_exists($table)) {
             return array('revenue' => 0.0, 'orders' => 0);
         }
         $row = $wpdb->get_row(
@@ -820,7 +935,7 @@ class Keap_Reports_Database {
     public function get_fluentcart_ytd($year, $through_month) {
         global $wpdb;
         $table = $wpdb->prefix . 'fct_orders';
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
+        if (!$this->table_exists($table)) {
             return array('revenue' => 0.0, 'orders' => 0);
         }
         $row = $wpdb->get_row(
@@ -843,7 +958,45 @@ class Keap_Reports_Database {
             'orders'  => $orders
         );
     }
-    
+
+    /**
+     * Get FluentCart completed orders count and revenue for a date range (e.g. QTD).
+     * Uses wp_fct_orders; only status = 'completed'. total_amount stored in cents.
+     *
+     * @param int $year
+     * @param int $from_month     Start month (1-12), inclusive
+     * @param int $through_month  End month (1-12), inclusive
+     * @return array { 'revenue' => float, 'orders' => int }
+     */
+    public function get_fluentcart_date_range($year, $from_month, $through_month) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fct_orders';
+        if (!$this->table_exists($table)) {
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT COUNT(*) AS orders, COALESCE(SUM(total_amount), 0) AS total FROM {$table}
+                WHERE status = %s AND YEAR(completed_at) = %d
+                  AND MONTH(completed_at) >= %d AND MONTH(completed_at) <= %d",
+                'completed',
+                $year,
+                $from_month,
+                $through_month
+            ),
+            ARRAY_A
+        );
+        if (!$row) {
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+        $orders      = isset($row['orders']) ? intval($row['orders'])  : 0;
+        $total_cents = isset($row['total'])  ? floatval($row['total']) : 0;
+        return array(
+            'revenue' => $total_cents / 100.0,
+            'orders'  => $orders
+        );
+    }
+
     /**
      * Get all reports data for a specific period
      * 
@@ -1296,7 +1449,7 @@ class Keap_Reports_Database {
         $table_name = $wpdb->prefix . 'keap_reports_products';
         
         // Ensure table exists before proceeding
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+        $table_exists = $this->table_exists($table_name);
         if (!$table_exists) {
             error_log('Keap Reports: Products table ' . $table_name . ' does not exist. Creating it now...');
             self::create_tables();
@@ -1384,7 +1537,7 @@ class Keap_Reports_Database {
         
         // Ensure products table exists
         $table_name = $wpdb->prefix . 'keap_reports_products';
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name;
+        $table_exists = $this->table_exists($table_name);
         if (!$table_exists) {
             error_log('Keap Reports: Products table does not exist. Creating it now...');
             self::create_tables();

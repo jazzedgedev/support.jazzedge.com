@@ -19,6 +19,7 @@ class SJE_CRM_Webhook_Admin_Page {
 		add_action( 'admin_post_sje_crm_webhook_purge_all',          array( $this, 'handle_purge_all' ) );
 		add_action( 'admin_post_sje_crm_clear_tag',                  array( $this, 'handle_clear_tag' ) );
 		add_action( 'admin_post_sje_crm_clear_tag_group',            array( $this, 'handle_clear_tag_group' ) );
+		add_action( 'admin_post_sje_crm_bulk_tag',                   array( $this, 'handle_bulk_tag' ) );
 		add_action( 'admin_enqueue_scripts',                         array( $this, 'enqueue_assets' ) );
 	}
 
@@ -156,6 +157,60 @@ class SJE_CRM_Webhook_Admin_Page {
 			'tab'          => 'tools',
 			'bulk_cleared' => count( $all_contact_ids ),
 			'bulk_group'   => rawurlencode( $group['label'] ),
+		), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	public function handle_bulk_tag() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Unauthorized', 'sje-crm-webhook' ) );
+		}
+		check_admin_referer( 'sje_crm_bulk_tag' );
+
+		$tag_id     = isset( $_POST['sje_bulk_tag_id'] ) ? (int) $_POST['sje_bulk_tag_id'] : 0;
+		$raw_emails = isset( $_POST['sje_bulk_emails'] ) ? wp_unslash( $_POST['sje_bulk_emails'] ) : '';
+
+		if ( ! $tag_id || empty( trim( $raw_emails ) ) || ! function_exists( 'FluentCrmApi' ) ) {
+			wp_safe_redirect( $this->tab_url( 'tools' ) );
+			exit;
+		}
+
+		// Fetch tag label
+		$tag       = FluentCrmApi( 'tags' )->find( $tag_id );
+		$tag_label = $tag ? $tag->title : 'Tag #' . $tag_id;
+
+		// Parse emails — support both newline and comma separated
+		$raw_emails = str_replace( array( "\r\n", "\r" ), "\n", $raw_emails );
+		$raw_emails = str_replace( ',', "\n", $raw_emails );
+		$lines      = explode( "\n", $raw_emails );
+		$emails     = array();
+		foreach ( $lines as $line ) {
+			$e = strtolower( trim( $line ) );
+			if ( is_email( $e ) ) {
+				$emails[ $e ] = true;
+			}
+		}
+
+		$applied = 0;
+		$skipped = 0;
+		$api     = FluentCrmApi( 'contacts' );
+
+		foreach ( array_keys( $emails ) as $email ) {
+			$contact = $api->getContact( $email );
+			if ( ! $contact ) {
+				$skipped++;
+				continue;
+			}
+			$contact->attachTags( array( $tag_id ) );
+			$applied++;
+		}
+
+		wp_safe_redirect( add_query_arg( array(
+			'page'             => self::MENU_SLUG,
+			'tab'              => 'tools',
+			'bulk_tag_done'    => $applied,
+			'bulk_tag_skipped' => $skipped,
+			'bulk_tag_label'   => rawurlencode( $tag_label ),
 		), admin_url( 'admin.php' ) ) );
 		exit;
 	}
@@ -413,6 +468,61 @@ class SJE_CRM_Webhook_Admin_Page {
 					</form>
 				</div>
 			<?php endforeach; ?>
+		</div>
+
+		<!-- Bulk Tag Assignment -->
+		<div class="sje-panel" style="background:#fff; border:1px solid #c3c4c7; box-shadow:0 1px 1px rgba(0,0,0,.04); border-radius:3px; padding:20px; margin-bottom:20px;">
+			<h2 style="margin-top:0;">📧 Bulk Assign Tag to Email List</h2>
+			<p>Paste email addresses (one per line or comma-separated) and select a FluentCRM tag to apply to all matching contacts.</p>
+
+			<?php
+			$bulk_tag_result  = isset( $_GET['bulk_tag_done'] ) ? (int) $_GET['bulk_tag_done'] : -1;
+			$bulk_tag_skipped = isset( $_GET['bulk_tag_skipped'] ) ? (int) $_GET['bulk_tag_skipped'] : 0;
+			$bulk_tag_label   = isset( $_GET['bulk_tag_label'] ) ? sanitize_text_field( urldecode( $_GET['bulk_tag_label'] ) ) : '';
+			if ( $bulk_tag_result >= 0 ) : ?>
+				<div class="notice notice-success is-dismissible" style="margin:0 0 16px;">
+					<p>Done — applied tag <strong><?php echo esc_html( $bulk_tag_label ); ?></strong> to <strong><?php echo $bulk_tag_result; ?></strong> contact(s). <?php if ( $bulk_tag_skipped > 0 ) echo esc_html( $bulk_tag_skipped ) . ' email(s) not found in FluentCRM.'; ?></p>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( ! function_exists( 'FluentCrmApi' ) ) : ?>
+				<p><em>FluentCRM not available.</em></p>
+			<?php else :
+				$tags = FluentCrmApi( 'tags' )->all();
+			?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'sje_crm_bulk_tag' ); ?>
+				<input type="hidden" name="action" value="sje_crm_bulk_tag"/>
+
+				<table class="form-table" style="max-width:800px;">
+					<tr>
+						<th scope="row"><label for="sje_bulk_emails">Email Addresses</label></th>
+						<td>
+							<textarea id="sje_bulk_emails" name="sje_bulk_emails" rows="8" style="width:100%; font-family:monospace; font-size:13px;"
+								placeholder="one@example.com&#10;two@example.com&#10;&#10;or comma-separated:&#10;one@example.com, two@example.com"></textarea>
+							<p class="description">One per line or comma-separated. Duplicates are ignored.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="sje_bulk_tag_id">Tag to Apply</label></th>
+						<td>
+							<select id="sje_bulk_tag_id" name="sje_bulk_tag_id" style="min-width:300px;">
+								<option value="">— Select a tag —</option>
+								<?php foreach ( $tags as $tag ) : ?>
+									<option value="<?php echo esc_attr( $tag->id ); ?>">
+										<?php echo esc_html( $tag->title ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+				</table>
+
+				<p>
+					<button type="submit" class="button button-primary">Apply Tag to All</button>
+				</p>
+			</form>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

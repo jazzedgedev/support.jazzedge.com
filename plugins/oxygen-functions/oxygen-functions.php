@@ -15,22 +15,22 @@ use Vimeo\Vimeo;
  * Defer plugin license/update checks to wp-cron instead of blocking admin page loads.
  * Prevents external HTTP requests from slowing down every admin page.
  */
-if ( ! wp_doing_cron() && is_admin() ) {
+if ( ! wp_doing_cron() && ( is_admin() || ( defined('REST_REQUEST') && REST_REQUEST ) ) && ! wp_doing_ajax() ) {
     add_filter( 'pre_http_request', function( $pre, $args, $url ) {
         $blocked_hosts = [
             'freemius.com',
             'fluentapi.wpmanageninja.com',
-            'fluentcart.com',
             'api3.wpmanageninja.com',
             'oxygenbuilder.com',
             'megamenu.com',
             'licensing.aioseo.com',
             'licensing-cdn.aioseo.com',
-            'licenseserver.webpowerandlight.com',
             'updates.flowmattic.com',
             'license.foliovision.com',
             'update.wpallimport.com',
             'connect.advancedcustomfields.com',
+            'instances.joinpeertube.org',
+            'cart-ddwe.wp1.site',
         ];
         foreach ( $blocked_hosts as $host ) {
             if ( str_contains( $url, $host ) ) {
@@ -719,8 +719,11 @@ add_filter('nav_menu_link_attributes', function($atts) {
     return $atts;
 }, 100, 1);
 
-// Remove REST API user endpoints for security
+// Remove REST API user endpoints for unauthenticated requests only
 add_filter('rest_endpoints', function($endpoints) {
+    if (is_user_logged_in() && current_user_can('manage_options')) {
+        return $endpoints;
+    }
     if (isset($endpoints['/wp/v2/users'])) {
         unset($endpoints['/wp/v2/users']);
     }
@@ -3186,8 +3189,8 @@ function return_cancel_step_2_link() {
 
 function return_get_param($get = '') {
 	if (!empty($get)) {
-		return $_GET[$get];
-	} else { return ; }
+		return $_GET[$get] ?? null;
+	} else { return; }
 }
 
 function return_user_pref_setting($pref_to_return) {
@@ -6352,7 +6355,6 @@ function ja_analytics_update_user_data($user_id, $type, $post_id, $video_name) {
             break;
 
        default:
-			error_log("Unexpected type '$type' passed to jam_student_metrics function in oxygen-functions.php");
 			return;
 
     }

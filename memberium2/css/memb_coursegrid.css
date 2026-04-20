@@ -1,0 +1,225 @@
+.memberium-course-grid-item{
+    text-align: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border: 1px solid #dddddd;
+    border-radius: 4px;
+    background-color: #fff;
+}
+
+.memberium-course-grid-item a{
+    text-decoration: none;
+}
+
+.memberium-course-grid-icon{
+    position: absolute;
+    display: block;
+    width: 50px;
+    height: 50px;
+    z-index: 9;
+}
+
+.memberium-course-grid-icon.banner{
+    width: auto;
+    height: 40px;
+    background-color: #93CC3A;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+    border-top-right-radius: 4em;
+    border-bottom-right-radius: 4em;
+    padding-left: 25px;
+    margin-left: -20px;
+    top: 10px;
+}
+
+.memberium-course-grid-icon.banner:after{
+    position: absolute;
+    content: "";
+    display: block;
+    width: 0;
+    height: 0;
+    left: 0;
+    top: 40px;
+    border-style: solid;
+    border-width: 0 20px 20px 0;
+    border-color: transparent #79a827 transparent transparent;
+}
+
+.memberium-course-grid-icon-text{
+    display: inline-block;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    float: right;
+    padding-right: 20px;
+    top: 5px;
+    position: relative;
+    line-height: 30px;
+}
+
+.memberium-course-grid-icon:before{
+    position: relative;
+    display: inline-block;
+    content: '';
+    width: 50px;
+    height: 50px;
+    background-color: #93CC3A;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.memberium-course-grid-icon.banner:before{
+    top: 0px;
+    margin-left: -25px;
+    width: 40px;
+    height: 40px;
+}
+
+.memberium-course-grid-icon.round:before{
+     border-radius: 4em;
+}
+
+.memberium-course-grid-icon.unlocked:before{
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 51.2 51.2'%3E%3Cpath d='M17.2 15.4v20.8c0 1.4 1.6 2.3 2.8 1.6l17.8-10.4c1.2-.7 1.2-2.5 0-3.2L20 13.8c-1.2-.7-2.8.2-2.8 1.6z' fill='%23fff'/%3E%3C/svg%3E");
+}
+
+.memberium-course-grid-icon.completed:before{
+    background-image: url("data:image/svg+xml,%3Csvg width='51.2' height='51.2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='none' d='M-1-1h53.2v53.2H-1z'/%3E%3Cg%3E%3Cpath stroke='null' fill='%23fff' d='M19.722 38.29c-.242.124-.53.14-.822-.15l-6.634-6.775c-.587-.599-.45-1.387.23-1.878.87-.628 2.031-1.651 3.012-3.147.459-.702 1.115-.749 1.57-.044l1.636 2.54c.454.705.977 1.59 1.258 1.49.114-.04.252-.139.417-.334l13.3-16.718c.522-.655 1.259-.585 1.647.158l3.775 7.242c.388.743.172 1.771-.481 2.297L21.539 36.705c-.653.526-1.372 1.356-1.817 1.584z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.memberium-course-grid-icon.locked:before{
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 51.2 51.2'%3E%3Cpath d='M34.1 23.2v-3.6c0-4.2-3-8-7.2-8.7-5.2-.8-9.8 3.3-9.8 8.4v3.9c0 .3-.1.6-.3.8-1.4 2.1-2.1 4.7-1.7 7.6.7 4.6 4.5 8.3 9.2 8.8 6.4.7 11.8-4.2 11.8-10.5 0-2.2-.7-4.2-1.8-5.9-.1-.3-.2-.5-.2-.8zm-7.5-8.5c2.2.5 3.7 2.5 3.7 4.8v.7c0 .1-.1.2-.2.1-1.4-.6-2.9-1-4.5-1-2.1 0-3.8.7-4.4 1-.2.1-.3-.1-.3-.2v-.8c0-2.9 2.7-5.3 5.7-4.6zm-3.8 20.5l.8-5.8c0-.2 0-.4-.2-.5-.5-.6-.7-1.4-.6-2.2.2-1.1 1.1-2 2.2-2.2 1.7-.3 3.2 1 3.2 2.7 0 .7-.2 1.2-.6 1.7-.1.2-.2.3-.2.5l.8 5.8c.1.4-.3.8-.7.8h-4.2c-.2 0-.5-.4-.5-.8z' fill='%23fff' stroke='%23fff' stroke-width='1.107' stroke-linecap='round' stroke-linejoin='round' stroke-miterlimit='10'/%3E%3C/svg%3E");
+}
+
+.memberium-course-grid-icon.round{
+    background-color: #1252af;
+    border-radius: 4em;
+}
+
+/* Screen reader hidden icon text */
+.memberium-course-grid-icon.round .memberium-course-grid-icon-text{
+    border: 0;
+    clip: rect(1px, 1px, 1px, 1px);
+    -webkit-clip-path: inset(50%);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute !important;
+    width: 1px;
+    word-wrap: normal !important;
+    word-break: normal;
+}
+
+.memberium-course-grid-button,
+.memberium-course-grid-button:visited{
+    background: #1252AF;
+    padding: 15px 30px;
+    display: block;
+    margin: 15px auto !important;
+    text-align: center;
+    color: #fff;
+    font-size: 0.75em;
+    text-transform: uppercase;
+    font-weight: bold;
+    box-shadow: none;
+    text-decoration: none;
+}
+
+div.memberium-course-grid-button{
+    cursor: not-allowed;
+}
+
+a.memberium-course-grid-button:hover,
+a.memberium-course-grid-button:focus{
+    opacity: 0.85;
+    color: #fff;
+}
+
+.memberium-course-grid-figure{
+    position: relative;
+    overflow: hidden;
+    align-items: center;
+    display: flex;
+}
+
+.memberium-course-grid-figure img{
+    width: 100%;
+    max-width: 100%;
+    height : auto;
+    max-height: 375px;
+    object-fit: cover;
+    vertical-align: middle;
+    display: inline-block;
+    object-position: top;
+}
+
+.memberium-course-grid-content,
+.memberium-course-grid-footer{
+    padding-left: 1em;
+    padding-right: 1em;
+}
+
+.memberium-course-grid-content{
+    text-align: left;
+    display: block;
+    width:100%;
+}
+
+.memberium-course-grid-content h3{
+    margin:1em 0;
+    font-size: 1.2em;
+    text-align: left;
+}
+
+.memberium-course-grid-footer{
+    margin-top: auto;
+    padding-bottom: 1em;
+}
+
+.memberium-course-grid-progress{
+    display: block;
+    margin: 10px auto;
+    padding: 0;
+    position: relative;
+    width: 100%;
+    background-color: #D8E1E5;
+    border: medium none;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 10%) inset;
+    height: 20px;
+    overflow: hidden;
+}
+
+.memberium-course-grid-progress-bar{
+    display: block;
+    position: relative;
+    text-align: right;
+    width: 0;
+    background-color: #93CC3A;
+    box-shadow: 0 -1px 0 rgb(0 0 0 / 15%) inset;
+    color: #fff;
+    float: left;
+    font-size: 12px;
+    height: 100%;
+    transition: width .6s ease 0s;
+}
+
+.memberium-course-grid-progress-text{
+    text-align: right;
+    font-size: 0.75em;
+}
+
+.memberium-course-grid-item[data-status="locked"] .memberium-course-grid-progress,
+.memberium-course-grid-item[data-status="locked"] .memberium-course-grid-progress-text{
+    visibility: hidden;
+}
+
+.memberium-course-grid-excerpt{
+    font-size: 18px;
+    line-height: 1.6;
+}

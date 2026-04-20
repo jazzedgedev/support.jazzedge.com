@@ -1266,8 +1266,6 @@ Example format:
             $search_source = 'shortcode'; // Default to shortcode if not specified
         }
         
-        // Debug logging
-        error_log('ALM Search: q=' . $q . ', search_source_param=' . $request->get_param('search_source') . ', final_source=' . $search_source);
         // AI: extract filters from natural language
         $ai_filters = ALM_AI::extract_filters($q);
         $page = max(1, intval($request->get_param('page')));

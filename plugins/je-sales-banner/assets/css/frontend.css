@@ -1,0 +1,399 @@
+/* JE Sales Banner — compact single bar (all templates) */
+
+.je-sale-banner {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.25;
+}
+
+.je-sale-banner *,
+.je-sale-banner *::before,
+.je-sale-banner *::after {
+    box-sizing: border-box;
+}
+
+.je-sale-banner__inner {
+    width: 100% !important;
+    padding: 0 12px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    max-height: none !important;
+}
+
+.je-sale-banner__bar {
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 0 10px;
+    min-height: 52px;
+    padding: 6px 0;
+}
+
+.je-sale-banner__group {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    min-width: 0;
+}
+
+.je-sale-banner__group--lead {
+    display: flex !important;
+    flex-direction: row !important;
+    flex: 1 1 auto !important;
+    gap: 10px;
+    min-width: 0;
+}
+
+.je-sale-banner__group--coupon {
+    display: flex !important;
+    flex-direction: row !important;
+    flex: 0 0 auto !important;
+}
+
+.je-sale-banner__group--tail {
+    display: flex !important;
+    flex-direction: row !important;
+    flex: 0 0 auto !important;
+    gap: 10px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.je-sale-banner__divider {
+    flex: 0 0 auto;
+    width: 1px;
+    align-self: stretch;
+    min-height: 28px;
+    background: currentColor;
+    opacity: 0.4;
+}
+
+.je-sale-banner__badge {
+    flex: 0 0 auto;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    padding: 4px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.je-sale-banner__headline {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    font-size: 0;
+    line-height: 1.35;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+.je-sale-banner__title {
+    display: inline;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.je-sale-banner__dot {
+    display: inline;
+    font-size: 14px;
+    font-weight: 700;
+    opacity: 0.65;
+    padding: 0 0.2em;
+}
+
+.je-sale-banner__desc {
+    display: inline;
+    font-size: 13px;
+    font-weight: 400;
+    opacity: 0.92;
+}
+
+.je-sale-banner__amount {
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.je-sale-banner__amount--desktop {
+    display: inline-block;
+}
+
+/* Inline coupon pill — width fits content */
+.je-sale-banner__coupon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    max-width: 100%;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px dashed currentColor;
+    font-size: 12px;
+    line-height: 1.2;
+    box-shadow: none;
+}
+
+.je-sale-banner__coupon-label {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.je-sale-banner__coupon-code {
+    font-weight: 800;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    letter-spacing: 0.04em;
+}
+
+.je-sale-banner__coupon-copy {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+    padding: 2px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 0;
+}
+
+.je-sale-banner__coupon-copy:focus {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.je-sale-banner__coupon-tip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #002a34;
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 5;
+    font-weight: 600;
+}
+
+.je-sale-banner__coupon-tip[hidden] {
+    display: none !important;
+}
+
+.je-sale-banner__timer {
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.je-sale-banner__cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 13px;
+    text-decoration: none;
+    line-height: 1.2;
+    transition: filter 0.12s ease, opacity 0.12s ease;
+    white-space: nowrap;
+}
+
+.je-sale-banner__cta:hover,
+.je-sale-banner__cta:focus {
+    filter: brightness(1.06);
+}
+
+.je-sale-banner__cta:focus {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+/* Template color schemes */
+.je-sale-banner--tpl-1 .je-sale-banner__inner {
+    background: #004555;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-1 .je-sale-banner__badge {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-1 .je-sale-banner__cta {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-2 .je-sale-banner__inner {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-2 .je-sale-banner__badge {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-2 .je-sale-banner__cta {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-3 .je-sale-banner__inner {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-3 .je-sale-banner__badge {
+    background: #004555;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-3 .je-sale-banner__cta {
+    background: #004555;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-4 .je-sale-banner__inner {
+    background: #459e90;
+    color: #002a34;
+}
+
+.je-sale-banner--tpl-4 .je-sale-banner__badge {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-4 .je-sale-banner__cta {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-5 .je-sale-banner__inner {
+    background: #002a34;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-5 .je-sale-banner__badge {
+    background: #459e90;
+    color: #002a34;
+}
+
+.je-sale-banner--tpl-5 .je-sale-banner__cta {
+    background: #459e90;
+    color: #002a34;
+}
+
+.je-sale-banner--tpl-6 .je-sale-banner__inner {
+    background: #6b2b60;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-6 .je-sale-banner__badge {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-6 .je-sale-banner__cta {
+    background: #239b90;
+    color: #fff;
+}
+
+/* Mobile: max 2 rows — row1: SALE + title · desc + amount; row2: coupon + timer + CTA */
+@media (max-width: 767px) {
+    .je-sale-banner__inner {
+        max-height: none;
+        padding: 8px 10px;
+    }
+
+    .je-sale-banner__bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 10px;
+        row-gap: 8px;
+        max-height: none;
+        min-height: 0;
+        padding: 0;
+    }
+
+    .je-sale-banner__group--lead {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        flex-wrap: nowrap;
+        gap: 8px;
+        padding-bottom: 8px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .je-sale-banner--tpl-4 .je-sale-banner__group--lead {
+        border-bottom-color: rgba(0, 42, 52, 0.15);
+    }
+
+    .je-sale-banner__headline {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .je-sale-banner__divider {
+        display: none !important;
+    }
+
+    .je-sale-banner__group--coupon {
+        grid-column: 1;
+        grid-row: 2;
+        justify-self: start;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .je-sale-banner__group--tail {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: end;
+        margin-left: 0;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .je-sale-banner__inner--no-coupon .je-sale-banner__group--tail {
+        grid-column: 1 / -1;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        padding-top: 6px;
+    }
+
+    .je-sale-banner__inner:not(.je-sale-banner__inner--no-coupon) .je-sale-banner__group--tail {
+        padding-top: 6px;
+    }
+
+    .je-sale-banner__coupon {
+        max-width: 100%;
+    }
+
+    .je-sale-banner__cta {
+        min-height: 40px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}

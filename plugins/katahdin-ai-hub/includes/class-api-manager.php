@@ -57,7 +57,7 @@ class Katahdin_AI_Hub_API_Manager {
                 'User-Agent' => 'Katahdin-AI-Hub/' . KATAHDIN_AI_HUB_VERSION
             ),
             'body' => json_encode($request_data),
-            'timeout' => 30,
+            'timeout' => 120,
             'sslverify' => true
         ));
         
@@ -75,7 +75,7 @@ class Katahdin_AI_Hub_API_Manager {
         
         // Calculate usage
         $tokens_used = $this->calculate_tokens_used($response_data);
-        $cost = $this->calculate_cost($tokens_used, $options);
+        $cost = $this->calculate_cost($tokens_used, wp_parse_args($options, $data));
         
         // Log usage
         $success = $response_code === 200;
@@ -225,10 +225,10 @@ class Katahdin_AI_Hub_API_Manager {
         switch ($endpoint) {
             case 'chat/completions':
                 return array(
-                    'model' => $options['model'] ?? 'gpt-3.5-turbo',
+                    'model' => $options['model'] ?? $data['model'] ?? 'gpt-3.5-turbo',
                     'messages' => $data['messages'] ?? array(),
-                    'max_tokens' => $options['max_tokens'] ?? 1000,
-                    'temperature' => $options['temperature'] ?? 0.7,
+                    'max_tokens' => $options['max_tokens'] ?? $data['max_tokens'] ?? 1000,
+                    'temperature' => $options['temperature'] ?? $data['temperature'] ?? 0.7,
                     'stream' => false
                 );
                 

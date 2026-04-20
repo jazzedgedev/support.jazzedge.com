@@ -346,15 +346,15 @@ a[target="_blank"]:after {
     content: none;
 }
 
-/* Collection Lessons Table - Prevent title wrapping */
-.alm-collection-lessons table.wp-list-table td:nth-child(3) {
+/* Collection Lessons Table - Prevent title wrapping (column 4: drag, id, order, title) */
+.alm-collection-lessons table.wp-list-table td:nth-child(4) {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: none;
 }
 
-.alm-collection-lessons table.wp-list-table td:nth-child(3) a {
+.alm-collection-lessons table.wp-list-table td:nth-child(4) a {
     white-space: normal;
     word-wrap: break-word;
     display: inline-block;

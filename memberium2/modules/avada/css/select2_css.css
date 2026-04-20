@@ -1,0 +1,71 @@
+
+/* Target only your custom select2! */
+.select2-container--default.my-avada-select2 + .select2-container,
+.select2-container.my-avada-select2 + .select2-container,
+.select2-container.my-avada-select2,
+.select2-container--default .my-avada-select2 + .select2-container {
+    width: 100% !important;
+    max-width: 480px !important;
+    min-width: 220px;
+    font-size: 15px;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Select2 Multiple Box */
+.select2-container--default .select2-selection--multiple {
+    background: #fff !important;
+    border: 1px solid #e2e5ec !important;
+    border-radius: 5px !important;
+    min-height: 40px !important;
+    box-shadow: none !important;
+    padding: 3px 5px !important;
+    transition: border 0.2s;
+}
+
+/* On focus: Avada blue border */
+.select2-container--default .select2-selection--multiple:focus,
+.select2-container--default .select2-selection--multiple:active {
+    border: 1.5px solid #4285f4 !important;
+    box-shadow: 0 0 0 1px #cce2ff;
+}
+
+/* Select2 Choices (tags) */
+.select2-container--default .select2-selection--multiple {
+    background: #f8f9fa !important;
+    border: 1px solid #e0e0e0 !important;
+    color: #4b4f56 !important;
+    font-size: 13px !important;
+    margin: 3px 4px 2px 0 !important;
+    padding: 2px 8px !important;
+    border-radius: 3px !important;
+}
+
+/* Remove Select2's weird left gap */
+.select2-container--default .select2-selection--multiple .select2-search--inline .select2-search__field {
+    margin: 0 !important;
+    font-size: 15px !important;
+    padding: 2px 0 !important;
+}
+
+/* Reduce bottom margin and extra space */
+.select2-container {
+    margin-bottom: 0 !important;
+}
+
+/* Remove box shadow on focus (Avada style) */
+.select2-container--default .select2-selection--multiple:focus {
+    box-shadow: none !important;
+}
+
+/* Hide dropdown arrow to mimic Avada fields */
+.select2-selection__arrow {
+    display: none !important;
+}
+
+
+/* Move text to the right of the X, and fix the vertical bar */
+.select2-selection__choice {
+    padding-left: 2em !important;  /* Room for the X */
+    position: relative;
+}

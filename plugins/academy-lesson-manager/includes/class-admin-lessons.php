@@ -493,6 +493,18 @@ class ALM_Admin_Lessons {
         // Use table alias 'l' for lessons table with pagination
         $sql = "SELECT DISTINCT l.* FROM {$this->table_name} l {$join_pathway} {$join_teacher} {$join_key} {$where} ORDER BY l.{$order_by} {$order} LIMIT %d OFFSET %d";
         $lessons = $this->wpdb->get_results($this->wpdb->prepare($sql, $per_page, $offset));
+
+        // Prime the WP meta cache for all lesson post_ids in one batch query,
+        // preventing ACF from firing N individual update_meta_cache() calls.
+        if (!empty($lessons)) {
+            $post_ids_to_prime = array_filter(array_map(function ($l) {
+                return isset($l->post_id) ? intval($l->post_id) : 0;
+            }, $lessons));
+            if (!empty($post_ids_to_prime)) {
+                update_postmeta_cache($post_ids_to_prime);
+                _prime_post_caches($post_ids_to_prime, false, true);
+            }
+        }
         
         // Render statistics
         $this->render_statistics();
@@ -560,7 +572,39 @@ class ALM_Admin_Lessons {
             echo '<option value="' . esc_attr($level['numeric']) . '">' . esc_html($level['name']) . ' (' . $level['numeric'] . ') - ' . esc_html($level['description']) . '</option>';
         }
         echo '</select>';
-        echo '<input type="submit" class="button" name="submit_bulk_membership" value="' . __('Update Membership', 'academy-lesson-manager') . '" onclick="var membershipLevel = document.getElementById(\'bulk_membership_level\').value; if (!membershipLevel || membershipLevel === \'\') { alert(\'' . esc_js(__('Please select a membership level.', 'academy-lesson-manager')) . '\'); return false; } var checkboxes = document.querySelectorAll(\'#bulk-actions-form-table input[name=\\\'lesson[]\\\']:checked\'); if (checkboxes.length === 0) { alert(\'' . esc_js(__('Please select at least one lesson.', 'academy-lesson-manager')) . '\'); return false; } var form = document.getElementById(\'bulk-actions-form\'); var existingHidden = document.getElementById(\'bulk_selected_lessons_container\'); if (existingHidden) { existingHidden.remove(); } var container = document.createElement(\'div\'); container.id = \'bulk_selected_lessons_container\'; container.style.display = \'none\'; Array.from(checkboxes).forEach(function(cb) { var hidden = document.createElement(\'input\'); hidden.type = \'hidden\'; hidden.name = \'lesson[]\'; hidden.value = cb.value; container.appendChild(hidden); }); form.appendChild(container); return true;" />';
+        echo '<input type="button" class="button" id="alm-bulk-membership-btn" value="' . esc_attr(__('Update Membership', 'academy-lesson-manager')) . '" />';
+        echo '<input type="submit" name="submit_bulk_membership" style="display:none;" id="alm-bulk-membership-submit" value="1" />';
+        echo '<script>
+document.getElementById("alm-bulk-membership-btn").addEventListener("click", function() {
+    var membershipLevel = document.getElementById("bulk_membership_level").value;
+    if (!membershipLevel) {
+        alert("' . esc_js(__('Please select a membership level.', 'academy-lesson-manager')) . '");
+        return;
+    }
+    var checkboxes = document.querySelectorAll("#bulk-actions-form-table input[name=\'lesson[]\']:checked");
+    if (checkboxes.length === 0) {
+        alert("' . esc_js(__('Please select at least one lesson.', 'academy-lesson-manager')) . '");
+        return;
+    }
+    var form = document.getElementById("bulk-actions-form");
+    var existing = document.getElementById("bulk_selected_lessons_container");
+    if (existing) {
+        existing.remove();
+    }
+    var container = document.createElement("div");
+    container.id = "bulk_selected_lessons_container";
+    container.style.display = "none";
+    Array.from(checkboxes).forEach(function(cb) {
+        var hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = "lesson[]";
+        hidden.value = cb.value;
+        container.appendChild(hidden);
+    });
+    form.appendChild(container);
+    document.getElementById("alm-bulk-membership-submit").click();
+});
+</script>';
         echo '<p class="description" style="margin-top: 8px;">' . __('Select lessons from the list below, then choose a membership level and click "Update Membership".', 'academy-lesson-manager') . '</p>';
         echo '</div>';
         
@@ -1456,7 +1500,8 @@ class ALM_Admin_Lessons {
         
         // Add View Lesson Permalink button if post exists
         if ($lesson->post_id && get_post($lesson->post_id)) {
-            echo '<a href="' . get_permalink($lesson->post_id) . '" class="button button-small" target="_blank" title="' . __('View Lesson Permalink', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-site"></span></a>';
+            $permalink_debug = add_query_arg('debug', '1', get_permalink($lesson->post_id));
+            echo '<a href="' . esc_url($permalink_debug) . '" class="button button-small" target="_blank" title="' . esc_attr__('View Lesson Permalink', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-site"></span></a>';
         }
         
         echo '</div>';
@@ -1505,62 +1550,71 @@ class ALM_Admin_Lessons {
         }
         
         // Back button and actions
-        echo '<p>';
-        echo '<a href="?page=academy-manager-lessons" class="button">&larr; ' . __('Back to Lessons', 'academy-lesson-manager') . '</a> ';
-        
-        // Add View Lesson button if post exists
-        if (!empty($lesson_url)) {
-            echo '<a href="' . esc_url($lesson_url) . '" class="button button-primary" target="_blank" rel="noopener noreferrer" title="' . __('View Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-external" style="vertical-align: middle; margin-top: -2px;"></span> ' . __('View Lesson', 'academy-lesson-manager') . '</a> ';
-        }
-        
-        // Add View Collection button if lesson has a collection
-        if (!empty($lesson->collection_id)) {
-            echo '<a href="?page=academy-manager&action=edit&id=' . esc_attr($lesson->collection_id) . '" class="button" title="' . __('View Collection', 'academy-lesson-manager') . '"><span class="dashicons dashicons-external"></span> ' . __('View Collection', 'academy-lesson-manager') . '</a> ';
-        }
-        
-        // Add Copy URL button if post exists
-        if (!empty($lesson_url)) {
-            echo '<button type="button" class="button alm-copy-url-btn" data-url="' . esc_attr($lesson_url) . '" title="' . __('Copy Lesson URL', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-page"></span> ' . __('Copy URL', 'academy-lesson-manager') . '</button> ';
-        }
-        
-        // Add WordPress Edit button if post exists
-        if ($lesson->post_id) {
-            echo '<a href="' . get_edit_post_link($lesson->post_id) . '" class="button" target="_blank" title="' . __('Edit in WordPress', 'academy-lesson-manager') . '"><span class="dashicons dashicons-edit"></span> ' . __('WordPress Edit', 'academy-lesson-manager') . '</a> ';
-        }
-        
-        // Add Fix button to re-sync lesson data
-        echo '<a href="?page=academy-manager-lessons&action=fix&id=' . $lesson->ID . '" class="button" onclick="return confirm(\'' . __('Re-sync this lesson to WordPress post?', 'academy-lesson-manager') . '\')" title="' . __('Re-sync Lesson Data', 'academy-lesson-manager') . '"><span class="dashicons dashicons-admin-tools"></span> ' . __('Re-sync', 'academy-lesson-manager') . '</a> ';
-        
-        // Add Copy Transcript button
-        echo '<button type="button" class="button alm-copy-transcript-btn" data-lesson-id="' . esc_attr($lesson->ID) . '" title="' . __('Copy Combined Transcript', 'academy-lesson-manager') . '"><span class="dashicons dashicons-clipboard"></span> ' . __('Copy Transcript', 'academy-lesson-manager') . '</button> ';
+        $btn_base           = 'display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:28px;font-size:12px;font-weight:500;line-height:1;border-radius:5px;border:1px solid #c3c4c7;background:#fff;color:#2271b1;text-decoration:none;cursor:pointer;margin:0 4px 0 0;vertical-align:middle;white-space:nowrap;';
+        $btn_hover          = 'onmouseover="this.style.background=\'#f0f6ff\';this.style.borderColor=\'#2271b1\'" onmouseout="this.style.background=\'#fff\';this.style.borderColor=\'#c3c4c7\'"';
+        $btn_primary        = 'display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:28px;font-size:12px;font-weight:500;line-height:1;border-radius:5px;border:1.5px solid #2271b1;background:#fff;color:#2271b1;text-decoration:none;cursor:pointer;margin:0 4px 0 0;vertical-align:middle;white-space:nowrap;';
+        $btn_primary_hover  = 'onmouseover="this.style.background=\'#f0f6ff\'" onmouseout="this.style.background=\'#fff\'"';
+        $btn_danger         = 'display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:28px;font-size:12px;font-weight:500;line-height:1;border-radius:5px;border:1px solid #c3c4c7;background:#fff;color:#dc3232;text-decoration:none;cursor:pointer;margin:0 4px 0 0;vertical-align:middle;white-space:nowrap;';
+        $btn_danger_hover   = 'onmouseover="this.style.background=\'#fff5f5\';this.style.borderColor=\'#dc3232\'" onmouseout="this.style.background=\'#fff\';this.style.borderColor=\'#c3c4c7\'"';
 
-        // Add FluentCart Product button or link (only if FluentCart is active)
+        // SVG icons
+        $ico_back      = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>';
+        $ico_view      = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>';
+        $ico_collection = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"/></svg>';
+        $ico_copy_url  = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"/></svg>';
+        $ico_wp_edit   = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z"/></svg>';
+        $ico_resync    = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>';
+        $ico_cart      = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>';
+        $ico_trash     = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>';
+
+        echo '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:16px;padding:10px 12px;background:#f6f7f7;border:1px solid #e0e0e0;border-radius:6px;">';
+
+        // Back
+        echo '<a href="?page=academy-manager-lessons" style="' . $btn_base . '" ' . $btn_hover . '>' . $ico_back . ' ' . esc_html__('Back', 'academy-lesson-manager') . '</a>';
+
+        // View Lesson
+        if (!empty($lesson_url)) {
+            $lesson_url_debug = add_query_arg('debug', '1', $lesson_url);
+            echo '<a href="' . esc_url($lesson_url_debug) . '" target="_blank" rel="noopener noreferrer" style="' . $btn_primary . '" ' . $btn_primary_hover . '>' . $ico_view . ' ' . esc_html__('View Lesson', 'academy-lesson-manager') . '</a>';
+        }
+
+        // View Collection
+        if (!empty($lesson->collection_id)) {
+            echo '<a href="?page=academy-manager&action=edit&id=' . esc_attr($lesson->collection_id) . '" style="' . $btn_base . '" ' . $btn_hover . '>' . $ico_collection . ' ' . esc_html__('Collection', 'academy-lesson-manager') . '</a>';
+        }
+
+        // Copy URL
+        if (!empty($lesson_url)) {
+            echo '<button type="button" class="alm-copy-url-btn" data-url="' . esc_attr($lesson_url) . '" style="' . $btn_base . '" ' . $btn_hover . '>' . $ico_copy_url . ' ' . esc_html__('Copy URL', 'academy-lesson-manager') . '</button>';
+        }
+
+        // WordPress Edit
+        if ($lesson->post_id) {
+            echo '<a href="' . esc_url(get_edit_post_link($lesson->post_id)) . '" target="_blank" style="' . $btn_base . '" ' . $btn_hover . '>' . $ico_wp_edit . ' ' . esc_html__('WP Edit', 'academy-lesson-manager') . '</a>';
+        }
+
+        // Re-sync
+        echo '<a href="?page=academy-manager-lessons&action=fix&id=' . $lesson->ID . '" onclick="return confirm(\'' . esc_js(__('Re-sync this lesson to WordPress post?', 'academy-lesson-manager')) . '\')" style="' . $btn_base . '" ' . $btn_hover . '>' . $ico_resync . ' ' . esc_html__('Re-sync', 'academy-lesson-manager') . '</a>';
+
+        // FluentCart (link only when a product is already linked)
         if ($this->is_fluentcart_active()) {
             $fc_product_id = $this->get_fluentcart_product_id_for_lesson($lesson->ID);
-            $fc_edit_url = admin_url('admin.php?page=fluent-cart#/products/' . $fc_product_id);
+            $fc_edit_url   = admin_url('admin.php?page=fluent-cart#/products/' . $fc_product_id);
             if ($fc_product_id > 0) {
-                echo '<a href="' . esc_url($fc_edit_url) . '" class="button" target="_blank" rel="noopener noreferrer" title="' . esc_attr__('View product in FluentCart', 'academy-lesson-manager') . '"><span class="dashicons dashicons-cart"></span> ' . esc_html__('View FluentCart Product', 'academy-lesson-manager') . '</a> ';
-            } else {
-                $sample_video_url = isset($lesson->sample_video_url) ? $lesson->sample_video_url : '';
-                echo '<button type="button" class="button alm-create-fc-product-btn"
-                    data-lesson-id="' . esc_attr($lesson->ID) . '"
-                    data-lesson-title="' . esc_attr(stripslashes($lesson->lesson_title)) . '"
-                    data-lesson-description="' . esc_attr(stripslashes($lesson->lesson_description ?? '')) . '"
-                    data-sample-video-url="' . esc_attr($sample_video_url) . '"
-                    title="' . esc_attr__('Create FluentCart Product from this lesson', 'academy-lesson-manager') . '">
-                    <span class="dashicons dashicons-cart"></span> ' . esc_html__('Create FluentCart Product', 'academy-lesson-manager') . '
-                </button> ';
+                echo '<a href="' . esc_url($fc_edit_url) . '" target="_blank" rel="noopener noreferrer" style="' . $btn_base . '" ' . $btn_hover . '>' . $ico_cart . ' ' . esc_html__('FluentCart', 'academy-lesson-manager') . '</a>';
             }
         }
 
+        // Delete
         $delete_action = admin_url('admin.php?page=academy-manager-lessons');
-        echo '<form method="post" action="' . esc_url($delete_action) . '" style="display:inline;" onsubmit="return confirm(\'' . esc_js(__('Are you sure you want to delete this lesson?', 'academy-lesson-manager')) . '\');">';
+        echo '<form method="post" action="' . esc_url($delete_action) . '" style="display:inline;margin:0;" onsubmit="return confirm(\'' . esc_js(__('Are you sure you want to delete this lesson?', 'academy-lesson-manager')) . '\')">';
         echo '<input type="hidden" name="alm_lesson_delete" value="1" />';
         echo '<input type="hidden" name="id" value="' . intval($lesson->ID) . '" />';
         wp_nonce_field('alm_delete_lesson', '_wpnonce', true, true);
-        echo '<button type="submit" class="button" title="' . esc_attr__('Delete Lesson', 'academy-lesson-manager') . '"><span class="dashicons dashicons-trash"></span> ' . esc_html__('Delete', 'academy-lesson-manager') . '</button>';
+        echo '<button type="submit" style="' . $btn_danger . '" ' . $btn_danger_hover . '>' . $ico_trash . ' ' . esc_html__('Delete', 'academy-lesson-manager') . '</button>';
         echo '</form>';
-        echo '</p>';
+
+        echo '</div>';
         
         // Show success messages
         if (isset($_GET['message'])) {
@@ -1595,16 +1649,79 @@ class ALM_Admin_Lessons {
         
         // Lesson details
         echo '<div class="alm-lesson-details">';
-        echo '<h2>' . __('Edit Lesson', 'academy-lesson-manager') . '</h2>';
-        
+        echo '<h2>' . __('Edit Lesson', 'academy-lesson-manager') . ' <span style="font-weight:400;color:#666;font-size:16px;">(id: ' . intval($lesson->ID) . ')</span></h2>';
+
+        // Jump to another lesson (same collection) and/or chapter (this lesson)
+        $lessons_table   = $this->database->get_table_name('lessons');
+        $chapters_table  = $this->database->get_table_name('chapters');
+        $sibling_lessons = array();
+        if (!empty($lesson->collection_id)) {
+            $sibling_lessons = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT ID, lesson_title, menu_order FROM {$lessons_table} WHERE collection_id = %d ORDER BY menu_order ASC, ID ASC",
+                $lesson->collection_id
+            ));
+        }
+        $lesson_chapters = $this->wpdb->get_results($this->wpdb->prepare(
+            "SELECT ID, chapter_title, menu_order FROM {$chapters_table} WHERE lesson_id = %d ORDER BY menu_order ASC, ID ASC",
+            $lesson->ID
+        ));
+
+        $show_lesson_nav    = !empty($sibling_lessons);
+        $show_chapter_nav   = !empty($lesson_chapters);
+        $chapter_edit_base  = admin_url('admin.php?page=academy-manager-chapters&action=edit&id=');
+
+        if ($show_lesson_nav || $show_chapter_nav) {
+            echo '<div style="margin-bottom:10px; display:flex; flex-wrap:wrap; align-items:center; gap:16px;">';
+            if ($show_lesson_nav) {
+                echo '<div style="display:flex; align-items:center; gap:10px;">';
+                echo '<label for="alm-lesson-nav" style="font-weight:600; white-space:nowrap;">' . esc_html__('Jump to Lesson:', 'academy-lesson-manager') . '</label>';
+                echo '<select id="alm-lesson-nav" style="max-width:480px;">';
+                foreach ($sibling_lessons as $sl) {
+                    $selected = selected($sl->ID, $lesson->ID, false);
+                    $sl_title = $sl->lesson_title ? stripslashes($sl->lesson_title) : '';
+                    $label    = '#' . $sl->menu_order . ' — ' . ($sl_title ?: __('(untitled)', 'academy-lesson-manager')) . ' (ID ' . $sl->ID . ')';
+                    echo '<option value="' . intval($sl->ID) . '"' . $selected . '>' . esc_html($label) . '</option>';
+                }
+                echo '</select>';
+                echo '</div>';
+            }
+            if ($show_chapter_nav) {
+                echo '<div style="display:flex; align-items:center; gap:10px;">';
+                echo '<label for="alm-chapter-nav" style="font-weight:600; white-space:nowrap;">' . esc_html__('Jump to Chapter:', 'academy-lesson-manager') . '</label>';
+                echo '<select id="alm-chapter-nav" style="max-width:480px;">';
+                echo '<option value="">' . esc_html__('— Select chapter —', 'academy-lesson-manager') . '</option>';
+                foreach ($lesson_chapters as $ch) {
+                    $ch_title = $ch->chapter_title ? stripslashes($ch->chapter_title) : '';
+                    $label    = '#' . $ch->menu_order . ' — ' . ($ch_title ?: __('(untitled)', 'academy-lesson-manager')) . ' (ID ' . $ch->ID . ')';
+                    echo '<option value="' . intval($ch->ID) . '">' . esc_html($label) . '</option>';
+                }
+                echo '</select>';
+                echo '</div>';
+            }
+            echo '</div>';
+            echo '<script>
+(function() {
+    var lessonNav = document.getElementById("alm-lesson-nav");
+    if (lessonNav) {
+        lessonNav.addEventListener("change", function() {
+            window.location.href = "?page=academy-manager-lessons&action=edit&id=" + this.value;
+        });
+    }
+    var chapterNav = document.getElementById("alm-chapter-nav");
+    if (chapterNav) {
+        chapterNav.addEventListener("change", function() {
+            if (this.value) {
+                window.location.href = ' . wp_json_encode($chapter_edit_base) . ' + this.value;
+            }
+        });
+    }
+})();
+</script>';
+        }
+
         echo '<form method="post" action="">';
         echo '<table class="form-table">';
         echo '<tbody>';
-        
-        echo '<tr>';
-        echo '<th scope="row">' . __('Lesson ID', 'academy-lesson-manager') . '</th>';
-        echo '<td>' . $lesson->ID . ' <a href="?page=academy-manager-chapters&action=add&lesson_id=' . $lesson->ID . '" class="button button-small" style="margin-left: 10px;">' . __('Add Chapter', 'academy-lesson-manager') . '</a></td>';
-        echo '</tr>';
 
         // FluentCart Product ID (shown when FluentCart is active; available immediately after product creation, including drafts)
         if ($this->is_fluentcart_active()) {
@@ -1615,10 +1732,31 @@ class ALM_Admin_Lessons {
             if ($fc_product_id > 0) {
                 $fc_edit_url = admin_url('admin.php?page=fluent-cart#/products/' . $fc_product_id);
                 echo esc_html($fc_product_id) . ' <a href="' . esc_url($fc_edit_url) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View in FluentCart', 'academy-lesson-manager') . ' ↗</a>';
+                echo ' <button type="button" class="button button-small alm-clear-fc-product-link" data-lesson-id="' . esc_attr($lesson->ID) . '" style="margin-left:8px;line-height:1.4;font-size:11px;color:#646970;border-color:#c3c4c7;background:#f6f7f7;box-shadow:none;">' . esc_html__('Clear', 'academy-lesson-manager') . '</button>';
                 echo '<p class="description">' . esc_html__('Linked when product is created (draft or published).', 'academy-lesson-manager') . '</p>';
+                echo '<script>
+                jQuery(function($) {
+                    $(".alm-clear-fc-product-link").on("click", function() {
+                        if (!confirm("' . esc_js(__('Clear FluentCart product link from this lesson?', 'academy-lesson-manager')) . '")) return;
+                        var $btn = $(this);
+                        $btn.prop("disabled", true);
+                        $.post(ajaxurl, {
+                            action: "alm_clear_fc_product",
+                            lesson_id: $btn.data("lesson-id"),
+                            _ajax_nonce: "' . wp_create_nonce('alm_clear_fc_product') . '"
+                        }).done(function(r) {
+                            if (r.success) { location.reload(); }
+                            else { alert(r.data || "Error"); $btn.prop("disabled", false); }
+                        }).fail(function() {
+                            alert("Request failed.");
+                            $btn.prop("disabled", false);
+                        });
+                    });
+                });
+                </script>';
             } else {
                 echo '—';
-                echo '<p class="description">' . esc_html__('Create a product using the button above to link one.', 'academy-lesson-manager') . '</p>';
+                echo '<p class="description">' . esc_html__('No FluentCart product is linked to this lesson.', 'academy-lesson-manager') . '</p>';
             }
             echo '</td>';
             echo '</tr>';
@@ -1653,38 +1791,28 @@ class ALM_Admin_Lessons {
         $current_status = isset($lesson->status) && in_array($lesson->status, array('published', 'draft', 'archived'), true) ? $lesson->status : 'published';
         echo '<tr>';
         echo '<th scope="row"><label for="lesson_status">' . __('Status', 'academy-lesson-manager') . '</label></th>';
-        echo '<td>';
+        echo '<td style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
         echo '<select id="lesson_status" name="lesson_status">';
         echo '<option value="published"' . selected($current_status, 'published', false) . '>' . __('Published', 'academy-lesson-manager') . '</option>';
         echo '<option value="draft"' . selected($current_status, 'draft', false) . '>' . __('Draft', 'academy-lesson-manager') . '</option>';
         echo '<option value="archived"' . selected($current_status, 'archived', false) . '>' . __('Archived', 'academy-lesson-manager') . '</option>';
         echo '</select>';
-        echo '<p class="description">' . __('Draft and archived lessons are hidden from the frontend. Duplicates are created as Draft.', 'academy-lesson-manager') . '</p>';
-        echo '</td>';
-        echo '</tr>';
-        
-        // Add post status field
-        echo '<tr>';
-        echo '<th scope="row"><label>' . __('Post Status', 'academy-lesson-manager') . '</label></th>';
-        echo '<td>';
         if ($lesson->post_id) {
             $post = get_post($lesson->post_id);
             if ($post) {
                 $status = $post->post_status;
                 $status_color = ($status === 'publish') ? '#46b450' : (($status === 'draft') ? '#dc3232' : '#ffb900');
-                echo '<span style="color: ' . $status_color . '; font-weight: bold;">' . esc_html(ucfirst($status)) . '</span>';
-                if ($status === 'future') {
-                    echo '<p class="description">' . __('This post is scheduled for a future date.', 'academy-lesson-manager') . '</p>';
-                }
+                echo '<span style="font-size:13px;color:#666;">' . esc_html__('WP Post:', 'academy-lesson-manager') . ' <strong style="color:' . $status_color . ';">' . esc_html(ucfirst($status)) . '</strong></span>';
             } else {
-                echo '<span style="color: #dc3232;">' . __('No WordPress post found', 'academy-lesson-manager') . '</span>';
+                echo '<span style="font-size:13px;color:#dc3232;">' . esc_html__('No WordPress post found', 'academy-lesson-manager') . '</span>';
             }
         } else {
-            echo '<span style="color: #666;">' . __('No post ID set', 'academy-lesson-manager') . '</span>';
+            echo '<span style="font-size:13px;color:#666;">' . esc_html__('No post ID set', 'academy-lesson-manager') . '</span>';
         }
+        echo '<span style="font-size:12px;color:#888;">' . esc_html__('Draft and archived lessons are hidden from the frontend.', 'academy-lesson-manager') . '</span>';
         echo '</td>';
         echo '</tr>';
-        
+
         echo '<tr>';
         echo '<th scope="row"><label for="slug">' . __('Slug', 'academy-lesson-manager') . '</label></th>';
         echo '<td><input type="text" id="slug" name="slug" value="' . esc_attr($lesson->slug) . '" class="regular-text" /></td>';
@@ -2144,6 +2272,7 @@ class ALM_Admin_Lessons {
         echo '<p class="submit">';
         echo '<input type="hidden" name="lesson_id" value="' . $lesson->ID . '" />';
         echo '<input type="hidden" name="form_action" value="update" />';
+        echo '<input type="hidden" name="chapter_order" id="alm-chapter-order-input" value="" />';
         echo '<input type="submit" class="button-primary" value="' . __('Update Lesson', 'academy-lesson-manager') . '" />';
         echo '</p>';
         echo '</form>';
@@ -2193,70 +2322,63 @@ class ALM_Admin_Lessons {
             </script>';
         }
         
-        // Copy Transcript JavaScript
+        // Copy Transcript JavaScript (lesson-level or per-chapter buttons)
         echo '<script>
         document.addEventListener("DOMContentLoaded", function() {
-            const copyTranscriptBtn = document.querySelector(".alm-copy-transcript-btn");
-            if (copyTranscriptBtn) {
-                copyTranscriptBtn.addEventListener("click", function() {
-                    const lessonId = this.getAttribute("data-lesson-id");
-                    const originalHtml = this.innerHTML;
-                    
-                    // Show loading state
-                    this.innerHTML = "<span class=\"dashicons dashicons-update spin\"></span> Loading...";
-                    this.disabled = true;
-                    
-                    // Make AJAX request
-                    jQuery.ajax({
-                        url: ajaxurl,
-                        type: "POST",
-                        data: {
-                            action: "alm_get_lesson_transcript",
-                            lesson_id: lessonId,
-                            nonce: "' . wp_create_nonce('alm_admin_nonce') . '"
-                        },
-                        success: function(response) {
-                            if (response.success && response.data.transcript) {
-                                // Copy to clipboard
-                                const transcript = response.data.transcript;
-                                navigator.clipboard.writeText(transcript).then(function() {
-                                    copyTranscriptBtn.innerHTML = "<span class=\"dashicons dashicons-yes\"></span> Copied!";
-                                    copyTranscriptBtn.style.background = "#46b450";
-                                    setTimeout(function() {
-                                        copyTranscriptBtn.innerHTML = originalHtml;
-                                        copyTranscriptBtn.style.background = "";
-                                        copyTranscriptBtn.disabled = false;
-                                    }, 2000);
-                                }).catch(function(err) {
-                                    // Fallback for older browsers
-                                    const textArea = document.createElement("textarea");
-                                    textArea.value = transcript;
-                                    document.body.appendChild(textArea);
-                                    textArea.select();
-                                    document.execCommand("copy");
-                                    document.body.removeChild(textArea);
-                                    copyTranscriptBtn.innerHTML = "<span class=\"dashicons dashicons-yes\"></span> Copied!";
-                                    copyTranscriptBtn.style.background = "#46b450";
-                                    setTimeout(function() {
-                                        copyTranscriptBtn.innerHTML = originalHtml;
-                                        copyTranscriptBtn.style.background = "";
-                                        copyTranscriptBtn.disabled = false;
-                                    }, 2000);
-                                });
-                            } else {
-                                alert(response.data.message || "Failed to get transcript.");
-                                copyTranscriptBtn.innerHTML = originalHtml;
-                                copyTranscriptBtn.disabled = false;
-                            }
-                        },
-                        error: function() {
-                            alert("Error loading transcript. Please try again.");
+            document.addEventListener("click", function(ev) {
+                var copyTranscriptBtn = ev.target.closest(".alm-copy-transcript-btn");
+                if (!copyTranscriptBtn) {
+                    return;
+                }
+                ev.preventDefault();
+                var lessonId = copyTranscriptBtn.getAttribute("data-lesson-id") || "";
+                var chapterId = copyTranscriptBtn.getAttribute("data-chapter-id") || "";
+                var originalHtml = copyTranscriptBtn.innerHTML;
+                copyTranscriptBtn.innerHTML = "<span class=\"dashicons dashicons-update spin\"></span> Loading...";
+                copyTranscriptBtn.disabled = true;
+                jQuery.ajax({
+                    url: ajaxurl,
+                    type: "POST",
+                    data: {
+                        action: "alm_get_lesson_transcript",
+                        lesson_id: lessonId,
+                        chapter_id: chapterId,
+                        nonce: "' . wp_create_nonce('alm_admin_nonce') . '"
+                    },
+                    success: function(response) {
+                        var done = function() {
                             copyTranscriptBtn.innerHTML = originalHtml;
+                            copyTranscriptBtn.style.background = "";
                             copyTranscriptBtn.disabled = false;
+                        };
+                        if (response.success && response.data.transcript) {
+                            var transcript = response.data.transcript;
+                            var okUi = function() {
+                                copyTranscriptBtn.innerHTML = "<span class=\"dashicons dashicons-yes\"></span> Copied!";
+                                copyTranscriptBtn.style.background = "#46b450";
+                                setTimeout(done, 2000);
+                            };
+                            navigator.clipboard.writeText(transcript).then(okUi).catch(function() {
+                                var textArea = document.createElement("textarea");
+                                textArea.value = transcript;
+                                document.body.appendChild(textArea);
+                                textArea.select();
+                                document.execCommand("copy");
+                                document.body.removeChild(textArea);
+                                okUi();
+                            });
+                        } else {
+                            alert((response.data && response.data.message) ? response.data.message : "Failed to get transcript.");
+                            done();
                         }
-                    });
+                    },
+                    error: function() {
+                        alert("Error loading transcript. Please try again.");
+                        copyTranscriptBtn.innerHTML = originalHtml;
+                        copyTranscriptBtn.disabled = false;
+                    }
                 });
-            }
+            });
         });
         </script>
         <style>
@@ -2268,170 +2390,6 @@ class ALM_Admin_Lessons {
             to { transform: rotate(360deg); }
         }
         </style>';
-
-        // FluentCart Product Creation Modal
-        if ($this->is_fluentcart_active()) {
-            echo '
-            <div id="alm-fc-product-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100000; align-items:center; justify-content:center;">
-                <div style="background:#fff; border-radius:6px; padding:28px 32px; width:480px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.25);">
-                    <h2 style="margin-top:0;">Create FluentCart Product</h2>
-                    <p style="color:#666; margin-bottom:20px;">Review and adjust the details below. The product will be created as a <strong>Draft</strong> — you can publish it from the FluentCart admin.</p>
-
-                    <table class="form-table" style="margin:0;">
-                        <tr>
-                            <th style="width:130px;"><label for="alm-fc-title">Product Title</label></th>
-                            <td><input type="text" id="alm-fc-title" class="regular-text" style="width:100%;" /></td>
-                        </tr>
-                        <tr>
-                            <th><label for="alm-fc-description">Description</label></th>
-                            <td>
-                                <textarea id="alm-fc-description" rows="4" style="width:100%;"></textarea>
-                                <p style="margin-top:8px;"><button type="button" id="alm-fc-generate-ai" class="button button-secondary"><span class="dashicons dashicons-admin-tools" style="vertical-align:middle;"></span> Generate with AI</button></p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><label for="alm-fc-price">Price ($)</label></th>
-                            <td><input type="number" id="alm-fc-price" step="0.01" min="0" value="39.00" style="width:120px;" /></td>
-                        </tr>
-                        <tr>
-                            <th><label for="alm-fc-compare-price">Compare Price ($)</label></th>
-                            <td><input type="number" id="alm-fc-compare-price" step="0.01" min="0" value="59.00" style="width:120px;" />
-                            <p class="description">Original/crossed-out price. Leave 0 to skip.</p></td>
-                        </tr>
-                    </table>
-
-                    <div id="alm-fc-modal-result" style="margin-top:16px; display:none;"></div>
-
-                    <div style="margin-top:24px; text-align:right;">
-                        <button type="button" id="alm-fc-modal-cancel" class="button" style="margin-right:8px;">Cancel</button>
-                        <button type="button" id="alm-fc-modal-submit" class="button button-primary">
-                            <span class="dashicons dashicons-cart" style="vertical-align:middle; margin-top:-2px;"></span>
-                            Create Product
-                        </button>
-                    </div>
-                </div>
-            </div>
-            ';
-            echo '<script>
-            document.addEventListener("DOMContentLoaded", function() {
-                var modal   = document.getElementById("alm-fc-product-modal");
-                var cancel  = document.getElementById("alm-fc-modal-cancel");
-                var submit  = document.getElementById("alm-fc-modal-submit");
-                var result  = document.getElementById("alm-fc-modal-result");
-                var genBtn  = document.getElementById("alm-fc-generate-ai");
-                var almFcLessonId = 0;
-                var almFcSampleVideoUrl = "";
-
-                function almFcGenerateDescription(lessonId, onDone) {
-                    if (!lessonId) { if (onDone) onDone(""); return; }
-                    var descEl = document.getElementById("alm-fc-description");
-                    if (genBtn) { genBtn.disabled = true; genBtn.innerHTML = "<span class=\"dashicons dashicons-update spin\" style=\"vertical-align:middle;\"></span> Generating…"; }
-                    jQuery.ajax({
-                        url: ajaxurl,
-                        type: "POST",
-                        data: { action: "alm_generate_product_description", lesson_id: lessonId, nonce: "' . wp_create_nonce('alm_admin_nonce') . '" },
-                        success: function(r) {
-                            if (r.success && r.data && r.data.description) descEl.value = r.data.description;
-                            if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = "<span class=\"dashicons dashicons-admin-tools\" style=\"vertical-align:middle;\"></span> Generate with AI"; }
-                            if (onDone) onDone(r.success ? (r.data && r.data.description ? r.data.description : "") : "");
-                        },
-                        error: function() {
-                            if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = "<span class=\"dashicons dashicons-admin-tools\" style=\"vertical-align:middle;\"></span> Generate with AI"; }
-                            if (onDone) onDone("");
-                        }
-                    });
-                }
-
-                document.addEventListener("click", function(e) {
-                    var btn = e.target.closest(".alm-create-fc-product-btn");
-                    if (!btn || !modal) return;
-                    e.preventDefault();
-                    almFcLessonId = btn.getAttribute("data-lesson-id") || "";
-                    almFcSampleVideoUrl = btn.getAttribute("data-sample-video-url") || "";
-                    document.getElementById("alm-fc-title").value = btn.getAttribute("data-lesson-title") || "";
-                    document.getElementById("alm-fc-description").value = btn.getAttribute("data-lesson-description") || "";
-                    document.getElementById("alm-fc-price").value = "39.00";
-                    document.getElementById("alm-fc-compare-price").value = "59.00";
-                    result.style.display = "none";
-                    result.innerHTML = "";
-                    modal.style.display = "flex";
-                    almFcGenerateDescription(almFcLessonId, function(gen) {
-                        if (gen) document.getElementById("alm-fc-description").value = gen;
-                    });
-                });
-
-                if (genBtn) genBtn.addEventListener("click", function() { almFcGenerateDescription(almFcLessonId, function(gen) { if (gen) document.getElementById("alm-fc-description").value = gen; }); });
-
-                cancel.addEventListener("click", function() { modal.style.display = "none"; });
-                modal.addEventListener("click", function(e) { if (e.target === modal) modal.style.display = "none"; });
-
-                submit.addEventListener("click", function() {
-                    var title        = document.getElementById("alm-fc-title").value.trim();
-                    var description  = document.getElementById("alm-fc-description").value.trim();
-                    var price        = parseFloat(document.getElementById("alm-fc-price").value) || 0;
-                    var comparePrice = parseFloat(document.getElementById("alm-fc-compare-price").value) || 0;
-                    var lessonId     = almFcLessonId;
-                    var sampleVideoUrl = almFcSampleVideoUrl;
-
-                    if (!title) {
-                        alert("Please enter a product title.");
-                        return;
-                    }
-
-                    submit.disabled    = true;
-                    submit.textContent = "Creating…";
-                    result.style.display = "none";
-
-                    jQuery.ajax({
-                        url:  ajaxurl,
-                        type: "POST",
-                        data: {
-                            action:        "alm_create_fluentcart_product",
-                            lesson_id:     lessonId,
-                            title:         title,
-                            description:   description,
-                            sample_video_url: sampleVideoUrl,
-                            price:         price,
-                            compare_price: comparePrice,
-                            _ajax_nonce:   "' . wp_create_nonce('alm_create_fc_product') . '"
-                        },
-                        success: function(response) {
-                            submit.disabled    = false;
-                            submit.innerHTML = "<span class=\"dashicons dashicons-cart\" style=\"vertical-align:middle; margin-top:-2px;\"></span> Create Product";
-                            if (response.success) {
-                                result.style.display    = "block";
-                                result.style.background = "#d4edda";
-                                result.style.padding    = "12px";
-                                result.style.borderRadius = "4px";
-                                result.innerHTML = "<strong>Product created!</strong> " +
-                                    "<a href=\"" + response.data.edit_url + "\" target=\"_blank\">Edit in FluentCart ↗</a> &nbsp; " +
-                                    "<a href=\"" + response.data.view_url + "\" target=\"_blank\">View product ↗</a> — " +
-                                    "<em>Refreshing to show FluentCart Product ID…</em>";
-                                var viewLink = "<a href=\"" + response.data.edit_url + "\" class=\"button\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"View product in FluentCart\"><span class=\"dashicons dashicons-cart\"></span> View FluentCart Product</a> ";
-                                var fcBtn = document.querySelector(".alm-create-fc-product-btn[data-lesson-id=\"" + lessonId + "\"]");
-                                if (fcBtn) fcBtn.outerHTML = viewLink;
-                                setTimeout(function() { location.reload(); }, 1500);
-                            } else {
-                                result.style.display    = "block";
-                                result.style.background = "#f8d7da";
-                                result.style.padding    = "12px";
-                                result.style.borderRadius = "4px";
-                                result.innerHTML = "<strong>Error:</strong> " + (response.data || "Unknown error");
-                            }
-                        },
-                        error: function() {
-                            submit.disabled    = false;
-                            submit.innerHTML = "<span class=\"dashicons dashicons-cart\" style=\"vertical-align:middle; margin-top:-2px;\"></span> Create Product";
-                            result.style.display    = "block";
-                            result.style.background = "#f8d7da";
-                            result.style.padding    = "12px";
-                            result.innerHTML = "<strong>AJAX error.</strong> Please try again.";
-                        }
-                    });
-                });
-            });
-            </script>';
-        }
     }
     
     /**
@@ -2884,6 +2842,21 @@ class ALM_Admin_Lessons {
         if ($result !== false) {
             // Update pathway assignments
             $this->update_lesson_pathways($lesson_id);
+
+            // Update chapter order if provided
+            if (!empty($_POST['chapter_order'])) {
+                $chapter_ids = array_filter(array_map('intval', explode(',', $_POST['chapter_order'])));
+                $chapters_table = $this->database->get_table_name('chapters');
+                foreach ($chapter_ids as $position => $cid) {
+                    $this->wpdb->update(
+                        $chapters_table,
+                        array('menu_order' => $position + 1),
+                        array('ID' => $cid, 'lesson_id' => $lesson_id),
+                        array('%d'),
+                        array('%d', '%d')
+                    );
+                }
+            }
             
             $this->alm_debug_log( 'update_lesson: before sync_lesson_to_post' );
             // Sync to WordPress post
@@ -3294,6 +3267,7 @@ class ALM_Admin_Lessons {
                 if (!empty($resource['label'])) {
                     echo ' <span style="color: #666; font-style: italic;">(' . esc_html($resource['label']) . ')</span>';
                 }
+                echo ' <a href="' . esc_url($resource['display_url']) . '" download class="alm-download-resource" title="Download" style="display: inline-flex; align-items: center; margin-left: 10px; color: #2271b1; text-decoration: none; vertical-align: middle;"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16" style="display:block;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg></a>';
                 echo ' <a href="#" class="alm-edit-resource" data-type="' . esc_attr($resource['type']) . '" data-url="' . esc_attr($resource['url']) . '" data-attachment-id="' . esc_attr($resource['attachment_id'] ?? 0) . '" data-label="' . esc_attr($resource['label'] ?? '') . '" data-lesson-id="' . esc_attr($lesson->ID) . '" style="color: #2271b1; margin-left: 10px;">' . __('Edit', 'academy-lesson-manager') . '</a>';
                 echo ' <a href="#" class="alm-delete-resource" data-type="' . esc_attr($resource['type']) . '" data-lesson-id="' . esc_attr($lesson->ID) . '" style="color: #dc3232; margin-left: 10px;">' . __('Delete', 'academy-lesson-manager') . '</a>';
                 echo '</li>';
@@ -3367,30 +3341,60 @@ class ALM_Admin_Lessons {
         ));
         
         echo '<div class="alm-lesson-chapters">';
-        echo '<h3>' . __('Chapters in This Lesson', 'academy-lesson-manager') . ' <a href="?page=academy-manager-chapters&action=add&lesson_id=' . $lesson_id . '" class="button button-small">' . __('Add Chapter', 'academy-lesson-manager') . '</a>';
-        echo ' <button type="button" class="button button-small" id="alm-calculate-bunny-durations" data-lesson-id="' . $lesson_id . '">' . __('Calculate All Bunny Durations', 'academy-lesson-manager') . '</button>';
-        echo ' <button type="button" class="button button-small" id="alm-calculate-vimeo-durations" data-lesson-id="' . $lesson_id . '">' . __('Calculate All Vimeo Durations', 'academy-lesson-manager') . '</button></h3>';
-        
+        echo '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">';
+        echo '<h3 style="margin:0;">' . esc_html__('Chapters in This Lesson', 'academy-lesson-manager') . '</h3>';
+        echo '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+        echo '<a href="?page=academy-manager-chapters&action=add&lesson_id=' . intval($lesson_id) . '" class="button button-small">' . esc_html__('Add Chapter', 'academy-lesson-manager') . '</a>';
+        echo '<button type="button" class="button button-small" id="alm-calculate-bunny-durations" data-lesson-id="' . intval($lesson_id) . '">' . esc_html__('Bunny Durations', 'academy-lesson-manager') . '</button>';
+        echo '<button type="button" class="button button-small" id="alm-calculate-vimeo-durations" data-lesson-id="' . intval($lesson_id) . '">' . esc_html__('Vimeo Durations', 'academy-lesson-manager') . '</button>';
+
+        // Column toggle dropdown
+        echo '<div style="position:relative;display:inline-block;">';
+        echo '<button type="button" id="alm-col-toggle-btn" class="button button-small" style="display:inline-flex;align-items:center;gap:4px;">';
+        echo '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125Z"/></svg>';
+        echo ' ' . esc_html__('Columns', 'academy-lesson-manager') . ' <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg></button>';
+
+        echo '<div id="alm-col-toggle-menu" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #c3c4c7;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);padding:8px 0;z-index:9999;min-width:150px;">';
+        $toggle_cols = array(
+            'col-id'           => __('ID', 'academy-lesson-manager'),
+            'col-order'        => __('Order', 'academy-lesson-manager'),
+            'col-vimeo'        => __('Vimeo', 'academy-lesson-manager'),
+            'col-youtube'      => __('YouTube', 'academy-lesson-manager'),
+            'col-bunny'        => __('Bunny', 'academy-lesson-manager'),
+            'col-duration'     => __('Duration', 'academy-lesson-manager'),
+            'col-free'         => __('Free', 'academy-lesson-manager'),
+            'col-release-date' => __('Release Date', 'academy-lesson-manager'),
+            'col-transcript'   => __('Transcript', 'academy-lesson-manager'),
+        );
+        $default_hidden = array('col-id', 'col-vimeo', 'col-youtube', 'col-free');
+        foreach ($toggle_cols as $key => $label) {
+            $checked = !in_array($key, $default_hidden, true) ? 'checked' : '';
+            echo '<label style="display:flex;align-items:center;gap:8px;padding:5px 14px;cursor:pointer;font-size:13px;white-space:nowrap;" onmouseover="this.style.background=\'#f0f6ff\'" onmouseout="this.style.background=\'transparent\'">';
+            echo '<input type="checkbox" class="alm-col-toggle" data-col="' . esc_attr($key) . '" ' . $checked . ' style="margin:0;"> ' . esc_html($label);
+            echo '</label>';
+        }
+        echo '</div></div>';
+        echo '</div></div>';
+
         if (empty($chapters)) {
             echo '<p>' . __('No chapters found in this lesson.', 'academy-lesson-manager') . '</p>';
         } else {
-            echo '<table class="wp-list-table widefat fixed striped alm-chapter-reorder">';
-            echo '<thead>';
-            echo '<tr>';
-            echo '<th scope="col">' . __('Drag', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('ID', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Order', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Title', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Vimeo', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('YouTube', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Bunny', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Duration', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Free', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Release Date', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Transcript', 'academy-lesson-manager') . '</th>';
-            echo '<th scope="col">' . __('Actions', 'academy-lesson-manager') . '</th>';
-            echo '</tr>';
-            echo '</thead>';
+            echo '<div style="overflow-x:auto;width:100%;">';
+            echo '<table class="wp-list-table widefat striped alm-chapter-reorder" style="table-layout:auto;min-width:100%;">';
+            echo '<thead><tr>';
+            echo '<th scope="col" style="width:30px;">' . esc_html__('Drag', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-id" style="width:45px;">' . esc_html__('ID', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-order" style="width:50px;">' . esc_html__('Order', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" style="min-width:140px;">' . esc_html__('Title', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-vimeo" style="width:55px;">' . esc_html__('Vimeo', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-youtube" style="width:70px;">' . esc_html__('YouTube', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-bunny" style="width:55px;">' . esc_html__('Bunny', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-duration" style="width:75px;">' . esc_html__('Duration', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-free" style="width:50px;">' . esc_html__('Free', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-release-date" style="width:100px;">' . esc_html__('Release Date', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" class="col-transcript" style="width:80px;">' . esc_html__('Transcript', 'academy-lesson-manager') . '</th>';
+            echo '<th scope="col" style="width:120px;">' . esc_html__('Actions', 'academy-lesson-manager') . '</th>';
+            echo '</tr></thead>';
             echo '<tbody>';
             
             // Get transcripts for all chapters in one query for efficiency
@@ -3412,10 +3416,10 @@ class ALM_Admin_Lessons {
                 $background = ($chapter->vimeo_id == 0 && empty($chapter->youtube_id) && empty($chapter->bunny_url)) ? 'background-color: #ffebee;' : '';
                 echo '<tr data-chapter-id="' . $chapter->ID . '" style="' . $background . '">';
                 echo '<td class="chapter-drag-handle" style="cursor: move; text-align: center;">⋮⋮</td>';
-                echo '<td>' . $chapter->ID . '</td>';
-                echo '<td class="chapter-order">' . $chapter->menu_order . '</td>';
+                echo '<td class="col-id">' . intval($chapter->ID) . '</td>';
+                echo '<td class="chapter-order col-order">' . intval($chapter->menu_order) . '</td>';
                 echo '<td><a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" target="_blank" rel="noopener noreferrer">' . esc_html(stripslashes($chapter->chapter_title)) . '</a></td>';
-                echo '<td>';
+                echo '<td class="col-vimeo">';
                 if ($chapter->vimeo_id && $chapter->vimeo_id > 0) {
                     echo '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>';
                     // Add download button for Vimeo videos
@@ -3433,10 +3437,10 @@ class ALM_Admin_Lessons {
                     echo '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>';
                 }
                 echo '</td>';
-                echo '<td>' . (!empty($chapter->youtube_id) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
-                echo '<td>' . (!empty($chapter->bunny_url) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
-                echo '<td>' . ALM_Helpers::format_duration($chapter->duration) . '</td>';
-                echo '<td>' . ($chapter->free === 'y' ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                echo '<td class="col-youtube">' . (!empty($chapter->youtube_id) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                echo '<td class="col-bunny">' . (!empty($chapter->bunny_url) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
+                echo '<td class="col-duration">' . ALM_Helpers::format_duration($chapter->duration) . '</td>';
+                echo '<td class="col-free">' . ($chapter->free === 'y' ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
                 
                 // Get release date - use chapter's post_date if set, otherwise fall back to lesson's post_date
                 $release_date = '';
@@ -3453,13 +3457,55 @@ class ALM_Admin_Lessons {
                         $release_date = $lesson->post_date;
                     }
                 }
-                echo '<td>' . (!empty($release_date) ? ALM_Helpers::format_date($release_date) : '<span style="color: #999;">—</span>') . '</td>';
+                $display_date  = (!empty($release_date) && $release_date !== '0000-00-00') ? substr($release_date, 0, 10) : '';
+                $display_label = !empty($display_date) ? ALM_Helpers::format_date($display_date) : '—';
+                $cid             = intval($chapter->ID);
+                $date_input_val  = esc_attr($display_date);
+                $date_label      = esc_html($display_label);
+                $date_nonce      = esc_attr(wp_create_nonce('alm_admin_nonce'));
+
+                echo '<td class="col-release-date" style="white-space:nowrap;">';
+                echo '<a href="#" style="border-bottom:1px dotted #0073aa;text-decoration:none;color:#333;" '
+                    . 'data-chapter-id="' . $cid . '" '
+                    . 'data-date="' . $date_input_val . '" '
+                    . 'data-nonce="' . $date_nonce . '" '
+                    . 'onclick="almPickDate(event,this);return false;">'
+                    . $date_label . '</a>';
+                echo '</td>';
                 
-                echo '<td>' . (in_array($chapter->ID, $transcript_chapter_ids) ? '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>' : '<span style="color: #dc3232;">' . __('No', 'academy-lesson-manager') . '</span>') . '</td>';
-                echo '<td>';
-                echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" class="button button-small" target="_blank" rel="noopener noreferrer">' . __('Edit', 'academy-lesson-manager') . '</a> ';
-                
-                // Add download button if Bunny URL exists
+                $has_transcript = in_array($chapter->ID, $transcript_chapter_ids);
+                echo '<td class="col-transcript" style="white-space:nowrap;">';
+                if ($has_transcript) {
+                    $copy_ico = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z"/></svg>';
+                    echo '<span style="color:#46b450;font-weight:bold;">' . esc_html__('Yes', 'academy-lesson-manager') . '</span> ';
+                    echo '<button type="button" class="alm-copy-transcript-btn" data-lesson-id="' . esc_attr($lesson_id) . '" data-chapter-id="' . esc_attr($chapter->ID) . '" title="' . esc_attr__('Copy Chapter Transcript', 'academy-lesson-manager') . '" style="display:inline-flex;align-items:center;gap:3px;padding:0 6px;height:22px;font-size:11px;border-radius:4px;border:1px solid #c3c4c7;background:#fff;color:#2271b1;cursor:pointer;vertical-align:middle;" onmouseover="this.style.background=\'#f0f6ff\';this.style.borderColor=\'#2271b1\'" onmouseout="this.style.background=\'#fff\';this.style.borderColor=\'#c3c4c7\'">' . $copy_ico . ' ' . esc_html__('Copy', 'academy-lesson-manager') . '</button>';
+                } else {
+                    echo '<span style="color:#dc3232;font-weight:bold;">' . esc_html__('No', 'academy-lesson-manager') . '</span>';
+                }
+                echo '</td>';
+                echo '<td style="white-space:nowrap;">';
+
+                // Edit — pencil-square
+                echo '<a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" target="_blank" rel="noopener noreferrer" title="' . esc_attr__('Edit Chapter', 'academy-lesson-manager') . '" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #c3c4c7;border-radius:4px;background:#fff;color:#2271b1;text-decoration:none;margin:1px;" onmouseover="this.style.background=\'#f0f6ff\'" onmouseout="this.style.background=\'#fff\'">'
+                    . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>'
+                    . '</a> ';
+
+                // Quick Edit — bolt
+                $qe_data = array(
+                    'id'        => intval($chapter->ID),
+                    'title'     => stripslashes($chapter->chapter_title),
+                    'date'      => $display_date,
+                    'free'      => ($chapter->free === 'y') ? 'y' : 'n',
+                    'bunny_url' => isset($chapter->bunny_url) ? (string) $chapter->bunny_url : '',
+                    'nonce'     => wp_create_nonce('alm_admin_nonce'),
+                    'cols'      => 12,
+                );
+                $qe_onclick = 'almQuickEditOpen(this,' . wp_json_encode($qe_data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ')';
+                echo '<button type="button" onclick="' . esc_attr($qe_onclick) . '" title="' . esc_attr__('Quick Edit', 'academy-lesson-manager') . '" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #c3c4c7;border-radius:4px;background:#fff;color:#2271b1;cursor:pointer;margin:1px;" onmouseover="this.style.background=\'#f0f6ff\'" onmouseout="this.style.background=\'#fff\'">'
+                    . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" /></svg>'
+                    . '</button> ';
+
+                // Download — arrow-down-tray (only if Bunny URL exists)
                 if (!empty($chapter->bunny_url)) {
                     $download_url = wp_nonce_url(
                         add_query_arg(array(
@@ -3470,21 +3516,96 @@ class ALM_Admin_Lessons {
                         'alm_download_chapter',
                         'nonce'
                     );
-                    echo ' <a href="' . esc_url($download_url) . '" class="button button-small button-secondary" title="' . __('Download Bunny.net Video', 'academy-lesson-manager') . '">' . __('Download', 'academy-lesson-manager') . '</a> ';
+                    echo '<a href="' . esc_url($download_url) . '" title="' . esc_attr__('Download Bunny.net Video', 'academy-lesson-manager') . '" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #c3c4c7;border-radius:4px;background:#fff;color:#2271b1;text-decoration:none;margin:1px;" onmouseover="this.style.background=\'#f0f6ff\'" onmouseout="this.style.background=\'#fff\'">'
+                        . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>'
+                        . '</a> ';
                 }
-                
-                // Add transcribe button if MP3 file exists
-                if (!empty($chapter->mp3_file_url)) {
-                    echo ' <button type="button" class="button button-small alm-transcribe-chapter-btn" data-chapter-id="' . esc_attr($chapter->ID) . '" title="' . __('Transcribe this chapter', 'academy-lesson-manager') . '">' . __('Transcribe', 'academy-lesson-manager') . '</button> ';
+
+                // Download — Vimeo (only if Vimeo ID exists)
+                if (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
+                    $vimeo_download_url = wp_nonce_url(
+                        add_query_arg(array(
+                            'page'             => 'academy-manager-lesson-samples',
+                            'download_chapter' => '1',
+                            'chapter_id'       => $chapter->ID
+                        ), admin_url('admin.php')),
+                        'alm_download_chapter',
+                        'nonce'
+                    );
+                    echo '<a href="' . esc_url($vimeo_download_url) . '" title="' . esc_attr__('Download Vimeo Video', 'academy-lesson-manager') . '" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #c3c4c7;border-radius:4px;background:#fff;color:#1ab7ea;text-decoration:none;margin:1px;" onmouseover="this.style.background=\'#f0faff\'" onmouseout="this.style.background=\'#fff\'">'
+                        . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>'
+                        . '</a> ';
                 }
-                echo ' <a href="?page=academy-manager-lessons&action=delete-chapter&chapter_id=' . $chapter->ID . '&lesson_id=' . $lesson_id . '" class="button button-small" onclick="return confirm(\'' . __('Are you sure you want to delete this chapter?', 'academy-lesson-manager') . '\')" style="color: #dc3232;">' . __('Delete', 'academy-lesson-manager') . '</a>';
+
+                // Delete — trash (red)
+                echo '<a href="?page=academy-manager-lessons&action=delete-chapter&chapter_id=' . $chapter->ID . '&lesson_id=' . $lesson_id . '" onclick="return confirm(\'' . esc_js(__('Are you sure you want to delete this chapter?', 'academy-lesson-manager')) . '\')" title="' . esc_attr__('Delete Chapter', 'academy-lesson-manager') . '" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #c3c4c7;border-radius:4px;background:#fff;color:#dc3232;text-decoration:none;margin:1px;" onmouseover="this.style.background=\'#fff5f5\'" onmouseout="this.style.background=\'#fff\'">'
+                    . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>'
+                    . '</a>';
+
                 echo '</td>';
                 echo '</tr>';
             }
             
             echo '</tbody>';
             echo '</table>';
-            
+            echo '</div>';
+
+            echo '<script>
+(function() {
+    var defaults = ["col-id","col-vimeo","col-youtube","col-free"];
+    var storageKey = "alm_hidden_cols_' . intval($lesson_id) . '";
+    var saved = localStorage.getItem(storageKey);
+    var hidden = defaults;
+    if (saved) {
+        try {
+            hidden = JSON.parse(saved);
+            if (!Array.isArray(hidden)) {
+                hidden = defaults;
+            }
+        } catch (e) {
+            hidden = defaults;
+        }
+    }
+
+    function applyVisibility() {
+        document.querySelectorAll(".alm-col-toggle").forEach(function(cb) {
+            var col = cb.dataset.col;
+            var show = cb.checked;
+            document.querySelectorAll("." + col).forEach(function(el) {
+                el.style.display = show ? "" : "none";
+            });
+        });
+        localStorage.setItem(storageKey, JSON.stringify(
+            Array.from(document.querySelectorAll(".alm-col-toggle"))
+                .filter(function(cb){ return !cb.checked; })
+                .map(function(cb){ return cb.dataset.col; })
+        ));
+    }
+
+    document.querySelectorAll(".alm-col-toggle").forEach(function(cb) {
+        cb.checked = !hidden.includes(cb.dataset.col);
+    });
+    applyVisibility();
+
+    document.querySelectorAll(".alm-col-toggle").forEach(function(cb) {
+        cb.addEventListener("change", applyVisibility);
+    });
+
+    var btn = document.getElementById("alm-col-toggle-btn");
+    var menu = document.getElementById("alm-col-toggle-menu");
+    if (btn && menu) {
+        btn.addEventListener("click", function(e) {
+            e.stopPropagation();
+            menu.style.display = menu.style.display === "none" ? "block" : "none";
+        });
+        document.addEventListener("click", function() {
+            menu.style.display = "none";
+        });
+        menu.addEventListener("click", function(e) { e.stopPropagation(); });
+    }
+})();
+</script>';
+
             echo '<p class="description">' . __('Drag chapters by the ⋮⋮ handle to reorder them.', 'academy-lesson-manager') . '</p>';
         }
         
@@ -4943,6 +5064,53 @@ class ALM_Admin_Lessons {
         return admin_url('admin.php?' . http_build_query($params));
     }
     
+    /**
+     * Plain text for one chapter's VTT (markdown-style heading + body), or empty string.
+     *
+     * @param int $chapter_id Chapter ID.
+     * @return string
+     */
+    public function get_chapter_transcript_text($chapter_id) {
+        $chapter_id = intval($chapter_id);
+        if ($chapter_id <= 0) {
+            return '';
+        }
+        $chapters_table    = $this->database->get_table_name('chapters');
+        $transcripts_table = $this->database->get_table_name('transcripts');
+        $chapter      = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT ID, chapter_title FROM {$chapters_table} WHERE ID = %d",
+            $chapter_id
+        ));
+        if (!$chapter) {
+            return '';
+        }
+        $vtt_file = null;
+        $column_exists = $this->wpdb->get_results("SHOW COLUMNS FROM {$transcripts_table} LIKE 'vtt_file'");
+        if (!empty($column_exists)) {
+            $vtt_file = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT vtt_file FROM {$transcripts_table} WHERE chapter_id = %d AND source = 'whisper' LIMIT 1",
+                $chapter_id
+            ));
+        }
+        if (empty($vtt_file)) {
+            $vtt_file = 'chapter-' . $chapter_id . '.vtt';
+        }
+        $upload_dir = wp_upload_dir();
+        $vtt_path   = $upload_dir['basedir'] . '/alm_transcriptions/' . $vtt_file;
+        if (!file_exists($vtt_path)) {
+            return '';
+        }
+        $vtt_content = file_get_contents($vtt_path);
+        if ($vtt_content === false) {
+            return '';
+        }
+        $text = $this->extract_text_from_vtt($vtt_content);
+        if (empty($text)) {
+            return '';
+        }
+        return "## " . stripslashes($chapter->chapter_title) . "\n\n" . $text;
+    }
+
     /**
      * Combine all VTT files for a lesson into plain text
      * 

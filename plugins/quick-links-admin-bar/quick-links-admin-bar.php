@@ -32,12 +32,12 @@ define('QLAB_PLUGIN_BASENAME', plugin_basename(__FILE__));
  * Main plugin class
  */
 class QuickLinksAdminBar {
-    
+
     /**
      * Single instance of the class
      */
     private static $instance = null;
-    
+
     /**
      * Get single instance
      */
@@ -47,14 +47,14 @@ class QuickLinksAdminBar {
         }
         return self::$instance;
     }
-    
+
     /**
      * Constructor
      */
     private function __construct() {
         $this->init_hooks();
     }
-    
+
     /**
      * Initialize hooks
      */
@@ -65,21 +65,21 @@ class QuickLinksAdminBar {
         add_action('wp_enqueue_scripts', array($this, 'enqueue_admin_bar_styles'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_bar_styles'));
         add_action('admin_init', array($this, 'handle_quick_links'));
-        
+
         // AJAX handlers for quick links
         add_action('wp_ajax_qlab_save_quick_link', array($this, 'save_quick_link_ajax'));
         add_action('wp_ajax_qlab_delete_quick_link', array($this, 'delete_quick_link_ajax'));
         add_action('wp_ajax_qlab_update_quick_link', array($this, 'update_quick_link_ajax'));
         add_action('wp_ajax_qlab_reorder_quick_links', array($this, 'reorder_quick_links_ajax'));
-        
+
         // Add admin bar menu for quick links
         add_action('admin_bar_menu', array($this, 'add_quick_links_admin_bar'), 999);
-        
+
         // Activation and deactivation hooks
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
     }
-    
+
     /**
      * Initialize plugin
      */
@@ -87,7 +87,7 @@ class QuickLinksAdminBar {
         // Load text domain
         load_plugin_textdomain('quick-links-admin-bar', false, dirname(plugin_basename(__FILE__)) . '/languages');
     }
-    
+
     /**
      * Add admin menu
      */
@@ -102,7 +102,7 @@ class QuickLinksAdminBar {
             30
         );
     }
-    
+
     /**
      * Enqueue admin scripts and styles
      */
@@ -113,7 +113,7 @@ class QuickLinksAdminBar {
             wp_enqueue_script('jquery-ui-sortable');
         }
     }
-    
+
     /**
      * Enqueue admin bar styles globally
      */
@@ -122,7 +122,7 @@ class QuickLinksAdminBar {
             wp_enqueue_style('qlab-admin-bar', QLAB_PLUGIN_URL . 'assets/css/admin.css', array(), QLAB_VERSION);
         }
     }
-    
+
     /**
      * Handle quick links requests
      */
@@ -134,18 +134,18 @@ class QuickLinksAdminBar {
             }
         }
     }
-    
+
     /**
      * Quick Links page callback
      */
     public function quick_links_page() {
         $quick_links = get_option('qlab_quick_links', array());
-        
+
         ?>
         <div class="wrap">
             <h1>🔗 Quick Links</h1>
             <p>Manage quick links that appear in the admin bar for easy access.</p>
-            
+
             <!-- Add New Quick Link Form -->
             <div class="card" style="max-width: 600px; margin: 20px 0;">
                 <h2>Add New Quick Link</h2>
@@ -187,7 +187,7 @@ class QuickLinksAdminBar {
                     </p>
                 </form>
             </div>
-            
+
             <!-- Existing Quick Links -->
             <div class="card" style="max-width: 800px;">
                 <h2>Existing Quick Links</h2>
@@ -208,8 +208,8 @@ class QuickLinksAdminBar {
                                                 <?php endif; ?>
                                             </div>
                                             <div class="quick-link-url-display">
-                                                <a href="<?php echo esc_url($link['url']); ?>" 
-                                                   <?php echo (!empty($link['new_window'])) ? 'target="_blank"' : ''; ?> 
+                                                <a href="<?php echo esc_url($link['url']); ?>"
+                                                   <?php echo (!empty($link['new_window'])) ? 'target="_blank"' : ''; ?>
                                                    class="quick-link-url">
                                                     <?php echo esc_html(stripslashes($link['url'])); ?>
                                                 </a>
@@ -234,7 +234,7 @@ class QuickLinksAdminBar {
                                         <button type="button" class="button button-small cancel-edit" data-index="<?php echo esc_attr($index); ?>" style="display: none;">
                                             Cancel
                                         </button>
-                                        <button type="button" class="button button-link-delete delete-quick-link" 
+                                        <button type="button" class="button button-link-delete delete-quick-link"
                                                 data-index="<?php echo esc_attr($index); ?>">
                                             Delete
                                         </button>
@@ -246,7 +246,7 @@ class QuickLinksAdminBar {
                 <?php endif; ?>
             </div>
         </div>
-        
+
         <style>
         .quick-links-container {
             border: 1px solid #e1e5e9;
@@ -255,13 +255,13 @@ class QuickLinksAdminBar {
             padding: 20px;
             margin: 20px 0;
         }
-        
+
         .sortable-links {
             display: flex;
             flex-direction: column;
             gap: 15px;
         }
-        
+
         .quick-link-item {
             display: flex;
             align-items: center;
@@ -273,16 +273,16 @@ class QuickLinksAdminBar {
             transition: all 0.2s ease;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        
+
         .quick-link-item:hover {
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
-        
+
         .quick-link-item.ui-sortable-helper {
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
             transform: rotate(2deg);
         }
-        
+
         .quick-link-placeholder {
             height: 70px;
             border: 2px dashed #f04e23;
@@ -290,7 +290,7 @@ class QuickLinksAdminBar {
             border-radius: 8px;
             margin: 15px 0;
         }
-        
+
         .quick-link-handle {
             cursor: move;
             color: #999;
@@ -302,22 +302,22 @@ class QuickLinksAdminBar {
             border-radius: 4px;
             border: 1px solid #e9ecef;
         }
-        
+
         .quick-link-handle:hover {
             color: #666;
             background: #e9ecef;
         }
-        
+
         .quick-link-content {
             flex: 1;
         }
-        
+
         .quick-link-display {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
-        
+
         .quick-link-title {
             font-weight: 600;
             font-size: 16px;
@@ -327,46 +327,46 @@ class QuickLinksAdminBar {
             align-items: center;
             gap: 8px;
         }
-        
+
         .new-window-indicator {
             font-size: 14px;
             opacity: 0.7;
         }
-        
+
         .quick-link-url-display {
             margin: 0;
         }
-        
+
         .quick-link-url {
             color: #0073aa;
             text-decoration: none;
             font-size: 14px;
             word-break: break-all;
         }
-        
+
         .quick-link-url:hover {
             text-decoration: underline;
         }
-        
+
         .quick-link-edit {
             display: flex;
             flex-direction: column;
             gap: 10px;
         }
-        
+
         .quick-link-edit input {
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
         }
-        
+
         .quick-link-edit input:focus {
             outline: none;
             border-color: #f04e23;
             box-shadow: 0 0 0 2px rgba(240, 78, 35, 0.1);
         }
-        
+
         .edit-new-window {
             display: flex;
             align-items: center;
@@ -374,18 +374,18 @@ class QuickLinksAdminBar {
             margin-top: 8px;
             font-size: 14px;
         }
-        
+
         .edit-new-window input[type="checkbox"] {
             margin: 0;
         }
-        
+
         .quick-link-actions {
             display: flex;
             gap: 8px;
             align-items: center;
             flex-shrink: 0;
         }
-        
+
         .success-message {
             background: #d4edda;
             color: #155724;
@@ -395,7 +395,7 @@ class QuickLinksAdminBar {
             display: none;
             border-left: 4px solid #28a745;
         }
-        
+
         .error-message {
             background: #f8d7da;
             color: #721c24;
@@ -405,7 +405,7 @@ class QuickLinksAdminBar {
             display: none;
             border-left: 4px solid #dc3545;
         }
-        
+
         /* Responsive adjustments */
         @media (max-width: 768px) {
             .quick-link-item {
@@ -413,28 +413,28 @@ class QuickLinksAdminBar {
                 align-items: flex-start;
                 gap: 15px;
             }
-            
+
             .quick-link-actions {
                 width: 100%;
                 justify-content: flex-end;
             }
-            
+
             .quick-links-container {
                 padding: 15px;
             }
         }
         </style>
-        
+
         <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Add Quick Link Form
             document.getElementById('add-quick-link-form').addEventListener('submit', function(e) {
                 e.preventDefault();
-                
+
                 const formData = new FormData(this);
                 formData.append('action', 'qlab_save_quick_link');
                 formData.append('nonce', '<?php echo wp_create_nonce('qlab_nonce'); ?>');
-                
+
                 fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
                     method: 'POST',
                     body: formData
@@ -451,7 +451,7 @@ class QuickLinksAdminBar {
                     showMessage('Network error. Please try again.', 'error');
                 });
             });
-            
+
             // Edit Quick Link
             document.querySelectorAll('.edit-quick-link').forEach(button => {
                 button.addEventListener('click', function() {
@@ -462,7 +462,7 @@ class QuickLinksAdminBar {
                     const editBtn = item.querySelector('.edit-quick-link');
                     const saveBtn = item.querySelector('.save-quick-link');
                     const cancelBtn = item.querySelector('.cancel-edit');
-                    
+
                     display.style.display = 'none';
                     edit.style.display = 'flex';
                     editBtn.style.display = 'none';
@@ -470,7 +470,7 @@ class QuickLinksAdminBar {
                     cancelBtn.style.display = 'inline-block';
                 });
             });
-            
+
             // Save Quick Link
             document.querySelectorAll('.save-quick-link').forEach(button => {
                 button.addEventListener('click', function() {
@@ -479,12 +479,12 @@ class QuickLinksAdminBar {
                     const title = item.querySelector('.edit-title').value;
                     const url = item.querySelector('.edit-url').value;
                     const newWindow = item.querySelector('.edit-new-window-checkbox').checked;
-                    
+
                     if (!title || !url) {
                         showMessage('Title and URL are required.', 'error');
                         return;
                     }
-                    
+
                     const formData = new FormData();
                     formData.append('action', 'qlab_update_quick_link');
                     formData.append('index', index);
@@ -492,7 +492,7 @@ class QuickLinksAdminBar {
                     formData.append('url', url);
                     formData.append('new_window', newWindow ? '1' : '0');
                     formData.append('nonce', '<?php echo wp_create_nonce('qlab_nonce'); ?>');
-                    
+
                     fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
                         method: 'POST',
                         body: formData
@@ -510,7 +510,7 @@ class QuickLinksAdminBar {
                     });
                 });
             });
-            
+
             // Cancel Edit
             document.querySelectorAll('.cancel-edit').forEach(button => {
                 button.addEventListener('click', function() {
@@ -521,7 +521,7 @@ class QuickLinksAdminBar {
                     const editBtn = item.querySelector('.edit-quick-link');
                     const saveBtn = item.querySelector('.save-quick-link');
                     const cancelBtn = item.querySelector('.cancel-edit');
-                    
+
                     display.style.display = 'flex';
                     edit.style.display = 'none';
                     editBtn.style.display = 'inline-block';
@@ -529,7 +529,7 @@ class QuickLinksAdminBar {
                     cancelBtn.style.display = 'none';
                 });
             });
-            
+
             // Delete Quick Link
             document.querySelectorAll('.delete-quick-link').forEach(button => {
                 button.addEventListener('click', function() {
@@ -539,7 +539,7 @@ class QuickLinksAdminBar {
                         formData.append('action', 'qlab_delete_quick_link');
                         formData.append('index', index);
                         formData.append('nonce', '<?php echo wp_create_nonce('qlab_nonce'); ?>');
-                        
+
                         fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
                             method: 'POST',
                             body: formData
@@ -558,7 +558,7 @@ class QuickLinksAdminBar {
                     }
                 });
             });
-            
+
             // Initialize sortable - use jQuery ready to ensure jQuery UI is loaded
             jQuery(document).ready(function($) {
                 if ($.ui && $.ui.sortable) {
@@ -570,12 +570,12 @@ class QuickLinksAdminBar {
                             $('#quick-links-list .quick-link-item').each(function() {
                                 order.push($(this).attr('data-index'));
                             });
-                            
+
                             const formData = new FormData();
                             formData.append('action', 'qlab_reorder_quick_links');
                             formData.append('order', JSON.stringify(order));
                             formData.append('nonce', '<?php echo wp_create_nonce('qlab_nonce'); ?>');
-                            
+
                             fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
                                 method: 'POST',
                                 body: formData
@@ -597,20 +597,20 @@ class QuickLinksAdminBar {
                     console.error('jQuery UI Sortable is not available');
                 }
             });
-            
+
             function showMessage(message, type) {
                 const existing = document.querySelector('.success-message, .error-message');
                 if (existing) {
                     existing.remove();
                 }
-                
+
                 const messageDiv = document.createElement('div');
                 messageDiv.className = type === 'success' ? 'success-message' : 'error-message';
                 messageDiv.textContent = message;
                 messageDiv.style.display = 'block';
-                
+
                 document.querySelector('.wrap h1').insertAdjacentElement('afterend', messageDiv);
-                
+
                 setTimeout(() => {
                     messageDiv.remove();
                 }, 3000);
@@ -619,7 +619,7 @@ class QuickLinksAdminBar {
         </script>
         <?php
     }
-    
+
     /**
      * Add quick links to admin bar
      */
@@ -627,13 +627,13 @@ class QuickLinksAdminBar {
         if (!current_user_can('manage_options')) {
             return;
         }
-        
+
         $quick_links = get_option('qlab_quick_links', array());
-        
+
         if (empty($quick_links)) {
             return;
         }
-        
+
         // Add main menu item to the right side (secondary menu)
         $wp_admin_bar->add_menu(array(
             'id' => 'qlab-quick-links',
@@ -645,19 +645,19 @@ class QuickLinksAdminBar {
                 'title' => 'Quick Links'
             )
         ));
-        
+
         // Add individual links
         foreach ($quick_links as $index => $link) {
             $title = stripslashes($link['title']);
             if (!empty($link['new_window'])) {
                 $title .= ' 🔗';
             }
-            
+
             $meta = array();
             if (!empty($link['new_window'])) {
                 $meta['target'] = '_blank';
             }
-            
+
             $wp_admin_bar->add_menu(array(
                 'id' => 'qlab-quick-link-' . $index,
                 'parent' => 'qlab-quick-links',
@@ -667,7 +667,7 @@ class QuickLinksAdminBar {
             ));
         }
     }
-    
+
     /**
      * Save quick link via AJAX
      */
@@ -683,23 +683,23 @@ class QuickLinksAdminBar {
         $title = sanitize_text_field(stripslashes($_POST['link_title']));
         $url = esc_url_raw(stripslashes($_POST['link_url']));
         $new_window = isset($_POST['link_new_window']) && $_POST['link_new_window'] === '1';
-        
+
         if (empty($title) || empty($url)) {
             wp_send_json_error('Title and URL are required');
         }
-        
+
         $quick_links = get_option('qlab_quick_links', array());
         $quick_links[] = array(
             'title' => $title,
             'url' => $url,
             'new_window' => $new_window
         );
-        
+
         update_option('qlab_quick_links', $quick_links);
-        
+
         wp_send_json_success('Quick link added successfully');
     }
-    
+
     /**
      * Delete quick link via AJAX
      */
@@ -714,19 +714,19 @@ class QuickLinksAdminBar {
 
         $index = intval($_POST['index']);
         $quick_links = get_option('qlab_quick_links', array());
-        
+
         if (!isset($quick_links[$index])) {
             wp_send_json_error('Quick link not found');
         }
-        
+
         unset($quick_links[$index]);
         $quick_links = array_values($quick_links); // Reindex array
-        
+
         update_option('qlab_quick_links', $quick_links);
-        
+
         wp_send_json_success('Quick link deleted successfully');
     }
-    
+
     /**
      * Update quick link via AJAX
      */
@@ -743,28 +743,28 @@ class QuickLinksAdminBar {
         $title = sanitize_text_field(stripslashes($_POST['title']));
         $url = esc_url_raw(stripslashes($_POST['url']));
         $new_window = isset($_POST['new_window']) && $_POST['new_window'] === '1';
-        
+
         if (empty($title) || empty($url)) {
             wp_send_json_error('Title and URL are required');
         }
-        
+
         $quick_links = get_option('qlab_quick_links', array());
-        
+
         if (!isset($quick_links[$index])) {
             wp_send_json_error('Quick link not found');
         }
-        
+
         $quick_links[$index] = array(
             'title' => $title,
             'url' => $url,
             'new_window' => $new_window
         );
-        
+
         update_option('qlab_quick_links', $quick_links);
-        
+
         wp_send_json_success('Quick link updated successfully');
     }
-    
+
     /**
      * Reorder quick links via AJAX
      */
@@ -778,25 +778,25 @@ class QuickLinksAdminBar {
         }
 
         $order = json_decode(stripslashes($_POST['order']), true);
-        
+
         if (!is_array($order)) {
             wp_send_json_error('Invalid order data');
         }
-        
+
         $quick_links = get_option('qlab_quick_links', array());
         $reordered_links = array();
-        
+
         foreach ($order as $index) {
             if (isset($quick_links[$index])) {
                 $reordered_links[] = $quick_links[$index];
             }
         }
-        
+
         update_option('qlab_quick_links', $reordered_links);
-        
+
         wp_send_json_success('Order updated successfully');
     }
-    
+
     /**
      * Plugin activation
      */
@@ -804,7 +804,7 @@ class QuickLinksAdminBar {
         // Set default options
         add_option('qlab_version', QLAB_VERSION);
     }
-    
+
     /**
      * Plugin deactivation
      */

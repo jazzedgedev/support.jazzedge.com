@@ -1,0 +1,40 @@
+#wpal-zoom-main-settings{
+    display: table;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #ffffff;
+    border: 1px solid #e5e5e5;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+    min-height: calc(100vh - 200px);
+}
+
+#wpal-zoom-main-settings #api_options_data{
+    max-width: 320px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 1em;
+}
+
+.api_legend{
+    margin: 1em;
+}
+.wpat_setting_label,
+.wpat_setting_label td,
+.wpat_setting_label th,
+.api_legend_text{
+    display: block;
+}
+
+.api_legend_text{
+    font-size: 1.6em;
+    font-weight: bold;
+    margin-top: 1em;
+}
+
+.wpat_setting_label th{
+    padding: 0;
+}
+
+.wpat-action-row{
+    padding: 1em 0;
+}

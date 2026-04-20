@@ -44,6 +44,7 @@ class ALM_Database {
             'tags' => $wpdb->prefix . 'alm_tags',
             'essentials_library' => $wpdb->prefix . 'alm_essentials_library',
             'essentials_selections' => $wpdb->prefix . 'alm_essentials_selections',
+            'essentials_selection_audit' => $wpdb->prefix . 'alm_essentials_selection_audit',
             'notifications' => $wpdb->prefix . 'alm_notifications',
             'notification_reads' => $wpdb->prefix . 'alm_notification_reads',
             'promotional_banners' => $wpdb->prefix . 'alm_promotional_banners',
@@ -73,6 +74,7 @@ class ALM_Database {
         $this->create_tags_table();
         $this->create_essentials_library_table();
         $this->create_essentials_selections_table();
+        $this->create_essentials_selection_audit_table();
         $this->create_notifications_table();
         $this->create_notification_reads_table();
         $this->create_promotional_banners_table();
@@ -739,6 +741,34 @@ class ALM_Database {
         ) $charset_collate;";
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+
+    /**
+     * Audit log for Essentials selection credits (grants, spends, admin adjustments)
+     */
+    private function create_essentials_selection_audit_table() {
+        $table_name = $this->tables['essentials_selection_audit'];
+
+        $charset_collate = $this->wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE $table_name (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            event_type varchar(40) NOT NULL,
+            delta int(11) NOT NULL DEFAULT 0,
+            balance_after int(11) NOT NULL DEFAULT 0,
+            actor_user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            meta longtext NULL,
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY user_id (user_id),
+            KEY event_type (event_type),
+            KEY created_at (created_at),
+            KEY actor_user_id (actor_user_id)
+        ) $charset_collate;";
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);
     }
 

@@ -113,6 +113,11 @@ class ALM_Admin_Settings {
             $this->save_webhook_settings();
             return; // Exit early after save
         }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_webhook_mappings'])) {
+            $this->save_webhook_mappings();
+            return;
+        }
         
         // Handle webhook log clear
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_webhook_logs'])) {
@@ -171,9 +176,6 @@ class ALM_Admin_Settings {
                 case 'invalid_tag':
                 case 'tag_not_found':
                     echo '<div class="notice notice-error"><p>' . __('An error occurred while processing the tag.', 'academy-lesson-manager') . '</p></div>';
-                    break;
-                case 'webhook_settings_saved':
-                    echo '<div class="notice notice-success"><p>' . __('Webhook settings saved successfully.', 'academy-lesson-manager') . '</p></div>';
                     break;
                 case 'webhook_logs_cleared':
                     echo '<div class="notice notice-success"><p>' . __('Webhook logs cleared successfully.', 'academy-lesson-manager') . '</p></div>';
@@ -1769,7 +1771,11 @@ class ALM_Admin_Settings {
         $secret = get_option('alm_zoom_webhook_secret', '');
         $auto_migrate = get_option('alm_zoom_webhook_auto_migrate', false);
         $webhook_url = rest_url('alm/v1/zoom-recording');
-        
+
+        if (isset($_GET['message']) && sanitize_text_field(wp_unslash($_GET['message'])) === 'webhook_settings_saved') {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Webhook settings saved.', 'academy-lesson-manager') . '</p></div>';
+        }
+
         // Get debug logs
         $debug_logs = $webhook->get_debug_logs();
         
@@ -1836,17 +1842,130 @@ class ALM_Admin_Settings {
         
         echo '</tbody>';
         echo '</table>';
-        
+
         echo '<p class="submit">';
         echo '<input type="hidden" name="save_webhook_settings" value="1" />';
-        echo '<input type="submit" class="button-primary" value="' . __('Save Webhook Settings', 'academy-lesson-manager') . '" />';
+        echo '<input type="submit" class="button-primary" value="' . esc_attr__('Save Webhook Settings', 'academy-lesson-manager') . '" />';
         echo '</p>';
         echo '</form>';
+
+        // Identifier Mappings section
+        $mappings = get_option('alm_webhook_identifier_mappings', array());
+        if (!is_array($mappings)) {
+            $mappings = array();
+        }
+
+        $teachers_table_name = $this->database->get_table_name('teachers');
+        $teachers_list       = array();
+        if ($this->wpdb->get_var($this->wpdb->prepare('SHOW TABLES LIKE %s', $teachers_table_name)) === $teachers_table_name) {
+            $teachers_list = $this->wpdb->get_results("SELECT teacher_name FROM {$teachers_table_name} ORDER BY teacher_name ASC");
+        }
+
+        $level_labels = array(
+            1 => __('Essentials (1)', 'academy-lesson-manager'),
+            2 => __('Studio (2)', 'academy-lesson-manager'),
+            3 => __('Premier (3)', 'academy-lesson-manager'),
+        );
+
+        echo '<form method="post" action="">';
+        echo '<input type="hidden" name="save_webhook_mappings" value="1" />';
+
+        echo '<hr style="margin:24px 0;">';
+        echo '<h3>' . esc_html__('Identifier Mappings', 'academy-lesson-manager') . '</h3>';
+        echo '<p class="description">' . esc_html__('Map each zoom identifier to a teacher and membership level. These are applied automatically when a webhook creates a lesson.', 'academy-lesson-manager') . '</p>';
+
+        if (!empty($mappings)) {
+            echo '<table class="wp-list-table widefat fixed striped" style="max-width:700px;margin-bottom:16px;">';
+            echo '<thead><tr><th>' . esc_html__('Zoom Identifier', 'academy-lesson-manager') . '</th><th>' . esc_html__('Teacher', 'academy-lesson-manager') . '</th><th>' . esc_html__('Membership Level', 'academy-lesson-manager') . '</th><th style="width:80px;">' . esc_html__('Action', 'academy-lesson-manager') . '</th></tr></thead><tbody>';
+            foreach ($mappings as $identifier => $map) {
+                if (!is_array($map)) {
+                    continue;
+                }
+                $lvl          = isset($map['membership_level']) ? intval($map['membership_level']) : 0;
+                $level_label  = isset($level_labels[$lvl]) ? $level_labels[$lvl] : (string) $lvl;
+                $teacher_name = isset($map['teacher']) ? $map['teacher'] : '';
+                echo '<tr>';
+                echo '<td><code>' . esc_html($identifier) . '</code></td>';
+                echo '<td>' . esc_html($teacher_name) . '</td>';
+                echo '<td>' . esc_html($level_label) . '</td>';
+                echo '<td><button type="submit" name="delete_identifier_mapping" value="' . esc_attr($identifier) . '" class="button button-small" style="color:#dc3232;" onclick="return confirm(\'' . esc_js(__('Remove this mapping?', 'academy-lesson-manager')) . '\')">' . esc_html__('Remove', 'academy-lesson-manager') . '</button></td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+        }
+
+        echo '<div style="background:#f6f7f7;border:1px solid #e0e0e0;border-radius:6px;padding:16px;max-width:700px;">';
+        echo '<h4 style="margin-top:0;">' . esc_html__('Add / Update Mapping', 'academy-lesson-manager') . '</h4>';
+        echo '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;">';
+
+        echo '<div>';
+        echo '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:12px;">' . esc_html__('Zoom Identifier', 'academy-lesson-manager') . '</label>';
+        echo '<input type="text" name="new_identifier" placeholder="' . esc_attr__('e.g. paul-class', 'academy-lesson-manager') . '" class="regular-text" style="width:100%;margin:0;" />';
+        echo '</div>';
+
+        echo '<div>';
+        echo '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:12px;">' . esc_html__('Teacher', 'academy-lesson-manager') . '</label>';
+        echo '<select name="new_teacher" style="width:100%;margin:0;">';
+        echo '<option value="">' . esc_html__('— Select —', 'academy-lesson-manager') . '</option>';
+        if (!empty($teachers_list)) {
+            foreach ($teachers_list as $t) {
+                echo '<option value="' . esc_attr($t->teacher_name) . '">' . esc_html($t->teacher_name) . '</option>';
+            }
+        }
+        echo '</select>';
+        echo '</div>';
+
+        echo '<div>';
+        echo '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:12px;">' . esc_html__('Membership Level', 'academy-lesson-manager') . '</label>';
+        echo '<select name="new_membership_level" style="width:100%;margin:0;">';
+        echo '<option value="1">' . esc_html($level_labels[1]) . '</option>';
+        echo '<option value="2">' . esc_html($level_labels[2]) . '</option>';
+        echo '<option value="3" selected>' . esc_html($level_labels[3]) . '</option>';
+        echo '</select>';
+        echo '</div>';
+
+        echo '<div>';
+        echo '<button type="submit" name="add_identifier_mapping" value="1" class="button button-primary">' . esc_html__('Add', 'academy-lesson-manager') . '</button>';
+        echo '</div>';
+
+        echo '</div></div>';
+
+        echo '</form>';
         
-        // Debug logs section
+        // Active Identifier Mappings reference panel
+        $active_mappings = get_option('alm_webhook_identifier_mappings', array());
+        if (!is_array($active_mappings)) {
+            $active_mappings = array();
+        }
+        echo '<div style="margin-top: 30px; margin-bottom: 0;">';
+        echo '<h3 style="margin-bottom:8px;">' . esc_html__('Active Identifier Mappings', 'academy-lesson-manager') . '</h3>';
+        echo '<p class="description" style="margin-bottom:10px;">' . esc_html__('These mappings are applied when a webhook fires. Changes take effect immediately on the next webhook call.', 'academy-lesson-manager') . '</p>';
+        if (empty($active_mappings)) {
+            echo '<p style="color:#666;font-style:italic;background:#fff;border:1px solid #ddd;padding:12px;">' . esc_html__('No identifier mappings configured yet.', 'academy-lesson-manager') . '</p>';
+        } else {
+            echo '<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid #ddd;">';
+            echo '<thead><tr style="background:#f0f0f1;">';
+            echo '<th style="padding:8px 12px;border:1px solid #ddd;text-align:left;">' . esc_html__('Zoom Identifier', 'academy-lesson-manager') . '</th>';
+            echo '<th style="padding:8px 12px;border:1px solid #ddd;text-align:left;">' . esc_html__('Teacher', 'academy-lesson-manager') . '</th>';
+            echo '<th style="padding:8px 12px;border:1px solid #ddd;text-align:left;">' . esc_html__('Membership Level', 'academy-lesson-manager') . '</th>';
+            echo '</tr></thead><tbody>';
+            foreach ($active_mappings as $identifier => $mapping) {
+                $lvl       = isset($mapping['membership_level']) ? intval($mapping['membership_level']) : 2;
+                $lvl_label = isset($level_labels[$lvl]) ? $level_labels[$lvl] : $lvl;
+                echo '<tr>';
+                echo '<td style="padding:8px 12px;border:1px solid #ddd;font-family:monospace;">' . esc_html($identifier) . '</td>';
+                echo '<td style="padding:8px 12px;border:1px solid #ddd;">' . esc_html(isset($mapping['teacher']) ? $mapping['teacher'] : '') . '</td>';
+                echo '<td style="padding:8px 12px;border:1px solid #ddd;">' . esc_html((string) $lvl_label) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+        }
+        echo '</div>';
         echo '<div style="margin-top: 30px;">';
-        echo '<h3>' . __('Debug Logs', 'academy-lesson-manager') . '</h3>';
-        echo '<p class="description">' . __('Recent webhook processing logs. Click "Copy to Clipboard" to share debug information.', 'academy-lesson-manager') . '</p>';
+
+        // Debug logs section
+        echo '<h3>' . esc_html__('Debug Logs', 'academy-lesson-manager') . '</h3>';
+        echo '<p class="description">' . esc_html__('Recent webhook processing logs. Click "Copy to Clipboard" to share debug information.', 'academy-lesson-manager') . '</p>';
         
         echo '<div style="margin-bottom: 10px;">';
         echo '<button type="button" id="refresh-logs-btn" class="button">' . __('Refresh Logs', 'academy-lesson-manager') . '</button> ';
@@ -1881,7 +2000,23 @@ class ALM_Admin_Settings {
                 }
                 
                 if (isset($log['matched_event'])) {
-                    echo '<p><strong>' . __('Matched Event:', 'academy-lesson-manager') . '</strong> ID ' . esc_html($log['matched_event']['event_id']) . ' - ' . esc_html($log['matched_event']['event_title']) . '</p>';
+                    echo '<p><strong>' . esc_html__('Matched Event:', 'academy-lesson-manager') . '</strong> ID ' . esc_html($log['matched_event']['event_id']) . ' - ' . esc_html($log['matched_event']['event_title']) . '</p>';
+                }
+
+                if (isset($log['identifier_mapping'])) {
+                    $im = $log['identifier_mapping'];
+                    echo '<p><strong>' . esc_html__('Identifier Mapping:', 'academy-lesson-manager') . '</strong> ';
+                    if (!empty($im['mapping_found'])) {
+                        echo esc_html__('Found for', 'academy-lesson-manager') . ' <code style="background:#f0f0f1;padding:2px 4px;">' . esc_html(isset($im['zoom_identifier']) ? $im['zoom_identifier'] : '') . '</code>';
+                        echo ' → ' . esc_html__('Teacher:', 'academy-lesson-manager') . ' <strong>' . esc_html(isset($im['teacher']) ? $im['teacher'] : '') . '</strong>';
+                        echo ', ' . esc_html__('Membership Level:', 'academy-lesson-manager') . ' <strong>' . esc_html(isset($im['membership_level']) ? (string) $im['membership_level'] : '') . '</strong>';
+                    } else {
+                        echo '<span style="color:#dc3232;">' . esc_html__('No mapping found for', 'academy-lesson-manager') . ' <code style="background:#f0f0f1;padding:2px 4px;">' . esc_html(isset($im['zoom_identifier']) ? $im['zoom_identifier'] : '') . '</code></span>';
+                        if (!empty($im['note'])) {
+                            echo ' <em style="color:#666;">(' . esc_html($im['note']) . ')</em>';
+                        }
+                    }
+                    echo '</p>';
                 }
                 
                 if (isset($log['sql_query'])) {
@@ -1963,13 +2098,65 @@ class ALM_Admin_Settings {
         
         update_option('alm_zoom_webhook_secret', $secret);
         update_option('alm_zoom_webhook_auto_migrate', $auto_migrate);
-        
-        wp_redirect(add_query_arg(array(
-            'page' => 'academy-manager-settings',
-            'tab' => 'webhook',
-            'message' => 'webhook_settings_saved'
-        ), admin_url('admin.php')));
-        exit;
+
+        $redirect_url = add_query_arg(array(
+            'page'    => 'academy-manager-settings',
+            'tab'     => 'webhook',
+            'message' => 'webhook_settings_saved',
+        ), admin_url('admin.php'));
+
+        if (!headers_sent()) {
+            wp_redirect($redirect_url);
+            exit;
+        }
+        echo '<script>window.location.href=' . wp_json_encode($redirect_url) . ';</script>';
+        return;
+    }
+
+    /**
+     * Save identifier mappings for Zoom webhooks (separate form from core webhook settings).
+     */
+    private function save_webhook_mappings() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.'));
+        }
+
+        $mappings = get_option('alm_webhook_identifier_mappings', array());
+        if (!is_array($mappings)) {
+            $mappings = array();
+        }
+
+        if (isset($_POST['delete_identifier_mapping']) && (string) $_POST['delete_identifier_mapping'] !== '') {
+            $del_id = sanitize_text_field(wp_unslash($_POST['delete_identifier_mapping']));
+            unset($mappings[$del_id]);
+        }
+
+        if (!empty($_POST['new_identifier'])) {
+            $new_id    = sanitize_text_field(wp_unslash($_POST['new_identifier']));
+            $new_teach = isset($_POST['new_teacher']) ? sanitize_text_field(wp_unslash($_POST['new_teacher'])) : '';
+            $new_level = isset($_POST['new_membership_level']) ? intval($_POST['new_membership_level']) : 3;
+            if ($new_id !== '') {
+                $mappings[$new_id] = array(
+                    'teacher'          => $new_teach,
+                    'membership_level' => $new_level,
+                );
+            }
+        }
+
+        update_option('alm_webhook_identifier_mappings', $mappings);
+
+        $redirect_url = add_query_arg(array(
+            'page'    => 'academy-manager-settings',
+            'tab'     => 'webhook',
+            'message' => 'webhook_settings_saved',
+        ), admin_url('admin.php'));
+
+        if (!headers_sent()) {
+            wp_redirect($redirect_url);
+            exit;
+        }
+        echo '<script>window.location.href=' . wp_json_encode($redirect_url) . ';</script>';
+        return;
     }
     
     /**

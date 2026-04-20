@@ -3333,6 +3333,16 @@ class ALM_Shortcodes_Plugin {
             $video_url = 'https://vimeo.com/' . $current_chapter->vimeo_id;
         }
         
+        // Get VTT subtitle URL if available
+        $subtitle_url = $this->get_chapter_subtitle_url($current_chapter->ID);
+        $transcript_filename = 'Not found';
+        if (!empty($subtitle_url)) {
+            $subtitle_path = parse_url($subtitle_url, PHP_URL_PATH);
+            if (!empty($subtitle_path)) {
+                $transcript_filename = basename($subtitle_path);
+            }
+        }
+        
         // Get collection data
         $collection = null;
         $collection_lessons = array();
@@ -3398,8 +3408,6 @@ class ALM_Shortcodes_Plugin {
             $return .= '</div>';
             
             if ($chapter_is_released && !empty($video_url)) {
-                // Get VTT subtitle URL if available
-                $subtitle_url = $this->get_chapter_subtitle_url($current_chapter->ID);
                 
                 // Build FV Player shortcode
                 $shortcode = '[fvplayer src="' . esc_url($video_url) . '" width="100%" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"';
@@ -3542,7 +3550,7 @@ class ALM_Shortcodes_Plugin {
                 if (!empty($sample_video_url)) {
                     // Show sample video with login prompt overlay
                     $return .= '<div class="alm-video-placeholder" style="position: relative;">';
-                    $return .= do_shortcode('[fvplayer src="' . esc_url($sample_video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
+                    $return .= do_shortcode('[fvplayer src="' . esc_url($sample_video_url) . '" width="100%" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
                     // Overlay with login message
                     $return .= '<div class="alm-sample-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 100px; background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; pointer-events: none; z-index: 1;">';
                     $return .= '<div style="background: rgba(255,255,255,0.95); padding: 20px 30px; border-radius: 12px; text-align: center; max-width: 500px; pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: relative;">';
@@ -3624,7 +3632,7 @@ class ALM_Shortcodes_Plugin {
                 if (!empty($sample_video_url)) {
                 // Show sample video with overlay message
                 $return .= '<div class="alm-video-placeholder" style="position: relative;">';
-                $return .= do_shortcode('[fvplayer src="' . esc_url($sample_video_url) . '" width="100%" height="600" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
+                $return .= do_shortcode('[fvplayer src="' . esc_url($sample_video_url) . '" width="100%" splash="https://jazzedge.academy/wp-content/uploads/2023/12/splash-play-video.jpg"]');
                 // Overlay positioned to not interfere with video controls at bottom (leave ~100px for controls)
                 $return .= '<div class="alm-sample-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 100px; background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; pointer-events: none; z-index: 1;">';
                 $return .= '<div style="background: rgba(255,255,255,0.95); padding: 16px 20px; border-radius: 12px; text-align: center; max-width: 600px; pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: relative;">';
@@ -4450,6 +4458,11 @@ class ALM_Shortcodes_Plugin {
                 $lesson_debug_html .= 'has_access_before_membership_check: ' . ($has_access_before_membership_check ? 'true' : 'false') . '<br>';
                 $lesson_debug_html .= 'has_access_after_membership_check: ' . ($has_access_after_membership_check ? 'true' : 'false') . '<br>';
                 $lesson_debug_html .= 'Final has_access: ' . ($has_access ? 'true' : 'false') . '<br><br>';
+                if (!empty($subtitle_url)) {
+                    $lesson_debug_html .= 'Transcript File: <a href="' . esc_url($subtitle_url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($transcript_filename) . '</a><br><br>';
+                } else {
+                    $lesson_debug_html .= 'Transcript File: ' . esc_html($transcript_filename) . '<br><br>';
+                }
                 $lesson_debug_html .= '<strong>Keap Tag Check:</strong><br>';
                 $lesson_debug_html .= 'lesson_keap_tag_id: ' . esc_html($keap_tag_id) . '<br>';
                 $lesson_debug_html .= 'memb_hasAnyTags_exists: ' . ($memb_has_tags_exists ? 'true' : 'false') . '<br>';

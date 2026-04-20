@@ -193,22 +193,60 @@ class ALM_Admin_Chapters {
             $order = 'DESC';
         }
         
-        $sql = "SELECT c.*, l.lesson_title, l.collection_id 
-                FROM {$this->table_name} c 
-                LEFT JOIN {$lessons_table} l ON c.lesson_id = l.ID 
-                {$where} 
-                ORDER BY c.{$order_by} {$order}";
-        
+        $per_page    = 50;
+        $paged       = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+        $offset      = ($paged - 1) * $per_page;
+
+        // Count total for pagination
+        $count_sql   = "SELECT COUNT(*) FROM {$this->table_name} c LEFT JOIN {$lessons_table} l ON c.lesson_id = l.ID {$where}";
+        $total       = (int) $this->wpdb->get_var($count_sql);
+        $total_pages = $per_page > 0 ? (int) ceil($total / $per_page) : 0;
+
+        $sql = "SELECT c.*, l.lesson_title, l.collection_id
+                FROM {$this->table_name} c
+                LEFT JOIN {$lessons_table} l ON c.lesson_id = l.ID
+                {$where}
+                ORDER BY c.{$order_by} {$order}
+                LIMIT " . intval($per_page) . " OFFSET " . intval($offset);
+
         $chapters = $this->wpdb->get_results($sql);
-        
-		// Render statistics
-		$this->render_statistics();
-        
-		// Render search form
-		$this->render_search_form($search);
-        
+
+        // Render statistics
+        $this->render_statistics();
+
+        // Render search form
+        $this->render_search_form($search);
+
         // Render chapters table
         $this->render_chapters_table($chapters, $order_by, $order);
+
+        // Pagination
+        if ($total_pages > 1) {
+            $base_url = remove_query_arg('paged');
+            echo '<div class="tablenav bottom"><div class="tablenav-pages" style="margin:10px 0;">';
+            echo '<span class="displaying-num">' . sprintf(_n('%s item', '%s items', $total, 'academy-lesson-manager'), number_format_i18n($total)) . '</span> ';
+
+            if ($paged > 1) {
+                echo '<a class="button" href="' . esc_url(add_query_arg('paged', $paged - 1, $base_url)) . '">&laquo; Prev</a> ';
+            }
+
+            // Page number links (show max 5 around current)
+            $start = max(1, $paged - 2);
+            $end   = min($total_pages, $paged + 2);
+            for ($i = $start; $i <= $end; $i++) {
+                if ($i === $paged) {
+                    echo '<span class="button button-primary" style="cursor:default;">' . $i . '</span> ';
+                } else {
+                    echo '<a class="button" href="' . esc_url(add_query_arg('paged', $i, $base_url)) . '">' . $i . '</a> ';
+                }
+            }
+
+            if ($paged < $total_pages) {
+                echo '<a class="button" href="' . esc_url(add_query_arg('paged', $paged + 1, $base_url)) . '">Next &raquo;</a>';
+            }
+
+            echo '</div></div>';
+        }
     }
     
     /**
@@ -351,7 +389,7 @@ class ALM_Admin_Chapters {
         echo '<th scope="row"><label for="mp3_file">' . __('MP3 File for Transcription', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         echo '<input type="file" id="mp3_file" name="mp3_file" accept="audio/mpeg,audio/mp3" />';
-        echo '<p class="description">' . __('Upload an MP3 file (max 25MB) for transcription. Required for automatic transcription.', 'academy-lesson-manager') . '</p>';
+        echo '<p class="description">' . __('Upload an MP3 file for transcription. Required for automatic transcription.', 'academy-lesson-manager') . '</p>';
         echo '</td>';
         echo '</tr>';
         
@@ -557,7 +595,69 @@ class ALM_Admin_Chapters {
         // Chapter details
         echo '<div class="alm-chapter-details">';
         echo '<h2>' . __('Edit Chapter', 'academy-lesson-manager') . '</h2>';
-        
+
+        $lesson_id = $chapter->lesson_id;
+
+        // Lesson navigation dropdown (same collection)
+        $current_lesson = $this->wpdb->get_row($this->wpdb->prepare(
+            "SELECT ID, collection_id, lesson_title FROM {$lessons_table} WHERE ID = %d",
+            $lesson_id
+        ));
+
+        if (!empty($current_lesson) && !empty($current_lesson->collection_id)) {
+            $sibling_lessons = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT ID, lesson_title, menu_order FROM {$lessons_table} WHERE collection_id = %d ORDER BY menu_order ASC, ID ASC",
+                $current_lesson->collection_id
+            ));
+
+            if (!empty($sibling_lessons)) {
+                echo '<div style="margin-bottom:10px; display:flex; align-items:center; gap:10px;">';
+                echo '<label for="alm-lesson-nav" style="font-weight:600; white-space:nowrap;">Jump to Lesson:</label>';
+                echo '<select id="alm-lesson-nav" style="max-width:480px;">';
+                foreach ($sibling_lessons as $sl) {
+                    $selected = selected($sl->ID, $lesson_id, false);
+                    $label    = '#' . $sl->menu_order . ' — ' . ($sl->lesson_title ?: '(untitled)') . ' (ID ' . $sl->ID . ')';
+                    echo '<option value="' . intval($sl->ID) . '"' . $selected . '>' . esc_html($label) . '</option>';
+                }
+                echo '</select>';
+                echo '</div>';
+                echo '<script>
+document.getElementById("alm-lesson-nav").addEventListener("change", function() {
+    window.location.href = "?page=academy-manager-lessons&action=edit&id=" + this.value;
+});
+</script>';
+            }
+        }
+
+        // Chapter navigation dropdown
+        $sibling_chapters = array();
+        if (!empty($lesson_id)) {
+            $sibling_chapters = $this->wpdb->get_results($this->wpdb->prepare(
+                "SELECT ID, chapter_title, menu_order FROM {$this->table_name} WHERE lesson_id = %d ORDER BY menu_order ASC, ID ASC",
+                $lesson_id
+            ));
+        }
+
+        if (!empty($sibling_chapters)) {
+            echo '<div style="margin-bottom:16px; display:flex; align-items:center; gap:10px;">';
+            echo '<label for="alm-chapter-nav" style="font-weight:600; white-space:nowrap;">Jump to Chapter:</label>';
+            echo '<select id="alm-chapter-nav" style="max-width:480px;">';
+            foreach ($sibling_chapters as $sc) {
+                $selected = selected($sc->ID, $chapter->ID, false);
+                $label    = '#' . $sc->menu_order . ' — ' . ($sc->chapter_title ?: '(untitled)') . ' (ID ' . $sc->ID . ')';
+                echo '<option value="' . intval($sc->ID) . '"' . $selected . '>' . esc_html($label) . '</option>';
+            }
+            echo '</select>';
+            echo '</div>';
+            echo '<script>
+    document.getElementById("alm-chapter-nav").addEventListener("change", function() {
+        if (this.value) {
+            window.location.href = ' . wp_json_encode(admin_url('admin.php?page=academy-manager-chapters&action=edit&id=')) . ' + this.value;
+        }
+    });
+    </script>';
+        }
+
         echo '<form method="post" action="" enctype="multipart/form-data">';
         echo '<table class="form-table">';
         echo '<tbody>';
@@ -648,22 +748,6 @@ class ALM_Admin_Chapters {
         echo '</tr>';
         
         echo '<tr>';
-        echo '<th scope="row"><label for="mp3_file">' . __('MP3 File for Transcription', 'academy-lesson-manager') . '</label></th>';
-        echo '<td>';
-        if (!empty($chapter->mp3_file_url)) {
-            $mp3_url = wp_get_upload_dir()['baseurl'] . '/alm_mp3s/' . basename($chapter->mp3_file_url);
-            echo '<p><strong>' . __('Current MP3:', 'academy-lesson-manager') . '</strong> ';
-            echo '<a href="' . esc_url($mp3_url) . '" target="_blank">' . esc_html(basename($chapter->mp3_file_url)) . '</a>';
-            echo ' &nbsp;<button type="button" id="alm-remove-mp3" class="button button-small" data-chapter-id="' . esc_attr($chapter->ID) . '" style="color:#dc3232; border-color:#dc3232; vertical-align:middle;">✖ Remove MP3</button>';
-            echo '<span id="alm-remove-mp3-status" style="margin-left:8px;"></span>';
-            echo '</p>';
-        }
-        echo '<input type="file" id="mp3_file" name="mp3_file" accept="audio/mpeg,audio/mp3" />';
-        echo '<p class="description">' . __('Upload an MP3 file (max 25MB) for transcription. Leave empty to keep existing file.', 'academy-lesson-manager') . '</p>';
-        echo '</td>';
-        echo '</tr>';
-        
-        echo '<tr>';
         echo '<th scope="row"><label for="duration">' . __('Duration (seconds)', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         echo '<input type="number" id="duration" name="duration" value="' . esc_attr($chapter->duration) . '" class="small-text" />';
@@ -741,6 +825,22 @@ class ALM_Admin_Chapters {
         }
 
         echo '<tr>';
+        echo '<th scope="row"><label for="mp3_file">' . __('MP3 File for Transcription', 'academy-lesson-manager') . '</label></th>';
+        echo '<td>';
+        if (!empty($chapter->mp3_file_url)) {
+            $mp3_url = wp_get_upload_dir()['baseurl'] . '/alm_mp3s/' . basename($chapter->mp3_file_url);
+            echo '<p><strong>' . __('Current MP3:', 'academy-lesson-manager') . '</strong> ';
+            echo '<a href="' . esc_url($mp3_url) . '" target="_blank">' . esc_html(basename($chapter->mp3_file_url)) . '</a>';
+            echo ' &nbsp;<button type="button" id="alm-remove-mp3" class="button button-small" data-chapter-id="' . esc_attr($chapter->ID) . '" style="color:#dc3232; border-color:#dc3232; vertical-align:middle;">✖ Remove MP3</button>';
+            echo '<span id="alm-remove-mp3-status" style="margin-left:8px;"></span>';
+            echo '</p>';
+        }
+        echo '<input type="file" id="mp3_file" name="mp3_file" accept="audio/mpeg,audio/mp3" />';
+        echo '<p class="description">' . __('Upload an MP3 file for transcription. Leave empty to keep existing file.', 'academy-lesson-manager') . '</p>';
+        echo '</td>';
+        echo '</tr>';
+
+        echo '<tr>';
         echo '<th scope="row"><label for="transcript_file">' . __('Transcript File Name', 'academy-lesson-manager') . '</label></th>';
         echo '<td>';
         echo '<input type="text" id="transcript_file" name="transcript_file" value="' . esc_attr($transcript_file ? $transcript_file : '') . '" class="regular-text" />';
@@ -752,8 +852,12 @@ class ALM_Admin_Chapters {
                 . ' data-chapter-id="' . intval($edit_chapter_id) . '"'
                 . ' data-nonce="' . esc_attr($edit_nonce) . '"'
                 . ' style="margin-left:8px;">✏️ ' . esc_html__('Edit Transcript', 'academy-lesson-manager') . '</button>';
+            echo ' <button type="button" id="alm-delete-vtt-file" class="button button-secondary"'
+                . ' data-chapter-id="' . esc_attr($chapter->ID) . '"'
+                . ' style="margin-left:8px; color:#dc3232; border-color:#dc3232;">🗑️ ' . esc_html__('Delete VTT', 'academy-lesson-manager') . '</button>';
         }
         echo '<span id="alm-sync-vtt-status" style="margin-left: 10px;"></span>';
+        echo '<span id="alm-delete-vtt-status" style="margin-left: 10px;"></span>';
         if ($completion_line !== '') {
             echo '<div style="margin-top:8px; padding:8px 12px; background:#f0f7f0; border-left:3px solid #46b450; border-radius:3px; font-size:12px; color:#333;">';
             echo '✅ <strong>' . esc_html__('Last transcribed:', 'academy-lesson-manager') . '</strong> ' . esc_html($comp_date);
@@ -1271,12 +1375,6 @@ class ALM_Admin_Chapters {
         $file_type = wp_check_filetype($file['name']);
         if (!in_array($file_type['type'], $allowed_types) && $file_type['ext'] !== 'mp3') {
             wp_die(__('Invalid file type. Only MP3 files are allowed.', 'academy-lesson-manager'));
-        }
-        
-        // Check file size (25MB limit for Whisper API)
-        $max_size = 25 * 1024 * 1024; // 25MB in bytes
-        if ($file['size'] > $max_size) {
-            wp_die(__('File is too large. Maximum size is 25MB.', 'academy-lesson-manager'));
         }
         
         // Create upload directory if it doesn't exist

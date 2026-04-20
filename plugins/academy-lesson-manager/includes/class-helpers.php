@@ -191,6 +191,10 @@ class ALM_Helpers {
         } elseif (strpos($url, '/jazzedge') === 0) {
             return 'https://jazzedge.com' . $url;
         } else {
+            // Relative path — prefix with S3 base URL
+            if (strpos($url, 'http://') !== 0 && strpos($url, 'https://') !== 0) {
+                return 'https://s3.amazonaws.com/jazzedge-resources/' . ltrim($url, '/');
+            }
             return $url;
         }
     }

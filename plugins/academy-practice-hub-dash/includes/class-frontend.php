@@ -31,9 +31,12 @@ class JPH_Frontend {
         add_shortcode('jph_timezone_settings', array($this, 'render_timezone_settings'));
         add_shortcode('jph_fix_streak', array($this, 'render_fix_streak'));
         add_shortcode('streak_accounting', array($this, 'render_streak_accounting'));
+        add_shortcode('jph_debug', array($this, 'render_debug_page'));
         
         // AJAX handler for loading AI Assistant
         add_action('wp_ajax_jph_load_ai_assistant', array($this, 'ajax_load_ai_assistant'));
+        add_action('wp_ajax_jph_bust_cache', array($this, 'bust_cache_ajax'));
+        add_action('wp_ajax_jph_clear_member_cache', array($this, 'clear_member_cache_ajax'));
     }
     
     /**
@@ -99,6 +102,45 @@ class JPH_Frontend {
         // Send the content directly (wp_send_json_success will wrap it)
         wp_send_json_success($full_content);
     }
+
+    /**
+     * AJAX handler to bust caches
+     */
+    public function bust_cache_ajax() {
+        check_ajax_referer('jph_bust_cache', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+        }
+        
+        $cleared = array();
+        
+        if (function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+            $cleared[] = 'WP cache';
+        }
+        
+        if (function_exists('rocket_clean_domain')) {
+            rocket_clean_domain();
+            $cleared[] = 'WP Rocket';
+        }
+        
+        if (function_exists('w3tc_flush_all')) {
+            w3tc_flush_all();
+            $cleared[] = 'W3 Total Cache';
+        }
+        
+        if (class_exists('LiteSpeed_Cache_API')) {
+            do_action('litespeed_purge_all');
+            $cleared[] = 'LiteSpeed';
+        }
+        
+        do_action('memberium_clear_cache');
+        $cleared[] = 'Memberium';
+        
+        $message = $cleared ? ('Cleared: ' . implode(', ', $cleared)) : 'No cache handlers available';
+        wp_send_json_success(array('message' => $message));
+    }
     
     /**
      * Sanitize user stats for output
@@ -150,6 +192,447 @@ class JPH_Frontend {
         }
         
         return $sanitized;
+    }
+
+    /**
+     * Render member-facing debug page
+     */
+    public function render_debug_page($atts = array()) {
+        if (!is_user_logged_in()) {
+            return '<div class="jph-stats-widget jph-login-required">Please log in to view your account status.</div>';
+        }
+        
+        $user_id = get_current_user_id();
+        $user = get_user_by('id', $user_id);
+        $display_name = $user ? $user->display_name : '';
+        $user_email = $user ? $user->user_email : '';
+        $registered = $user ? $user->user_registered : '';
+        $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : 'Unknown';
+        $user_ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'Unknown';
+        $current_time = date('Y-m-d H:i:s');
+        
+        $active_member = function_exists('je_return_active_member') ? je_return_active_member() : 'Unknown';
+        $membership_level = function_exists('je_return_membership_level') ? je_return_membership_level('nicename') : 'Unknown';
+        $membership_product = function_exists('je_return_membership_level') ? je_return_membership_level('product') : 'Unknown';
+        $membership_expired = function_exists('je_return_membership_expired') ? je_return_membership_expired() : 'Unknown';
+        $blocking_tags = function_exists('je_has_blocking_tags') ? (je_has_blocking_tags() ? 'Yes' : 'No') : 'Unknown';
+        $payment_failed = do_shortcode('[memb_has_any_tag tagid=7772]');
+        
+        $tag_groups = array(
+            'starter_free' => 'Starter Free',
+            'starter_paid' => 'Starter Paid',
+            'essentials' => 'Essentials',
+            'studio' => 'Studio',
+            'premier' => 'Premier'
+        );
+        $keap_tags = get_option('alm_keap_tags', array());
+        $tag_checks = array();
+        foreach ($tag_groups as $key => $label) {
+            $tag_ids_str = isset($keap_tags[$key]) ? trim($keap_tags[$key]) : '';
+            $tag_ids = array_filter(array_map('intval', array_filter(explode(',', $tag_ids_str))));
+            $has_tag = null;
+            if (!empty($tag_ids) && function_exists('memb_hasAnyTags')) {
+                $has_tag = memb_hasAnyTags($tag_ids) === true;
+            }
+            $tag_checks[] = array(
+                'label' => $label,
+                'tag_ids' => $tag_ids_str,
+                'has_tag' => $has_tag
+            );
+        }
+        
+        $memberships = [
+            'ACADEMY_PREMIER', 'ACADEMY_STUDIO', 'JA_MONTHLY_CLASSES_ONLY', 'JA_MONTHLY_LSN_ONLY',
+            'JA_LESSONS_90DAYS', 'ACADEMY_SONG', 'ACADEMY_ACADEMY', 'ACADEMY_ACADEMY_1YR',
+            'ACADEMY_ACADEMY_NC', 'JA_MONTHLY_LSN_CLASSES', 'JA_MONTHLY_LSN_COACHING', 'JA_MONTHLY_STUDIO', 'JA_YEAR_STUDIO',
+            'JA_MONTHLY_PREMIER', 'JA_MONTHLY_PREMIER_DMP', 'JA_YEAR_LSN_CLASSES', 'JA_YEAR_LSN_COACHING',
+            'JA_YEAR_LSN_ONLY', 'JA_YEAR_CLASSES_ONLY', 'JA_YEAR_PREMIER', 'JA_MONTHLY_STUDIO_DMP', 'JA_MONTHLY_ESSENTIALS', 'JA_YEAR_ESSENTIALS'
+        ];
+        
+        $active_memberships = array();
+        if (function_exists('memb_hasMembership')) {
+            foreach ($memberships as $membership) {
+                if (memb_hasMembership($membership) === true) {
+                    $active_memberships[] = $membership;
+                }
+            }
+        }
+        
+        ob_start();
+        ?>
+        <style>
+            .jph-debug-wrapper {
+                max-width: 100%;
+                margin: 30px auto;
+                padding: 0 20px;
+                color: #1f2937;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            }
+            .jph-debug-header {
+                margin-bottom: 24px;
+            }
+            .jph-debug-header h2 {
+                margin: 0 0 8px 0;
+                font-size: 28px;
+                color: #004555;
+            }
+            .jph-debug-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin: 16px 0 24px;
+            }
+            .jph-debug-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 20px;
+            }
+            .jph-debug-card.jph-debug-card-full {
+                grid-column: 1 / -1;
+            }
+            .jph-debug-card {
+                background: #ffffff;
+                border-radius: 16px;
+                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+                border: 1px solid #e5e7eb;
+                padding: 18px 20px;
+            }
+            .jph-debug-card h3 {
+                margin: 0 0 12px 0;
+                font-size: 18px;
+                color: #0f172a;
+            }
+            .jph-debug-item {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                font-size: 14px;
+                padding: 6px 0;
+                border-bottom: 1px solid #f1f5f9;
+            }
+            .jph-debug-item:last-child {
+                border-bottom: none;
+            }
+            .jph-debug-label {
+                color: #64748b;
+            }
+            .jph-debug-value {
+                font-weight: 600;
+                color: #1f2937;
+                text-align: right;
+                word-break: break-word;
+            }
+            .jph-debug-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px 10px;
+                border-radius: 999px;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            .jph-debug-badge.success {
+                background: rgba(16, 185, 129, 0.15);
+                color: #047857;
+            }
+            .jph-debug-badge.error {
+                background: rgba(239, 68, 68, 0.15);
+                color: #b91c1c;
+            }
+            .jph-debug-tag-list {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .jph-debug-tag-row {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                font-size: 14px;
+            }
+            .jph-debug-tag-note {
+                color: #94a3b8;
+                font-size: 12px;
+            }
+            .jph-debug-refresh-btn {
+                margin-top: 0;
+                background: #239b90;
+                color: #fff;
+                border: none;
+                padding: 12px 18px;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s ease;
+            }
+            .jph-debug-refresh-btn:hover {
+                background: #1f857c;
+            }
+            .jph-debug-copy-btn {
+                margin-top: 0;
+                background: #004555;
+                color: #fff;
+                border: none;
+                padding: 12px 18px;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s ease;
+            }
+            .jph-debug-copy-btn:hover {
+                background: #00303a;
+            }
+            .jph-debug-copy-status {
+                margin-top: 0;
+                font-size: 13px;
+                color: #047857;
+                align-self: center;
+            }
+            @media (max-width: 1100px) {
+                .jph-debug-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+            @media (max-width: 768px) {
+                .jph-debug-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+        <div class="jph-debug-wrapper">
+            <div class="jph-debug-header">
+                <h2>Account Status</h2>
+                <p>Use this page to confirm your access and refresh your account if something looks off.</p>
+            </div>
+            <div class="jph-debug-actions">
+                <button type="button" class="jph-debug-refresh-btn" data-default-label="Refresh My Access">Refresh My Access</button>
+                <button type="button" class="jph-debug-copy-btn" data-default-label="Copy Debug Info">Copy Debug Info</button>
+                <div class="jph-debug-copy-status" aria-live="polite"></div>
+            </div>
+            <div class="jph-debug-grid">
+                <div class="jph-debug-card jph-debug-card-full">
+                    <h3>Active Jazzedge Academy Memberships</h3>
+                    <?php if (!empty($active_memberships)): ?>
+                        <ul>
+                            <?php foreach ($active_memberships as $membership): ?>
+                                <li><?php echo esc_html($membership); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <p>None found</p>
+                    <?php endif; ?>
+                </div>
+                <div class="jph-debug-card">
+                    <h3>Your Account</h3>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Name</span>
+                        <span class="jph-debug-value"><?php echo esc_html($display_name); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Email</span>
+                        <span class="jph-debug-value"><?php echo esc_html($user_email); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">User ID</span>
+                        <span class="jph-debug-value"><?php echo esc_html($user_id); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Join Date</span>
+                        <span class="jph-debug-value"><?php echo esc_html($registered); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Current Time</span>
+                        <span class="jph-debug-value"><?php echo esc_html($current_time); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">IP Address</span>
+                        <span class="jph-debug-value"><?php echo esc_html($user_ip); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Browser</span>
+                        <span class="jph-debug-value"><?php echo esc_html($user_agent); ?></span>
+                    </div>
+                </div>
+                <div class="jph-debug-card">
+                    <h3>Membership Status</h3>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Active Member</span>
+                        <span class="jph-debug-value">
+                            <span class="jph-debug-badge <?php echo $active_member === 'true' ? 'success' : 'error'; ?>">
+                                <?php echo $active_member === 'true' ? 'Yes' : 'No'; ?>
+                            </span>
+                        </span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Membership Level</span>
+                        <span class="jph-debug-value"><?php echo esc_html($membership_level); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Membership Product</span>
+                        <span class="jph-debug-value"><?php echo esc_html($membership_product); ?></span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Membership Expired</span>
+                        <span class="jph-debug-value">
+                            <span class="jph-debug-badge <?php echo $membership_expired === 'true' ? 'error' : 'success'; ?>">
+                                <?php echo $membership_expired === 'true' ? 'Yes' : 'No'; ?>
+                            </span>
+                        </span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Blocking Tags</span>
+                        <span class="jph-debug-value">
+                            <span class="jph-debug-badge <?php echo $blocking_tags === 'Yes' ? 'error' : 'success'; ?>">
+                                <?php echo esc_html($blocking_tags); ?>
+                            </span>
+                        </span>
+                    </div>
+                    <div class="jph-debug-item">
+                        <span class="jph-debug-label">Payment Failed Tag</span>
+                        <span class="jph-debug-value">
+                            <span class="jph-debug-badge <?php echo $payment_failed === 'Yes' ? 'error' : 'success'; ?>">
+                                <?php echo esc_html($payment_failed === 'Yes' ? 'Yes' : 'No'); ?>
+                            </span>
+                        </span>
+                    </div>
+                </div>
+                <div class="jph-debug-card">
+                    <h3>Access Tags</h3>
+                    <div class="jph-debug-tag-list">
+                        <?php foreach ($tag_checks as $tag): ?>
+                            <div class="jph-debug-tag-row">
+                                <span><?php echo esc_html($tag['label']); ?></span>
+                                <span class="jph-debug-badge <?php echo $tag['has_tag'] ? 'success' : 'error'; ?>">
+                                    <?php echo $tag['has_tag'] ? 'Yes' : 'No'; ?>
+                                </span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            jQuery(document).ready(function($) {
+                var $btn = $('.jph-debug-refresh-btn');
+                var defaultLabel = $btn.data('default-label') || 'Refresh My Access';
+                var resetTimer = null;
+                var $copyBtn = $('.jph-debug-copy-btn');
+                var $copyStatus = $('.jph-debug-copy-status');
+                
+                $btn.on('click', function() {
+                    if (resetTimer) {
+                        clearTimeout(resetTimer);
+                    }
+                    $btn.text('Refreshing...');
+                    $.ajax({
+                        url: '<?php echo esc_url(admin_url('admin-ajax.php')); ?>',
+                        type: 'POST',
+                        data: {
+                            action: 'jph_clear_member_cache',
+                            nonce: '<?php echo esc_js(wp_create_nonce('jph_clear_member_cache')); ?>'
+                        },
+                        success: function(response) {
+                            $btn.text(response && response.success ? 'Done! Please reload the page.' : 'Error!');
+                            resetTimer = setTimeout(function() {
+                                $btn.text(defaultLabel);
+                            }, 2500);
+                        },
+                        error: function() {
+                            $btn.text('Error!');
+                            resetTimer = setTimeout(function() {
+                                $btn.text(defaultLabel);
+                            }, 2500);
+                        }
+                    });
+                });
+
+                $copyBtn.on('click', function() {
+                    var lines = [];
+                    lines.push('Account Status');
+                    lines.push('Name: <?php echo esc_js($display_name); ?>');
+                    lines.push('Email: <?php echo esc_js($user_email); ?>');
+                    lines.push('User ID: <?php echo esc_js($user_id); ?>');
+                    lines.push('Join Date: <?php echo esc_js($registered); ?>');
+                    lines.push('Current Time: <?php echo esc_js($current_time); ?>');
+                    lines.push('IP Address: <?php echo esc_js($user_ip); ?>');
+                    lines.push('Browser: <?php echo esc_js($user_agent); ?>');
+                    lines.push('Active Member: <?php echo esc_js($active_member); ?>');
+                    lines.push('Membership Level: <?php echo esc_js($membership_level); ?>');
+                    lines.push('Membership Product: <?php echo esc_js($membership_product); ?>');
+                    lines.push('Membership Expired: <?php echo esc_js($membership_expired); ?>');
+                    lines.push('Blocking Tags: <?php echo esc_js($blocking_tags); ?>');
+                    lines.push('Payment Failed Tag: <?php echo esc_js($payment_failed); ?>');
+                    lines.push('Access Tags:');
+                    <?php foreach ($tag_checks as $tag): ?>
+                        lines.push('- <?php echo esc_js($tag['label']); ?>: <?php echo $tag['has_tag'] ? 'Yes' : 'No'; ?> (Tag IDs: <?php echo esc_js($tag['tag_ids'] ?: 'Not set'); ?>)');
+                    <?php endforeach; ?>
+                    lines.push('Active Jazzedge Academy Memberships:');
+                    <?php if (!empty($active_memberships)): ?>
+                        <?php foreach ($active_memberships as $membership): ?>
+                            lines.push('- <?php echo esc_js($membership); ?>');
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        lines.push('- None found');
+                    <?php endif; ?>
+
+                    var textToCopy = lines.join("\n");
+                    $copyStatus.text('');
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(textToCopy).then(function() {
+                            $copyStatus.text('Copied for support.');
+                        }).catch(function() {
+                            $copyStatus.text('Copy failed. Please try again.');
+                        });
+                    } else {
+                        var $temp = $('<textarea>').val(textToCopy).css({ position: 'absolute', left: '-9999px' });
+                        $('body').append($temp);
+                        $temp.select();
+                        try {
+                            document.execCommand('copy');
+                            $copyStatus.text('Copied for support.');
+                        } catch (e) {
+                            $copyStatus.text('Copy failed. Please try again.');
+                        }
+                        $temp.remove();
+                    }
+                });
+            });
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * AJAX handler to clear member cache
+     */
+    public function clear_member_cache_ajax() {
+        check_ajax_referer('jph_clear_member_cache', 'nonce');
+        
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => 'Not logged in'));
+        }
+        
+        $user_id = get_current_user_id();
+        do_action('memberium_clear_member_cache', $user_id);
+        
+        global $wpdb;
+        $like = $wpdb->esc_like('memberium_' . $user_id);
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+            '_transient_' . $like . '%'
+        ));
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+            '_transient_timeout_' . $like . '%'
+        ));
+        
+        wp_cache_delete('user_meta_' . $user_id);
+        
+        if (function_exists('memb_clearMemberCache')) {
+            memb_clearMemberCache($user_id);
+        }
+        
+        wp_send_json_success('Cache cleared. Please reload to see updated status.');
     }
     
     /**
@@ -2262,7 +2745,112 @@ class JPH_Frontend {
         
         ob_start();
         ?>
+        <style>
+            .jph-dashboard-loading {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 240px;
+                background: #ffffff;
+                border-radius: 16px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+                border: 1px solid #e9ecef;
+                margin: 20px 0;
+            }
+            .jph-loading-spinner {
+                width: 44px;
+                height: 44px;
+                border: 4px solid rgba(0, 69, 85, 0.15);
+                border-top-color: #004555;
+                border-radius: 50%;
+                animation: jph-spin 0.9s linear infinite;
+            }
+            @keyframes jph-spin {
+                to { transform: rotate(360deg); }
+            }
+            .jph-student-dashboard {
+                opacity: 0;
+                transition: opacity 0.2s ease;
+                position: relative;
+            }
+            .jph-student-dashboard.jph-ready {
+                opacity: 1;
+            }
+            .jph-bust-cache-btn {
+                position: absolute;
+                top: 16px;
+                right: 16px;
+                background: #f04e23;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                box-shadow: 0 6px 16px rgba(240, 78, 35, 0.25);
+                z-index: 10;
+            }
+            .jph-bust-cache-btn:hover {
+                background: #d4431e;
+            }
+        </style>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var dashboard = document.querySelector('.jph-student-dashboard');
+                var loader = document.querySelector('.jph-dashboard-loading');
+                if (dashboard) {
+                    dashboard.classList.add('jph-ready');
+                }
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+            });
+        </script>
+        <div class="jph-dashboard-loading" aria-label="Loading dashboard">
+            <div class="jph-loading-spinner" aria-hidden="true"></div>
+        </div>
         <div class="jph-student-dashboard">
+            <?php if (current_user_can('manage_options') && is_admin_bar_showing()): ?>
+                <button type="button" class="jph-bust-cache-btn" data-default-label="Bust Cache">Bust Cache</button>
+                <script>
+                    jQuery(document).ready(function($) {
+                        var $btn = $('.jph-bust-cache-btn');
+                        if (!$btn.length) {
+                            return;
+                        }
+                        var defaultLabel = $btn.data('default-label') || 'Bust Cache';
+                        var resetTimer = null;
+                        
+                        $btn.on('click', function() {
+                            if (resetTimer) {
+                                clearTimeout(resetTimer);
+                            }
+                            $btn.text('Clearing...');
+                            $.ajax({
+                                url: '<?php echo esc_url(admin_url('admin-ajax.php')); ?>',
+                                type: 'POST',
+                                data: {
+                                    action: 'jph_bust_cache',
+                                    nonce: '<?php echo esc_js(wp_create_nonce('jph_bust_cache')); ?>'
+                                },
+                                success: function(response) {
+                                    $btn.text(response && response.success ? 'Cache Cleared!' : 'Error!');
+                                    resetTimer = setTimeout(function() {
+                                        $btn.text(defaultLabel);
+                                    }, 2500);
+                                },
+                                error: function() {
+                                    $btn.text('Error!');
+                                    resetTimer = setTimeout(function() {
+                                        $btn.text(defaultLabel);
+                                    }, 2500);
+                                }
+                            });
+                        });
+                    });
+                </script>
+            <?php endif; ?>
             
             <?php if ($promo_banner): ?>
             <!-- Promotional Banner -->

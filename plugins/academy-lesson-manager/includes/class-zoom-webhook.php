@@ -156,6 +156,24 @@ class ALM_Zoom_Webhook {
             $this->add_debug_log($debug);
             return array('success' => false, 'error' => $error, 'debug' => $debug);
         }
+
+        // Log identifier mapping lookup result for debugging
+        $all_mappings = get_option('alm_webhook_identifier_mappings', array());
+        if (!empty($zoom_identifier) && is_array($all_mappings) && isset($all_mappings[$zoom_identifier])) {
+            $map = $all_mappings[$zoom_identifier];
+            $debug['identifier_mapping'] = array(
+                'zoom_identifier' => $zoom_identifier,
+                'mapping_found'   => true,
+                'teacher'         => isset($map['teacher']) ? $map['teacher'] : '',
+                'membership_level' => isset($map['membership_level']) ? intval($map['membership_level']) : 2,
+            );
+        } else {
+            $debug['identifier_mapping'] = array(
+                'zoom_identifier' => $zoom_identifier,
+                'mapping_found'   => false,
+                'note'            => 'No mapping configured for this identifier; defaults will be used (membership_level=2, no teacher set)',
+            );
+        }
         
         // Step 3: Find matching event
         $event = $this->find_matching_event($zoom_identifier, $recording_date);
@@ -212,12 +230,15 @@ class ALM_Zoom_Webhook {
         if ($auto_migrate && !$dry_run) {
             if (empty($existing_lesson_id)) {
                 // Trigger migration (pass VTT content)
-                $migration_result = $this->migrate_event_to_collection($event->ID, $collection_id, $vimeo_id, $vtt_content);
+                $migration_result = $this->migrate_event_to_collection($event->ID, $collection_id, $vimeo_id, $zoom_identifier, $vtt_content);
                 
                 if ($migration_result['success']) {
                     $debug['migration'] = array(
-                        'lesson_id' => $migration_result['lesson_id'],
-                        'collection_id' => $collection_id
+                        'lesson_id'                => $migration_result['lesson_id'],
+                        'collection_id'            => $collection_id,
+                        'teacher_applied'          => isset($migration_result['teacher']) ? $migration_result['teacher'] : '',
+                        'membership_level_applied' => isset($migration_result['membership_level']) ? $migration_result['membership_level'] : 2,
+                        'mapping_applied'          => isset($migration_result['mapping_applied']) ? $migration_result['mapping_applied'] : false,
                     );
                     $debug['steps'][] = array('step' => 'migration', 'status' => 'completed', 'lesson_id' => $migration_result['lesson_id']);
                 } else {
@@ -463,13 +484,14 @@ class ALM_Zoom_Webhook {
     /**
      * Migrate event to collection (reuses logic from ALM_Admin_Event_Migration)
      * 
-     * @param int $event_id Event post ID
-     * @param int $collection_id Collection ID
-     * @param int $vimeo_id Vimeo ID to get duration from
-     * @param string $vtt_content Optional VTT transcript content
+     * @param int    $event_id        Event post ID.
+     * @param int    $collection_id   Collection ID.
+     * @param int    $vimeo_id        Vimeo ID to get duration from.
+     * @param string $zoom_identifier Zoom title identifier (e.g. willie-coaching) for mapping teacher/level.
+     * @param string $vtt_content     Optional VTT transcript content.
      * @return array Result with success status and lesson_id
      */
-    private function migrate_event_to_collection($event_id, $collection_id, $vimeo_id = 0, $vtt_content = '') {
+    private function migrate_event_to_collection($event_id, $collection_id, $vimeo_id = 0, $zoom_identifier = '', $vtt_content = '') {
         $event = get_post($event_id);
         
         if (!$event || $event->post_type !== 'je_event') {
@@ -498,9 +520,17 @@ class ALM_Zoom_Webhook {
         // Get event date (from ACF field, not post_date)
         $event_date = $this->get_event_date($event_id);
         
-        // Default membership level (Essentials = 2)
+        // Look up membership level and teacher from identifier mappings
         $membership_level = 2;
-        
+        $mapped_teacher   = '';
+        if (!empty($zoom_identifier)) {
+            $mappings = get_option('alm_webhook_identifier_mappings', array());
+            if (is_array($mappings) && isset($mappings[$zoom_identifier]) && is_array($mappings[$zoom_identifier])) {
+                $membership_level = intval($mappings[$zoom_identifier]['membership_level']);
+                $mapped_teacher   = isset($mappings[$zoom_identifier]['teacher']) ? sanitize_text_field($mappings[$zoom_identifier]['teacher']) : '';
+            }
+        }
+
         // Create lesson
         $lesson_data = array(
             'collection_id' => $collection_id,
@@ -595,9 +625,16 @@ class ALM_Zoom_Webhook {
         }
         
         // Sync lesson to WordPress post
-        $sync = new ALM_Post_Sync();
+        $sync    = new ALM_Post_Sync();
         $post_id = $sync->sync_lesson_to_post($lesson_id);
-        
+
+        // Apply teacher from mapping
+        if (!empty($mapped_teacher) && $post_id && function_exists('update_field')) {
+            update_field('lesson_teacher', $mapped_teacher, $post_id);
+        } elseif (!empty($mapped_teacher) && $post_id) {
+            update_post_meta($post_id, 'lesson_teacher', $mapped_teacher);
+        }
+
         // Copy featured image if exists
         $thumbnail_id = get_post_thumbnail_id($event_id);
         if ($thumbnail_id && $post_id) {
@@ -610,7 +647,13 @@ class ALM_Zoom_Webhook {
         // Insert new lesson in correct position based on date
         $this->insert_lesson_in_order($collection_id, $lesson_id);
         
-        return array('success' => true, 'lesson_id' => $lesson_id);
+        return array(
+            'success'          => true,
+            'lesson_id'        => $lesson_id,
+            'membership_level' => $membership_level,
+            'teacher'          => $mapped_teacher,
+            'mapping_applied'  => !empty($mapped_teacher),
+        );
     }
     
     /**

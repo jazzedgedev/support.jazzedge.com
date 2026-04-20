@@ -1,0 +1,215 @@
+/**
+ * Fluent Ticket Custom Code — ticket sidebar
+ */
+
+.ftcc-tools {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.ftcc-tools .ftcc-icon {
+	flex-shrink: 0;
+	width: 1.125rem;
+	height: 1.125rem;
+	vertical-align: middle;
+}
+
+.ftcc-card {
+	background: #f9f9f9;
+	padding: 0.5rem 0.625rem;
+	margin-bottom: 0.35rem;
+	border-left: 4px solid #0073aa;
+	border-radius: 0 3px 3px 0;
+}
+
+.ftcc-card--student {
+	border-left-color: #6366f1;
+}
+
+.ftcc-card--dashboard {
+	border-left-color: #28a745;
+}
+
+.ftcc-card--card {
+	background: #fff8e6;
+	border-left-color: #c9a227;
+}
+
+.ftcc-card--dashboard-alt {
+	border-left-color: #0073aa;
+	background: #e8f4fc;
+}
+
+.ftcc-card--card-alt {
+	background: #fff8dc;
+	border-left-color: #d97706;
+}
+
+.ftcc-card--fluent-cart {
+	border-left-color: #0891b2;
+	background: #ecfeff;
+}
+
+.ftcc-card--fluent-cart .ftcc-card-title {
+	color: #0e7490;
+}
+
+.ftcc-card--fluent-cart-alt {
+	border-left-color: #0d9488;
+	background: #f0fdfa;
+}
+
+.ftcc-card--fluent-cart-alt .ftcc-card-title {
+	color: #0f766e;
+}
+
+.ftcc-row-link {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	text-decoration: none;
+	color: #0073aa;
+	font-weight: 600;
+	transition: color 0.15s ease;
+}
+
+.ftcc-row-link:hover {
+	color: #0056b3;
+}
+
+.ftcc-card--student .ftcc-row-link {
+	color: #4f46e5;
+}
+
+.ftcc-card--student .ftcc-row-link:hover {
+	color: #4338ca;
+}
+
+.ftcc-card-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.ftcc-card-title {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-weight: 600;
+	flex: 1;
+	min-width: 0;
+}
+
+.ftcc-card--dashboard .ftcc-card-title {
+	color: #1e7e34;
+}
+
+.ftcc-card--card .ftcc-card-title {
+	color: #6a5a16;
+}
+
+.ftcc-card--dashboard-alt .ftcc-card-title {
+	color: #0073aa;
+}
+
+.ftcc-card--card-alt .ftcc-card-title {
+	color: #b45309;
+}
+
+.ftcc-meta {
+	margin: 0.35rem 0 0;
+	font-size: 11px;
+	color: #555;
+	word-break: break-word;
+}
+
+.ftcc-card--card .ftcc-meta,
+.ftcc-card--card-alt .ftcc-meta {
+	color: #6a5a16;
+}
+
+.ftcc-muted {
+	margin: 0;
+	color: #666;
+	font-size: 12px;
+}
+
+.ftcc-note {
+	margin: 0.5rem 0 0;
+	font-size: 12px;
+	color: #555;
+}
+
+.ftcc-note--warn {
+	color: #856404;
+	background: #fff3cd;
+	border-left: 4px solid #ffc107;
+	padding: 0.5rem 0.625rem;
+	border-radius: 0 3px 3px 0;
+}
+
+.ftcc-copy {
+	background: #007cba;
+	color: #fff;
+	border: none;
+	padding: 0.25rem 0.5rem;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 11px;
+	font-weight: 600;
+	transition: background 0.15s ease;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+.ftcc-copy:hover {
+	background: #0056b3;
+}
+
+.ftcc-copy.ftcc-copy--gold {
+	background: #c9a227;
+	color: #1a1a1a;
+}
+
+.ftcc-copy.ftcc-copy--gold:hover {
+	background: #a88619;
+}
+
+.ftcc-copy.ftcc-copy--amber {
+	background: #d97706;
+	color: #fff;
+}
+
+.ftcc-copy.ftcc-copy--amber:hover {
+	background: #b45309;
+}
+
+.ftcc-copy.ftcc-copy--cart {
+	background: #0891b2;
+	color: #fff;
+}
+
+.ftcc-copy.ftcc-copy--cart:hover {
+	background: #0e7490;
+}
+
+.ftcc-copy.ftcc-copy--cart-alt {
+	background: #0d9488;
+	color: #fff;
+}
+
+.ftcc-copy.ftcc-copy--cart-alt:hover {
+	background: #0f766e;
+}
+
+.ftcc-copy.ftcc-copy--success {
+	background: #28a745;
+}
+
+.ftcc-copy:focus-visible {
+	outline: 2px solid #0073aa;
+	outline-offset: 2px;
+}

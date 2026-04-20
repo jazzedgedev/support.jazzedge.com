@@ -51,7 +51,7 @@ class Katahdin_AI_Hub_REST_API {
                     'type' => 'integer',
                     'default' => 1000,
                     'minimum' => 50,
-                    'maximum' => 4000
+                    'maximum' => 32000
                 ),
                 'temperature' => array(
                     'required' => false,
@@ -85,7 +85,7 @@ class Katahdin_AI_Hub_REST_API {
                     'type' => 'integer',
                     'default' => 1000,
                     'minimum' => 1,
-                    'maximum' => 4000
+                    'maximum' => 32000
                 ),
                 'temperature' => array(
                     'required' => false,
@@ -119,7 +119,7 @@ class Katahdin_AI_Hub_REST_API {
                     'type' => 'integer',
                     'default' => 1000,
                     'minimum' => 1,
-                    'maximum' => 4000
+                    'maximum' => 32000
                 ),
                 'temperature' => array(
                     'required' => false,

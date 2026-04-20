@@ -1439,7 +1439,7 @@ class ALM_Admin_Lesson_Samples {
         
         // Get chapter info
         $chapter = $this->wpdb->get_row($this->wpdb->prepare(
-            "SELECT c.ID, c.chapter_title, c.bunny_url, c.vimeo_id, c.youtube_id, c.lesson_id, l.lesson_title 
+            "SELECT c.ID, c.chapter_title, c.menu_order, c.bunny_url, c.vimeo_id, c.youtube_id, c.lesson_id, l.lesson_title 
              FROM {$chapters_table} c
              LEFT JOIN {$this->table_name} l ON c.lesson_id = l.ID
              WHERE c.ID = %d",
@@ -1475,16 +1475,13 @@ class ALM_Admin_Lesson_Samples {
         // error_log($debug_msg);
         // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
         
-        // Generate filename: {lessonid}-{chapterid}-id{chapterid}-{lesson-slug}
-        $lesson_slug = sanitize_file_name($chapter->lesson_title);
-        $lesson_slug = str_replace(' ', '-', $lesson_slug);
-        $lesson_slug = preg_replace('/[^a-z0-9\-]/i', '', $lesson_slug);
-        $filename = sprintf('%d-%d-id%d-%s', 
-            $chapter->lesson_id, 
-            $chapter->ID, 
-            $chapter->ID, 
-            $lesson_slug
-        );
+        // Generate filename: {order}-{chapter-title}.mp4
+        $chapter_order = intval($chapter->menu_order);
+        $chapter_slug  = sanitize_file_name(stripslashes($chapter->chapter_title));
+        $chapter_slug  = str_replace(' ', '-', $chapter_slug);
+        $chapter_slug  = preg_replace('/[^a-z0-9\-]/i', '-', $chapter_slug);
+        $chapter_slug  = trim(preg_replace('/-+/', '-', $chapter_slug), '-');
+        $filename      = sprintf('%d-%s', $chapter_order, $chapter_slug);
         
         // DISABLED: Debug logging
         // $debug_msg = 'ALM Download Debug: Generated filename: ' . $filename . "\n";

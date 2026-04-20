@@ -79,25 +79,16 @@ class ALM_Admin_Essentials_Users {
         
         // Grant selection manually - check for button OR hidden field
         if ((isset($_POST['alm_grant_selection']) || (isset($_POST['user_id']) && isset($_POST['grant_amount']))) && isset($_POST['user_id'])) {
-            error_log("ALM Grant form submitted");
-            
             // Check nonce
             if (!wp_verify_nonce($_POST['alm_grant_nonce'], 'alm_grant_selection')) {
-                error_log("ALM Grant nonce verification failed");
                 wp_die('Security check failed. Please try again.');
             }
-            
-            error_log("ALM Grant nonce verified");
-            
+
             $user_id = intval($_POST['user_id']);
             $grant_amount = isset($_POST['grant_amount']) ? intval($_POST['grant_amount']) : 1;
-            
-            error_log("ALM Grant: user_id={$user_id}, grant_amount={$grant_amount}");
-            
+
             $result = $this->grant_selection_manually($user_id, $grant_amount);
-            
-            error_log("ALM Grant result: " . var_export($result, true));
-            
+
             if ($result === false) {
                 wp_redirect(add_query_arg(array(
                     'page' => 'academy-manager-essentials-users',
@@ -124,6 +115,12 @@ class ALM_Admin_Essentials_Users {
             $user_id = intval($_POST['user_id']);
             $new_count = max(0, intval($_POST['available_count']));
 
+            $old_count = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT available_count FROM {$this->selections_table} WHERE user_id = %d",
+                $user_id
+            ));
+            $old_count = is_numeric($old_count) ? intval($old_count) : 0;
+
             $updated = $this->wpdb->update(
                 $this->selections_table,
                 array('available_count' => $new_count),
@@ -131,6 +128,17 @@ class ALM_Admin_Essentials_Users {
                 array('%d'),
                 array('%d')
             );
+
+            if ($updated !== false && $old_count !== $new_count && class_exists('ALM_Essentials_Selection_Audit')) {
+                ALM_Essentials_Selection_Audit::log(
+                    $user_id,
+                    'count_set',
+                    $new_count - $old_count,
+                    $new_count,
+                    get_current_user_id(),
+                    array('previous' => $old_count)
+                );
+            }
 
             $message = ($updated !== false) ? 'count_updated' : 'error';
             $error_msg = ($updated !== false) ? '' : 'Failed to update available count. Please check database.';
@@ -167,6 +175,17 @@ class ALM_Admin_Essentials_Users {
                 array('%d'),
                 array('%d')
             );
+
+            if ($updated !== false && $adjust_amount !== 0 && class_exists('ALM_Essentials_Selection_Audit')) {
+                ALM_Essentials_Selection_Audit::log(
+                    $user_id,
+                    'count_adjust',
+                    $adjust_amount,
+                    $new_count,
+                    get_current_user_id(),
+                    array('previous' => $current)
+                );
+            }
 
             $message = ($updated !== false) ? 'count_adjusted' : 'error';
             $error_msg = ($updated !== false) ? '' : 'Failed to adjust available count. Please check database.';
@@ -268,17 +287,11 @@ class ALM_Admin_Essentials_Users {
                     $user_id
                 ));
             } else {
-                if (defined('WP_DEBUG') && WP_DEBUG) {
-                    error_log("ALM Grant Selection: ALM_Essentials_Library class not found");
-                }
                 return false;
             }
         }
-        
+
         if (!$current) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log("ALM Grant Selection: Could not initialize or retrieve user record for user_id={$user_id}");
-            }
             return false;
         }
         
@@ -298,21 +311,27 @@ class ALM_Admin_Essentials_Users {
             $user_id
         );
         
-        $result = $this->wpdb->query($sql);
-        
-        // Log for debugging
-        error_log("ALM Grant Selection SQL: {$sql}");
-        error_log("ALM Grant Selection Result: " . var_export($result, true));
-        error_log("ALM Grant Selection Error: " . ($this->wpdb->last_error ?: 'None'));
-        
+        $this->wpdb->query($sql);
+
         // Verify the update worked
         $verify_count = $this->wpdb->get_var($this->wpdb->prepare(
             "SELECT available_count FROM {$this->selections_table} WHERE user_id = %d",
             $user_id
         ));
-        
-        error_log("ALM Grant Selection Verify: Expected {$new_count}, Got {$verify_count}");
-        
+
+        if ($verify_count == $new_count && class_exists('ALM_Essentials_Selection_Audit')) {
+            ALM_Essentials_Selection_Audit::log(
+                $user_id,
+                'manual_grant',
+                $amount,
+                intval($verify_count),
+                get_current_user_id(),
+                array(
+                    'previous' => $old_count,
+                )
+            );
+        }
+
         return ($verify_count == $new_count);
     }
     
@@ -425,7 +444,6 @@ class ALM_Admin_Essentials_Users {
             <?php if ($message === 'error' && isset($_GET['error_msg'])): ?>
             <div class="notice notice-error is-dismissible">
                 <p><?php echo esc_html($_GET['error_msg']); ?></p>
-                <p><strong>Debug Info:</strong> Check browser console and PHP error logs for more details.</p>
             </div>
             <?php endif; ?>
             
@@ -441,7 +459,6 @@ class ALM_Admin_Essentials_Users {
                     'Library Table' => $this->library_table,
                     'Last DB Query' => $this->wpdb->last_query ?: 'None',
                     'Last DB Error' => $this->wpdb->last_error ?: 'None',
-                    'Error Log Location' => ini_get('error_log') ?: 'Default PHP error log',
                     'WP_DEBUG' => defined('WP_DEBUG') ? (WP_DEBUG ? 'Enabled' : 'Disabled') : 'Not defined',
                     'WP_DEBUG_LOG' => defined('WP_DEBUG_LOG') ? (WP_DEBUG_LOG ? 'Enabled' : 'Disabled') : 'Not defined',
                     'PHP Version' => PHP_VERSION,
@@ -508,6 +525,12 @@ class ALM_Admin_Essentials_Users {
             ?>
             <div class="alm-user-details">
                 <h2>User Details: <?php echo esc_html($view_user->display_name); ?> (<?php echo esc_html($view_user->user_email); ?>)</h2>
+                <p>
+                    <a href="<?php echo esc_url(add_query_arg(array(
+                        'page' => 'academy-manager-essentials-selection-log',
+                        'user_id' => $view_user_id,
+                    ), admin_url('admin.php'))); ?>" class="button button-secondary"><?php esc_html_e('View selection credit log for this student', 'academy-lesson-manager'); ?></a>
+                </p>
                 
                 <?php if ($view_user_data): ?>
                 <table class="wp-list-table widefat fixed striped">

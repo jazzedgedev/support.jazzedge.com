@@ -1,0 +1,9 @@
+.wpal-blocks-notice{
+    font-size: 14px;
+    display: block;
+    background: #f00;
+    padding: 1em;
+    color: #fff;
+    font-weight: bold;
+    margin-top: 0.5em;
+}

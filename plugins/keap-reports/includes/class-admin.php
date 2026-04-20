@@ -1622,9 +1622,28 @@ class Keap_Reports_Admin {
         $total_ytd_revenue = 0;
         $total_ytd_orders = 0;
         
+        $report_ids = array_map('intval', array_column($reports, 'id'));
+        $comparisons_by_report = $this->database->get_monthly_comparisons_bulk($report_ids, $current_year, $current_month);
+
         $reports_data = array();
         foreach ($reports as $report) {
-            $comparison = $this->reports->get_monthly_comparison($report['id'], $current_year, $current_month);
+            $report_id = intval($report['id']);
+            $comparison = isset($comparisons_by_report[$report_id]) ? $comparisons_by_report[$report_id] : array(
+                'current' => 0,
+                'previous' => 0,
+                'ytd' => 0,
+                'change' => 0,
+                'change_percent' => 0,
+                'current_revenue' => 0,
+                'previous_revenue' => 0,
+                'revenue_change' => 0,
+                'revenue_change_percent' => 0,
+                'current_orders' => 0,
+                'previous_orders' => 0,
+                'orders_change' => 0,
+                'orders_change_percent' => 0,
+                'ytd_orders' => 0
+            );
             $reports_data[] = array_merge($report, $comparison);
             
             $total_current_revenue += isset($comparison['current_revenue']) ? $comparison['current_revenue'] : 0;
@@ -1643,8 +1662,10 @@ class Keap_Reports_Admin {
         // Same month last year (for comparison that matches Revenue Trend chart "Last Year")
         $last_year = $current_year - 1;
         $total_last_year_revenue = 0;
+        $last_year_comparisons = $this->database->get_monthly_comparisons_bulk($report_ids, $last_year, $current_month);
         foreach ($reports as $report) {
-            $ly_comparison = $this->reports->get_monthly_comparison($report['id'], $last_year, $current_month);
+            $report_id = intval($report['id']);
+            $ly_comparison = isset($last_year_comparisons[$report_id]) ? $last_year_comparisons[$report_id] : array('current_revenue' => 0);
             $total_last_year_revenue += isset($ly_comparison['current_revenue']) ? $ly_comparison['current_revenue'] : 0;
         }
         $revenue_change_vs_last_year = $total_current_revenue - $total_last_year_revenue;
@@ -1734,7 +1755,73 @@ class Keap_Reports_Admin {
         $fluentcart_ytd = $this->database->get_fluentcart_ytd($current_year, $current_month);
         $total_ytd_revenue_display = $total_ytd_revenue + $fluentcart_ytd['revenue'];
         $total_ytd_orders_display = $total_ytd_orders + $fluentcart_ytd['orders'];
-        
+
+        // YTD comparison to last year (same Jan-current_month window)
+        global $wpdb;
+        $kpi_data_table    = $wpdb->prefix . 'keap_report_data';
+        $kpi_reports_table = $wpdb->prefix . 'keap_reports';
+
+        $keap_ytd_ly_revenue = floatval($wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(d.total_amt_sold), 0)
+             FROM {$kpi_data_table} d
+             INNER JOIN {$kpi_reports_table} r ON d.report_id = r.id
+             WHERE r.is_active = 1
+               AND r.report_type NOT IN ('count', 'count_revenue', 'paid_starter', 'intensives')
+               AND d.year = %d AND d.month <= %d",
+            $last_year, $current_month
+        )));
+        $fluentcart_ytd_ly    = $this->database->get_fluentcart_ytd($last_year, $current_month);
+        $total_ytd_ly_revenue = $keap_ytd_ly_revenue + $fluentcart_ytd_ly['revenue'];
+        $ytd_change_vs_ly     = $total_ytd_revenue_display - $total_ytd_ly_revenue;
+        $ytd_change_vs_ly_pct = $total_ytd_ly_revenue > 0
+            ? ($ytd_change_vs_ly / $total_ytd_ly_revenue) * 100
+            : ($ytd_change_vs_ly > 0 ? 100 : 0);
+        $ytd_ly_label = 'Jan-' . date('M', mktime(0, 0, 0, $current_month, 1)) . ' ' . $last_year;
+
+        // Quarter-to-Date (QTD) calculations
+        $current_quarter     = intval(ceil($current_month / 3));
+        $quarter_start_month = ($current_quarter - 1) * 3 + 1;
+        $quarter_label_ly    = 'Q' . $current_quarter . ' ' . $last_year;
+
+        $keap_qtd_revenue = floatval($wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(d.total_amt_sold), 0)
+             FROM {$kpi_data_table} d
+             INNER JOIN {$kpi_reports_table} r ON d.report_id = r.id
+             WHERE r.is_active = 1
+               AND r.report_type NOT IN ('count', 'count_revenue', 'paid_starter', 'intensives')
+               AND d.year = %d AND d.month >= %d AND d.month <= %d",
+            $current_year, $quarter_start_month, $current_month
+        )));
+        $keap_qtd_orders = intval($wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(d.num_orders), 0)
+             FROM {$kpi_data_table} d
+             INNER JOIN {$kpi_reports_table} r ON d.report_id = r.id
+             WHERE r.is_active = 1
+               AND r.report_type NOT IN ('count', 'count_revenue', 'paid_starter', 'intensives')
+               AND d.year = %d AND d.month >= %d AND d.month <= %d",
+            $current_year, $quarter_start_month, $current_month
+        )));
+        $fluentcart_qtd            = $this->database->get_fluentcart_date_range($current_year, $quarter_start_month, $current_month);
+        $total_qtd_revenue_display = $keap_qtd_revenue + $fluentcart_qtd['revenue'];
+        $total_qtd_orders_display  = $keap_qtd_orders  + $fluentcart_qtd['orders'];
+
+        // QTD same quarter last year
+        $keap_qtd_ly_revenue = floatval($wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(d.total_amt_sold), 0)
+             FROM {$kpi_data_table} d
+             INNER JOIN {$kpi_reports_table} r ON d.report_id = r.id
+             WHERE r.is_active = 1
+               AND r.report_type NOT IN ('count', 'count_revenue', 'paid_starter', 'intensives')
+               AND d.year = %d AND d.month >= %d AND d.month <= %d",
+            $last_year, $quarter_start_month, $current_month
+        )));
+        $fluentcart_qtd_ly    = $this->database->get_fluentcart_date_range($last_year, $quarter_start_month, $current_month);
+        $total_qtd_ly_revenue = $keap_qtd_ly_revenue + $fluentcart_qtd_ly['revenue'];
+        $qtd_change_vs_ly     = $total_qtd_revenue_display - $total_qtd_ly_revenue;
+        $qtd_change_vs_ly_pct = $total_qtd_ly_revenue > 0
+            ? ($qtd_change_vs_ly / $total_qtd_ly_revenue) * 100
+            : ($qtd_change_vs_ly > 0 ? 100 : 0);
+
         // Total orders (all sources) for replacement KPI card
         $total_orders_combined_current = $total_current_orders + $fluentcart_current['orders'];
         $total_orders_combined_prev = $total_last_orders + $fluentcart_prev['orders'];
@@ -1767,6 +1854,7 @@ class Keap_Reports_Admin {
                 .keap-kpi-card.intensives { border-left-color: #d63638; }
                 .keap-kpi-card.fluentcart { border-left-color: #7c3aed; }
                 .keap-kpi-card.ytd { border-left-color: #f0b849; }
+                .keap-kpi-card.qtd { border-left-color: #0ea5e9; }
                 .keap-kpi-label {
                     font-size: 14px;
                     color: #646970;
@@ -1922,6 +2010,8 @@ class Keap_Reports_Admin {
                 </div>
                 
                 <?php
+                $dashboard_report_ids = array_map('intval', array_column($dashboard_reports, 'id'));
+                $dashboard_comparisons = $this->database->get_monthly_comparisons_bulk($dashboard_report_ids, $current_year, $current_month);
                 // Display dashboard reports that have show_on_dashboard enabled (skip All Intensives Bundle - replaced by FluentCart card; replace COCKTAIL_INTENSIVE_2026 with Total Orders card)
                 foreach ($dashboard_reports as $dashboard_report) {
                     if (isset($dashboard_report['name']) && $dashboard_report['name'] === 'All Intensives Bundle') {
@@ -1941,7 +2031,13 @@ class Keap_Reports_Admin {
                         <?php
                         continue;
                     }
-                    $dashboard_comparison = $this->reports->get_monthly_comparison($dashboard_report['id'], $current_year, $current_month);
+                    $dashboard_report_id = intval($dashboard_report['id']);
+                    $dashboard_comparison = isset($dashboard_comparisons[$dashboard_report_id]) ? $dashboard_comparisons[$dashboard_report_id] : array(
+                        'current_orders' => 0,
+                        'current_revenue' => 0,
+                        'previous_orders' => 0,
+                        'previous_revenue' => 0
+                    );
                     $dashboard_current_orders = $dashboard_comparison['current_orders'];
                     $dashboard_current_revenue = $dashboard_comparison['current_revenue'];
                     $dashboard_prev_orders = $dashboard_comparison['previous_orders'];
@@ -1986,6 +2082,26 @@ class Keap_Reports_Admin {
                     <div class="keap-kpi-value">$<?php echo number_format($total_ytd_revenue_display, 2); ?></div>
                     <div class="keap-kpi-change">
                         <?php echo number_format($total_ytd_orders_display); ?> orders
+                    </div>
+                    <div class="keap-kpi-change <?php echo $ytd_change_vs_ly >= 0 ? 'positive' : 'negative'; ?>" style="margin-top: 6px;">
+                        <?php echo $ytd_change_vs_ly >= 0 ? '↑' : '↓'; ?>
+                        $<?php echo number_format(abs($ytd_change_vs_ly), 2); ?>
+                        (<?php echo number_format(abs($ytd_change_vs_ly_pct), 1); ?>%)
+                        vs <?php echo esc_html($ytd_ly_label); ?>
+                    </div>
+                </div>
+
+                <div class="keap-kpi-card qtd">
+                    <div class="keap-kpi-label">Q<?php echo $current_quarter; ?> <?php echo $current_year; ?> Revenue (QTD)</div>
+                    <div class="keap-kpi-value">$<?php echo number_format($total_qtd_revenue_display, 2); ?></div>
+                    <div class="keap-kpi-change">
+                        <?php echo number_format($total_qtd_orders_display); ?> orders
+                    </div>
+                    <div class="keap-kpi-change <?php echo $qtd_change_vs_ly >= 0 ? 'positive' : 'negative'; ?>" style="margin-top: 6px;">
+                        <?php echo $qtd_change_vs_ly >= 0 ? '↑' : '↓'; ?>
+                        $<?php echo number_format(abs($qtd_change_vs_ly), 2); ?>
+                        (<?php echo number_format(abs($qtd_change_vs_ly_pct), 1); ?>%)
+                        vs <?php echo esc_html($quarter_label_ly); ?>
                     </div>
                 </div>
             </div>
@@ -2573,6 +2689,23 @@ class Keap_Reports_Admin {
                                                 } else if (curr > 0) fallbackLines.push('vs last year: ↑ $' + curr.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' (—)');
                                             }
                                             return fallbackLines.length > 1 ? fallbackLines : fallbackLines[0];
+                                        }
+                                        if (context.dataset.label === 'FluentCart ($)' && revenueData[dataIndex]) {
+                                            const d = revenueData[dataIndex];
+                                            const lines = [
+                                                'FluentCart ($): $' + fmt(context.parsed.y),
+                                                'Orders: ' + (d.fluentcart_orders || 0).toLocaleString('en-US')
+                                            ];
+                                            if (hasCompare && compareData[dataIndex]) {
+                                                const curr = parseFloat(d.fluentcart_revenue) || 0;
+                                                const prev = parseFloat(compareData[dataIndex].fluentcart_revenue) || 0;
+                                                const diff = curr - prev;
+                                                if (prev > 0) {
+                                                    const change = (diff / prev) * 100;
+                                                    lines.push('vs last year: ' + (diff >= 0 ? '↑ ' : '↓ ') + '$' + Math.abs(diff).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}) + ' (' + (diff >= 0 ? '+' : '-') + Math.abs(change).toFixed(1) + '%)');
+                                                }
+                                            }
+                                            return lines;
                                         }
                                         if (hasCompare && compareData.length > 0 && context.dataset.label !== 'Revenue ($)') {
                                             const label = context.dataset.label + ': $' + fmt(context.parsed.y);
