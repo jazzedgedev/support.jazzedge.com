@@ -681,23 +681,19 @@ function enqueue_recently_viewed_scripts() {
 }
 add_action('wp_enqueue_scripts', 'enqueue_recently_viewed_scripts');
 
-// Performance: remove jQuery UI sortable from footer via output buffer
-add_action('wp_footer', function() {
-    ob_start();
-}, 0);
-
-add_action('wp_footer', function() {
-    $html = ob_get_clean();
-    // Remove jQuery UI (admin only, not needed on frontend)
-    $html = preg_replace('/<script[^>]+jquery\/ui\/sortable\.min\.js[^>]*><\/script>\n?/i', '', $html);
-    $html = preg_replace('/<script[^>]+jquery\/ui\/mouse\.min\.js[^>]*><\/script>\n?/i', '', $html);
-    $html = preg_replace('/<script[^>]+jquery\/ui\/core\.min\.js[^>]*><\/script>\n?/i', '', $html);
-    // Remove HLS.js on pages that don't need video playback
+// Performance: dequeue jQuery UI (jquery-ui-core, jquery-ui-mouse, jquery-ui-sortable) and hls.js where not needed
+add_action('wp_enqueue_scripts', function() {
+    wp_dequeue_script('jquery-ui-sortable');
+    wp_deregister_script('jquery-ui-sortable');
+    wp_dequeue_script('jquery-ui-mouse');
+    wp_deregister_script('jquery-ui-mouse');
+    wp_dequeue_script('jquery-ui-core');
+    wp_deregister_script('jquery-ui-core');
     if (!is_singular(['lesson', 'mini-lesson'])) {
-        $html = preg_replace('/<script[^>]+hls\.js[^>]*><\/script>\n?/i', '', $html);
+        wp_dequeue_script('hls.js');
+        wp_deregister_script('hls.js');
     }
-    echo $html;
-}, PHP_INT_MAX);
+}, 100);
 
 // Performance: strip unpkg microtip CSS from head output via buffering
 add_action('wp_head', function() {
@@ -1210,7 +1206,16 @@ function je_get_academy_data($customer_email, $keap_id) {
 
     if ($keap_id > 0) {
         // Get Academy user data
-        $academy_response = file_get_contents('https://jazzedge.academy/willie/crm_transfer.php?code=b3pg8Cd8NEoERmYg&email=' . urlencode($customer_email));
+        $transient_key = 'je_academy_data_' . md5($customer_email);
+        $academy_response = get_transient($transient_key);
+        if ($academy_response === false) {
+            $response = wp_remote_get(
+                'https://jazzedge.academy/willie/crm_transfer.php?code=b3pg8Cd8NEoERmYg&email=' . urlencode($customer_email),
+                ['timeout' => 5]
+            );
+            $academy_response = is_wp_error($response) ? '' : wp_remote_retrieve_body($response);
+            set_transient($transient_key, $academy_response, 5 * MINUTE_IN_SECONDS);
+        }
         $ja_user_data = explode('*', $academy_response);
         $data['user_login'] = $ja_user_data[0] ?? '';
         $data['user_id'] = (int)($ja_user_data[1] ?? 0);
@@ -6217,7 +6222,6 @@ function ja_analytics_track_video_view($user_id, $post_id, $video_name, $type) {
 
     // Update user analytics based on the video type
     ja_analytics_update_user_data($user_id, $type, $post_id, $video_name);
-    echo "// called ja_analytics_update_user_data ($user_id, $type, $post_id, $video_name)";
 }
 
 

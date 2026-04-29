@@ -3421,7 +3421,10 @@ document.getElementById("alm-bulk-membership-btn").addEventListener("click", fun
                 echo '<td><a href="?page=academy-manager-chapters&action=edit&id=' . $chapter->ID . '" target="_blank" rel="noopener noreferrer">' . esc_html(stripslashes($chapter->chapter_title)) . '</a></td>';
                 echo '<td class="col-vimeo">';
                 if ($chapter->vimeo_id && $chapter->vimeo_id > 0) {
-                    echo '<span style="color: #46b450; font-weight: bold;">' . __('Yes', 'academy-lesson-manager') . '</span>';
+                    echo '<span style="color: #46b450; font-weight: bold;">' . esc_html__('Yes', 'academy-lesson-manager') . '</span>'
+                        . ' <a href="https://vimeo.com/' . intval($chapter->vimeo_id) . '" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#666;">'
+                        . intval($chapter->vimeo_id)
+                        . '</a>';
                     // Add download button for Vimeo videos
                     $download_url = wp_nonce_url(
                         add_query_arg(array(

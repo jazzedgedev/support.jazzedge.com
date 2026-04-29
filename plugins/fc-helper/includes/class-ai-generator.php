@@ -642,14 +642,14 @@ DESIGN SYSTEM — follow this exactly:
 
 OUTER WRAPPER: The outermost <div> must have: style="font-family:Georgia,serif; background:#ffffff;"
 
-SECTION ORDER — always output sections 1, 3, 4, 5, 5b, and 6. Output section 2 only when the user provided a Sample Video URL; if they did not, omit section 2 entirely. Output section 4b (COURSE CHAPTERS) only when the user message contains a block beginning with ---LESSON DATA FROM ACADEMY LESSON MANAGER---; if no lesson data is present, omit section 4b entirely.
+SECTION ORDER — always output sections 1, 3, 4, 5, 5b, and 6. Output section 2 only when the user provided a Sample Video URL; if they did not, omit section 2 entirely. Output section 4b (COURSE CHAPTERS) when the user message contains ---LESSONS_CHAPTERS_DATA--- or ---LESSON DATA FROM ACADEMY LESSON MANAGER---; if neither is present, omit section 4b entirely.
 
 1. HERO BANNER
    Background: linear-gradient(135deg, {primary} 0%, {mid} 50%, {primary} 100%)
    Padding: 60px 40px, text-align center
    - Gold pill badge: display inline-block, background {accent}, color {text_on_accent}, font-family Arial, font-size 12px, font-weight bold, letter-spacing 3px, text-transform uppercase, padding 6px 16px, border-radius 20px, margin-bottom 20px — text derived from product (e.g. "Piano Course") without inventing duration or stats not in the user message.
-   - H1: Georgia, #ffffff, 42px, line-height 1.2, margin 0 0 16px, font-weight bold — must use the exact product title from the user message.
-   - Subtitle P: color {accent_on_dark}, Arial, 20px, font-weight 300, margin 0 0 12px, letter-spacing 1px.
+   - H1: Georgia, #ffffff, 42px, line-height 1.2, margin 0 0 16px, font-weight bold — must use the exact string from PRODUCT DETAILS: Title (H1 / hero) in the user message, verbatim — do not reword or substitute a lesson title.
+   - Subtitle P: color {accent_on_dark}, Arial, 20px, font-weight 300, margin 0 0 12px, letter-spacing 1px. When the user message says BUNDLE with 2+ lessons, the subtitle must make clear this is a multi-lesson bundle (e.g. curated collection of N lessons). For a single lesson, use normal course framing.
    - Description P: color {text_muted}, Arial, 16px, line-height 1.6, max-width 620px, display block, margin 0 auto, text-align center — based on the user description.
 
 2. SAMPLE VIDEO (only if a sample video URL is provided):
@@ -671,22 +671,24 @@ SECTION ORDER — always output sections 1, 3, 4, 5, 5b, and 6. Output section 2
    H2: Georgia 28px {primary}, text-align center, margin-bottom 30px
    2-column grid: display:grid; grid-template-columns:1fr 1fr; gap:16px. Each of 8 items: display:flex; align-items:center; gap:12px. Badge: background:{accent}; color:{text_on_accent}; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:Arial; font-size:13px; font-weight:bold; flex-shrink:0. Text: font-family:Arial; font-size:15px; color:#444.
 
-4b. COURSE CHAPTERS (only when LESSON DATA is present in user message)
+4b. COURSE CHAPTERS (when LESSONS_CHAPTERS_DATA or LESSON DATA is present)
    Background: {bg_warm}, padding 50px 40px
    H2: Georgia 28px {primary}, text-align center, margin-bottom 8px — use "Course Chapters" as the heading
-   Subheading P: Arial 14px #666, text-align center, margin-bottom 32px — e.g. "Here is exactly what you will learn in each chapter:"
-   Each chapter row wrapper: display:flex; align-items:flex-start; gap:16px; padding:14px 0; border-bottom:1px solid {border_warm}. Last row has no border-bottom.
+   If multiple lessons are provided in LESSONS_CHAPTERS_DATA (or implied by BUNDLE with N≥2): Subheading P: Arial 14px #666, text-align center, margin-bottom 24px — e.g. "This bundle includes N lessons. Here's what you'll learn in each:" (use the actual N from the user message). Then for each lesson in order (primary lesson first, then the rest in the order given), output an H3: Georgia 22px {primary}, margin 24px 0 12px — text "Lesson" + index + ": " + exact lesson title from LESSONS_CHAPTERS_DATA. Under each H3, output that lesson's chapter rows only (same row styling as below). If a lesson has no chapters in LESSONS_CHAPTERS_DATA, output the H3 then a single P: <em>Chapter list not available for this lesson.</em> (italic).
+   If only one lesson is provided: Subheading P: Arial 14px #666, text-align center, margin-bottom 32px — e.g. "Here is exactly what you will learn in each chapter:" — then output a flat chapter list with NO per-lesson H3 headings.
+   Each chapter row wrapper: display:flex; align-items:flex-start; gap:16px; padding:14px 0; border-bottom:1px solid {border_warm}. Last row in each lesson group has no border-bottom before the next H3 (or before TOTAL when single-lesson).
      - Timestamp badge: display:inline-block; background:{accent}; color:{text_on_accent}; font-family:Arial; font-size:11px; font-weight:bold; padding:3px 10px; border-radius:12px; white-space:nowrap; min-width:72px; text-align:center
      - Chapter title: font-family:Georgia; font-size:16px; color:{primary}; font-weight:bold; flex:1
      - Duration: font-family:Arial; font-size:13px; color:#888; white-space:nowrap
-   Total row: display:flex; align-items:center; gap:16px; padding:14px 0; margin-top:4px; border-top:2px solid {accent}.
+   After all lessons' chapter rows, one Total row: display:flex; align-items:center; gap:16px; padding:14px 0; margin-top:4px; border-top:2px solid {accent}.
      - Left: display:inline-block; font-family:Arial; font-size:11px; font-weight:bold; color:{accent}; text-transform:uppercase; letter-spacing:1px — text: TOTAL
-     - Right: font-family:Georgia; font-size:16px; font-weight:bold; color:{primary}; flex:1; text-align:right — calculated total time
-   Use the exact chapter titles, start times, and durations from the LESSON DATA block. Do not invent or alter them. Calculate the total by summing all duration values from the LESSON DATA chapters. Show it in the format that drops leading zeros (e.g. '55:22' for under an hour, '1:32:23' for over an hour).
+     - Right: font-family:Georgia; font-size:16px; font-weight:bold; color:{primary}; flex:1; text-align:right — use TOTAL_CHAPTER_DURATION_FORMATTED from LESSONS_CHAPTERS_DATA (sum across ALL lessons' chapters)
+   Use only chapters listed in LESSONS_CHAPTERS_DATA (or from LESSON DATA if no LESSONS block). Do not invent or alter chapter titles or timings. If multiple lessons, do not invent chapters — only output what is provided; empty lessons get the italic fallback only.
 
 5. EVERYTHING THAT'S INCLUDED
    Background {primary}, padding 50px 40px
    H2: Georgia 28px #ffffff, text-align center, margin-bottom 34px
+   When ALL_LESSON_DESCRIPTIONS lists multiple lessons, synthesize the four cards from the combined scope of all lesson descriptions (bundle-wide). When only one lesson, use that lesson's description as today.
    2-column grid: display:grid; grid-template-columns:1fr 1fr; max-width:720px; margin:0 auto 40px; gap:20px. Each of 4 cards — no background, no border-radius, no padding wrapper:
      - Icon: inline SVG, 44x44, stroke currentColor, color {accent_on_dark}, margin-bottom:10px, display:block. Use the exact SVG strings below — do not alter paths, viewBox, stroke-width, or attributes. Output each SVG directly (no wrapping <span>).
      - Title div: font-family:Arial; font-size:16px; font-weight:bold; color:#ffffff; margin-bottom:6px
@@ -774,9 +776,121 @@ FC_HELPER_SYSTEM;
     }
 
     /**
-     * @param array<string, mixed>|null $lesson_data
+     * Primary lesson first, then others in list order (matches FC Helper bundle order).
+     *
+     * @param array<string, mixed> $raw
+     * @return list<array<string, mixed>>
      */
-    private static function build_lesson_data_user_block($lesson_data) {
+    private static function ordered_lesson_data_list_for_prompt(array $raw) {
+        $list = array();
+        if (isset($raw['lesson_data_list']) && is_array($raw['lesson_data_list'])) {
+            $list = $raw['lesson_data_list'];
+        }
+        if (count($list) === 0 && isset($raw['lesson_data']) && is_array($raw['lesson_data'])) {
+            $list = array( $raw['lesson_data'] );
+        }
+        if (count($list) <= 1) {
+            return $list;
+        }
+        $primary_id = isset($raw['lesson_id']) ? absint($raw['lesson_id']) : 0;
+        $primary    = array();
+        $rest       = array();
+        foreach ($list as $item ) {
+            if (!is_array($item) || empty($item['lesson'])) {
+                continue;
+            }
+            $lid = isset($item['lesson']['id']) ? absint($item['lesson']['id']) : 0;
+            if ($primary_id > 0 && $lid === $primary_id) {
+                $primary[] = $item;
+            } else {
+                $rest[] = $item;
+            }
+        }
+        return array_merge($primary, $rest);
+    }
+
+    /**
+     * Structured chapter rows for section 4b (canonical; do not invent chapters beyond this).
+     *
+     * @param array<string, mixed> $raw
+     * @return string
+     */
+    private static function build_lessons_chapters_data_block(array $raw) {
+        $ordered   = self::ordered_lesson_data_list_for_prompt($raw);
+        $total_sec = 0;
+        if (array() === $ordered) {
+            return '';
+        }
+        $lines   = array();
+        $lines[] = '---LESSONS_CHAPTERS_DATA (for Course Chapters section only; use only these rows — do not invent chapters)---';
+        $slot    = 0;
+        foreach ($ordered as $item ) {
+            if (!is_array($item) || empty($item['lesson'])) {
+                continue;
+            }
+            ++$slot;
+            $title     = isset($item['lesson']['title']) ? (string) $item['lesson']['title'] : '';
+            $lesson_id = isset($item['lesson']['id']) ? absint($item['lesson']['id']) : 0;
+            $lines[]   = '';
+            $lines[]   = 'Lesson ' . $slot . ' (lesson_id=' . $lesson_id . '): ' . $title;
+            $chapters  = isset($item['chapters']) && is_array($item['chapters']) ? $item['chapters'] : array();
+            if (array() === $chapters) {
+                $lines[] = '(no chapters for this lesson — in HTML, under this lesson\'s heading output exactly: <p><em>Chapter list not available for this lesson.</em></p>)';
+                continue;
+            }
+            foreach ($chapters as $ch ) {
+                if (!is_array($ch)) {
+                    continue;
+                }
+                $ds       = isset($ch['duration_seconds']) ? (int) $ch['duration_seconds'] : 0;
+                $total_sec += $ds;
+                $st       = isset($ch['timestamp']) ? (string) $ch['timestamp'] : (isset($ch['start_time']) ? (string) $ch['start_time'] : '00:00:00');
+                $dur_human = isset($ch['duration']) && is_string($ch['duration']) && $ch['duration'] !== ''
+                    ? (string) $ch['duration']
+                    : self::format_duration_for_prompt($ds);
+                $ct = isset($ch['title']) ? (string) $ch['title'] : '';
+                $lines[] = '  • timestamp=' . $st . ' | title=' . $ct . ' | duration=' . $dur_human;
+            }
+        }
+        $lines[] = '';
+        $lines[] = 'TOTAL_CHAPTER_DURATION_SECONDS (sum of all chapter durations above): ' . $total_sec;
+        $lines[] = 'TOTAL_CHAPTER_DURATION_FORMATTED: ' . self::format_duration_for_prompt($total_sec);
+        $lines[] = '---END LESSONS_CHAPTERS_DATA---';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     * @return string
+     */
+    private static function build_all_lesson_descriptions_block(array $raw) {
+        $ordered = self::ordered_lesson_data_list_for_prompt($raw);
+        if (array() === $ordered) {
+            return '';
+        }
+        $lines   = array();
+        $lines[] = '---ALL_LESSON_DESCRIPTIONS (for "Everything That\'s Included" and related sections — when multiple lessons, synthesize from the combined scope below)---';
+        foreach ($ordered as $item ) {
+            if (!is_array($item) || empty($item['lesson'])) {
+                continue;
+            }
+            $title = isset($item['lesson']['title']) ? (string) $item['lesson']['title'] : '';
+            $desc  = isset($item['lesson']['description']) ? trim((string) $item['lesson']['description']) : '';
+            $lines[] = 'Lesson: ' . $title;
+            $lines[] = 'Description: ' . ('' !== $desc ? $desc : '(none)');
+            $lines[] = '';
+        }
+        $lines[] = '---END ALL_LESSON_DESCRIPTIONS---';
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed>|null $lesson_data
+     * @param int                       $lesson_index 1-based index for multi-lesson prompts.
+     * @param bool                      $is_primary   Whether this is the primary lesson (for headings).
+     * @param bool                      $with_heading When true, prepend "### Lesson N: Title (PRIMARY)?" before the block.
+     */
+    private static function build_lesson_data_user_block($lesson_data, $lesson_index = 1, $is_primary = false, $with_heading = false) {
         if (!is_array($lesson_data) || empty($lesson_data['lesson']) || !is_array($lesson_data['lesson'])) {
             return '';
         }
@@ -786,7 +900,12 @@ FC_HELPER_SYSTEM;
         $desc     = isset($lesson['description']) ? (string) $lesson['description'] : '';
         $count    = count($chapters);
 
-        $lines   = array();
+        $lines = array();
+        if ($with_heading) {
+            $idx = max(1, (int) $lesson_index);
+            $lines[] = '### Lesson ' . $idx . ': ' . $title . ($is_primary ? ' (PRIMARY)' : '');
+            $lines[] = '';
+        }
         $lines[] = '---LESSON DATA FROM ACADEMY LESSON MANAGER---';
         $lines[] = '';
         $lines[] = 'Lesson Title: ' . $title;
@@ -858,16 +977,61 @@ FC_HELPER_SYSTEM;
         $lines[] = 'Write full, specific copy — do not use placeholder text.';
         $lines[] = '';
         $lines[] = 'PRODUCT DETAILS:';
-        $lines[] = 'Title: ' . $t('product_title');
+        $lines[] = 'Title (H1 / hero — use verbatim, character-for-character): ' . $t('product_title');
         $lines[] = 'Description: ' . $t('description');
         $lines[] = 'Sample Video URL: ' . $t('sample_video_url');
         $lines[] = 'Sample Video Splash Image URL: ' . $t('sample_video_splash_url');
         $lines[] = 'Additional Notes / AI Instructions: ' . $t('additional_notes');
         $lines[] = '';
-        $lesson_block = self::build_lesson_data_user_block(isset($raw['lesson_data']) ? $raw['lesson_data'] : null);
-        if ($lesson_block !== '') {
-            $lines[] = $lesson_block;
+        $ordered = self::ordered_lesson_data_list_for_prompt($raw);
+        $n_less  = count($ordered);
+        if ($n_less >= 2) {
+            $lines[] = 'BUNDLE: This product includes ' . $n_less . ' lessons. Hero subtitle must communicate a multi-lesson bundle. Course Chapters section 4b must use per-lesson H3 grouping as specified in LESSONS_CHAPTERS_DATA order (primary lesson first).';
+        } elseif (1 === $n_less) {
+            $lines[] = 'BUNDLE: single lesson — Course Chapters section 4b uses a flat chapter list (no per-lesson H3 grouping).';
+        }
+        $lines[] = '';
+
+        $chapters_block = self::build_lessons_chapters_data_block($raw);
+        if ($chapters_block !== '') {
+            $lines[] = $chapters_block;
             $lines[] = '';
+        }
+        $desc_block = self::build_all_lesson_descriptions_block($raw);
+        if ($desc_block !== '') {
+            $lines[] = $desc_block;
+            $lines[] = '';
+        }
+
+        $list       = $ordered;
+        $primary_id = isset($raw['lesson_id']) ? absint($raw['lesson_id']) : 0;
+        if (count($list) > 1) {
+            $idx = 0;
+            foreach ($list as $item ) {
+                if (!is_array($item) || empty($item['lesson']) || !is_array($item['lesson'])) {
+                    continue;
+                }
+                ++$idx;
+                $lid = isset($item['lesson']['id']) ? absint($item['lesson']['id']) : 0;
+                $is_primary = ($primary_id > 0 && $lid === $primary_id);
+                $block      = self::build_lesson_data_user_block($item, $idx, $is_primary, true);
+                if ($block !== '') {
+                    $lines[] = $block;
+                    $lines[] = '';
+                }
+            }
+        } else {
+            $single = null;
+            if (1 === count($list)) {
+                $single = $list[0];
+            } elseif (isset($raw['lesson_data']) && is_array($raw['lesson_data'])) {
+                $single = $raw['lesson_data'];
+            }
+            $lesson_block = self::build_lesson_data_user_block($single, 1, true, false);
+            if ($lesson_block !== '') {
+                $lines[] = $lesson_block;
+                $lines[] = '';
+            }
         }
         $lines[] = 'THEME COLORS:';
         $lines[] = 'Primary background: ' . $primary;

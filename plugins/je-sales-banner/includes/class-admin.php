@@ -41,7 +41,8 @@ class JE_SB_Admin
 
     public static function enqueue_assets($hook)
     {
-        if ($hook !== 'toplevel_page_' . self::PAGE_SLUG) {
+        $screen = get_current_screen();
+        if (!$screen || strpos($screen->id, self::PAGE_SLUG) === false) {
             return;
         }
 
@@ -52,11 +53,14 @@ class JE_SB_Admin
             JE_SB_VERSION
         );
 
+        $admin_js_path = JE_SB_PLUGIN_DIR . 'assets/js/admin.js';
+        $admin_js_ver  = is_readable($admin_js_path) ? (string) filemtime($admin_js_path) : JE_SB_VERSION;
+
         wp_enqueue_script(
             'je-sb-admin',
             JE_SB_PLUGIN_URL . 'assets/js/admin.js',
             array(),
-            JE_SB_VERSION,
+            $admin_js_ver,
             true
         );
 
@@ -77,6 +81,7 @@ class JE_SB_Admin
                     'useCode' => __('Use Code:', 'je-sales-banner'),
                     'copied' => __('Copied!', 'je-sales-banner'),
                     'copyShortcode' => __('Copy Shortcode', 'je-sales-banner'),
+                    'copyManualPrompt' => __('Copy failed — select the shortcode below (Ctrl/Cmd+C):', 'je-sales-banner'),
                 ),
                 'defaults' => array(
                     'ctaLabel' => __('Shop Now', 'je-sales-banner'),
@@ -89,6 +94,16 @@ class JE_SB_Admin
                     : '',
             )
         );
+
+        $fallback_path = JE_SB_PLUGIN_DIR . 'assets/js/admin-copy-fallback.js';
+        if (is_readable($fallback_path)) {
+            wp_add_inline_script(
+                'je-sb-admin',
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- local plugin file only.
+                file_get_contents($fallback_path),
+                'after'
+            );
+        }
 
         if ($preview_row) {
             wp_enqueue_style('je-sb-frontend', JE_SB_PLUGIN_URL . 'assets/css/frontend.css', array(), JE_SB_VERSION);
@@ -203,6 +218,9 @@ class JE_SB_Admin
         $start = isset($_POST['start_date']) ? self::datetime_local_to_mysql(wp_unslash($_POST['start_date'])) : current_time('mysql');
         $end = isset($_POST['end_date']) ? self::datetime_local_to_mysql(wp_unslash($_POST['end_date'])) : current_time('mysql');
         $is_active = !empty($_POST['is_active']) ? 1 : 0;
+        $show_popup = !empty($_POST['show_popup']) ? 1 : 0;
+        $popup_delay_seconds = isset($_POST['popup_delay_seconds']) ? (int) wp_unslash($_POST['popup_delay_seconds']) : 0;
+        $popup_delay_seconds = max(0, min(3600, $popup_delay_seconds));
         $coupon_code = isset($_POST['coupon_code']) ? sanitize_text_field(wp_unslash($_POST['coupon_code'])) : '';
         $coupon_highlight = isset($_POST['coupon_highlight_color']) ? sanitize_hex_color(wp_unslash($_POST['coupon_highlight_color'])) : '';
         if ($coupon_highlight === '') {
@@ -218,6 +236,8 @@ class JE_SB_Admin
             'cta_url' => $cta_url,
             'template' => $template,
             'display_location' => $display_location,
+            'show_popup' => $show_popup,
+            'popup_delay_seconds' => $popup_delay_seconds,
             'start_date' => $start,
             'end_date' => $end,
             'is_active' => $is_active,
@@ -356,15 +376,20 @@ class JE_SB_Admin
                 )
             ) . '</td>';
             $shortcode_text = '[sale_banner id="' . $tid . '"]';
-            $toggle_icon = $active ? 'dashicons-controls-pause' : 'dashicons-controls-play';
+            $toggle_text = $active ? __('Deactivate', 'je-sales-banner') : __('Activate', 'je-sales-banner');
 
-            echo '<td class="je-sb-actions"><div class="je-sb-actions-row">';
-            echo '<a href="' . esc_url($edit_url) . '" class="je-sb-action-btn je-sb-action-btn--edit" title="' . esc_attr__('Edit', 'je-sales-banner') . '" aria-label="' . esc_attr__('Edit', 'je-sales-banner') . '"><span class="dashicons dashicons-edit" aria-hidden="true"></span></a>';
-            echo '<button type="button" class="je-sb-action-btn je-sb-action-btn--copy-shortcode" data-je-sb-shortcode="' . esc_attr($shortcode_text) . '" title="' . esc_attr__('Copy Shortcode', 'je-sales-banner') . '" aria-label="' . esc_attr__('Copy Shortcode', 'je-sales-banner') . '"><span class="dashicons dashicons-clipboard" aria-hidden="true"></span></button>';
-            echo '<a href="' . esc_url($duplicate_url) . '" class="je-sb-action-btn je-sb-action-btn--duplicate" title="' . esc_attr__('Duplicate', 'je-sales-banner') . '" aria-label="' . esc_attr__('Duplicate', 'je-sales-banner') . '"><span class="dashicons dashicons-admin-page" aria-hidden="true"></span></a>';
-            echo '<a href="' . esc_url($preview_url) . '" target="_blank" rel="noopener noreferrer" class="je-sb-action-btn je-sb-action-btn--preview" title="' . esc_attr__('Preview', 'je-sales-banner') . '" aria-label="' . esc_attr__('Preview', 'je-sales-banner') . '"><span class="dashicons dashicons-visibility" aria-hidden="true"></span></a>';
-            echo '<a href="' . esc_url($toggle_url) . '" class="je-sb-action-btn je-sb-action-btn--toggle' . ($active ? ' is-active' : '') . '" title="' . esc_attr__('Toggle Active', 'je-sales-banner') . '" aria-label="' . esc_attr__('Toggle Active', 'je-sales-banner') . '"><span class="dashicons ' . esc_attr($toggle_icon) . '" aria-hidden="true"></span></a>';
-            echo '<a href="' . esc_url($delete_url) . '" class="je-sb-action-btn je-sb-action-btn--delete je-sb-delete-link" data-confirm="' . esc_attr__('Delete this banner?', 'je-sales-banner') . '" title="' . esc_attr__('Delete', 'je-sales-banner') . '" aria-label="' . esc_attr__('Delete', 'je-sales-banner') . '"><span class="dashicons dashicons-trash" aria-hidden="true"></span></a>';
+            echo '<td class="je-sb-actions"><div class="je-sb-row-actions">';
+            echo '<a href="' . esc_url($edit_url) . '">' . esc_html__('Edit', 'je-sales-banner') . '</a>';
+            echo '<span class="sep">|</span>';
+            echo '<a href="#" data-je-sb-shortcode="' . esc_attr($shortcode_text) . '" class="je-sb-copy-shortcode">' . esc_html__('Copy Shortcode', 'je-sales-banner') . '</a>';
+            echo '<span class="sep">|</span>';
+            echo '<a href="' . esc_url($duplicate_url) . '">' . esc_html__('Duplicate', 'je-sales-banner') . '</a>';
+            echo '<span class="sep">|</span>';
+            echo '<a href="' . esc_url($preview_url) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('Preview', 'je-sales-banner') . '</a>';
+            echo '<span class="sep">|</span>';
+            echo '<a href="' . esc_url($toggle_url) . '" class="je-sb-toggle">' . esc_html($toggle_text) . '</a>';
+            echo '<span class="sep">|</span>';
+            echo '<a href="' . esc_url($delete_url) . '" class="je-sb-delete" onclick="return confirm(\'' . esc_js(__('Delete this banner?', 'je-sales-banner')) . '\');">' . esc_html__('Delete', 'je-sales-banner') . '</a>';
             echo '</div></td>';
             echo '</tr>';
         }
@@ -424,6 +449,8 @@ class JE_SB_Admin
             'cta_url' => 'https://shop.jazzedge.com/shop',
             'template' => 1,
             'display_location' => 'shortcode',
+            'show_popup' => 0,
+            'popup_delay_seconds' => 0,
             'start_date' => current_time('mysql'),
             'end_date' => $default_end,
             'is_active' => 0,
@@ -465,9 +492,7 @@ class JE_SB_Admin
             echo '<tr><th scope="row">' . esc_html__('Shortcode', 'je-sales-banner') . '</th><td>';
             echo '<div class="je-sb-shortcode-display">';
             echo '<code>' . esc_html($shortcode_text) . '</code>';
-            echo '<button type="button" data-je-sb-shortcode="' . esc_attr($shortcode_text) . '" class="je-sb-action-btn" title="' . esc_attr__('Copy Shortcode', 'je-sales-banner') . '" aria-label="' . esc_attr__('Copy Shortcode', 'je-sales-banner') . '">';
-            echo '<span class="dashicons dashicons-clipboard" aria-hidden="true"></span>';
-            echo '</button>';
+            echo '<a href="#" data-je-sb-shortcode="' . esc_attr($shortcode_text) . '" class="je-sb-copy-shortcode">' . esc_html__('Copy Shortcode', 'je-sales-banner') . '</a>';
             echo '</div>';
             echo '</td></tr>';
         }
@@ -506,6 +531,19 @@ class JE_SB_Admin
         echo '<label><input type="radio" name="display_location" value="header" class="je-sb-field" ' . checked($data['display_location'], 'header', false) . ' /> ' . esc_html__('Header', 'je-sales-banner') . '</label><br />';
         echo '<label><input type="radio" name="display_location" value="footer" class="je-sb-field" ' . checked($data['display_location'], 'footer', false) . ' /> ' . esc_html__('Footer', 'je-sales-banner') . '</label><br />';
         echo '<label><input type="radio" name="display_location" value="both" class="je-sb-field" ' . checked($data['display_location'], 'both', false) . ' /> ' . esc_html__('Header + Footer', 'je-sales-banner') . '</label>';
+        echo '</td></tr>';
+
+        $show_popup_val = !empty($data['show_popup']) ? 1 : 0;
+        echo '<tr><th>' . esc_html__('Popup', 'je-sales-banner') . '</th><td>';
+        echo '<label><input type="checkbox" name="show_popup" value="1" class="je-sb-field" ' . checked($show_popup_val, 1, false) . ' /> ';
+        echo esc_html__('Also show a simple dismissible popup on the site', 'je-sales-banner') . '</label>';
+        echo '<p class="description">' . esc_html__('Uses the same title, description, offer, and CTA as this banner. Header and footer bars keep showing after the popup is closed.', 'je-sales-banner') . '</p>';
+        echo '</td></tr>';
+
+        $delay_val = isset($data['popup_delay_seconds']) ? max(0, min(3600, (int) $data['popup_delay_seconds'])) : 0;
+        echo '<tr><th><label for="je_sb_popup_delay">' . esc_html__('Popup delay (seconds)', 'je-sales-banner') . '</label></th><td>';
+        echo '<input name="popup_delay_seconds" id="je_sb_popup_delay" type="number" min="0" max="3600" step="1" class="small-text je-sb-field" value="' . esc_attr((string) $delay_val) . '" />';
+        echo '<p class="description">' . esc_html__('Wait this many seconds after the page loads before showing the popup (0 = show as soon as the page is ready).', 'je-sales-banner') . '</p>';
         echo '</td></tr>';
 
         echo '<tr><th>' . esc_html__('Active', 'je-sales-banner') . '</th><td>';

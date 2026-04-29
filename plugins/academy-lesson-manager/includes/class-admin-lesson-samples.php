@@ -1488,37 +1488,33 @@ class ALM_Admin_Lesson_Samples {
         // error_log($debug_msg);
         // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
         
-        // Determine video source and handle download
+        // Determine video source and handle download (Bunny may return false so Vimeo can be tried)
+        $downloaded = false;
+
         if (!empty($chapter->bunny_url)) {
-            // DISABLED: Debug logging
-            // $debug_msg = 'ALM Download Debug: Calling download_bunny_video' . "\n";
-            // error_log($debug_msg);
-            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
-            // Bunny.net video - try to download via API
-            $this->download_bunny_video($chapter->bunny_url, $filename);
-        } elseif (!empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
-            // DISABLED: Debug logging
-            // $debug_msg = 'ALM Download Debug: Calling download_vimeo_video with vimeo_id = ' . $chapter->vimeo_id . "\n";
-            // error_log($debug_msg);
-            // @file_put_contents(WP_CONTENT_DIR . '/alm-download-debug.log', $debug_msg, FILE_APPEND);
-            // Vimeo video - download via Vimeo API
+            $downloaded = $this->download_bunny_video($chapter->bunny_url, $filename);
+            // download_bunny_video calls exit() on success, so if we reach here it returned false
+        }
+
+        if (!$downloaded && !empty($chapter->vimeo_id) && $chapter->vimeo_id > 0) {
             $this->download_vimeo_video($chapter->vimeo_id, $filename);
-        } elseif (!empty($chapter->youtube_id)) {
-            // YouTube video - provide download link/instructions
+        } elseif (!$downloaded && !empty($chapter->youtube_id)) {
             wp_die(sprintf(
-                __('YouTube videos cannot be downloaded directly. Please use a YouTube download tool or contact support. Video ID: %s', 'academy-lesson-manager'),
+                __('YouTube videos cannot be downloaded directly. Video ID: %s', 'academy-lesson-manager'),
                 esc_html($chapter->youtube_id)
             ));
-        } else {
+        } elseif (!$downloaded) {
             wp_die(__('Unable to determine video source.', 'academy-lesson-manager'));
         }
     }
     
     /**
      * Download Bunny.net video
-     * 
+     *
+     * On success, opens the direct Bunny CDN URL in the admin browser and exits.
+     *
      * @param string $bunny_url Bunny.net video URL
-     * @param string $filename Desired filename
+     * @param string $filename  Desired filename
      */
     private function download_bunny_video($bunny_url, $filename) {
         // Prevent any output buffering issues
@@ -1578,163 +1574,98 @@ class ALM_Admin_Lesson_Samples {
             wp_die(__('Failed to parse JSON response from Bunny.net API.', 'academy-lesson-manager'));
         }
         
-        // Construct MP4 URL using Bunny.net's MP4 fallback URL pattern:
-        // https://{pull_zone_hostname}/{video_id}/play_{height}p.mp4
-        // Most common: play_720p.mp4
-        
-        // Get pull zone hostname (playback hostname)
+        // Resolve pull zone hostname
         $pull_zone_hostname = null;
-        
-        // First, try to extract from bunny_url
         $parsed = parse_url($bunny_url);
         if (isset($parsed['host']) && strpos($parsed['host'], 'vz-') === 0) {
             $pull_zone_hostname = $parsed['host'];
         }
-        
-        // If not found, try to get from settings or API response
-        if (!$pull_zone_hostname) {
-            $cdn_hostname = get_option('bunny_video_webhook_cdn_hostname', '');
-            if (!empty($cdn_hostname) && strpos($cdn_hostname, 'vz-') === 0) {
-                $pull_zone_hostname = $cdn_hostname;
-            }
-        }
-        
-        // If still not found, check API response for hostname
         if (!$pull_zone_hostname && isset($data['hostname']) && !empty($data['hostname'])) {
             $pull_zone_hostname = $data['hostname'];
         }
-        
-        // Last resort: try to extract from any URL in the response
-        if (!$pull_zone_hostname && isset($data['thumbnailFileName'])) {
-            // Sometimes the thumbnail URL contains the hostname
-            if (isset($data['thumbnailUrl']) && !empty($data['thumbnailUrl'])) {
-                $thumb_parsed = parse_url($data['thumbnailUrl']);
-                if (isset($thumb_parsed['host']) && strpos($thumb_parsed['host'], 'vz-') === 0) {
-                    $pull_zone_hostname = $thumb_parsed['host'];
-                }
+        if (!$pull_zone_hostname) {
+            $cdn_hostname = get_option('bunny_video_webhook_cdn_hostname', '');
+            if (!empty($cdn_hostname)) {
+                $pull_zone_hostname = $cdn_hostname;
             }
         }
-        
+
         if (!$pull_zone_hostname) {
-            wp_die(__('Could not determine Bunny.net pull zone hostname. Please check your Bunny.net URL format or settings.', 'academy-lesson-manager'));
+            wp_die(__('Could not determine Bunny.net pull zone hostname.', 'academy-lesson-manager'));
         }
-        
-        // Construct the MP4 URL using the correct pattern
-        // Use 720p as default (most common)
+
+        // Hardcode 720p as the default (most common Bunny encoding)
         $download_url = sprintf('https://%s/%s/play_720p.mp4', $pull_zone_hostname, $video_id);
-        
-        // Stream the file from Bunny.net with download headers to force download
-        // Clear any output buffers first
+
+        // Generate safe filename
+        $safe_filename = sanitize_file_name($filename);
+        if (empty($safe_filename)) {
+            $safe_filename = 'video-' . $video_id;
+        }
+        if (strpos($safe_filename, '.mp4') === false) {
+            $safe_filename .= '.mp4';
+        }
+
         while (ob_get_level()) {
             ob_end_clean();
         }
-        
-        // Disable error display
         @ini_set('display_errors', 0);
-        
-        // Set headers to force download
+
         if (!headers_sent()) {
-            // Generate filename from chapter title or use video ID
-            $safe_filename = sanitize_file_name($filename);
-            if (empty($safe_filename)) {
-                $safe_filename = 'video-' . $video_id;
-            }
-            if (strpos($safe_filename, '.mp4') === false) {
-                $safe_filename .= '.mp4';
-            }
-            
-            // Set download headers
             header('Content-Type: video/mp4');
             header('Content-Disposition: attachment; filename="' . $safe_filename . '"');
             header('Content-Transfer-Encoding: binary');
             header('Cache-Control: no-cache, must-revalidate');
             header('Expires: Sat, 26 Jul 1997 05:00:00 GMT');
-            
-            // Stream the file from Bunny.net with proper headers to avoid 403
+
             $ch = curl_init($download_url);
             curl_setopt_array($ch, array(
                 CURLOPT_RETURNTRANSFER => false,
                 CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HEADER => false,
-                CURLOPT_FAILONERROR => false,
-                CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                CURLOPT_REFERER => home_url(),
-                CURLOPT_HTTPHEADER => array(
+                CURLOPT_HEADER         => false,
+                CURLOPT_FAILONERROR    => true, // FIX: don't stream 404 HTML into the file
+                CURLOPT_TIMEOUT        => 600,
+                CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                CURLOPT_REFERER        => home_url(),
+                CURLOPT_HTTPHEADER     => array(
                     'Accept: video/mp4,video/*;q=0.9,*/*;q=0.8',
-                    'Accept-Language: en-US,en;q=0.9',
                     'Accept-Encoding: identity',
                     'Connection: keep-alive',
                 ),
-                CURLOPT_WRITEFUNCTION => function($ch, $data) {
+                CURLOPT_WRITEFUNCTION  => function ($ch, $data) {
                     echo $data;
                     flush();
                     if (ob_get_level()) {
                         ob_flush();
                     }
                     return strlen($data);
-                }
+                },
             ));
-            
-            $result = curl_exec($ch);
+
+            $result    = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error = curl_error($ch);
             curl_close($ch);
-            
-            if (!$result || $http_code !== 200) {
-                // If streaming failed, try wp_remote_get with proper headers
-                header_remove();
-                
-                // Reset headers for download
-                header('Content-Type: video/mp4');
-                header('Content-Disposition: attachment; filename="' . $safe_filename . '"');
-                header('Content-Transfer-Encoding: binary');
-                
-                // Try using wp_remote_get to fetch and stream
-                $response = wp_remote_get($download_url, array(
-                    'timeout' => 300,
-                    'stream' => true,
-                    'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'headers' => array(
-                        'Referer' => home_url(),
-                        'Accept' => 'video/mp4,video/*;q=0.9,*/*;q=0.8',
-                    ),
-                    'sslverify' => true,
-                ));
-                
-                if (!is_wp_error($response)) {
-                    $response_code = wp_remote_retrieve_response_code($response);
-                    if ($response_code === 200) {
-                        // Stream the body in chunks
-                        $body = wp_remote_retrieve_body($response);
-                        if (!empty($body)) {
-                            echo $body;
-                            flush();
-                            exit;
-                        }
-                    }
-                }
-                
-                // Last resort: output JavaScript to force download client-side
-                header_remove();
-                echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Downloading...</title></head><body>';
-                echo '<script>';
-                echo 'var link = document.createElement("a");';
-                echo 'link.href = ' . json_encode($download_url) . ';';
-                echo 'link.download = ' . json_encode($safe_filename) . ';';
-                echo 'link.target = "_blank";';
-                echo 'document.body.appendChild(link);';
-                echo 'link.click();';
-                echo 'document.body.removeChild(link);';
-                echo 'setTimeout(function(){ window.close(); }, 1000);';
-                echo '</script>';
-                echo '<p>Download should start automatically. <a href="' . esc_url($download_url) . '" download="' . esc_attr($safe_filename) . '">Click here if it doesn\'t</a>.</p>';
-                echo '</body></html>';
+
+            if ($result && $http_code === 200) {
                 exit;
             }
-            
+
+            // cURL failed — fall back to JS download page (stays in same window)
+            header_remove();
+            echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Downloading...</title></head><body style="font-family:sans-serif;padding:30px;">';
+            echo '<p>Starting download for <strong>' . esc_html($safe_filename) . '</strong>...</p>';
+            echo '<script>';
+            echo 'var a=document.createElement("a");';
+            echo 'a.href=' . json_encode($download_url) . ';';
+            echo 'a.download=' . json_encode($safe_filename) . ';';
+            echo 'document.body.appendChild(a);a.click();document.body.removeChild(a);';
+            // FIX: removed window.close() — don't kill the admin tab
+            echo '</script>';
+            echo '<p><a href="' . esc_url($download_url) . '" download="' . esc_attr($safe_filename) . '">Click here if download doesn\'t start</a></p>';
+            echo '<p><a href="javascript:history.back()">← Back to Lesson</a></p>';
+            echo '</body></html>';
             exit;
         } else {
-            // If headers already sent, fall back to redirect
             wp_redirect($download_url, 302);
             exit;
         }

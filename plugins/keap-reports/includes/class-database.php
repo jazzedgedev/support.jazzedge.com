@@ -889,79 +889,114 @@ class Keap_Reports_Database {
 
         return $result;
     }
+
+    /**
+     * Fetch FluentCart order totals from the remote shop REST API (JE FC Orders API).
+     *
+     * @param int $year
+     * @param int $from_month
+     * @param int $through_month
+     * @return array { 'revenue' => float, 'orders' => int }
+     */
+    private function call_shop_fc_api($year, $from_month, $through_month) {
+        $shop_url = get_option('keap_reports_shop_url', 'https://shop.jazzedge.com');
+        $api_key  = get_option('keap_reports_shop_api_key', '');
+
+        if (!is_string($api_key) || $api_key === '') {
+            $this->add_log(
+                'FluentCart shop API: missing keap_reports_shop_api_key; skipping remote request.',
+                'warning',
+                array('year' => $year, 'from_month' => $from_month, 'through_month' => $through_month)
+            );
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+
+        $base = is_string($shop_url) ? rtrim($shop_url, '/') : '';
+        if ($base === '') {
+            $base = 'https://shop.jazzedge.com';
+        }
+
+        $url = $base . '/wp-json/jazzedge/v1/fc-orders';
+        $url = add_query_arg(
+            array(
+                'year'           => absint($year),
+                'from_month'     => absint($from_month),
+                'through_month'  => absint($through_month),
+            ),
+            $url
+        );
+
+        $response = wp_remote_get(
+            $url,
+            array(
+                'timeout' => 15,
+                'headers' => array(
+                    'X-JE-API-Key' => $api_key,
+                ),
+            )
+        );
+
+        if (is_wp_error($response)) {
+            $this->add_log(
+                'FluentCart shop API request failed: ' . $response->get_error_message(),
+                'warning',
+                array('url' => $url)
+            );
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code !== 200) {
+            $this->add_log(
+                'FluentCart shop API returned non-200 status: ' . (string) $code,
+                'warning',
+                array('url' => $url, 'body' => wp_remote_retrieve_body($response))
+            );
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        if (!is_array($data) || !array_key_exists('revenue', $data) || !array_key_exists('orders', $data)) {
+            $this->add_log(
+                'FluentCart shop API returned invalid JSON or missing keys.',
+                'warning',
+                array('url' => $url, 'body' => $body)
+            );
+            return array('revenue' => 0.0, 'orders' => 0);
+        }
+
+        return array(
+            'revenue' => floatval($data['revenue']),
+            'orders'  => intval($data['orders']),
+        );
+    }
     
     /**
-     * Get FluentCart completed orders count and revenue for a given month.
-     * Uses wp_fct_orders; only status = 'completed'. total_amount stored in cents.
+     * Get FluentCart completed orders count and revenue for a given month (remote shop API).
      *
      * @param int $year
      * @param int $month
      * @return array { 'revenue' => float, 'orders' => int }
      */
     public function get_fluentcart_month_totals($year, $month) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'fct_orders';
-        if (!$this->table_exists($table)) {
-            return array('revenue' => 0.0, 'orders' => 0);
-        }
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT COUNT(*) AS orders, COALESCE(SUM(total_amount), 0) AS total FROM {$table} 
-                WHERE status = %s AND YEAR(completed_at) = %d AND MONTH(completed_at) = %d",
-                'completed',
-                $year,
-                $month
-            ),
-            ARRAY_A
-        );
-        if (!$row) {
-            return array('revenue' => 0.0, 'orders' => 0);
-        }
-        $orders = isset($row['orders']) ? intval($row['orders']) : 0;
-        $total_cents = isset($row['total']) ? floatval($row['total']) : 0;
-        return array(
-            'revenue' => $total_cents / 100.0,
-            'orders'  => $orders
-        );
+        return $this->call_shop_fc_api($year, $month, $month);
     }
     
     /**
-     * Get FluentCart YTD revenue and orders (Jan 1 through end of given month).
+     * Get FluentCart YTD revenue and orders (Jan 1 through end of given month) via remote shop API.
      *
      * @param int $year Year
      * @param int $through_month Month (1-12) — through this month inclusive
      * @return array { 'revenue' => float, 'orders' => int }
      */
     public function get_fluentcart_ytd($year, $through_month) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'fct_orders';
-        if (!$this->table_exists($table)) {
-            return array('revenue' => 0.0, 'orders' => 0);
-        }
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT COUNT(*) AS orders, COALESCE(SUM(total_amount), 0) AS total FROM {$table} 
-                WHERE status = %s AND YEAR(completed_at) = %d AND MONTH(completed_at) <= %d",
-                'completed',
-                $year,
-                $through_month
-            ),
-            ARRAY_A
-        );
-        if (!$row) {
-            return array('revenue' => 0.0, 'orders' => 0);
-        }
-        $orders = isset($row['orders']) ? intval($row['orders']) : 0;
-        $total_cents = isset($row['total']) ? floatval($row['total']) : 0;
-        return array(
-            'revenue' => $total_cents / 100.0,
-            'orders'  => $orders
-        );
+        return $this->call_shop_fc_api($year, 1, $through_month);
     }
 
     /**
-     * Get FluentCart completed orders count and revenue for a date range (e.g. QTD).
-     * Uses wp_fct_orders; only status = 'completed'. total_amount stored in cents.
+     * Get FluentCart completed orders count and revenue for a date range (e.g. QTD) via remote shop API.
      *
      * @param int $year
      * @param int $from_month     Start month (1-12), inclusive
@@ -969,32 +1004,7 @@ class Keap_Reports_Database {
      * @return array { 'revenue' => float, 'orders' => int }
      */
     public function get_fluentcart_date_range($year, $from_month, $through_month) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'fct_orders';
-        if (!$this->table_exists($table)) {
-            return array('revenue' => 0.0, 'orders' => 0);
-        }
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT COUNT(*) AS orders, COALESCE(SUM(total_amount), 0) AS total FROM {$table}
-                WHERE status = %s AND YEAR(completed_at) = %d
-                  AND MONTH(completed_at) >= %d AND MONTH(completed_at) <= %d",
-                'completed',
-                $year,
-                $from_month,
-                $through_month
-            ),
-            ARRAY_A
-        );
-        if (!$row) {
-            return array('revenue' => 0.0, 'orders' => 0);
-        }
-        $orders      = isset($row['orders']) ? intval($row['orders'])  : 0;
-        $total_cents = isset($row['total'])  ? floatval($row['total']) : 0;
-        return array(
-            'revenue' => $total_cents / 100.0,
-            'orders'  => $orders
-        );
+        return $this->call_shop_fc_api($year, $from_month, $through_month);
     }
 
     /**

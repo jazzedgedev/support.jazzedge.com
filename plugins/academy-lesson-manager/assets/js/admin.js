@@ -42,7 +42,7 @@ function almQuickEditOpen(btn, data) {
         + '<option value="y"' + (freeY ? ' selected' : '') + '>Yes</option>'
         + '</select></div>'
         + '<div><label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Bunny URL</label>'
-        + '<input type="url" class="alm-qe-bunny-url" value="' + jQuery('<div>').text(data.bunny_url || '').html() + '" style="width:320px;" placeholder="https://..." /></div>'
+        + '<input type="url" class="alm-qe-bunny-url" value="' + jQuery('<div>').text(data.bunny_url || '').html() + '" style="width:320px;" placeholder="https://..." onfocus="this.select();" onclick="this.select();" /></div>'
         + '<div style="display:flex;gap:6px;">'
         + '<button type="button" class="button button-primary" onclick="almQuickEditSave(' + parseInt(data.id, 10) + ')">Save</button>'
         + '<button type="button" class="button" onclick="almQuickEditCancel()">Cancel</button>'

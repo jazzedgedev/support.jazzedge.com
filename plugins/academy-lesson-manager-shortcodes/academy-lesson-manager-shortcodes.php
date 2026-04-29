@@ -1179,13 +1179,10 @@ class ALM_Shortcodes_Plugin {
     public function enqueue_frontend_scripts() {
         // Only load on frontend
         if (!is_admin()) {
-            // Enqueue jQuery UI for drag and drop
-            wp_enqueue_script('jquery-ui-sortable');
-            
             wp_enqueue_script(
                 'alm-shortcodes-frontend',
                 ALM_SHORTCODES_PLUGIN_URL . 'assets/js/frontend.js',
-                array('jquery', 'jquery-ui-sortable'),
+                array('jquery'),
                 ALM_SHORTCODES_VERSION,
                 true
             );

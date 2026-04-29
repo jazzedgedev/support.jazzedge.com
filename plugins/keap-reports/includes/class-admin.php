@@ -50,6 +50,8 @@ class Keap_Reports_Admin {
         add_action('admin_init', array($this, 'register_settings'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_scripts'));
         add_action('wp_ajax_keap_reports_test_connection', array($this, 'ajax_test_connection'));
+        add_action('wp_ajax_keap_reports_debug_shop', array($this, 'ajax_debug_shop'));
+        add_action('wp_ajax_keap_reports_list_shop_orders', array($this, 'ajax_list_shop_orders'));
         add_action('wp_ajax_keap_reports_fetch', array($this, 'ajax_fetch_report'));
         add_action('wp_ajax_keap_reports_get_logs_for_copy', array($this, 'ajax_get_logs_for_copy'));
         add_action('wp_ajax_keap_reports_fetch_daily_subscriptions', array($this, 'ajax_fetch_daily_subscriptions'));
@@ -157,6 +159,18 @@ class Keap_Reports_Admin {
             'sanitize_callback' => 'rest_sanitize_boolean',
             'default' => false
         ));
+
+        register_setting('keap_reports_settings', 'keap_reports_shop_url', array(
+            'type' => 'string',
+            'sanitize_callback' => 'esc_url_raw',
+            'default' => 'https://shop.jazzedge.com'
+        ));
+
+        register_setting('keap_reports_settings', 'keap_reports_shop_api_key', array(
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => ''
+        ));
     }
     
     /**
@@ -198,9 +212,217 @@ class Keap_Reports_Admin {
         }
         
         $result = $this->api->test_connection();
-        
-        // Return both results
+
+        $shop_url = get_option('keap_reports_shop_url', 'https://shop.jazzedge.com');
+        $shop_key = get_option('keap_reports_shop_api_key', '');
+        if (!is_string($shop_url)) {
+            $shop_url = 'https://shop.jazzedge.com';
+        }
+        $shop_url = rtrim($shop_url, '/');
+
+        if (!is_string($shop_key) || $shop_key === '') {
+            $result['shop'] = array(
+                'success' => false,
+                'message' => 'Shop API key not configured',
+            );
+        } else {
+            $fc_url = $shop_url . '/wp-json/jazzedge/v1/fc-orders';
+            $fc_url = add_query_arg(
+                array(
+                    'year'           => (int) current_time('Y'),
+                    'from_month'     => 1,
+                    'through_month'  => 1,
+                ),
+                $fc_url
+            );
+
+            $shop_response = wp_remote_get(
+                $fc_url,
+                array(
+                    'timeout' => 10,
+                    'headers' => array(
+                        'X-JE-API-Key' => $shop_key,
+                    ),
+                )
+            );
+
+            if (is_wp_error($shop_response)) {
+                $result['shop'] = array(
+                    'success' => false,
+                    'message' => 'Could not reach shop: ' . $shop_response->get_error_message(),
+                );
+            } else {
+                $code = wp_remote_retrieve_response_code($shop_response);
+                if ($code === 200) {
+                    $result['shop'] = array(
+                        'success' => true,
+                        'message' => 'Shop FC Orders API connected',
+                    );
+                } elseif ($code === 401) {
+                    $result['shop'] = array(
+                        'success' => false,
+                        'message' => 'Shop API key rejected (401)',
+                    );
+                } else {
+                    $result['shop'] = array(
+                        'success' => false,
+                        'message' => 'Shop returned HTTP ' . $code,
+                    );
+                }
+            }
+        }
+
         wp_send_json_success($result);
+    }
+
+    /**
+     * AJAX: debug Shop FC Orders API (raw response for admins).
+     */
+    public function ajax_debug_shop() {
+        check_ajax_referer('keap_reports_debug_shop', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+
+        $shop_url = get_option('keap_reports_shop_url', 'https://shop.jazzedge.com');
+        $shop_key = get_option('keap_reports_shop_api_key', '');
+        if (!is_string($shop_url)) {
+            $shop_url = 'https://shop.jazzedge.com';
+        }
+        $shop_url = rtrim($shop_url, '/');
+        if (!is_string($shop_key)) {
+            $shop_key = '';
+        }
+
+        $year         = (int) current_time('Y');
+        $current_month = (int) current_time('n');
+
+        $request_url = $shop_url . '/wp-json/jazzedge/v1/fc-orders';
+        $request_url = add_query_arg(
+            array(
+                'year'           => $year,
+                'from_month'     => $current_month,
+                'through_month'  => $current_month,
+            ),
+            $request_url
+        );
+
+        $response = wp_remote_get(
+            $request_url,
+            array(
+                'timeout' => 15,
+                'headers' => array(
+                    'X-JE-API-Key' => $shop_key,
+                ),
+            )
+        );
+
+        if (is_wp_error($response)) {
+            wp_send_json_success(
+                array(
+                    'http_code'   => 0,
+                    'raw_body'    => $response->get_error_message(),
+                    'parsed'      => null,
+                    'request_url' => $request_url,
+                )
+            );
+            return;
+        }
+
+        $http_code = wp_remote_retrieve_response_code($response);
+        $raw_body  = wp_remote_retrieve_body($response);
+        $parsed    = json_decode($raw_body, true);
+        if (JSON_ERROR_NONE !== json_last_error()) {
+            $parsed = null;
+        }
+
+        wp_send_json_success(
+            array(
+                'http_code'   => $http_code,
+                'raw_body'    => $raw_body,
+                'parsed'      => $parsed,
+                'request_url' => $request_url,
+            )
+        );
+    }
+
+    /**
+     * AJAX: fetch Shop FC Orders list endpoint (individual orders for debugging).
+     */
+    public function ajax_list_shop_orders() {
+        check_ajax_referer('keap_reports_list_shop_orders', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Insufficient permissions'));
+            return;
+        }
+
+        $shop_url = get_option('keap_reports_shop_url', 'https://shop.jazzedge.com');
+        $shop_key = get_option('keap_reports_shop_api_key', '');
+        if (!is_string($shop_url)) {
+            $shop_url = 'https://shop.jazzedge.com';
+        }
+        $shop_url = rtrim($shop_url, '/');
+        if (!is_string($shop_key)) {
+            $shop_key = '';
+        }
+
+        $year          = (int) current_time('Y');
+        $current_month = (int) current_time('n');
+
+        $request_url = $shop_url . '/wp-json/jazzedge/v1/fc-orders-list';
+        $request_url = add_query_arg(
+            array(
+                'year'           => $year,
+                'from_month'     => $current_month,
+                'through_month'  => $current_month,
+            ),
+            $request_url
+        );
+
+        $response = wp_remote_get(
+            $request_url,
+            array(
+                'timeout' => 15,
+                'headers' => array(
+                    'X-JE-API-Key' => $shop_key,
+                ),
+            )
+        );
+
+        if (is_wp_error($response)) {
+            wp_send_json_success(
+                array(
+                    'request_url' => $request_url,
+                    'http_code'   => 0,
+                    'orders'      => array(),
+                    'error'       => $response->get_error_message(),
+                )
+            );
+            return;
+        }
+
+        $http_code = wp_remote_retrieve_response_code($response);
+        $raw_body  = wp_remote_retrieve_body($response);
+        $parsed    = json_decode($raw_body, true);
+        if (JSON_ERROR_NONE !== json_last_error()) {
+            $parsed = null;
+        }
+
+        $orders = array();
+        if (is_array($parsed)) {
+            $orders = $parsed;
+        }
+
+        wp_send_json_success(
+            array(
+                'request_url' => $request_url,
+                'http_code'   => $http_code,
+                'orders'      => $orders,
+            )
+        );
     }
     
     /**
@@ -267,6 +489,19 @@ class Keap_Reports_Admin {
             update_option('keap_reports_daily_fetch_time', $daily_fetch_time);
             update_option('keap_reports_app_name', $app_name);
             update_option('keap_reports_app_key', $app_key);
+
+            $shop_url = isset($_POST['keap_reports_shop_url']) ? esc_url_raw(trim((string) $_POST['keap_reports_shop_url'])) : '';
+            if ($shop_url === '') {
+                $shop_url = 'https://shop.jazzedge.com';
+            }
+            update_option('keap_reports_shop_url', $shop_url);
+
+            if (isset($_POST['keap_reports_shop_api_key'])) {
+                $shop_api_key = trim((string) $_POST['keap_reports_shop_api_key']);
+                if ($shop_api_key !== '') {
+                    update_option('keap_reports_shop_api_key', sanitize_text_field($shop_api_key));
+                }
+            }
             
             // Handle cron scheduling based on auto_fetch setting
             $cron = new Keap_Reports_Cron($this->reports);
@@ -311,6 +546,8 @@ class Keap_Reports_Admin {
         $daily_fetch_time = get_option('keap_reports_daily_fetch_time', '08:00');
         $app_name = get_option('keap_reports_app_name', 'ft217'); // Default to ft217
         $app_key = get_option('keap_reports_app_key', '');
+        $shop_url = get_option('keap_reports_shop_url', 'https://shop.jazzedge.com');
+        $shop_api_key = get_option('keap_reports_shop_api_key', '');
         $cron = new Keap_Reports_Cron($this->reports);
         $next_run = $cron->get_next_run_time();
         $next_daily_run = $cron->get_next_daily_subscription_run_time();
@@ -389,6 +626,46 @@ class Keap_Reports_Admin {
                         </tr>
                         <tr>
                             <th scope="row">
+                                <label for="keap_reports_shop_url">Shop URL</label>
+                            </th>
+                            <td>
+                                <input type="url"
+                                       id="keap_reports_shop_url"
+                                       name="keap_reports_shop_url"
+                                       value="<?php echo esc_attr($shop_url); ?>"
+                                       class="regular-text"
+                                       placeholder="https://shop.jazzedge.com"
+                                       style="width: 100%; max-width: 600px;" />
+                                <p class="description">
+                                    Base URL for the JazzEdge shop (FluentCart). Used for remote order totals via REST.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="keap_reports_shop_api_key">Shop API Key</label>
+                            </th>
+                            <td>
+                                <input type="password"
+                                       id="keap_reports_shop_api_key"
+                                       name="keap_reports_shop_api_key"
+                                       value=""
+                                       class="regular-text"
+                                       placeholder="<?php echo esc_attr(!empty($shop_api_key) ? '•••••••• (saved — enter new key to replace)' : ''); ?>"
+                                       autocomplete="off"
+                                       style="font-family: monospace; width: 100%; max-width: 600px;" />
+                                <p class="description">
+                                    API key for <code>X-JE-API-Key</code> on the shop's <code>/wp-json/jazzedge/v1/fc-orders</code> endpoint. Leave blank to keep the current key.
+                                </p>
+                                <?php if (!empty($shop_api_key)) : ?>
+                                    <p class="description" style="color: green;">
+                                        ✓ Shop API key is configured.
+                                    </p>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
                                 <label for="keap_reports_logging_level">Logging Level</label>
                             </th>
                             <td>
@@ -429,6 +706,20 @@ class Keap_Reports_Admin {
                                 Test Connection
                             </button>
                             <span id="connection-status" style="margin-left: 10px;"></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label>Shop API Debug</label>
+                        </th>
+                        <td>
+                            <button type="button" id="keap-reports-debug-shop-btn" class="button">
+                                Debug Shop API
+                            </button>
+                            <button type="button" id="keap-reports-list-shop-orders-btn" class="button" style="margin-left:6px;">
+                                List Orders
+                            </button>
+                            <pre id="keap-reports-debug-shop-pre" style="display:none;max-width:100%;overflow:auto;background:#f6f7f7;border:1px solid #c3c4c7;padding:12px;margin-top:10px;font-size:12px;line-height:1.4;"></pre>
                         </td>
                     </tr>
                     <tr>
@@ -582,6 +873,14 @@ class Keap_Reports_Admin {
                                 messages.push(xmlrpcMsg);
                             }
                             
+                            // Shop FC Orders API result
+                            if (response.data.shop) {
+                                var shopMsg = response.data.shop.success
+                                    ? '<span style="color: green;">✓ Shop: ' + response.data.shop.message + '</span>'
+                                    : '<span style="color: red;">✗ Shop: ' + response.data.shop.message + '</span>';
+                                messages.push(shopMsg);
+                            }
+                            
                             $status.html(messages.join('<br>'));
                         } else {
                             $status.html('<span style="color: red;">✗ Connection test failed</span>');
@@ -592,6 +891,110 @@ class Keap_Reports_Admin {
                     },
                     complete: function() {
                         $btn.prop('disabled', false).text('Test Connection');
+                    }
+                });
+            });
+
+            function keapReportsEscHtml(s) {
+                return $('<div/>').text(String(s == null ? '' : s)).html();
+            }
+
+            $('#keap-reports-debug-shop-btn').on('click', function() {
+                var $btn = $(this);
+                var $pre = $('#keap-reports-debug-shop-pre');
+                $btn.prop('disabled', true).text('Loading...');
+                $pre.hide().empty();
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_debug_shop',
+                        nonce: '<?php echo wp_create_nonce('keap_reports_debug_shop'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.data) {
+                            $pre.text(JSON.stringify(response.data, null, 2)).show();
+                        } else {
+                            $pre.text(JSON.stringify(response, null, 2)).show();
+                        }
+                    },
+                    error: function(xhr) {
+                        var err = { error: 'Request failed', status: xhr.status };
+                        try {
+                            err.response = JSON.parse(xhr.responseText);
+                        } catch (e) {
+                            err.responseText = xhr.responseText;
+                        }
+                        $pre.text(JSON.stringify(err, null, 2)).show();
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).text('Debug Shop API');
+                    }
+                });
+            });
+
+            $('#keap-reports-list-shop-orders-btn').on('click', function() {
+                var $btn = $(this);
+                var $pre = $('#keap-reports-debug-shop-pre');
+                $btn.prop('disabled', true).text('Loading...');
+                $pre.hide().empty();
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'keap_reports_list_shop_orders',
+                        nonce: '<?php echo wp_create_nonce('keap_reports_list_shop_orders'); ?>'
+                    },
+                    success: function(response) {
+                        if (!response.success || !response.data) {
+                            $pre.text(JSON.stringify(response, null, 2)).show();
+                            return;
+                        }
+                        var d = response.data;
+                        if (d.error) {
+                            $pre.html(
+                                '<p><strong>HTTP ' + keapReportsEscHtml(d.http_code) + '</strong> — ' + keapReportsEscHtml(d.error) + '</p>' +
+                                '<p>' + keapReportsEscHtml(d.request_url || '') + '</p>'
+                            ).show();
+                            return;
+                        }
+                        var orders = d.orders || [];
+                        if (!Array.isArray(orders)) {
+                            orders = [];
+                        }
+                        var total = 0;
+                        var i;
+                        var rows = '';
+                        for (i = 0; i < orders.length; i++) {
+                            var o = orders[i];
+                            var amt = parseFloat(o.amount, 10);
+                            if (!isNaN(amt)) {
+                                total += amt;
+                            }
+                            rows += '<tr>' +
+                                '<td>' + keapReportsEscHtml(o.date) + '</td>' +
+                                '<td>' + keapReportsEscHtml(o.name) + '</td>' +
+                                '<td style="text-align:right;">' + keapReportsEscHtml(typeof o.amount === 'number' ? o.amount.toFixed(2) : o.amount) + '</td>' +
+                                '</tr>';
+                        }
+                        var html = '<p style="margin:0 0 8px;"><code>' + keapReportsEscHtml(d.request_url || '') + '</code> <span style="color:#646970;">(HTTP ' + keapReportsEscHtml(d.http_code) + ')</span></p>' +
+                            '<table class="widefat striped" style="max-width:640px;"><thead><tr><th>Date</th><th>Name</th><th style="text-align:right;">Amount</th></tr></thead><tbody>' +
+                            rows +
+                            '<tr><td colspan="2"><strong>Total</strong></td><td style="text-align:right;"><strong>' + keapReportsEscHtml(total.toFixed(2)) + '</strong></td></tr>' +
+                            '</tbody></table>';
+                        $pre.html(html).show();
+                    },
+                    error: function(xhr) {
+                        var err = { error: 'Request failed', status: xhr.status };
+                        try {
+                            err.response = JSON.parse(xhr.responseText);
+                        } catch (e) {
+                            err.responseText = xhr.responseText;
+                        }
+                        $pre.text(JSON.stringify(err, null, 2)).show();
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).text('List Orders');
                     }
                 });
             });

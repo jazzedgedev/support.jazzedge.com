@@ -186,91 +186,127 @@
         startTimer();
     }
 
-    function bindDeleteConfirm() {
-        document.querySelectorAll('.je-sb-delete-link').forEach(function (a) {
-            a.addEventListener('click', function (e) {
-                var msg = a.getAttribute('data-confirm') || 'Delete?';
-                if (!window.confirm(msg)) {
-                    e.preventDefault();
-                }
-            });
-        });
-    }
-
     function bindCopyShortcode() {
+        if (window.__jeSbCopyShortcodeBound) {
+            return;
+        }
         var copyLabel =
             window.jeSbAdmin && jeSbAdmin.i18n && jeSbAdmin.i18n.copyShortcode
                 ? jeSbAdmin.i18n.copyShortcode
                 : 'Copy Shortcode';
         var copiedLabel =
             window.jeSbAdmin && jeSbAdmin.i18n && jeSbAdmin.i18n.copied ? jeSbAdmin.i18n.copied : 'Copied!';
+        var manualPrompt =
+            window.jeSbAdmin && jeSbAdmin.i18n && jeSbAdmin.i18n.copyManualPrompt
+                ? jeSbAdmin.i18n.copyManualPrompt
+                : 'Copy failed — select the shortcode below (Ctrl/Cmd+C):';
 
-        function fallbackCopy(text, onSuccess) {
+        function fallbackCopy(text, onSuccess, onFail) {
             var ta = document.createElement('textarea');
             ta.value = text;
+            ta.setAttribute('readonly', '');
             ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
             ta.style.opacity = '0';
             document.body.appendChild(ta);
+            ta.focus();
             ta.select();
+            ta.setSelectionRange(0, text.length);
+            var ok = false;
             try {
-                if (document.execCommand('copy')) {
-                    onSuccess();
+                ok = document.execCommand('copy');
+            } catch (err) {
+                document.body.removeChild(ta);
+                if (onFail) {
+                    onFail(err);
                 }
-            } catch (err) {}
+                return;
+            }
             document.body.removeChild(ta);
+            if (ok) {
+                onSuccess();
+            } else if (onFail) {
+                onFail(new Error('execCommand copy returned false'));
+            }
         }
 
         function showCopied(btn) {
-            var icon = btn.querySelector('.dashicons');
-            if (icon) {
-                icon.classList.remove('dashicons-clipboard');
-                icon.classList.add('dashicons-yes');
-            }
-            btn.title = copiedLabel;
-            btn.setAttribute('aria-label', copiedLabel);
+            btn.classList.add('copied');
+            btn.textContent = copiedLabel;
             window.setTimeout(function () {
-                if (icon) {
-                    icon.classList.remove('dashicons-yes');
-                    icon.classList.add('dashicons-clipboard');
-                }
-                btn.title = copyLabel;
-                btn.setAttribute('aria-label', copyLabel);
+                btn.classList.remove('copied');
+                btn.textContent = copyLabel;
             }, 1500);
         }
 
-        document.addEventListener('click', function (e) {
-            var btn = e.target.closest('[data-je-sb-shortcode]');
-            if (!btn) {
-                return;
-            }
-            e.preventDefault();
-            var text = btn.dataset.jeSbShortcode;
-            if (!text) {
-                return;
-            }
+        function copyFailedFinal(text) {
+            window.prompt(manualPrompt, text);
+        }
 
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard
-                    .writeText(text)
-                    .then(function () {
-                        showCopied(btn);
-                    })
-                    .catch(function () {
-                        fallbackCopy(text, function () {
-                            showCopied(btn);
-                        });
-                    });
-            } else {
-                fallbackCopy(text, function () {
+        /* Capture phase: runs before bubble handlers that might stop propagation on the link */
+        document.addEventListener(
+            'click',
+            function (e) {
+                var btn = e.target && e.target.closest ? e.target.closest('.je-sb-copy-shortcode') : null;
+                if (!btn) {
+                    return;
+                }
+                e.preventDefault();
+                var text = (btn.getAttribute('data-je-sb-shortcode') || '').trim();
+                if (!text && btn.dataset && btn.dataset.jeSbShortcode) {
+                    text = String(btn.dataset.jeSbShortcode).trim();
+                }
+                if (!text) {
+                    return;
+                }
+
+                function onOk() {
                     showCopied(btn);
-                });
-            }
-        });
+                }
+
+                function tryClipboard() {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(onOk).catch(function () {
+                            fallbackCopy(
+                                text,
+                                onOk,
+                                function () {
+                                    copyFailedFinal(text);
+                                }
+                            );
+                        });
+                    } else {
+                        fallbackCopy(
+                            text,
+                            onOk,
+                            function () {
+                                copyFailedFinal(text);
+                            }
+                        );
+                    }
+                }
+
+                tryClipboard();
+            },
+            true
+        );
+
+        window.__jeSbCopyShortcodeBound = true;
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        mountLivePreview();
-        bindDeleteConfirm();
-        bindCopyShortcode();
-    });
+    function initAdmin() {
+        try {
+            bindCopyShortcode();
+        } catch (err) {}
+        try {
+            mountLivePreview();
+        } catch (err) {}
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAdmin);
+    } else {
+        initAdmin();
+    }
 })();

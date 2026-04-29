@@ -10,83 +10,55 @@
     min-width: 0;
 }
 
-.je-sb-actions-row {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 2px;
+/* WP widefat can force inline layout on cell contents; use inline-flex + margins so spacing always applies */
+.je-sb-wrap table.widefat.je-sb-list-table td.je-sb-actions .je-sb-row-actions,
+.je-sb-row-actions {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px 12px !important;
+    column-gap: 12px !important;
+    row-gap: 8px !important;
+    font-size: 13px;
 }
 
-.je-sb-action-btn {
-    display: inline-flex;
-    width: 28px;
-    height: 28px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    color: #646970;
-    background: transparent;
-    border: none;
-    cursor: pointer;
+.je-sb-wrap table.widefat.je-sb-list-table td.je-sb-actions .je-sb-row-actions a,
+.je-sb-row-actions a {
+    display: inline !important;
+    color: #2271b1;
     text-decoration: none;
-    transition: background 0.15s ease, color 0.15s ease;
-    box-sizing: border-box;
-    padding: 0;
-    margin: 0;
-    font-family: inherit;
-    line-height: 1;
-    vertical-align: middle;
-    -webkit-appearance: none;
-    appearance: none;
-}
-
-.je-sb-action-btn:hover {
-    background: #f0f0f1;
-    color: #1d2327;
-}
-
-.je-sb-action-btn--delete:hover {
-    background: #fbeaea;
-    color: #b32d2e;
-}
-
-.je-sb-action-btn--toggle.is-active {
-    color: #00a32a;
-}
-
-.je-sb-action-btn--toggle.is-active:hover {
-    color: #00a32a;
-    background: #edfaef;
-}
-
-.je-sb-action-btn .dashicons {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
-    line-height: 1;
-}
-
-.je-sb-action-btn--copy-shortcode {
-    position: relative;
-}
-
-.je-sb-action-btn--copy-shortcode.is-copied::after {
-    content: attr(data-copied-msg);
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 4px 8px;
-    border-radius: 4px;
-    background: #1d2327;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.2;
     white-space: nowrap;
-    z-index: 5;
-    pointer-events: none;
+    flex: 0 0 auto;
+    margin: 0 2px;
+}
+
+.je-sb-wrap table.widefat.je-sb-list-table td.je-sb-actions .je-sb-row-actions a:hover,
+.je-sb-row-actions a:hover {
+    color: #135e96;
+    text-decoration: underline;
+}
+
+.je-sb-wrap table.widefat.je-sb-list-table td.je-sb-actions .je-sb-row-actions .sep,
+.je-sb-row-actions .sep {
+    color: #dcdcde;
+    user-select: none;
+    flex: 0 0 auto;
+    display: inline-block !important;
+    padding: 0 6px;
+    margin: 0;
+}
+
+.je-sb-delete {
+    color: #b32d2e !important;
+}
+
+.je-sb-delete:hover {
+    color: #8a1f1f !important;
+}
+
+.je-sb-copy-shortcode.copied {
+    color: #00a32a !important;
 }
 
 .je-sb-shortcode-display {
@@ -105,6 +77,18 @@
     background: none;
     border: none;
     padding: 0;
+}
+
+.je-sb-shortcode-display .je-sb-copy-shortcode {
+    color: #2271b1;
+    text-decoration: none;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.je-sb-shortcode-display .je-sb-copy-shortcode:hover {
+    color: #135e96;
+    text-decoration: underline;
 }
 
 .je-sb-badge {

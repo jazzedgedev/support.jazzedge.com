@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
 
 class JE_SB_Database
 {
-    const DB_VERSION = '1.0.0';
+    const DB_VERSION = '1.2.0';
 
     /**
      * @return string
@@ -38,6 +38,8 @@ class JE_SB_Database
             cta_label varchar(100) NOT NULL DEFAULT 'Shop Now',
             template tinyint(3) unsigned NOT NULL DEFAULT 1,
             display_location varchar(50) NOT NULL DEFAULT 'shortcode',
+            show_popup tinyint(1) NOT NULL DEFAULT 0,
+            popup_delay_seconds smallint unsigned NOT NULL DEFAULT 0,
             start_date datetime NOT NULL,
             end_date datetime NOT NULL,
             is_active tinyint(1) NOT NULL DEFAULT 0,
@@ -55,12 +57,47 @@ class JE_SB_Database
         update_option('je_sb_db_version', self::DB_VERSION);
     }
 
+    /**
+     * Add missing columns even when je_sb_db_version already matches (fixes stuck upgrades).
+     */
+    public static function ensure_schema_columns()
+    {
+        global $wpdb;
+        $table = self::table_name();
+        $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+        if ($table_exists !== $table) {
+            return;
+        }
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $cols = $wpdb->get_col("SHOW COLUMNS FROM `{$table}`", 0);
+        if (!is_array($cols)) {
+            return;
+        }
+
+        if (!in_array('show_popup', $cols, true)) {
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE `{$table}` ADD COLUMN show_popup tinyint(1) NOT NULL DEFAULT 0 AFTER display_location");
+            $cols[] = 'show_popup';
+        }
+        if (!in_array('popup_delay_seconds', $cols, true)) {
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE `{$table}` ADD COLUMN popup_delay_seconds smallint unsigned NOT NULL DEFAULT 0 AFTER show_popup");
+        }
+    }
+
     public static function maybe_upgrade()
     {
+        self::ensure_schema_columns();
+
         $ver = get_option('je_sb_db_version', '');
-        if ($ver !== self::DB_VERSION) {
-            self::create_table();
+        if ($ver === self::DB_VERSION) {
+            return;
         }
+
+        self::create_table();
+        self::ensure_schema_columns();
+        update_option('je_sb_db_version', self::DB_VERSION);
     }
 
     /**
@@ -169,6 +206,8 @@ class JE_SB_Database
             'cta_label' => isset($row->cta_label) ? (string) $row->cta_label : 'Shop Now',
             'template' => isset($row->template) ? (int) $row->template : 1,
             'display_location' => isset($row->display_location) ? (string) $row->display_location : 'shortcode',
+            'show_popup' => (isset($row->show_popup) && (int) $row->show_popup === 1) ? 1 : 0,
+            'popup_delay_seconds' => isset($row->popup_delay_seconds) ? max(0, min(3600, (int) $row->popup_delay_seconds)) : 0,
             'start_date' => isset($row->start_date) ? (string) $row->start_date : current_time('mysql'),
             'end_date' => isset($row->end_date) ? (string) $row->end_date : current_time('mysql'),
             'is_active' => 0,
@@ -199,6 +238,8 @@ class JE_SB_Database
             'cta_label' => 'Shop Now',
             'template' => 1,
             'display_location' => 'shortcode',
+            'show_popup' => 0,
+            'popup_delay_seconds' => 0,
             'start_date' => current_time('mysql'),
             'end_date' => current_time('mysql'),
             'is_active' => 0,
@@ -220,6 +261,8 @@ class JE_SB_Database
             : 'shortcode';
         $row['template'] = max(1, min(6, (int) $row['template']));
         $row['is_active'] = !empty($row['is_active']) ? 1 : 0;
+        $row['show_popup'] = !empty($row['show_popup']) ? 1 : 0;
+        $row['popup_delay_seconds'] = max(0, min(3600, (int) $row['popup_delay_seconds']));
 
         if ($row['coupon_code'] === '' || $row['coupon_code'] === null) {
             $row['coupon_code'] = null;
@@ -234,6 +277,8 @@ class JE_SB_Database
             'cta_label' => $row['cta_label'],
             'template' => $row['template'],
             'display_location' => $row['display_location'],
+            'show_popup' => $row['show_popup'],
+            'popup_delay_seconds' => $row['popup_delay_seconds'],
             'start_date' => $row['start_date'],
             'end_date' => $row['end_date'],
             'is_active' => $row['is_active'],
@@ -242,7 +287,7 @@ class JE_SB_Database
             'created_at' => $row['created_at'],
         );
 
-        $formats = array('%s', '%s', '%s', '%f', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s');
+        $formats = array('%s', '%s', '%s', '%f', '%s', '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s');
 
         $ok = $wpdb->insert($table, $insert, $formats);
         if (!$ok) {
@@ -283,6 +328,12 @@ class JE_SB_Database
         if (array_key_exists('is_active', $data)) {
             $data['is_active'] = !empty($data['is_active']) ? 1 : 0;
         }
+        if (array_key_exists('show_popup', $data)) {
+            $data['show_popup'] = !empty($data['show_popup']) ? 1 : 0;
+        }
+        if (array_key_exists('popup_delay_seconds', $data)) {
+            $data['popup_delay_seconds'] = max(0, min(3600, (int) $data['popup_delay_seconds']));
+        }
         if (array_key_exists('coupon_code', $data)) {
             if ($data['coupon_code'] === '' || $data['coupon_code'] === null) {
                 $data['coupon_code'] = null;
@@ -298,6 +349,8 @@ class JE_SB_Database
             'cta_label' => '%s',
             'template' => '%d',
             'display_location' => '%s',
+            'show_popup' => '%d',
+            'popup_delay_seconds' => '%d',
             'start_date' => '%s',
             'end_date' => '%s',
             'is_active' => '%d',

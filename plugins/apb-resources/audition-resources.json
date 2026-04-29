@@ -1,0 +1,9 @@
+[
+	{
+		"title": "Example resource",
+		"url": "https://example.com/resource",
+		"description": "Optional description text.",
+		"button_text": "Learn more...",
+		"sort_order": 0
+	}
+]

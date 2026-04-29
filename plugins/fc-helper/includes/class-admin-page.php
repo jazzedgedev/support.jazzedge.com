@@ -139,6 +139,17 @@ class FC_Helper_Admin_Page {
                     'themeInvalidData' => __('Invalid theme data.', 'fc-helper'),
                     'themeSlugRequired' => __('Theme slug is required.', 'fc-helper'),
                     'themeSaved'        => __('Theme saved.', 'fc-helper'),
+                    'primaryLabel'      => __('Primary', 'fc-helper'),
+                    'primaryLesson'     => __('Primary lesson', 'fc-helper'),
+                    'viewLesson'        => __('View', 'fc-helper'),
+                    'editLesson'        => __('Edit', 'fc-helper'),
+                    'makePrimary'       => __('Make primary', 'fc-helper'),
+                    'makePrimaryBtn'    => __('Make Primary', 'fc-helper'),
+                    'removeLesson'      => __('Remove lesson', 'fc-helper'),
+                    'maxLessons'        => __('Maximum 10 lessons.', 'fc-helper'),
+                    'lessonsSelected'   => __('selected', 'fc-helper'),
+                    'alreadyAdded'      => __('Already added', 'fc-helper'),
+                    'productNameRequired' => __('Please enter a product name.', 'fc-helper'),
                 ),
             )
         );
@@ -242,6 +253,11 @@ class FC_Helper_Admin_Page {
      */
     private function get_saved_products_for_js() {
         $list = $this->get_saved_products();
+        foreach ($list as $i => $p ) {
+            if (isset($p['data']) && is_array($p['data'])) {
+                $list[ $i ]['data'] = $this->attach_lesson_display_meta($p['data']);
+            }
+        }
         usort(
             $list,
             function ( $a, $b ) {
@@ -297,6 +313,156 @@ class FC_Helper_Admin_Page {
 
     /**
      * @param array<mixed, mixed> $data
+     * @return list<array{id:int, primary:bool}>
+     */
+    private function parse_stored_lesson_ids($data) {
+        if (!isset($data['lesson_ids'])) {
+            return array();
+        }
+        $v = $data['lesson_ids'];
+        if (is_string($v) && $v !== '') {
+            $decoded = json_decode($v, true);
+            $v       = is_array($decoded) ? $decoded : array();
+        }
+        if (!is_array($v)) {
+            return array();
+        }
+        $out = array();
+        foreach ($v as $row ) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $id = isset($row['id']) ? absint($row['id']) : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $out[] = array(
+                'id'      => $id,
+                'primary' => !empty($row['primary']),
+            );
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<mixed, mixed> $data
+     * @return list<array{lesson: array<string, mixed>, chapters: array<int, array<string, mixed>>}>|null
+     */
+    private function parse_stored_lesson_data_list($data) {
+        if (!isset($data['lesson_data_list'])) {
+            return null;
+        }
+        $v = $data['lesson_data_list'];
+        if (is_string($v) && $v !== '') {
+            $decoded = json_decode($v, true);
+            $v       = is_array($decoded) ? $decoded : null;
+        }
+        if (!is_array($v)) {
+            return null;
+        }
+        $out = array();
+        foreach ($v as $item ) {
+            if (!is_array($item) || empty($item['lesson']) || !is_array($item['lesson'])) {
+                continue;
+            }
+            $out[] = $this->sanitize_lesson_payload($item);
+        }
+        return $out === array() ? null : $out;
+    }
+
+    /**
+     * Dedupe by id (first wins), cap at 10, enforce exactly one primary.
+     *
+     * @param list<array{id:int, primary:bool}> $rows
+     * @return list<array{id:int, primary:bool}>
+     */
+    private function normalize_lesson_ids_rows(array $rows) {
+        $seen = array();
+        $out  = array();
+        foreach ($rows as $row ) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $id = isset($row['id']) ? absint($row['id']) : 0;
+            if ($id <= 0 || isset($seen[ $id ])) {
+                continue;
+            }
+            $seen[ $id ] = true;
+            $out[]       = array(
+                'id'      => $id,
+                'primary' => !empty($row['primary']),
+            );
+            if (count($out) >= 10) {
+                break;
+            }
+        }
+        if (array() === $out) {
+            return array();
+        }
+        $primary_count = 0;
+        foreach ($out as $r ) {
+            if (!empty($r['primary'])) {
+                ++$primary_count;
+            }
+        }
+        if (0 === $primary_count) {
+            $out[0]['primary'] = true;
+        } elseif ($primary_count > 1 ) {
+            $found = false;
+            foreach ($out as $i => $r ) {
+                if (!empty($r['primary'])) {
+                    if (!$found) {
+                        $found = true;
+                    } else {
+                        $out[ $i ]['primary'] = false;
+                    }
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * @param list<array{id:int, primary:bool}> $ids_rows
+     * @return int
+     */
+    private function primary_lesson_id_from_rows(array $ids_rows) {
+        foreach ($ids_rows as $r ) {
+            if (!empty($r['primary'])) {
+                return (int) $r['id'];
+            }
+        }
+        return isset($ids_rows[0]['id']) ? (int) $ids_rows[0]['id'] : 0;
+    }
+
+    /**
+     * @param list<array{id:int, primary:bool}> $ids_rows
+     * @param list<array{lesson: array<string, mixed>, chapters: array<int, array<string, mixed>>> $payloads
+     * @return list<array{lesson: array<string, mixed>, chapters: array<int, array<string, mixed>>}>
+     */
+    private function realign_lesson_data_list(array $ids_rows, array $payloads) {
+        $by_id = array();
+        foreach ($payloads as $pl ) {
+            if (!is_array($pl) || empty($pl['lesson']) || !is_array($pl['lesson'])) {
+                continue;
+            }
+            $id = isset($pl['lesson']['id']) ? absint($pl['lesson']['id']) : 0;
+            if ($id > 0) {
+                $by_id[ $id ] = $pl;
+            }
+        }
+        $out = array();
+        foreach ($ids_rows as $row ) {
+            $id = (int) $row['id'];
+            if (isset($by_id[ $id ])) {
+                $out[] = $by_id[ $id ];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<mixed, mixed> $data
      * @return array<string, mixed>
      */
     private function normalize_saved_product_data($data) {
@@ -320,6 +486,62 @@ class FC_Helper_Admin_Page {
                 $lesson_data = is_array($decoded) ? $decoded : null;
             }
         }
+        $lesson_ids_rows   = $this->parse_stored_lesson_ids($data);
+        $lesson_data_list  = $this->parse_stored_lesson_data_list($data);
+
+        if (array() === $lesson_ids_rows && $lesson_id > 0) {
+            $lesson_ids_rows = array(
+                array(
+                    'id'      => $lesson_id,
+                    'primary' => true,
+                ),
+            );
+        }
+
+        if (array() === $lesson_ids_rows && null !== $lesson_data && isset($lesson_data['lesson']['id'])) {
+            $lid = absint($lesson_data['lesson']['id']);
+            if ($lid > 0) {
+                $lesson_ids_rows = array(
+                    array(
+                        'id'      => $lid,
+                        'primary' => true,
+                    ),
+                );
+                if (null === $lesson_data_list) {
+                    $lesson_data_list = array( $lesson_data );
+                }
+            }
+        }
+
+        $lesson_ids_rows = $this->normalize_lesson_ids_rows($lesson_ids_rows);
+
+        if (array() === $lesson_ids_rows) {
+            $lesson_id = 0;
+        } else {
+            $lesson_id = $this->primary_lesson_id_from_rows($lesson_ids_rows);
+            if (is_array($lesson_data_list) && count($lesson_data_list) > 0) {
+                $lesson_data_list = $this->realign_lesson_data_list($lesson_ids_rows, $lesson_data_list);
+            } elseif (null !== $lesson_data && 1 === count($lesson_ids_rows)) {
+                $only = (int) $lesson_ids_rows[0]['id'];
+                $lid  = isset($lesson_data['lesson']['id']) ? absint($lesson_data['lesson']['id']) : 0;
+                if ($lid === $only) {
+                    $lesson_data_list = array( $lesson_data );
+                }
+            }
+            if (is_array($lesson_data_list)) {
+                foreach ($lesson_data_list as $pl ) {
+                    if (!is_array($pl) || empty($pl['lesson'])) {
+                        continue;
+                    }
+                    $plid = isset($pl['lesson']['id']) ? absint($pl['lesson']['id']) : 0;
+                    if ($plid === $lesson_id) {
+                        $lesson_data = $pl;
+                        break;
+                    }
+                }
+            }
+        }
+
         return array(
             'product_title'           => sanitize_text_field(isset($data['product_title']) ? (string) $data['product_title'] : ''),
             'description'             => isset($data['description']) ? sanitize_textarea_field((string) $data['description']) : '',
@@ -329,6 +551,8 @@ class FC_Helper_Admin_Page {
             'theme'                   => $theme,
             'lesson_id'               => $lesson_id,
             'lesson_data'             => $lesson_data,
+            'lesson_ids'              => $lesson_ids_rows,
+            'lesson_data_list'        => $lesson_data_list,
             'html_output'             => isset($data['html_output'])
                 ? (
                     current_user_can('unfiltered_html')
@@ -337,6 +561,101 @@ class FC_Helper_Admin_Page {
                 )
                 : '',
         );
+    }
+
+    /**
+     * Enriched lesson rows for admin JS (not persisted).
+     *
+     * @param list<array{id:int, primary:bool}> $rows
+     * @return list<array<string, mixed>>
+     */
+    private function batch_fetch_lesson_display_meta(array $rows) {
+        global $wpdb;
+        $ids = array();
+        foreach ($rows as $r ) {
+            if (!empty($r['id'])) {
+                $ids[] = (int) $r['id'];
+            }
+        }
+        $ids = array_values(array_unique(array_filter(array_map('absint', $ids))));
+        if (array() === $ids) {
+            return array();
+        }
+        $lessons_t = $wpdb->prefix . 'alm_lessons';
+        $coll_t    = $wpdb->prefix . 'alm_collections';
+        if (!$this->alm_table_exists($lessons_t)) {
+            return array();
+        }
+        $in_list = implode(',', $ids);
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if ($this->alm_table_exists($coll_t)) {
+            $db_rows = $wpdb->get_results(
+                "SELECT l.ID, l.lesson_title, l.collection_id, COALESCE(c.collection_title, '') AS collection_title, l.post_id
+                FROM {$lessons_t} l
+                LEFT JOIN {$coll_t} c ON c.ID = l.collection_id
+                WHERE l.ID IN ({$in_list})",
+                ARRAY_A
+            );
+        } else {
+            $db_rows = $wpdb->get_results(
+                "SELECT ID, lesson_title, collection_id, '' AS collection_title, post_id FROM {$lessons_t} WHERE ID IN ({$in_list})",
+                ARRAY_A
+            );
+        }
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if (!is_array($db_rows)) {
+            $db_rows = array();
+        }
+        $map = array();
+        foreach ($db_rows as $dbrow ) {
+            if (!is_array($dbrow) || empty($dbrow['ID'])) {
+                continue;
+            }
+            $map[ (int) $dbrow['ID'] ] = $dbrow;
+        }
+        $chapters_by = $this->batch_fetch_chapters_for_lesson_ids($ids);
+        $out         = array();
+        foreach ($rows as $r ) {
+            $id = (int) $r['id'];
+            if (!isset($map[ $id ])) {
+                continue;
+            }
+            $dbrow    = $map[ $id ];
+            $post_id  = isset($dbrow['post_id']) ? (int) $dbrow['post_id'] : 0;
+            $view_raw = ($post_id > 0) ? get_permalink($post_id) : '';
+            $out[]    = array(
+                'id'               => $id,
+                'title'            => isset($dbrow['lesson_title']) ? sanitize_text_field((string) $dbrow['lesson_title']) : '',
+                'collection_id'    => isset($dbrow['collection_id']) ? (int) $dbrow['collection_id'] : 0,
+                'collection_title' => isset($dbrow['collection_title']) ? sanitize_text_field((string) $dbrow['collection_title']) : '',
+                'edit_url'         => admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . $id),
+                'view_url'         => $view_raw ? esc_url_raw((string) $view_raw) : '',
+                'primary'          => !empty($r['primary']),
+                'chapters'         => isset($chapters_by[ $id ]) ? $chapters_by[ $id ] : array(),
+            );
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function attach_lesson_display_meta(array $data) {
+        $rows = isset($data['lesson_ids']) && is_array($data['lesson_ids']) ? $data['lesson_ids'] : array();
+        if (array() === $rows && !empty($data['lesson_id'])) {
+            $rows = array(
+                array(
+                    'id'      => (int) $data['lesson_id'],
+                    'primary' => true,
+                ),
+            );
+        }
+        if (array() === $rows) {
+            return $data;
+        }
+        $data['lesson_ids_display'] = $this->batch_fetch_lesson_display_meta($rows);
+        return $data;
     }
 
     /**
@@ -396,6 +715,131 @@ class FC_Helper_Admin_Page {
             return sprintf('%d:%02d:%02d', $h, $m, $s);
         }
         return sprintf('%d:%02d', $m, $s);
+    }
+
+    /**
+     * Chapter rows for one lesson (ALM wp_*alm_chapters). Optionally loads transcripts.
+     *
+     * @param int         $lesson_id
+     * @param string      $chapters_t
+     * @param string|null $transcripts_t Pass null to skip transcript queries.
+     * @return list<array<string, mixed>>
+     */
+    private function build_chapters_payload_for_lesson_id($lesson_id, $chapters_t, $transcripts_t = null) {
+        global $wpdb;
+        $lesson_id = (int) $lesson_id;
+        if ($lesson_id <= 0 || !$this->alm_table_exists($chapters_t)) {
+            return array();
+        }
+        $load_transcripts = null !== $transcripts_t && $this->alm_table_exists($transcripts_t );
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $chapter_rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT ID, chapter_title, menu_order, duration FROM {$chapters_t} WHERE lesson_id = %d ORDER BY menu_order ASC, ID ASC",
+                $lesson_id
+            ),
+            ARRAY_A
+        );
+        if (!is_array($chapter_rows)) {
+            $chapter_rows = array();
+        }
+        $chapters_out = array();
+        $cumulative     = 0;
+        foreach ($chapter_rows as $crow ) {
+            $chid     = isset($crow['ID']) ? (int) $crow['ID'] : 0;
+            $duration = isset($crow['duration']) ? max(0, (int) $crow['duration']) : 0;
+            $trans    = null;
+            if ($load_transcripts) {
+                $raw_content = $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT content FROM {$transcripts_t} WHERE lesson_id = %d AND chapter_id = %d ORDER BY ID DESC LIMIT 1",
+                        $lesson_id,
+                        $chid
+                    )
+                );
+                if (is_string($raw_content) && $raw_content !== '') {
+                    $trans = wp_strip_all_tags($raw_content);
+                    if ($trans === '') {
+                        $trans = null;
+                    }
+                }
+            }
+            $start_ts = $this->format_seconds_hhmmss($cumulative);
+            $chapters_out[] = array(
+                'id'               => $chid,
+                'title'            => isset($crow['chapter_title']) ? sanitize_text_field((string) $crow['chapter_title']) : '',
+                'menu_order'       => isset($crow['menu_order']) ? (int) $crow['menu_order'] : 0,
+                'duration_seconds' => $duration,
+                'start_time'       => $start_ts,
+                'timestamp'        => $start_ts,
+                'duration'         => $this->format_duration_human($duration),
+                'transcript'       => $trans,
+            );
+            $cumulative += $duration;
+        }
+        return $chapters_out;
+    }
+
+    /**
+     * Batch-load chapter rows for many lessons (single query). No transcripts (use ajax_get_lesson for full data).
+     *
+     * @param list<int> $lesson_ids
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function batch_fetch_chapters_for_lesson_ids(array $lesson_ids) {
+        global $wpdb;
+        $lesson_ids = array_values(array_unique(array_filter(array_map('absint', $lesson_ids))));
+        if (array() === $lesson_ids) {
+            return array();
+        }
+        $chapters_t = $wpdb->prefix . 'alm_chapters';
+        if (!$this->alm_table_exists($chapters_t)) {
+            return array();
+        }
+        $in_list = implode(',', $lesson_ids);
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $rows = $wpdb->get_results(
+            "SELECT ID, lesson_id, chapter_title, menu_order, duration FROM {$chapters_t} WHERE lesson_id IN ({$in_list}) ORDER BY lesson_id ASC, menu_order ASC, ID ASC",
+            ARRAY_A
+        );
+        if (!is_array($rows)) {
+            $rows = array();
+        }
+        $grouped = array();
+        foreach ($rows as $crow ) {
+            $lid = isset($crow['lesson_id']) ? (int) $crow['lesson_id'] : 0;
+            if ($lid <= 0) {
+                continue;
+            }
+            if (!isset($grouped[ $lid ])) {
+                $grouped[ $lid ] = array();
+            }
+            $grouped[ $lid ][] = $crow;
+        }
+        $out = array();
+        foreach ($lesson_ids as $lid ) {
+            $lid = (int) $lid;
+            $chapter_rows = isset($grouped[ $lid ]) ? $grouped[ $lid ] : array();
+            $chapters_out = array();
+            $cumulative   = 0;
+            foreach ($chapter_rows as $crow ) {
+                $chid     = isset($crow['ID']) ? (int) $crow['ID'] : 0;
+                $duration = isset($crow['duration']) ? max(0, (int) $crow['duration']) : 0;
+                $start_ts = $this->format_seconds_hhmmss($cumulative);
+                $chapters_out[] = array(
+                    'id'               => $chid,
+                    'title'            => isset($crow['chapter_title']) ? sanitize_text_field((string) $crow['chapter_title']) : '',
+                    'menu_order'       => isset($crow['menu_order']) ? (int) $crow['menu_order'] : 0,
+                    'duration_seconds' => $duration,
+                    'start_time'       => $start_ts,
+                    'timestamp'        => $start_ts,
+                    'duration'         => $this->format_duration_human($duration),
+                );
+                $cumulative += $duration;
+            }
+            $out[ $lid ] = $chapters_out;
+        }
+        return $out;
     }
 
     public function ajax_search_lessons() {
@@ -470,7 +914,7 @@ class FC_Helper_Admin_Page {
         if ($this->alm_table_exists($coll_table)) {
             $lesson_row = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT l.ID, l.lesson_title, l.lesson_description, l.sample_video_url, l.sample_chapter_id, l.collection_id, COALESCE(c.collection_title, '') AS collection_title
+                    "SELECT l.ID, l.lesson_title, l.lesson_description, l.sample_video_url, l.sample_chapter_id, l.collection_id, l.post_id, COALESCE(c.collection_title, '') AS collection_title
                     FROM {$lessons_t} l
                     LEFT JOIN {$coll_table} c ON c.ID = l.collection_id
                     WHERE l.ID = %d",
@@ -481,7 +925,7 @@ class FC_Helper_Admin_Page {
         } else {
             $lesson_row = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT ID, lesson_title, lesson_description, sample_video_url, sample_chapter_id, collection_id, '' AS collection_title FROM {$lessons_t} WHERE ID = %d",
+                    "SELECT ID, lesson_title, lesson_description, sample_video_url, sample_chapter_id, collection_id, post_id, '' AS collection_title FROM {$lessons_t} WHERE ID = %d",
                     $lesson_id
                 ),
                 ARRAY_A
@@ -492,49 +936,12 @@ class FC_Helper_Admin_Page {
             wp_send_json_error(array('message' => __('Lesson not found.', 'fc-helper')));
         }
         $resolved_video_url = $this->resolve_alm_lesson_sample_video_url($lesson_row, $chapters_t);
-        $chapter_rows = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT ID, chapter_title, menu_order, duration FROM {$chapters_t} WHERE lesson_id = %d ORDER BY menu_order ASC, ID ASC",
-                $lesson_id
-            ),
-            ARRAY_A
-        );
-        if (!is_array($chapter_rows)) {
-            $chapter_rows = array();
-        }
-        $chapters_out = array();
-        $cumulative   = 0;
-        foreach ($chapter_rows as $crow ) {
-            $chid     = isset($crow['ID']) ? (int) $crow['ID'] : 0;
-            $duration = isset($crow['duration']) ? max(0, (int) $crow['duration']) : 0;
-            $trans    = null;
-            if ($this->alm_table_exists($transcripts_t)) {
-                $raw_content = $wpdb->get_var(
-                    $wpdb->prepare(
-                        "SELECT content FROM {$transcripts_t} WHERE lesson_id = %d AND chapter_id = %d ORDER BY ID DESC LIMIT 1",
-                        $lesson_id,
-                        $chid
-                    )
-                );
-                if (is_string($raw_content) && $raw_content !== '') {
-                    $trans = wp_strip_all_tags($raw_content);
-                    if ($trans === '') {
-                        $trans = null;
-                    }
-                }
-            }
-            $chapters_out[] = array(
-                'id'               => $chid,
-                'title'            => isset($crow['chapter_title']) ? sanitize_text_field((string) $crow['chapter_title']) : '',
-                'menu_order'       => isset($crow['menu_order']) ? (int) $crow['menu_order'] : 0,
-                'duration_seconds' => $duration,
-                'start_time'       => $this->format_seconds_hhmmss($cumulative),
-                'transcript'       => $trans,
-            );
-            $cumulative    += $duration;
-        }
+        $transcripts_use    = $this->alm_table_exists($transcripts_t) ? $transcripts_t : null;
+        $chapters_out       = $this->build_chapters_payload_for_lesson_id($lesson_id, $chapters_t, $transcripts_use);
         $coll_id   = isset($lesson_row['collection_id']) ? (int) $lesson_row['collection_id'] : 0;
         $coll_name = isset($lesson_row['collection_title']) ? sanitize_text_field((string) $lesson_row['collection_title']) : '';
+        $post_id   = isset($lesson_row['post_id']) ? (int) $lesson_row['post_id'] : 0;
+        $view_raw  = ($post_id > 0) ? get_permalink($post_id) : '';
         wp_send_json_success(
             array(
                 'lesson'   => array(
@@ -544,6 +951,9 @@ class FC_Helper_Admin_Page {
                     'resolved_video_url' => $resolved_video_url,
                     'collection_id'      => $coll_id,
                     'collection_title'   => $coll_name,
+                    'post_id'            => $post_id,
+                    'edit_url'           => admin_url('admin.php?page=academy-manager-lessons&action=edit&id=' . (int) $lesson_row['ID']),
+                    'view_url'           => $view_raw ? esc_url_raw((string) $view_raw) : '',
                 ),
                 'chapters' => $chapters_out,
             )
@@ -592,6 +1002,57 @@ class FC_Helper_Admin_Page {
             return esc_url_raw('https://www.youtube.com/watch?v=' . rawurlencode($youtube));
         }
         return '';
+    }
+
+    /**
+     * @return list<array{id:int, primary:bool}>|null
+     */
+    private function parse_lesson_ids_from_post() {
+        $raw = wp_unslash($_POST['lesson_ids'] ?? '');
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+        $out = array();
+        foreach ($decoded as $item ) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $id = isset($item['id']) ? absint($item['id']) : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $out[] = array(
+                'id'      => $id,
+                'primary' => !empty($item['primary']),
+            );
+        }
+        return $out === array() ? null : $out;
+    }
+
+    /**
+     * @return list<array{lesson: array<string, mixed>, chapters: array<int, array<string, mixed>>>|null
+     */
+    private function parse_lesson_data_list_from_request() {
+        $raw_json = wp_unslash($_POST['lesson_data_list'] ?? '');
+        if (!is_string($raw_json) || trim($raw_json) === '') {
+            return null;
+        }
+        $decoded = json_decode($raw_json, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+        $out = array();
+        foreach ($decoded as $item ) {
+            if (!is_array($item) || empty($item['lesson']) || !is_array($item['lesson']) || !isset($item['chapters']) || !is_array($item['chapters'])) {
+                continue;
+            }
+            $out[] = $this->sanitize_lesson_payload($item);
+        }
+        return $out === array() ? null : $out;
     }
 
     /**
@@ -660,6 +1121,9 @@ class FC_Helper_Admin_Page {
         $product_id = sanitize_text_field(wp_unslash($_POST['product_id'] ?? ''));
         $name       = sanitize_text_field(wp_unslash($_POST['product_name'] ?? ''));
         $data       = $this->sanitize_form_payload();
+        if (trim((string) ($data['product_title'] ?? '')) === '') {
+            wp_send_json_error(array('message' => __('Please enter a product name.', 'fc-helper')));
+        }
         if (current_user_can('unfiltered_html')) {
             $data['html_output'] = wp_unslash($_POST['html_output'] ?? '');
         } else {
@@ -847,6 +1311,10 @@ class FC_Helper_Admin_Page {
                         <div class="fc-helper-form__sections">
                             <section class="fc-helper-section fc-helper-section--lesson-data">
                                 <h2 class="fc-helper-section__title"><?php echo fc_helper_icon('magnifying-glass'); ?> <span><?php echo esc_html__('Lesson Data', 'fc-helper'); ?></span></h2>
+                                <div class="fc-helper-field fc-helper-field--product-name">
+                                    <label for="fc_product_title"><?php echo esc_html__('Product Name', 'fc-helper'); ?></label>
+                                    <input name="product_title" id="fc_product_title" type="text" class="fc-helper-input--product-name" placeholder="<?php echo esc_attr__( 'e.g. "Blues Fundamentals Bundle" or leave blank to use lesson title', 'fc-helper' ); ?>" autocomplete="off" />
+                                </div>
                                 <div class="fc-helper-field fc-helper-field--lesson-search">
                                     <label for="fc-lesson-search"><?php echo esc_html__('Search Lesson', 'fc-helper'); ?></label>
                                     <div class="fc-helper-lesson-search-wrap" id="fc-lesson-search-wrap">
@@ -855,25 +1323,23 @@ class FC_Helper_Admin_Page {
                                     </div>
                                 </div>
                                 <div id="fc-lesson-selected" class="fc-helper-lesson-selected" hidden>
-                                    <div class="fc-helper-lesson-selected__head">
-                                        <div class="fc-helper-lesson-selected__title-block">
-                                            <strong id="fc-lesson-selected-title" class="fc-helper-lesson-selected__title"></strong>
-                                            <span id="fc-lesson-selected-collection" class="fc-helper-lesson-selected__collection-wrap" hidden></span>
-                                        </div>
-                                        <button type="button" class="fc-helper-btn fc-helper-btn--secondary fc-helper-btn--sm" id="fc-lesson-clear"><?php echo esc_html__('Clear', 'fc-helper'); ?></button>
+                                    <p id="fc-lesson-selected-empty" class="fc-lesson-selected-empty"> <?php echo esc_html__('No lessons selected yet — search below to add one.', 'fc-helper'); ?></p>
+                                    <ul id="fc-selected-lessons" class="fc-selected-lessons" aria-label="<?php echo esc_attr__('Selected lessons', 'fc-helper'); ?>"></ul>
+                                    <div class="fc-lesson-selected__footer">
+                                        <button type="button" class="fc-helper-btn fc-helper-btn--outline fc-helper-btn--sm" id="fc-add-lesson-btn"><?php echo esc_html__( '+ Add another lesson', 'fc-helper'); ?></button>
+                                        <span id="fc-lesson-count" class="fc-lesson-selected__count" aria-live="polite"></span>
+                                        <span id="fc-lesson-max-msg" class="fc-lesson-selected__max-msg" hidden><?php echo esc_html__('Maximum 10 lessons.', 'fc-helper'); ?></span>
                                     </div>
                                     <div id="fc-lesson-selected-chapters" class="fc-helper-lesson-selected__chapters" aria-live="polite"></div>
                                 </div>
                                 <input type="hidden" name="lesson_id" id="fc-lesson-id" value="" />
+                                <input type="hidden" name="lesson_ids" id="fc-lesson-ids-json" value="" />
                                 <textarea id="fc-lesson-data" name="lesson_data" class="fc-helper-lesson-data-hidden" hidden></textarea>
+                                <textarea id="fc-lesson-data-list" name="lesson_data_list" class="fc-helper-lesson-data-hidden" hidden></textarea>
                             </section>
 
                             <section class="fc-helper-section">
                                 <h2 class="fc-helper-section__title"><?php echo fc_helper_icon('tag'); ?> <span><?php echo esc_html__('Product', 'fc-helper'); ?></span></h2>
-                                <div class="fc-helper-field">
-                                    <label for="fc_product_title"><?php echo esc_html__('Product Title', 'fc-helper'); ?></label>
-                                    <input name="product_title" id="fc_product_title" type="text" />
-                                </div>
                                 <div class="fc-helper-field">
                                     <label for="fc_description"><?php echo esc_html__('Description', 'fc-helper'); ?></label>
                                     <textarea name="description" id="fc_description" rows="4"></textarea>
@@ -1129,6 +1595,58 @@ class FC_Helper_Admin_Page {
      * @return array<string, mixed>
      */
     private function sanitize_form_payload() {
+        $lesson_data       = $this->parse_lesson_data_from_request();
+        $lesson_data_list  = $this->parse_lesson_data_list_from_request();
+        $lesson_ids_rows   = $this->parse_lesson_ids_from_post();
+        $lesson_id_post    = isset($_POST['lesson_id']) ? absint(wp_unslash($_POST['lesson_id'])) : 0;
+
+        if ((null === $lesson_ids_rows || array() === $lesson_ids_rows) && $lesson_id_post > 0) {
+            $lesson_ids_rows = array(
+                array(
+                    'id'      => $lesson_id_post,
+                    'primary' => true,
+                ),
+            );
+        }
+        if ((null === $lesson_ids_rows || array() === $lesson_ids_rows) && null !== $lesson_data && isset($lesson_data['lesson']['id'])) {
+            $lid = absint($lesson_data['lesson']['id']);
+            if ($lid > 0) {
+                $lesson_ids_rows = array(
+                    array(
+                        'id'      => $lid,
+                        'primary' => true,
+                    ),
+                );
+            }
+        }
+
+        $lesson_ids_rows = null === $lesson_ids_rows ? array() : $this->normalize_lesson_ids_rows($lesson_ids_rows);
+
+        if (array() === $lesson_ids_rows) {
+            $lesson_id = 0;
+        } else {
+            $lesson_id = $this->primary_lesson_id_from_rows($lesson_ids_rows);
+        }
+
+        if (array() !== $lesson_ids_rows && is_array($lesson_data_list) && count($lesson_data_list) > 0) {
+            $lesson_data_list = $this->realign_lesson_data_list($lesson_ids_rows, $lesson_data_list);
+        } elseif (array() !== $lesson_ids_rows && 1 === count($lesson_ids_rows) && null !== $lesson_data) {
+            $lesson_data_list = array( $lesson_data );
+        }
+
+        if (array() !== $lesson_ids_rows && is_array($lesson_data_list)) {
+            foreach ($lesson_data_list as $pl ) {
+                if (!is_array($pl) || empty($pl['lesson'])) {
+                    continue;
+                }
+                $plid = isset($pl['lesson']['id']) ? absint($pl['lesson']['id']) : 0;
+                if ($plid === $lesson_id) {
+                    $lesson_data = $pl;
+                    break;
+                }
+            }
+        }
+
         return array(
             'product_title'           => sanitize_text_field(wp_unslash($_POST['product_title'] ?? '')),
             'description'             => sanitize_textarea_field(wp_unslash($_POST['description'] ?? '')),
@@ -1136,8 +1654,10 @@ class FC_Helper_Admin_Page {
             'sample_video_splash_url' => esc_url_raw(wp_unslash($_POST['sample_video_splash_url'] ?? '')),
             'additional_notes'        => sanitize_textarea_field(wp_unslash($_POST['additional_notes'] ?? '')),
             'theme'                   => $this->sanitize_theme(wp_unslash($_POST['theme'] ?? 'dark_gold')),
-            'lesson_id'               => isset($_POST['lesson_id']) ? absint(wp_unslash($_POST['lesson_id'])) : 0,
-            'lesson_data'             => $this->parse_lesson_data_from_request(),
+            'lesson_id'               => $lesson_id,
+            'lesson_data'             => $lesson_data,
+            'lesson_ids'              => $lesson_ids_rows,
+            'lesson_data_list'        => $lesson_data_list,
         );
     }
 
@@ -1161,6 +1681,9 @@ class FC_Helper_Admin_Page {
     public function ajax_generate() {
         $this->verify_ajax();
         $payload = $this->sanitize_form_payload();
+        if (trim((string) ($payload['product_title'] ?? '')) === '') {
+            wp_send_json_error(array('message' => __('Please enter a product name.', 'fc-helper')));
+        }
 
         $result = FC_Helper_AI_Generator::generate($payload);
         if (is_wp_error($result)) {

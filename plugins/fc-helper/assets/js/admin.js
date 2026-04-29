@@ -11,6 +11,11 @@
 	let loadedSavedProductId = '';
 	let successNoticeHideTimer = null;
 
+	/** @type {Array<{id:number,title:string,primary:boolean,collection_id:number,collection_title:string,edit_url:string,view_url:string,payload:object|null}>} */
+	let selectedLessons = [];
+	const MAX_LESSONS = 10;
+	let userEditedProductName = false;
+
 	let themeList = Array.isArray(cfg.themes) ? cfg.themes.slice() : [];
 	const builtinThemeSlugs = Array.isArray(cfg.builtinThemeSlugs) ? cfg.builtinThemeSlugs : [];
 	const THEME_COLOR_KEYS = [
@@ -45,6 +50,93 @@
 			return new FormData();
 		}
 		return new FormData(form);
+	}
+
+	function bundleOrderedLessons() {
+		const primary = [];
+		const rest = [];
+		for (let i = 0; i < selectedLessons.length; i++) {
+			if (selectedLessons[i].primary) {
+				primary.push(selectedLessons[i]);
+			} else {
+				rest.push(selectedLessons[i]);
+			}
+		}
+		return primary.concat(rest);
+	}
+
+	function maybeAutofillProductName() {
+		const el = $('#fc_product_title');
+		if (!el || userEditedProductName) {
+			return;
+		}
+		const ordered = bundleOrderedLessons();
+		if (ordered.length === 0) {
+			return;
+		}
+		if (ordered.length === 1 && ordered[0].title) {
+			el.value = ordered[0].title;
+			return;
+		}
+		const prim = ordered[0];
+		if (prim && prim.title) {
+			el.value = String(prim.title).trim() + ' Bundle';
+		}
+	}
+
+	function syncLessonHiddenFields() {
+		const idInp = $('#fc-lesson-id');
+		const dataTa = $('#fc-lesson-data');
+		const idsJson = $('#fc-lesson-ids-json');
+		const dataListTa = $('#fc-lesson-data-list');
+		const ordered = bundleOrderedLessons();
+		let primary = null;
+		for (let i = 0; i < ordered.length; i++) {
+			if (ordered[i].primary) {
+				primary = ordered[i];
+				break;
+			}
+		}
+		if (!primary && ordered.length) {
+			primary = ordered[0];
+		}
+		if (!primary || !primary.payload) {
+			if (idInp) idInp.value = '';
+			if (dataTa) dataTa.value = '';
+			if (idsJson) idsJson.value = '';
+			if (dataListTa) dataListTa.value = '';
+			return;
+		}
+		const ids = ordered.map(function (e) {
+			return { id: e.id, primary: !!e.primary };
+		});
+		const payloads = ordered
+			.map(function (e) {
+				return e.payload;
+			})
+			.filter(Boolean);
+		if (idInp) idInp.value = String(primary.id);
+		if (dataTa) {
+			try {
+				dataTa.value = JSON.stringify(primary.payload);
+			} catch (err) {
+				dataTa.value = '';
+			}
+		}
+		if (idsJson) {
+			try {
+				idsJson.value = JSON.stringify(ids);
+			} catch (err2) {
+				idsJson.value = '';
+			}
+		}
+		if (dataListTa) {
+			try {
+				dataListTa.value = JSON.stringify(payloads);
+			} catch (err3) {
+				dataListTa.value = '';
+			}
+		}
 	}
 
 	function getThemeInput() {
@@ -513,6 +605,15 @@
 	async function onGenerate() {
 		setLoading(true);
 		try {
+			syncLessonHiddenFields();
+			const productNameEl = $('#fc_product_title');
+			if (!productNameEl || !String(productNameEl.value || '').trim()) {
+				showNotice(
+					i18n.productNameRequired || 'Please enter a product name.',
+					true
+				);
+				return;
+			}
 			const fd = getFormData();
 			const data = await ajax('fc_helper_generate', fd);
 			handleGenerateResponse(data);
@@ -765,6 +866,7 @@
 		if (delBtn) delBtn.disabled = true;
 		loadedSavedProductId = '';
 		setSavedProductLoadedUi(false);
+		userEditedProductName = false;
 
 		const search = $('#fc-lesson-search');
 		if (search) search.value = '';
@@ -810,7 +912,287 @@
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
-	function applySavedProductData(data) {
+	async function fetchLessonPayload(lessonId) {
+		const fd = new FormData();
+		fd.set('lesson_id', String(lessonId));
+		const raw = await ajax('fc_helper_get_lesson', fd);
+		const d = raw && raw.data ? raw.data : {};
+		if (raw && raw.success && d.lesson && d.chapters) {
+			return { lesson: d.lesson, chapters: d.chapters };
+		}
+		return null;
+	}
+
+	function renderPrimaryChapters() {
+		let primary = null;
+		for (let i = 0; i < selectedLessons.length; i++) {
+			if (selectedLessons[i].primary) {
+				primary = selectedLessons[i];
+				break;
+			}
+		}
+		if (!primary && selectedLessons.length) {
+			primary = selectedLessons[0];
+		}
+		const chEl = $('#fc-lesson-selected-chapters');
+		if (!chEl) return;
+		if (!primary || !primary.payload) {
+			chEl.innerHTML = '';
+			return;
+		}
+		const pl = primary.payload;
+		const chapters = pl.chapters || [];
+		const totalSeconds = chapters.reduce(function (sum, ch) {
+			return sum + (parseInt(ch.duration_seconds, 10) || 0);
+		}, 0);
+		const totalFormatted = formatChapterDurationHuman(totalSeconds);
+		const rows = chapters.map(function (ch) {
+			const st = ch.start_time || '00:00:00';
+			const tit = ch.title || '';
+			const dur = formatChapterDurationHuman(ch.duration_seconds);
+			const line =
+				'[' + st + '] ' + tit + ' (duration: ' + dur + ')';
+			return (
+				'<div class="fc-helper-chapter-row">' +
+				escapeHtml(line) +
+				'</div>'
+			);
+		});
+		const totalHtml =
+			'<div class="fc-helper-chapter-total">Total Course Time: <strong>' +
+			escapeHtml(totalFormatted) +
+			'</strong></div>';
+		chEl.innerHTML = rows.join('') + totalHtml;
+	}
+
+	function renderSelectedLessons() {
+		const panel = $('#fc-lesson-selected');
+		const emptyEl = $('#fc-lesson-selected-empty');
+		const ul = $('#fc-selected-lessons');
+		const addBtn = $('#fc-add-lesson-btn');
+		const countEl = $('#fc-lesson-count');
+		const maxMsg = $('#fc-lesson-max-msg');
+		const n = selectedLessons.length;
+		if (panel) {
+			panel.removeAttribute('hidden');
+		}
+		if (emptyEl) {
+			emptyEl.hidden = n > 0;
+		}
+		if (countEl) {
+			countEl.textContent =
+				n +
+				' / ' +
+				MAX_LESSONS +
+				' ' +
+				(i18n.lessonsSelected || 'selected');
+		}
+		if (addBtn) {
+			addBtn.hidden = n >= MAX_LESSONS;
+		}
+		if (maxMsg) {
+			maxMsg.hidden = n < MAX_LESSONS;
+		}
+		if (!ul) return;
+		ul.innerHTML = '';
+		const baseEdit = 'admin.php?page=academy-manager-lessons&action=edit&id=';
+		bundleOrderedLessons().forEach(function (entry) {
+			const li = document.createElement('li');
+			li.className =
+				'fc-selected-lessons__item' + (entry.primary ? ' is-primary' : '');
+			li.setAttribute('data-lesson-id', String(entry.id));
+			const editUrl =
+				entry.edit_url || baseEdit + encodeURIComponent(String(entry.id));
+			const viewUrl = entry.view_url || '';
+			const titleEsc = escapeHtml(entry.title || '');
+			const coll =
+				entry.collection_title && String(entry.collection_title).trim()
+					? escapeHtml(String(entry.collection_title).trim())
+					: '';
+			const collLine = coll
+				? '<span class="fc-selected-lessons__collection">' +
+				  coll +
+				  '</span>'
+				: '';
+			const starBtn =
+				'<button type="button" class="fc-selected-lessons__star' +
+				(entry.primary ? ' is-primary' : '') +
+				'" data-action="primary" data-lesson-id="' +
+				entry.id +
+				'" aria-label="' +
+				escapeHtml(
+					entry.primary
+						? i18n.primaryLesson || 'Primary lesson'
+						: i18n.makePrimary || 'Make primary'
+				) +
+				'">' +
+				(entry.primary
+					? '<span class="fc-selected-lessons__star-icon" aria-hidden="true">★</span>'
+					: '<span class="fc-selected-lessons__star-icon fc-selected-lessons__star-icon--outline" aria-hidden="true">☆</span>') +
+				'</button>';
+			const primaryLabel = entry.primary
+				? '<span class="fc-selected-lessons__badge">' +
+				  escapeHtml(i18n.primaryLabel || 'Primary') +
+				  '</span>'
+				: '';
+			const viewBtn = viewUrl
+				? '<a href="' +
+				  escapeHtml(viewUrl) +
+				  '" target="_blank" rel="noopener" class="fc-helper-btn fc-helper-btn--secondary fc-helper-btn--sm">' +
+				  escapeHtml(i18n.viewLesson || 'View') +
+				  '</a>'
+				: '';
+			const editBtn =
+				'<a href="' +
+				escapeHtml(editUrl) +
+				'" target="_blank" rel="noopener" class="fc-helper-btn fc-helper-btn--secondary fc-helper-btn--sm">' +
+				escapeHtml(i18n.editLesson || 'Edit') +
+				'</a>';
+			const makePrimaryBtn = !entry.primary
+				? '<button type="button" class="fc-helper-btn fc-helper-btn--outline fc-helper-btn--sm" data-action="make-primary" data-lesson-id="' +
+				  entry.id +
+				  '">' +
+				  escapeHtml(i18n.makePrimaryBtn || 'Make Primary') +
+				  '</button>'
+				: '';
+			const removeBtn =
+				'<button type="button" class="fc-selected-lessons__remove fc-helper-btn fc-helper-btn--secondary fc-helper-btn--sm" data-action="remove" data-lesson-id="' +
+				entry.id +
+				'" aria-label="' +
+				escapeHtml(i18n.removeLesson || 'Remove lesson') +
+				'">×</button>';
+			li.innerHTML =
+				'<div class="fc-selected-lessons__row">' +
+				starBtn +
+				'<div class="fc-selected-lessons__main">' +
+				'<div class="fc-selected-lessons__title-line">' +
+				primaryLabel +
+				'<strong class="fc-selected-lessons__title">' +
+				titleEsc +
+				'</strong>' +
+				'</div>' +
+				collLine +
+				'</div>' +
+				'<div class="fc-selected-lessons__actions">' +
+				viewBtn +
+				editBtn +
+				makePrimaryBtn +
+				removeBtn +
+				'</div>' +
+				'</div>';
+			ul.appendChild(li);
+		});
+		if (!ul._fcBound) {
+			ul._fcBound = true;
+			ul.addEventListener('click', function (e) {
+				const btn = e.target && e.target.closest ? e.target.closest('[data-action]') : null;
+				if (!btn) return;
+				const action = btn.getAttribute('data-action');
+				const lid = btn.getAttribute('data-lesson-id');
+				const idNum = lid ? parseInt(lid, 10) : 0;
+				if (!idNum) return;
+				if (action === 'remove') {
+					removeLessonFromSelection(idNum);
+				} else if (action === 'primary' || action === 'make-primary') {
+					makeLessonPrimary(idNum);
+				}
+			});
+		}
+		renderPrimaryChapters();
+		syncLessonHiddenFields();
+		let primId = '';
+		for (let j = 0; j < selectedLessons.length; j++) {
+			if (selectedLessons[j].primary) {
+				primId = String(selectedLessons[j].id);
+				break;
+			}
+		}
+		updateEditProductLink(primId);
+		maybeAutofillProductName();
+	}
+
+	function makeLessonPrimary(lessonId) {
+		let entry = null;
+		selectedLessons.forEach(function (e) {
+			e.primary = e.id === lessonId;
+			if (e.id === lessonId) {
+				entry = e;
+			}
+		});
+		if (entry && entry.payload && entry.payload.lesson) {
+			populateProductFieldsFromAlmLesson(entry.payload.lesson);
+		}
+		renderSelectedLessons();
+	}
+
+	function removeLessonFromSelection(lessonId) {
+		const idx = selectedLessons.findIndex(function (e) {
+			return e.id === lessonId;
+		});
+		if (idx < 0) return;
+		const wasPrimary = selectedLessons[idx].primary;
+		selectedLessons.splice(idx, 1);
+		if (wasPrimary && selectedLessons.length) {
+			selectedLessons[0].primary = true;
+			if (selectedLessons[0].payload && selectedLessons[0].payload.lesson) {
+				populateProductFieldsFromAlmLesson(selectedLessons[0].payload.lesson);
+			}
+		}
+		renderSelectedLessons();
+	}
+
+	async function addLessonFromSearch(lessonId) {
+		const nid = parseInt(lessonId, 10);
+		if (!nid) return;
+		if (selectedLessons.some(function (e) {
+			return e.id === nid;
+		})) {
+			return;
+		}
+		if (selectedLessons.length >= MAX_LESSONS) {
+			showNotice(i18n.maxLessons || 'Maximum 10 lessons.', true);
+			return;
+		}
+		const wasEmpty = selectedLessons.length === 0;
+		const fd = new FormData();
+		fd.set('lesson_id', String(nid));
+		try {
+			const raw = await ajax('fc_helper_get_lesson', fd);
+			const d = raw && raw.data ? raw.data : {};
+			if (!(raw && raw.success && d.lesson && d.chapters)) {
+				const msg =
+					d && d.message ? d.message : i18n.error || 'Error';
+				showNotice(msg, true);
+				return;
+			}
+			const lesson = d.lesson;
+			const payload = { lesson: lesson, chapters: d.chapters };
+			const entry = {
+				id: nid,
+				title: lesson.title || '',
+				primary: wasEmpty,
+				collection_id: lesson.collection_id || 0,
+				collection_title: lesson.collection_title || '',
+				edit_url: lesson.edit_url || '',
+				view_url: lesson.view_url || '',
+				payload: payload,
+			};
+			if (!entry.edit_url) {
+				entry.edit_url =
+					'admin.php?page=academy-manager-lessons&action=edit&id=' + nid;
+			}
+			selectedLessons.push(entry);
+			if (wasEmpty) {
+				populateProductFieldsFromAlmLesson(lesson);
+			}
+			hideLessonResults();
+			renderSelectedLessons();
+		} catch (err) {
+			showNotice(i18n.error, true);
+		}
+	}
+
+	async function applySavedProductData(data) {
 		const d = data || {};
 		const title = $('#fc_product_title');
 		const desc = $('#fc_description');
@@ -818,6 +1200,7 @@
 		const splash = $('#fc_sample_video_splash_url');
 		const notes = $('#fc_additional_notes');
 		if (title) title.value = d.product_title || '';
+		userEditedProductName = String(d.product_title || '').trim() !== '';
 		if (desc) desc.value = d.description || '';
 		if (vid) vid.value = d.sample_video_url || '';
 		if (splash) splash.value = d.sample_video_splash_url || '';
@@ -825,26 +1208,108 @@
 		syncSplashUi();
 		applyThemeSlug(d.theme);
 
+		let rows = Array.isArray(d.lesson_ids_display)
+			? d.lesson_ids_display.slice()
+			: [];
+		if (!rows.length && Array.isArray(d.lesson_ids)) {
+			rows = d.lesson_ids.map(function (r) {
+				return {
+					id: r.id,
+					title: '',
+					collection_id: 0,
+					collection_title: '',
+					edit_url:
+						'admin.php?page=academy-manager-lessons&action=edit&id=' +
+						encodeURIComponent(String(r.id)),
+					view_url: '',
+					primary: !!r.primary,
+				};
+			});
+		}
+		let lessonDataList = null;
+		if (d.lesson_data_list) {
+			if (typeof d.lesson_data_list === 'string' && d.lesson_data_list.trim()) {
+				try {
+					lessonDataList = JSON.parse(d.lesson_data_list);
+				} catch (err) {
+					lessonDataList = null;
+				}
+			} else if (Array.isArray(d.lesson_data_list)) {
+				lessonDataList = d.lesson_data_list;
+			}
+		}
 		let lessonPayload = null;
 		if (d.lesson_data) {
 			if (typeof d.lesson_data === 'string' && d.lesson_data.trim()) {
 				try {
 					lessonPayload = JSON.parse(d.lesson_data);
-				} catch (err) {
+				} catch (err2) {
 					lessonPayload = null;
 				}
 			} else if (typeof d.lesson_data === 'object') {
 				lessonPayload = d.lesson_data;
 			}
 		}
-		if (lessonPayload && lessonPayload.lesson) {
-			applyLessonPayload(lessonPayload);
-		} else {
-			clearLessonSelection();
+		if (rows.length) {
+			selectedLessons = [];
+			for (let i = 0; i < rows.length; i++) {
+				const row = rows[i];
+				const lid = row.id;
+				let payload = null;
+				if (Array.isArray(lessonDataList)) {
+					for (let j = 0; j < lessonDataList.length; j++) {
+						if (
+							lessonDataList[j].lesson &&
+							lessonDataList[j].lesson.id === lid
+						) {
+							payload = lessonDataList[j];
+							break;
+						}
+					}
+				}
+				if (!payload && lessonPayload && lessonPayload.lesson && lessonPayload.lesson.id === lid) {
+					payload = lessonPayload;
+				}
+				if (!payload) {
+					payload = await fetchLessonPayload(lid);
+				}
+				selectedLessons.push({
+					id: lid,
+					title:
+						row.title ||
+						(payload && payload.lesson && payload.lesson.title) ||
+						'',
+					primary: !!row.primary,
+					collection_id: row.collection_id || 0,
+					collection_title: row.collection_title || '',
+					edit_url: row.edit_url || '',
+					view_url: row.view_url || '',
+					payload: payload,
+				});
+			}
+			renderSelectedLessons();
+			return;
 		}
+		if (lessonPayload && lessonPayload.lesson) {
+			selectedLessons = [];
+			const lid = lessonPayload.lesson.id;
+			selectedLessons.push({
+				id: lid,
+				title: lessonPayload.lesson.title || '',
+				primary: true,
+				collection_id: lessonPayload.lesson.collection_id || 0,
+				collection_title: lessonPayload.lesson.collection_title || '',
+				edit_url: '',
+				view_url: '',
+				payload: lessonPayload,
+			});
+			renderSelectedLessons();
+			return;
+		}
+		clearLessonSelection();
 	}
 
-	function onSavedSelectChange() {
+	async function onSavedSelectChange() {
 		const sel = $('#fc-helper-saved-select');
 		const delBtn = $('#fc-helper-saved-delete');
 		if (!sel) return;
@@ -863,7 +1328,7 @@
 			}
 		}
 		if (!product) return;
-		applySavedProductData(product.data);
+		await applySavedProductData(product.data);
 		loadedSavedProductId = product.id;
 		setSavedProductLoadedUi(true);
 
@@ -902,6 +1367,15 @@
 		if (!loadedSavedProductId) return;
 		if (btn) btn.disabled = true;
 		try {
+			syncLessonHiddenFields();
+			const titleEl = $('#fc_product_title');
+			if (!titleEl || !String(titleEl.value || '').trim()) {
+				showNotice(
+					i18n.productNameRequired || 'Please enter a product name.',
+					true
+				);
+				return;
+			}
 			const fd = getFormData();
 			const outputTa = $('#fc_helper_output');
 			fd.set('html_output', outputTa ? (outputTa.value || '') : '');
@@ -926,11 +1400,19 @@
 		const saveBtn = $('#fc-helper-save-product');
 		if (saveBtn) saveBtn.disabled = true;
 		try {
+			syncLessonHiddenFields();
 			const fd = getFormData();
 			const outputTa = $('#fc_helper_output');
 			fd.set('html_output', outputTa ? (outputTa.value || '') : '');
 
 			const titleEl = $('#fc_product_title');
+			if (!titleEl || !String(titleEl.value || '').trim()) {
+				showNotice(
+					i18n.productNameRequired || 'Please enter a product name.',
+					true
+				);
+				return;
+			}
 			const defName = titleEl && titleEl.value ? titleEl.value : '';
 			const name = window.prompt(
 				i18n.saveProductPrompt || 'Name this saved product:',
@@ -1027,44 +1509,10 @@
 		}, 1500);
 	}
 
-	function setLessonCollectionBadge(lesson) {
-		const wrap = $('#fc-lesson-selected-collection');
-		if (!wrap) return;
-		const cid =
-			lesson && lesson.collection_id != null
-				? parseInt(lesson.collection_id, 10) || 0
-				: 0;
-		const ctitle =
-			lesson && lesson.collection_title
-				? String(lesson.collection_title).trim()
-				: '';
-		if (cid > 0 && ctitle) {
-			const a = document.createElement('a');
-			a.href =
-				'admin.php?page=academy-manager&action=edit&id=' +
-				encodeURIComponent(String(cid));
-			a.target = '_blank';
-			a.rel = 'noopener';
-			a.className = 'fc-helper-lesson-selected__collection-badge';
-			a.textContent = ctitle;
-			wrap.innerHTML = '';
-			wrap.appendChild(a);
-			wrap.hidden = false;
-		} else {
-			wrap.innerHTML = '';
-			wrap.hidden = true;
-		}
-	}
-
 	function populateProductFieldsFromAlmLesson(lesson) {
 		if (!lesson) return;
-		const titleInp = $('#fc_product_title');
 		const descTa = $('#fc_description');
 		const vidInp = $('#fc_sample_video_url');
-		if (titleInp) {
-			titleInp.value = lesson.title != null ? String(lesson.title) : '';
-			flashAutofilledField(titleInp);
-		}
 		if (descTa) {
 			descTa.value = lesson.description != null ? String(lesson.description) : '';
 			flashAutofilledField(descTa);
@@ -1080,92 +1528,14 @@
 		}
 	}
 
-	function applyLessonPayload(payload) {
-		if (!payload || !payload.lesson) return;
-		const pl = payload;
-		const idInp = $('#fc-lesson-id');
-		const dataTa = $('#fc-lesson-data');
-		const wrap = $('#fc-lesson-search-wrap');
-		const selected = $('#fc-lesson-selected');
+	function clearLessonSelection() {
+		selectedLessons = [];
 		const search = $('#fc-lesson-search');
-		if (idInp) idInp.value = String(pl.lesson.id || '');
-		if (dataTa) {
-			try {
-				dataTa.value = JSON.stringify(pl);
-			} catch (e) {
-				dataTa.value = '';
-			}
-		}
 		if (search) search.value = '';
 		hideLessonResults();
-		if (wrap) wrap.hidden = true;
-		if (selected) selected.hidden = false;
-		const titleEl = $('#fc-lesson-selected-title');
-		const chEl = $('#fc-lesson-selected-chapters');
-		if (titleEl) titleEl.textContent = pl.lesson.title || '';
-		setLessonCollectionBadge(pl.lesson);
-		if (chEl) {
-			const chapters = pl.chapters || [];
-			const totalSeconds = chapters.reduce(function (sum, ch) {
-				return sum + (parseInt(ch.duration_seconds, 10) || 0);
-			}, 0);
-			const totalFormatted = formatChapterDurationHuman(totalSeconds);
-			const rows = chapters.map(function (ch) {
-				const st = ch.start_time || '00:00:00';
-				const tit = ch.title || '';
-				const dur = formatChapterDurationHuman(ch.duration_seconds);
-				const line =
-					'[' + st + '] ' + tit + ' (duration: ' + dur + ')';
-				return (
-					'<div class="fc-helper-chapter-row">' +
-					escapeHtml(line) +
-					'</div>'
-				);
-			});
-			const totalHtml =
-				'<div class="fc-helper-chapter-total">Total Course Time: <strong>' +
-				escapeHtml(totalFormatted) +
-				'</strong></div>';
-			chEl.innerHTML = rows.join('') + totalHtml;
-		}
-		updateEditProductLink(idInp && idInp.value ? idInp.value : '');
-	}
-
-	function clearLessonSelection() {
-		const idInp = $('#fc-lesson-id');
-		const dataTa = $('#fc-lesson-data');
-		const wrap = $('#fc-lesson-search-wrap');
-		const selected = $('#fc-lesson-selected');
-		if (idInp) idInp.value = '';
-		if (dataTa) dataTa.value = '';
-		if (wrap) wrap.hidden = false;
-		if (selected) selected.hidden = true;
-		const collWrap = $('#fc-lesson-selected-collection');
-		if (collWrap) {
-			collWrap.innerHTML = '';
-			collWrap.hidden = true;
-		}
-		hideLessonResults();
+		renderSelectedLessons();
+		syncLessonHiddenFields();
 		updateEditProductLink('');
-	}
-
-	async function loadLessonDetail(lessonId) {
-		const fd = new FormData();
-		fd.set('lesson_id', String(lessonId));
-		try {
-			const raw = await ajax('fc_helper_get_lesson', fd);
-			const d = raw && raw.data ? raw.data : {};
-			if (raw && raw.success && d.lesson && d.chapters) {
-				applyLessonPayload({ lesson: d.lesson, chapters: d.chapters });
-				populateProductFieldsFromAlmLesson(d.lesson);
-			} else {
-				const msg =
-					d && d.message ? d.message : i18n.error || 'Error';
-				showNotice(msg, true);
-			}
-		} catch (e) {
-			showNotice(i18n.error, true);
-		}
 	}
 
 	async function runLessonSearch(query) {
@@ -1191,6 +1561,12 @@
 				const li = document.createElement('li');
 				li.setAttribute('role', 'option');
 				li.setAttribute('data-lesson-id', String(row.id));
+				const already = selectedLessons.some(function (e) {
+					return e.id === row.id;
+				});
+				if (already) {
+					li.classList.add('fc-helper-lesson-results__item--added');
+				}
 				const titleSpan = document.createElement('span');
 				titleSpan.className = 'fc-helper-lesson-results__title';
 				titleSpan.textContent = row.title || '';
@@ -1203,6 +1579,12 @@
 					: 'Collection: —';
 				li.appendChild(titleSpan);
 				li.appendChild(collSpan);
+				if (already) {
+					const tag = document.createElement('span');
+					tag.className = 'fc-helper-lesson-results__added-tag';
+					tag.textContent = i18n.alreadyAdded || 'Already added';
+					li.appendChild(tag);
+				}
 				results.appendChild(li);
 			});
 			results.hidden = list.length === 0;
@@ -1215,7 +1597,7 @@
 		const search = $('#fc-lesson-search');
 		const results = $('#fc-lesson-results');
 		const field = $('.fc-helper-field--lesson-search');
-		const clearBtn = $('#fc-lesson-clear');
+		const addBtn = $('#fc-add-lesson-btn');
 		let lessonSearchTimer = null;
 		if (!search) return;
 		function scheduleSearch() {
@@ -1232,8 +1614,11 @@
 			results.addEventListener('click', function (e) {
 				const li = e.target && e.target.closest ? e.target.closest('li[data-lesson-id]') : null;
 				if (!results.hidden && li) {
+					if (li.classList.contains('fc-helper-lesson-results__item--added')) {
+						return;
+					}
 					const id = li.getAttribute('data-lesson-id');
-					if (id) loadLessonDetail(id);
+					if (id) addLessonFromSearch(id);
 				}
 			});
 		}
@@ -1251,10 +1636,11 @@
 			},
 			true
 		);
-		if (clearBtn) {
-			clearBtn.addEventListener('click', function (e) {
-				e.preventDefault();
-				clearLessonSelection();
+		if (addBtn) {
+			addBtn.addEventListener('click', function () {
+				if (search) {
+					search.focus();
+				}
 			});
 		}
 	}
@@ -1677,6 +2063,14 @@
 		bindSplashMediaPicker();
 		bindLessonSearch();
 		rebuildSavedProductsSelect();
+		clearLessonSelection();
+
+		const productNameInp = $('#fc_product_title');
+		if (productNameInp) {
+			productNameInp.addEventListener('input', function () {
+				userEditedProductName = true;
+			});
+		}
 
 		const savedSel = $('#fc-helper-saved-select');
 		if (savedSel) savedSel.addEventListener('change', onSavedSelectChange);

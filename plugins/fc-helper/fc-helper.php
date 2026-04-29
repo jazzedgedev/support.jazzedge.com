@@ -2,7 +2,7 @@
 /**
  * Plugin Name: FC Helper
  * Description: Generate styled HTML product descriptions for FluentCart using AI (Katahdin AI Hub).
- * Version: 1.0.0
+ * Version: 1.0.2
  * Author: Jazzedge
  * License: GPL v2 or later
  * Text Domain: fc-helper
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('FC_HELPER_VERSION', '1.0.0');
+define('FC_HELPER_VERSION', '1.0.2');
 define('FC_HELPER_PLUGIN_FILE', __FILE__);
 define('FC_HELPER_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('FC_HELPER_PLUGIN_URL', plugin_dir_url(__FILE__));

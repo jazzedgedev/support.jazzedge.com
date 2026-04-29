@@ -19,14 +19,14 @@ $has_coupon = $coupon_code !== '';
 $je_sb_group_flex = 'display:flex!important;flex-direction:row!important;align-items:center!important;';
 ?>
 <div class="je-sale-banner__inner<?php echo $has_coupon ? '' : ' je-sale-banner__inner--no-coupon'; ?>" style="<?php echo esc_attr('display:flex!important;flex-direction:row!important;align-items:center!important;padding:0 12px!important;width:100%!important;'); ?>">
-    <div class="je-sale-banner__bar" style="<?php echo esc_attr('display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:10px!important;width:100%!important;min-height:52px;padding:6px 0!important;'); ?>">
-        <div class="je-sale-banner__group je-sale-banner__group--lead" style="<?php echo esc_attr($je_sb_group_flex); ?>">
+    <div class="je-sale-banner__bar" style="<?php echo esc_attr('display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:center!important;gap:14px 20px!important;width:100%!important;min-height:52px;padding:10px 16px!important;'); ?>">
+        <div class="je-sale-banner__group je-sale-banner__group--lead" style="<?php echo esc_attr($je_sb_group_flex . 'min-width:0!important;overflow:hidden!important;'); ?>">
             <span class="je-sale-banner__badge"><?php esc_html_e('SALE', 'je-sales-banner'); ?></span>
-            <span class="je-sale-banner__headline" style="<?php echo esc_attr('overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex:1 1 auto;min-width:0;'); ?>">
-                <span class="je-sale-banner__title"><?php echo esc_html((string) $row->title); ?></span>
+            <span class="je-sale-banner__headline" style="<?php echo esc_attr('display:inline-flex!important;flex-direction:row!important;align-items:baseline!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;flex:1 1 auto!important;min-width:0!important;max-width:100%!important;'); ?>">
+                <span class="je-sale-banner__title" style="<?php echo esc_attr('white-space:nowrap!important;flex-shrink:0!important;'); ?>"><?php echo esc_html((string) $row->title); ?></span>
                 <?php if (!empty($row->description)) : ?>
-                    <span class="je-sale-banner__dot" aria-hidden="true">·</span>
-                    <span class="je-sale-banner__desc"><?php echo esc_html((string) $row->description); ?></span>
+                    <span class="je-sale-banner__dot" aria-hidden="true" style="<?php echo esc_attr('white-space:nowrap!important;flex-shrink:0!important;'); ?>">·</span>
+                    <span class="je-sale-banner__desc" style="<?php echo esc_attr('white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;flex-shrink:1!important;min-width:0!important;'); ?>"><?php echo esc_html((string) $row->description); ?></span>
                 <?php endif; ?>
             </span>
         </div>

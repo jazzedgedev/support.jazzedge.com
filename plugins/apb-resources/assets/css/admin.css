@@ -1,0 +1,5 @@
+.apb-list-table a svg { vertical-align: middle; color: #2271b1; }
+.apb-list-table a svg:hover { color: #d63638; }
+.apb-icon-delete svg { color: #d63638; }
+.column-actions { width: 80px; }
+.column-sort_order, .column-count { width: 60px; }

@@ -20,6 +20,7 @@
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
+    justify-content: center !important;
     max-height: none !important;
 }
 
@@ -31,9 +32,10 @@
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     align-items: center !important;
-    gap: 0 10px;
+    justify-content: center !important;
+    gap: 14px 20px !important;
     min-height: 52px;
-    padding: 6px 0;
+    padding: 10px 16px !important;
 }
 
 .je-sale-banner__group {
@@ -46,9 +48,10 @@
 .je-sale-banner__group--lead {
     display: flex !important;
     flex-direction: row !important;
-    flex: 1 1 auto !important;
-    gap: 10px;
+    flex: 0 1 auto !important;
+    gap: 12px;
     min-width: 0;
+    max-width: min(560px, 58vw);
 }
 
 .je-sale-banner__group--coupon {
@@ -61,8 +64,9 @@
     display: flex !important;
     flex-direction: row !important;
     flex: 0 0 auto !important;
-    gap: 10px;
-    margin-left: auto;
+    align-items: center !important;
+    gap: 12px;
+    margin-left: 0 !important;
     flex-shrink: 0;
 }
 
@@ -94,6 +98,7 @@
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+    align-items: center !important;
 }
 
 .je-sale-banner__title {
@@ -118,6 +123,8 @@
 }
 
 .je-sale-banner__amount {
+    display: inline-flex;
+    align-items: center;
     font-size: 16px;
     font-weight: 700;
     white-space: nowrap;
@@ -315,85 +322,460 @@
     color: #fff;
 }
 
-/* Mobile: max 2 rows — row1: SALE + title · desc + amount; row2: coupon + timer + CTA */
+/* Dismissible modal — editorial layout, countdown, template colors */
+.je-sb-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 99990;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(1rem, 4vw, 2rem);
+    box-sizing: border-box;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.je-sb-popup[hidden] {
+    display: none !important;
+}
+
+.je-sb-popup__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 26, 34, 0.55);
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.je-sb-popup__dialog {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 26rem;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow:
+        0 4px 6px rgba(0, 0, 0, 0.07),
+        0 24px 48px rgba(0, 0, 0, 0.18),
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+    transform: translateZ(0);
+}
+
+.je-sb-popup__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 1rem 1rem 0.75rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.je-sb-popup__head-offer {
+    flex: 1 1 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 0;
+}
+
+.je-sb-popup__head .je-sb-popup__amount {
+    margin: 0;
+    padding: 7px 15px;
+    border-radius: 999px;
+    background: #fff;
+    color: #d63f1a;
+    font-size: 0.9375rem;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.je-sale-banner--tpl-4 .je-sb-popup__head {
+    border-bottom-color: rgba(0, 42, 52, 0.12);
+}
+
+.je-sb-popup__badge {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 6px 11px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.je-sb-popup__close {
+    flex-shrink: 0;
+    position: relative;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: inherit;
+    transition: background 0.15s ease, transform 0.12s ease;
+}
+
+.je-sb-popup__close:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.je-sb-popup__close:active {
+    transform: scale(0.96);
+}
+
+.je-sb-popup__close:focus {
+    outline: none;
+}
+
+.je-sb-popup__close:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+.je-sb-popup__close-lines {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.je-sb-popup__close-lines::before,
+.je-sb-popup__close-lines::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+}
+
+.je-sb-popup__close-lines::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.je-sb-popup__close-lines::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.je-sb-popup__body {
+    padding: 1.25rem 1.35rem 1.5rem;
+    text-align: center;
+}
+
+.je-sb-popup__title {
+    margin: 0 0 0.5rem;
+    font-size: clamp(1.35rem, 4vw, 1.55rem);
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.je-sb-popup__desc {
+    margin: 0 0 1rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    opacity: 0.92;
+    font-weight: 450;
+}
+
+.je-sb-popup__timer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0 0 1.1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    text-align: center;
+}
+
+.je-sale-banner--tpl-4 .je-sb-popup__timer {
+    background: rgba(255, 255, 255, 0.35);
+    border-color: rgba(0, 42, 52, 0.12);
+}
+
+.je-sb-popup__timer-caption {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.je-sb-popup__timer-digits {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+}
+
+.je-sb-popup__coupon-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 0 0 1rem;
+    width: 100%;
+}
+
+.je-sb-popup__coupon.je-sale-banner__coupon {
+    padding: 8px 14px;
+    font-size: 13px;
+    max-width: 100%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px dashed rgba(255, 255, 255, 0.6);
+    color: inherit;
+    box-shadow: none;
+}
+
+.je-sb-popup__coupon .je-sale-banner__coupon-label {
+    opacity: 0.95;
+}
+
+.je-sb-popup__coupon .je-sale-banner__coupon-code {
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.je-sale-banner--tpl-4.je-sb-popup__dialog .je-sb-popup__coupon.je-sale-banner__coupon {
+    background: rgba(255, 255, 255, 0.55);
+    border-color: rgba(0, 42, 52, 0.4);
+    color: #002a34;
+}
+
+.je-sale-banner--tpl-4.je-sb-popup__dialog .je-sb-popup__coupon .je-sale-banner__coupon-code {
+    color: #002a34;
+    text-shadow: none;
+}
+
+.je-sb-popup__cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    line-height: 1.25;
+    transition: filter 0.15s ease, transform 0.1s ease;
+    box-sizing: border-box;
+    white-space: normal;
+    text-align: center;
+    text-wrap: balance;
+}
+
+.je-sb-popup__cta:hover {
+    filter: brightness(1.06);
+}
+
+.je-sb-popup__cta:active {
+    transform: scale(0.99);
+}
+
+.je-sb-popup__cta:focus {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}
+
+body.je-sb-popup-active {
+    overflow: hidden;
+}
+
+/* Template skins on dialog */
+.je-sale-banner--tpl-1.je-sb-popup__dialog {
+    background: linear-gradient(165deg, #005a6e 0%, #004555 45%, #003847 100%);
+    color: #fff;
+}
+
+.je-sale-banner--tpl-1 .je-sb-popup__badge {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-1 .je-sb-popup__cta {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-2.je-sb-popup__dialog {
+    background: linear-gradient(165deg, #2ba896 0%, #239b90 50%, #1d8278 100%);
+    color: #fff;
+}
+
+.je-sale-banner--tpl-2 .je-sb-popup__badge {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-2 .je-sb-popup__cta {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-3.je-sb-popup__dialog {
+    background: linear-gradient(165deg, #ff5a32 0%, #f04e23 45%, #d63f1a 100%);
+    color: #fff;
+}
+
+.je-sale-banner--tpl-3 .je-sb-popup__badge {
+    background: #004555;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-3 .je-sb-popup__cta {
+    background: #004555;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-4.je-sb-popup__dialog {
+    background: linear-gradient(165deg, #5cb5a5 0%, #459e90 50%, #3a8a7d 100%);
+    color: #002a34;
+}
+
+.je-sale-banner--tpl-4 .je-sb-popup__badge {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-4 .je-sb-popup__cta {
+    background: #f04e23;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-4 .je-sb-popup__close {
+    background: rgba(0, 42, 52, 0.1);
+}
+
+.je-sale-banner--tpl-4 .je-sb-popup__close:hover {
+    background: rgba(0, 42, 52, 0.18);
+}
+
+.je-sale-banner--tpl-4.je-sb-popup__dialog .je-sb-popup__head .je-sb-popup__amount {
+    color: #c73d1a;
+}
+
+.je-sale-banner--tpl-5.je-sb-popup__dialog {
+    background: linear-gradient(165deg, #003d4d 0%, #002a34 50%, #001f26 100%);
+    color: #fff;
+}
+
+.je-sale-banner--tpl-5 .je-sb-popup__badge {
+    background: #459e90;
+    color: #002a34;
+}
+
+.je-sale-banner--tpl-5 .je-sb-popup__cta {
+    background: #459e90;
+    color: #002a34;
+}
+
+.je-sale-banner--tpl-6.je-sb-popup__dialog {
+    background: linear-gradient(165deg, #7d3570 0%, #6b2b60 45%, #4f2048 100%);
+    color: #fff;
+}
+
+.je-sale-banner--tpl-6 .je-sb-popup__badge {
+    background: #239b90;
+    color: #fff;
+}
+
+.je-sale-banner--tpl-6 .je-sb-popup__cta {
+    background: #239b90;
+    color: #fff;
+}
+
 @media (max-width: 767px) {
     .je-sale-banner__inner {
-        max-height: none;
-        padding: 8px 10px;
+        padding: 8px 12px !important;
     }
 
     .je-sale-banner__bar {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        column-gap: 10px;
-        row-gap: 8px;
-        max-height: none;
-        min-height: 0;
-        padding: 0;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        padding: 6px 0 !important;
+        text-align: center;
     }
 
-    .je-sale-banner__group--lead {
-        grid-column: 1 / -1;
-        grid-row: 1;
-        flex-wrap: nowrap;
-        gap: 8px;
-        padding-bottom: 8px;
-        margin-bottom: 2px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .je-sale-banner--tpl-4 .je-sale-banner__group--lead {
-        border-bottom-color: rgba(0, 42, 52, 0.15);
-    }
-
-    .je-sale-banner__headline {
-        flex: 1 1 auto !important;
-        min-width: 0 !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
+    /* Hide description and dividers on mobile — too cramped */
+    .je-sale-banner__desc,
+    .je-sale-banner__dot,
     .je-sale-banner__divider {
         display: none !important;
     }
 
+    /* Row 1: SALE badge + Title + Amount */
+    .je-sale-banner__group--lead {
+        width: 100% !important;
+        max-width: none !important;
+        justify-content: center !important;
+        gap: 8px !important;
+    }
+
+    .je-sale-banner__amount--mobile {
+        display: inline-block !important;
+    }
+
+    .je-sale-banner__amount--desktop {
+        display: none !important;
+    }
+
+    /* Row 2: Coupon pill — inline compact, NOT a big box */
     .je-sale-banner__group--coupon {
-        grid-column: 1;
-        grid-row: 2;
-        justify-self: start;
-        min-width: 0;
-        max-width: 100%;
-    }
-
-    .je-sale-banner__group--tail {
-        grid-column: 2;
-        grid-row: 2;
-        justify-self: end;
-        margin-left: 0;
-        flex-wrap: nowrap;
-        gap: 8px;
-    }
-
-    .je-sale-banner__inner--no-coupon .je-sale-banner__group--tail {
-        grid-column: 1 / -1;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        padding-top: 6px;
-    }
-
-    .je-sale-banner__inner:not(.je-sale-banner__inner--no-coupon) .je-sale-banner__group--tail {
-        padding-top: 6px;
+        justify-content: center !important;
     }
 
     .je-sale-banner__coupon {
-        max-width: 100%;
+        font-size: 12px !important;
+        padding: 4px 10px !important;
+        border-radius: 999px !important;
+        width: auto !important;
+        display: inline-flex !important;
+    }
+
+    /* Row 3: Timer + CTA side by side */
+    .je-sale-banner__group--tail {
+        width: 100% !important;
+        justify-content: center !important;
+        gap: 10px !important;
+        margin-left: 0 !important;
+    }
+
+    /* Timer must stay on one line */
+    .je-sale-banner__timer {
+        white-space: nowrap !important;
+        font-size: 12px !important;
     }
 
     .je-sale-banner__cta {
-        min-height: 40px;
-        padding-left: 16px;
-        padding-right: 16px;
+        padding: 5px 14px !important;
+        font-size: 12px !important;
+    }
+
+    .je-sb-popup__dialog {
+        border-radius: 16px;
+        max-width: 100%;
+    }
+
+    .je-sb-popup__timer-digits {
+        font-size: 0.95rem;
     }
 }
